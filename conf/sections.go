@@ -1,18 +1,15 @@
 // Package conf implements functions to read configuration data
 package conf
 
-// ServerSection servers information
-type ServerSection struct {
-	URL  string `json:"url"`
-	Name string `json:"name"`
-}
+import "encoding/json"
 
 // RedisSection Redis instance information
 type RedisSection struct {
-	Host string `json:"host"`
-	Port int    `json:"port"`
-	Db   int    `json:"db"`
-	Pass string `json:"password"`
+	Host   string `json:"host"`
+	Port   int    `json:"port"`
+	Db     int    `json:"db"`
+	Pass   string `json:"password"`
+	Prefix string `json:"prefix"`
 }
 
 // LogSection log instance configuration
@@ -25,8 +22,38 @@ type LogSection struct {
 
 // ConfigData main configuration container
 type ConfigData struct {
-	APIKey     string          `json:"api-key"`
-	APIServers []ServerSection `json:"api-servers"`
-	Redis      RedisSection    `json:"redis"`
-	Logger     LogSection      `json:"log"`
+	APIKey           string       `json:"api-key"`
+	Redis            RedisSection `json:"redis"`
+	Logger           LogSection   `json:"log"`
+	SplitsFetchRate  int          `json:"splits-fetch-rate"`
+	SegmentFetchRate int          `json:"segment-fetch-rate"`
+}
+
+//MarshalBinary exports ConfigData to JSON string
+func (c ConfigData) MarshalBinary() (data []byte, err error) {
+	return json.MarshalIndent(c, "", "  ")
+}
+
+func getDefaultConfigData() ConfigData {
+	configData := ConfigData{}
+
+	//agent parameters
+	configData.APIKey = "YOUR API KEY"
+	configData.SplitsFetchRate = 30
+	configData.SegmentFetchRate = 60
+
+	//logger parameters
+	configData.Logger.VerboseOn = false
+	configData.Logger.DebugOn = false
+	configData.Logger.StdoutOn = true
+	configData.Logger.File = "/tmp/split-agent.log"
+
+	//redis parameters
+	configData.Redis.Db = 0
+	configData.Redis.Host = "localhost"
+	configData.Redis.Pass = ""
+	configData.Redis.Port = 6379
+	configData.Redis.Prefix = ""
+
+	return configData
 }

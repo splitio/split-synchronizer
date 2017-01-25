@@ -18,7 +18,7 @@ func NewHTTPSplitFetcher(since int64) HTTPSplitFetcher {
 }
 
 // Fetch splits from Split servers
-func (h HTTPSplitFetcher) Fetch() ([]api.SplitDTO, error) {
+func (h HTTPSplitFetcher) Fetch() (*api.SplitChangesDTO, error) {
 	splitChangesDTO, err := api.SplitChangesFetch(*h.since)
 	if errors.IsError(err) {
 		log.Error.Println("Error fetching splits via HTTP ", err)
@@ -28,8 +28,8 @@ func (h HTTPSplitFetcher) Fetch() ([]api.SplitDTO, error) {
 	// Update since value for next request
 	if splitChangesDTO.Till > *h.since {
 		*h.since = splitChangesDTO.Till
-		log.Info.Println("Saving next 'since' value at: ", *h.since)
+		log.Debug.Println("Saving next 'since' value at: ", *h.since)
 	}
 
-	return splitChangesDTO.Splits, nil
+	return splitChangesDTO, nil
 }

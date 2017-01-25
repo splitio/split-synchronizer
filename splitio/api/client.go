@@ -6,11 +6,44 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
 
 	"github.com/splitio/go-agent/conf"
 	"github.com/splitio/go-agent/errors"
 	"github.com/splitio/go-agent/log"
 )
+
+const sdkName = "sdk"
+const eventsName = "events"
+const sdkURL = "https://sdk.split.io/api"
+const eventsURL = "https://events.split.io/api"
+
+const envSdkURLNamespace = "SPLITIO_SDK_URL"
+const envEventsURLNamespace = "SPLITIO_EVENTS_URL"
+
+var sdkClient *Client
+var eventsClient *Client
+
+// Initialize API client
+func Initialize() {
+	envSdkURL := os.Getenv(envSdkURLNamespace)
+	if envSdkURL != "" {
+		sdkClient = NewClient(envSdkURL)
+		log.Debug.Println("SDK API Client created with endpoint ", envSdkURL)
+	} else {
+		sdkClient = NewClient(sdkURL)
+		log.Debug.Println("SDK API Client created with endpoint ", sdkURL)
+	}
+
+	envEventsURL := os.Getenv(envEventsURLNamespace)
+	if envEventsURL != "" {
+		eventsClient = NewClient(envEventsURL)
+		log.Debug.Println("EVENTS API Client created with endpoint ", envEventsURL)
+	} else {
+		eventsClient = NewClient(eventsURL)
+		log.Debug.Println("EVENTS API Client created with endpoint ", eventsURL)
+	}
+}
 
 // Client structure to wrap up the net/http.Client
 type Client struct {
