@@ -1,9 +1,12 @@
 package log
 
 import (
+	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
 )
 
 var (
@@ -18,6 +21,35 @@ var (
 	// Error level
 	Error *log.Logger
 )
+
+// SlackWriter writes messages to Slack user or channel. Implements io.Writer interface
+type SlackWriter struct {
+	WebHookURL string
+	Channel    string
+}
+
+// Write the message to slack webhook
+func (w *SlackWriter) Write(p []byte) (n int, err error) {
+	urlStr := w.WebHookURL
+	fmt.Println("URL:>", urlStr)
+
+	var jsonStr = fmt.Sprintf(`{"channel": "%s", "username": "splitio-go-agent", "text": "%s", "icon_emoji": ":robot_face:"}`, w.Channel, p)
+	req, _ := http.NewRequest("POST", urlStr, bytes.NewBuffer([]byte(jsonStr)))
+	//req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 200 && resp.StatusCode < 400 {
+		// If message has been written successfully (http 200 OK)
+		return len(p), nil
+	}
+	return 0, fmt.Errorf("Error posting log message to Slack %s", resp.Status)
+}
 
 // Initialize log module
 func Initialize(logHandle io.Writer, debug bool, verbose bool) {

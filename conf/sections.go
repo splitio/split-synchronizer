@@ -14,10 +14,12 @@ type RedisSection struct {
 
 // LogSection log instance configuration
 type LogSection struct {
-	VerboseOn bool   `json:"verbose"`
-	DebugOn   bool   `json:"debug"`
-	StdoutOn  bool   `json:"stdout"`
-	File      string `json:"file"`
+	VerboseOn       bool   `json:"verbose"`
+	DebugOn         bool   `json:"debug"`
+	StdoutOn        bool   `json:"stdout"`
+	File            string `json:"file"`
+	SlackChannel    string `json:"slackChannel"`
+	SlackWebhookURL string `json:"slackWebhookURL"`
 }
 
 // ConfigData main configuration container

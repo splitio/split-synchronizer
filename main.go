@@ -78,7 +78,8 @@ func loadConfiguration() {
 func getLogWriter(wstdout bool, wfile *os.File) io.Writer {
 	if conf.Data.Logger.StdoutOn {
 		if wfile != nil {
-			return io.MultiWriter(wfile, os.Stdout)
+			slack := &log.SlackWriter{WebHookURL: conf.Data.Logger.SlackWebhookURL, Channel: conf.Data.Logger.SlackChannel}
+			return io.MultiWriter(wfile, os.Stdout, slack)
 		}
 		return io.MultiWriter(os.Stdout)
 	}
@@ -90,6 +91,7 @@ func getLogWriter(wstdout bool, wfile *os.File) io.Writer {
 	return ioutil.Discard
 }
 
+// TODO add SlackWriter as log handler for Errors
 func loadLogger() {
 	var multi io.Writer
 
