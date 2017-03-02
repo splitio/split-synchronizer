@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 )
@@ -52,35 +51,29 @@ func (w *SlackWriter) Write(p []byte) (n int, err error) {
 }
 
 // Initialize log module
-func Initialize(logHandle io.Writer, debug bool, verbose bool) {
+func Initialize(verboseWriter io.Writer,
+	debugWriter io.Writer,
+	infoWriter io.Writer,
+	warningWriter io.Writer,
+	errorWriter io.Writer) {
 
-	verboseHandle := ioutil.Discard
-	if verbose {
-		verboseHandle = logHandle
-	}
-
-	debugHandle := ioutil.Discard
-	if debug {
-		debugHandle = logHandle
-	}
-
-	Verbose = log.New(verboseHandle,
+	Verbose = log.New(verboseWriter,
 		"SPLITIO-AGENT | VERBOSE: ",
 		log.Ldate|log.Ltime|log.Lshortfile)
 
-	Debug = log.New(debugHandle,
+	Debug = log.New(debugWriter,
 		"SPLITIO-AGENT | DEBUG: ",
 		log.Ldate|log.Ltime|log.Lshortfile)
 
-	Info = log.New(logHandle,
+	Info = log.New(infoWriter,
 		"SPLITIO-AGENT | INFO: ",
 		log.Ldate|log.Ltime|log.Lshortfile)
 
-	Warning = log.New(logHandle,
+	Warning = log.New(warningWriter,
 		"SPLITIO-AGENT | WARNING: ",
 		log.Ldate|log.Ltime|log.Lshortfile)
 
-	Error = log.New(logHandle,
+	Error = log.New(errorWriter,
 		"SPLITIO-AGENT | ERROR: ",
 		log.Ldate|log.Ltime|log.Lshortfile)
 }

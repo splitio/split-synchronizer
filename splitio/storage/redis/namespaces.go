@@ -9,6 +9,8 @@ import (
 const _splitNamespace = "SPLITIO.split.%s"
 const _splitsTillNamespace = "SPLITIO.splits.till"
 const _segmentsRegisteredNamespace = "SPLITIO.segments.registered"
+const _segmentTillNamespace = "SPLITIO.segment.%s.till"
+const _segmentNamespace = "SPLITIO.segment.%s"
 
 type prefixAdapter struct {
 	prefix string
@@ -31,4 +33,12 @@ func (p prefixAdapter) splitsTillNamespace() string {
 
 func (p prefixAdapter) segmentsRegisteredNamespace() string {
 	return fmt.Sprint(p.setPrefixPattern(_segmentsRegisteredNamespace))
+}
+
+func (p prefixAdapter) segmentTillNamespace(name string) string {
+	return fmt.Sprintf(p.setPrefixPattern(_segmentTillNamespace), name)
+}
+
+func (p prefixAdapter) segmentNamespace(name string) string {
+	return fmt.Sprintf(p.setPrefixPattern(_segmentNamespace), name)
 }

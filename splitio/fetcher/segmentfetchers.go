@@ -18,32 +18,24 @@ func (f SegmentFetcherFactory) NewInstance() SegmentFetcher {
 
 // NewHTTPSegmentFetcher returns an instance of HTTPSegmentFetcher
 func NewHTTPSegmentFetcher() HTTPSegmentFetcher {
-	return HTTPSegmentFetcher{since: -1}
+	return HTTPSegmentFetcher{}
 }
 
 // HTTPSegmentFetcher implements SegmentFetcher interface
-type HTTPSegmentFetcher struct {
-	since int64
-}
+type HTTPSegmentFetcher struct{}
 
 // NewInstance returns a new instance
 func (h HTTPSegmentFetcher) NewInstance() HTTPSegmentFetcher {
-	return HTTPSegmentFetcher{since: -1}
+	return HTTPSegmentFetcher{}
 }
 
 // Fetch splits from Split servers
-func (h HTTPSegmentFetcher) Fetch(name string) (*api.SegmentChangesDTO, error) {
+func (h HTTPSegmentFetcher) Fetch(name string, changeNumber int64) (*api.SegmentChangesDTO, error) {
 
-	segmentChangesDTO, err := api.SegmentChangesFetch(name, h.since)
+	segmentChangesDTO, err := api.SegmentChangesFetch(name, changeNumber)
 	if errors.IsError(err) {
 		log.Error.Println("Error fetching segments via HTTP ", err)
 		return nil, err
 	}
-
-	// Update since value for next request
-	if segmentChangesDTO.Till > h.since {
-		h.since = segmentChangesDTO.Till
-	}
-
 	return segmentChangesDTO, nil
 }

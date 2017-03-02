@@ -24,11 +24,11 @@ type LogSection struct {
 
 // ConfigData main configuration container
 type ConfigData struct {
-	APIKey           string       `json:"api-key"`
+	APIKey           string       `json:"apiKey"`
 	Redis            RedisSection `json:"redis"`
 	Logger           LogSection   `json:"log"`
-	SplitsFetchRate  int          `json:"splits-fetch-rate"`
-	SegmentFetchRate int          `json:"segment-fetch-rate"`
+	SplitsFetchRate  int          `json:"splitsRefreshRate"`
+	SegmentFetchRate int          `json:"segmentsRefreshRate"`
 }
 
 //MarshalBinary exports ConfigData to JSON string

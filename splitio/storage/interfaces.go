@@ -12,4 +12,8 @@ type SplitStorage interface {
 // SegmentStorage interface defines the segments data storage actions
 type SegmentStorage interface {
 	RegisteredSegmentNames() ([]string, error)
+	AddToSegment(segmentName string, keys []string) error
+	RemoveFromSegment(segmentName string, keys []string) error
+	SetChangeNumber(segmentName string, changeNumber int64) error
+	ChangeNumber(segmentName string) (int64, error)
 }

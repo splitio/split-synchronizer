@@ -10,5 +10,5 @@ type SplitFetcher interface {
 
 // SegmentFetcher interface to be implemented by Segment Fetchers
 type SegmentFetcher interface {
-	Fetch(name string) (*api.SegmentChangesDTO, error)
+	Fetch(name string, changeNumber int64) (*api.SegmentChangesDTO, error)
 }

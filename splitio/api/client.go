@@ -97,10 +97,6 @@ func (c *Client) Get(service string) ([]byte, error) {
 	}
 
 	log.Verbose.Println("[RESPONSE_BODY]", string(body), "[END_RESPONSE_BODY]")
-	//var f SplitChangesDTO
-	//var f SegmentChangesDTO
-	//err = json.Unmarshal(body, &f)
-	//log.Debug.Println(f.Till)
 
 	return body, nil
 }

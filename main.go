@@ -6,12 +6,11 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"time"
 
 	"github.com/splitio/go-agent/conf"
-	"github.com/splitio/go-agent/errors"
-	"github.com/splitio/go-agent/iohelper"
 	"github.com/splitio/go-agent/log"
 	"github.com/splitio/go-agent/splitio"
 	"github.com/splitio/go-agent/splitio/api"
@@ -71,60 +70,62 @@ func parseFlags() {
 }
 
 func loadConfiguration() {
-	iohelper.Println("Loading config file: ", *configFile)
 	conf.Load(*configFile)
 }
 
-func getLogWriter(wstdout bool, wfile *os.File) io.Writer {
-	if conf.Data.Logger.StdoutOn {
-		if wfile != nil {
-			slack := &log.SlackWriter{WebHookURL: conf.Data.Logger.SlackWebhookURL, Channel: conf.Data.Logger.SlackChannel}
-			return io.MultiWriter(wfile, os.Stdout, slack)
-		}
-		return io.MultiWriter(os.Stdout)
-	}
-
-	if wfile != nil {
-		return io.MultiWriter(wfile)
-	}
-
-	return ioutil.Discard
-}
-
-// TODO add SlackWriter as log handler for Errors
 func loadLogger() {
-	var multi io.Writer
+	var err error
+
+	var commonWriter io.Writer
+	var fullWriter io.Writer
+
+	var verboseWriter = ioutil.Discard
+	var debugWriter = ioutil.Discard
+	var fileWriter = ioutil.Discard
+	var stdoutWriter = ioutil.Discard
+	var slackWriter = ioutil.Discard
 
 	if len(conf.Data.Logger.File) > 3 {
-		file, err := os.OpenFile(conf.Data.Logger.File, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-		if errors.IsError(err) {
-			iohelper.PrintlnError(err, "Failed to open log file ")
-			multi = getLogWriter(conf.Data.Logger.StdoutOn, nil)
+		fileWriter, err = os.OpenFile(conf.Data.Logger.File, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		if err != nil {
+			fmt.Printf("Error opening log file: %s \n", err.Error())
 		} else {
-			iohelper.Println("Log file: ", file.Name())
-			multi = getLogWriter(conf.Data.Logger.StdoutOn, file)
+			fmt.Printf("Log file: %s \n", conf.Data.Logger.File)
 		}
-	} else {
-		iohelper.Println("Initializing without log file.")
-		multi = getLogWriter(conf.Data.Logger.StdoutOn, nil)
 	}
 
-	log.Initialize(multi, conf.Data.Logger.DebugOn, conf.Data.Logger.VerboseOn)
+	if conf.Data.Logger.StdoutOn {
+		stdoutWriter = os.Stdout
+	}
 
+	_, err = url.ParseRequestURI(conf.Data.Logger.SlackWebhookURL)
+	if err == nil {
+		slackWriter = &log.SlackWriter{WebHookURL: conf.Data.Logger.SlackWebhookURL, Channel: conf.Data.Logger.SlackChannel}
+	}
+
+	commonWriter = io.MultiWriter(stdoutWriter, fileWriter)
+	fullWriter = io.MultiWriter(commonWriter, slackWriter)
+
+	if conf.Data.Logger.VerboseOn {
+		verboseWriter = commonWriter
+	}
+
+	if conf.Data.Logger.DebugOn {
+		debugWriter = commonWriter
+	}
+
+	log.Initialize(verboseWriter, debugWriter, commonWriter, commonWriter, fullWriter)
 }
 
 func startProducer() {
 
-	//redisClient := redis.NewInstance(conf.Data.Redis.Host, conf.Data.Redis.Port,
-	//	conf.Data.Redis.Pass, conf.Data.Redis.Db)
-
-	//splitFetcher := splitFetcherFactory()
-	//splitSorage := splitStorageFactory()
-	//go task.FetchSplits(splitFetcher, splitSorage)
+	splitFetcher := splitFetcherFactory()
+	splitSorage := splitStorageFactory()
+	go task.FetchSplits(splitFetcher, splitSorage)
 
 	segmentFetcher := segmentFetcherFactory()
 	segmentStorage := segmentStorageFactory()
-	go task.FetchSegments(segmentFetcher, segmentStorage)
+	go task.FetchSegments(segmentFetcher, segmentStorage, conf.Data.SegmentFetchRate)
 
 }
 
@@ -140,6 +141,7 @@ func segmentFetcherFactory() fetcher.SegmentFetcherFactory {
 	return fetcher.SegmentFetcherFactory{}
 }
 
-func segmentStorageFactory() storage.SegmentStorage {
-	return redis.NewSegmentStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+func segmentStorageFactory() storage.SegmentStorageFactory {
+	//return redis.NewSegmentStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+	return storage.SegmentStorageFactory{}
 }

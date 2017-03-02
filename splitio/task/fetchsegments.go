@@ -2,6 +2,7 @@
 package task
 
 import (
+	"sync"
 	"time"
 
 	"github.com/splitio/go-agent/log"
@@ -11,27 +12,67 @@ import (
 
 var blocker chan bool
 var jobs chan job
+var jobsWaitingGroup sync.WaitGroup
 
 type job struct {
 	segmentName    string
 	segmentFetcher fetcher.SegmentFetcher
+	segmentStorage storage.SegmentStorage
 }
 
 func (j job) run() {
+	// Decrement the counter when the goroutine completes.
+	defer jobsWaitingGroup.Done()
+
 	blocker <- true
 
-	//log.Debug.Println("Segment", j.segmentName)
-	segment, errSegmentFetch := j.segmentFetcher.Fetch(j.segmentName)
-	if errSegmentFetch != nil {
-		log.Error.Println("Error fetching segment ", j.segmentName, errSegmentFetch.Error())
-	}
-	log.Info.Println(segment.Name)
+	tryNumber := 3
 
-	time.Sleep(time.Second * 5)
+	for tryNumber > 0 {
+
+		lastChangeNumber, err := j.segmentStorage.ChangeNumber(j.segmentName)
+		if err != nil {
+			log.Debug.Printf("Fetching change number for segment %s: %s\n", j.segmentName, err.Error())
+			lastChangeNumber = -1
+		}
+
+		segment, errSegmentFetch := j.segmentFetcher.Fetch(j.segmentName, lastChangeNumber)
+		if errSegmentFetch != nil {
+			log.Error.Println("Error fetching segment ", j.segmentName, errSegmentFetch.Error())
+			tryNumber--
+			time.Sleep(time.Second * 5)
+			continue
+		}
+		log.Debug.Println(">>>> Fetched segment:", segment.Name)
+
+		if lastChangeNumber >= segment.Till {
+			log.Debug.Println("Segments returned by the server are empty")
+			//Unlock channel
+			<-blocker
+			return
+		}
+
+		//updating change number
+		j.segmentStorage.SetChangeNumber(segment.Name, segment.Till)
+
+		//adding new keys to segment
+		if err := j.segmentStorage.AddToSegment(segment.Name, segment.Added); err != nil {
+			log.Error.Printf("Error adding keys to segment %s", segment.Name)
+		}
+
+		//removing keys from segment
+		if err := j.segmentStorage.RemoveFromSegment(segment.Name, segment.Removed); err != nil {
+			log.Error.Printf("Error removing keys from segment %s", segment.Name)
+		}
+
+		time.Sleep(time.Millisecond * 500)
+	}
 
 	<-blocker
+	return
 }
 
+// worker to run jobs
 func worker() {
 	for {
 		_job := <-jobs
@@ -40,46 +81,46 @@ func worker() {
 }
 
 // FetchSegments task to retrieve segments changes from Split servers
-func FetchSegments(segmentFetcherAdapter fetcher.SegmentFetcherFactory, storageAdapter storage.SegmentStorage) {
-
+func FetchSegments(segmentFetcherAdapter fetcher.SegmentFetcherFactory,
+	storageAdapterFactory storage.SegmentStorageFactory,
+	fetchRate int) {
+	log.Debug.Println("FetchSegments refresh rate", fetchRate)
 	blocker = make(chan bool, 10)
 	jobs = make(chan job)
+	var jobsPool = make(map[string]*job)
 
-	segmentsNames, err := storageAdapter.RegisteredSegmentNames()
-	if err != nil {
-		log.Error.Println("Error fetching segments from storage", err.Error())
-	}
-	log.Verbose.Printf("Fetched Segments from storage: %s", segmentsNames)
-	/*
-		segment, errSegmentFetch := segmentFetcherAdapter.Fetch(segmentsNames[0])
-		if errSegmentFetch != nil {
-			log.Error.Println("Error fetching segment ", segmentsNames[0], errSegmentFetch.Error())
-		}
-		log.Info.Println(segment.Name)
-	*/
+	storageAdapter := storageAdapterFactory.NewInstance()
+
+	// worker to fetch jobs and run it.
 	go worker()
 
-	for i := 0; i < len(segmentsNames); i++ {
-		jobs <- job{segmentName: segmentsNames[i], segmentFetcher: segmentFetcherAdapter.NewInstance()}
+	for {
+		segmentsNames, err := storageAdapter.RegisteredSegmentNames()
+		if err != nil {
+			log.Error.Println("Error fetching segments from storage", err.Error())
+			time.Sleep(time.Second * 30)
+			continue
+		}
+		log.Verbose.Printf("Fetched Segments from storage: %s", segmentsNames)
+
+		for i := 0; i < len(segmentsNames); i++ {
+			if jobsPool[segmentsNames[i]] == nil {
+				jobsPool[segmentsNames[i]] = &job{segmentName: segmentsNames[i],
+					segmentFetcher: segmentFetcherAdapter.NewInstance(),
+					segmentStorage: storageAdapterFactory.NewInstance()}
+			}
+			//jobs <- job{segmentName: segmentsNames[i], segmentFetcher: segmentFetcherAdapter.NewInstance(),segmentStorage: storageAdapterFactory.NewInstance()}
+		}
+
+		// Running jobs in waiting group
+		for _, v := range jobsPool {
+			// Increment the WaitGroup counter.
+			jobsWaitingGroup.Add(1)
+			//go v.run()
+			jobs <- *v
+		}
+
+		jobsWaitingGroup.Wait()
+		time.Sleep(time.Duration(fetchRate) * time.Second)
 	}
-
-	// TODO for each segmentName trigger a go func to fetch segments
-	/*
-			  for {
-			    for i:=0; i < len(segmentsNames); i++ {
-		        go fetchSegmentData(segmentsNames[i])
-			    }
-
-			    time.Sleep(time.Duration(conf.Data.SegmentFetchRate) * time.Second)
-			  }
-
-	*/
-
 }
-
-/*
-func fetchSegmentData(name string) {
-	jj := job{segmentName: name}
-	segmentPool <- jj
-}
-*/
