@@ -109,7 +109,6 @@ func FetchSegments(segmentFetcherAdapter fetcher.SegmentFetcherFactory,
 					segmentFetcher: segmentFetcherAdapter.NewInstance(),
 					segmentStorage: storageAdapterFactory.NewInstance()}
 			}
-			//jobs <- job{segmentName: segmentsNames[i], segmentFetcher: segmentFetcherAdapter.NewInstance(),segmentStorage: storageAdapterFactory.NewInstance()}
 		}
 
 		// Running jobs in waiting group

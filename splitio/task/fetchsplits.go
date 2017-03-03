@@ -14,14 +14,20 @@ import (
 // FetchSplits task to retrieve split changes from Split servers
 func FetchSplits(splitFetcherAdapter fetcher.SplitFetcher, splitStorageAdapter storage.SplitStorage) {
 	for {
-		data, err := splitFetcherAdapter.Fetch()
+		lastChangeNumber, err := splitStorageAdapter.ChangeNumber()
+		if err != nil {
+			log.Debug.Printf("Fetching change number: %s\n", err.Error())
+			lastChangeNumber = -1
+		}
+
+		data, err := splitFetcherAdapter.Fetch(lastChangeNumber)
 		if errors.IsError(err) {
 			log.Error.Println("Error fetching SplitDTO on task ", err.Error())
 		} else {
 			log.Verbose.Println(data)
 
 			till := data.Till
-			if errTill := splitStorageAdapter.SaveTill(till); errTill != nil {
+			if errTill := splitStorageAdapter.SetChangeNumber(till); errTill != nil {
 				log.Error.Println("Error saving till value into storage adapter.", errTill)
 			}
 

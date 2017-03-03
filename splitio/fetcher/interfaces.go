@@ -5,7 +5,7 @@ import "github.com/splitio/go-agent/splitio/api"
 
 // SplitFetcher interface to be implemented by Split Fetchers
 type SplitFetcher interface {
-	Fetch() (*api.SplitChangesDTO, error)
+	Fetch(changeNumber int64) (*api.SplitChangesDTO, error)
 }
 
 // SegmentFetcher interface to be implemented by Segment Fetchers

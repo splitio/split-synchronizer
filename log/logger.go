@@ -30,8 +30,6 @@ type SlackWriter struct {
 // Write the message to slack webhook
 func (w *SlackWriter) Write(p []byte) (n int, err error) {
 	urlStr := w.WebHookURL
-	fmt.Println("URL:>", urlStr)
-
 	var jsonStr = fmt.Sprintf(`{"channel": "%s", "username": "splitio-go-agent", "text": "%s", "icon_emoji": ":robot_face:"}`, w.Channel, p)
 	req, _ := http.NewRequest("POST", urlStr, bytes.NewBuffer([]byte(jsonStr)))
 	//req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
@@ -39,7 +37,7 @@ func (w *SlackWriter) Write(p []byte) (n int, err error) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		panic(err)
+		return 0, fmt.Errorf("Error posting log message to Slack")
 	}
 	defer resp.Body.Close()
 

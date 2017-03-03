@@ -74,11 +74,11 @@ func (c *Client) Get(service string) ([]byte, error) {
 	req.Header.Add("Content-Type", "application/json")
 
 	resp, err := c.httpClient.Do(req)
-	defer resp.Body.Close()
 	if errors.IsError(err) {
-		log.Debug.Println("Status code: ", resp.StatusCode)
 		log.Error.Println("Error requesting data to API: ", req.URL.String(), err.Error())
+		return nil, err
 	}
+	defer resp.Body.Close()
 
 	// Check that the server actually sent compressed data
 	var reader io.ReadCloser
