@@ -119,18 +119,20 @@ func loadLogger() {
 
 func startProducer() {
 
-	splitFetcher := splitFetcherFactory()
-	splitSorage := splitStorageFactory()
-	go task.FetchSplits(splitFetcher, splitSorage)
+	//splitFetcher := splitFetcherFactory()
+	//splitSorage := splitStorageFactory()
+	//go task.FetchSplits(splitFetcher, splitSorage)
 
-	segmentFetcher := segmentFetcherFactory()
-	segmentStorage := segmentStorageFactory()
-	go task.FetchSegments(segmentFetcher, segmentStorage, conf.Data.SegmentFetchRate)
+	//segmentFetcher := segmentFetcherFactory()
+	//segmentStorage := segmentStorageFactory()
+	//go task.FetchSegments(segmentFetcher, segmentStorage, conf.Data.SegmentFetchRate)
 
+	impressionStorage := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+	go task.PostImpressions(impressionStorage)
 }
 
 func splitFetcherFactory() fetcher.SplitFetcher {
-	return fetcher.NewHTTPSplitFetcher(-1)
+	return fetcher.NewHTTPSplitFetcher()
 }
 
 func splitStorageFactory() storage.SplitStorage {

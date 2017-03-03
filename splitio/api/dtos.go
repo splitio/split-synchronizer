@@ -102,3 +102,23 @@ type SegmentChangesDTO struct {
 	Since   int64    `json:"since"`
 	Till    int64    `json:"till"`
 }
+
+//
+// Impression DTO
+//
+
+// ImpressionDTO struct to map an impression
+type ImpressionDTO struct {
+	KeyName      string `json:"keyName"`
+	Treatment    string `json:"treatment"`
+	Time         int64  `json:"time"`
+	ChangeNumber int64  `json:"changeNumber"`
+	Label        string `json:"label"`
+	BucketingKey string `json:"bucketingKey"`
+}
+
+// ImpressionsDTO struct mapping impressions to post
+type ImpressionsDTO struct {
+	TestName       string          `json:"testName"`
+	KeyImpressions []ImpressionDTO `json:"keyImpressions"`
+}

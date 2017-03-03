@@ -12,6 +12,9 @@ const _segmentsRegisteredNamespace = "SPLITIO.segments.registered"
 const _segmentTillNamespace = "SPLITIO.segment.%s.till"
 const _segmentNamespace = "SPLITIO.segment.%s"
 
+//SPLITIO/{sdk-language-version}/{instance-id}/impressions.{featureName}
+const _impressionsNamespace = "SPLITIO/%s/%s/impressions.%s"
+
 type prefixAdapter struct {
 	prefix string
 }
@@ -41,4 +44,8 @@ func (p prefixAdapter) segmentTillNamespace(name string) string {
 
 func (p prefixAdapter) segmentNamespace(name string) string {
 	return fmt.Sprintf(p.setPrefixPattern(_segmentNamespace), name)
+}
+
+func (p prefixAdapter) impressionsNamespace(languageAndVersion string, instanceID string, featureName string) string {
+	return fmt.Sprintf(p.setPrefixPattern(_impressionsNamespace), languageAndVersion, instanceID, featureName)
 }
