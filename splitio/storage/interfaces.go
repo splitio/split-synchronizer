@@ -24,5 +24,5 @@ type SegmentStorage interface {
 // ImpressionStorage interface defines the impressions data storage actions
 type ImpressionStorage interface {
 	//The map key must be the name of the feature
-	RetrieveImpressions() ([]api.ImpressionsDTO, error)
+	RetrieveImpressions() (map[string]map[string][]api.ImpressionsDTO, error)
 }

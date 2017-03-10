@@ -24,11 +24,13 @@ type LogSection struct {
 
 // ConfigData main configuration container
 type ConfigData struct {
-	APIKey           string       `json:"apiKey"`
-	Redis            RedisSection `json:"redis"`
-	Logger           LogSection   `json:"log"`
-	SplitsFetchRate  int          `json:"splitsRefreshRate"`
-	SegmentFetchRate int          `json:"segmentsRefreshRate"`
+	APIKey              string       `json:"apiKey"`
+	Redis               RedisSection `json:"redis"`
+	Logger              LogSection   `json:"log"`
+	SplitsFetchRate     int          `json:"splitsRefreshRate"`
+	SegmentFetchRate    int          `json:"segmentsRefreshRate"`
+	ImpressionsPostRate int          `json:"impressionsRefreshRate"`
+	ImpressionsPerPost  int64        `json:"impressionsPerPost"`
 }
 
 //MarshalBinary exports ConfigData to JSON string
@@ -43,6 +45,8 @@ func getDefaultConfigData() ConfigData {
 	configData.APIKey = "YOUR API KEY"
 	configData.SplitsFetchRate = 30
 	configData.SegmentFetchRate = 60
+	configData.ImpressionsPostRate = 60
+	configData.ImpressionsPerPost = 1000
 
 	//logger parameters
 	configData.Logger.VerboseOn = false

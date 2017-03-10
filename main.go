@@ -15,6 +15,7 @@ import (
 	"github.com/splitio/go-agent/splitio"
 	"github.com/splitio/go-agent/splitio/api"
 	"github.com/splitio/go-agent/splitio/fetcher"
+	"github.com/splitio/go-agent/splitio/recorder"
 	"github.com/splitio/go-agent/splitio/storage"
 	"github.com/splitio/go-agent/splitio/storage/redis"
 	"github.com/splitio/go-agent/splitio/task"
@@ -127,8 +128,9 @@ func startProducer() {
 	//segmentStorage := segmentStorageFactory()
 	//go task.FetchSegments(segmentFetcher, segmentStorage, conf.Data.SegmentFetchRate)
 
-	impressionStorage := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-	go task.PostImpressions(impressionStorage)
+	impressionsStorage := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+	impressionsRecorder := recorder.ImpressionsHTTPRecorder{}
+	go task.PostImpressions(impressionsRecorder, impressionsStorage, conf.Data.ImpressionsPostRate)
 }
 
 func splitFetcherFactory() fetcher.SplitFetcher {

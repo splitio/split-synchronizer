@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"regexp"
 
+	"github.com/splitio/go-agent/conf"
 	"github.com/splitio/go-agent/log"
 	"github.com/splitio/go-agent/splitio/api"
 	redis "gopkg.in/redis.v5"
@@ -24,7 +25,7 @@ func NewImpressionStorageAdapter(clientInstance *redis.Client, prefix string) *I
 }
 
 // RetrieveImpressions returns cached impressions
-func (r ImpressionStorageAdapter) RetrieveImpressions() ([]api.ImpressionsDTO, error) {
+func (r ImpressionStorageAdapter) RetrieveImpressions() (map[string]map[string][]api.ImpressionsDTO, error) {
 
 	_keys, err := r.client.Keys(r.impressionsNamespace("*", "*", "*")).Result()
 	if err == redis.Nil {
@@ -35,10 +36,9 @@ func (r ImpressionStorageAdapter) RetrieveImpressions() ([]api.ImpressionsDTO, e
 		return nil, err
 	}
 
-	var impressionsToReturn []api.ImpressionsDTO
+	impressionsToReturn := make(map[string]map[string][]api.ImpressionsDTO)
 	for _, key := range _keys {
-		// TODO change by random impressions
-		impressions, err := r.client.SMembers(key).Result()
+		impressions, err := r.client.SRandMemberN(key, conf.Data.ImpressionsPerPost).Result()
 		log.Debug.Println(impressions)
 		if err != nil {
 			log.Debug.Println("Fetching impressions", err.Error())
@@ -46,26 +46,40 @@ func (r ImpressionStorageAdapter) RetrieveImpressions() ([]api.ImpressionsDTO, e
 		}
 
 		var _keyImpressions []api.ImpressionDTO
-		//_keyImpressions := make([]api.ImpressionDTO, len(impressions))
 		for _, impression := range impressions {
 			var impressionDTO api.ImpressionDTO
-			//impressionDTO = api.ImpressionDTO{}
 			err = json.Unmarshal([]byte(impression), &impressionDTO)
 			if err != nil {
 				log.Warning.Println("The impression cannot be decoded from JSON", err.Error())
 				log.Verbose.Println("Impression value:", impression)
 				continue
 			}
-
 			_keyImpressions = append(_keyImpressions, impressionDTO)
 		}
 
 		//(\w+.)?SPLITIO\/([^\/]+)\/([^\/]+)\/impressions.([\s\S]*)
 		var re = regexp.MustCompile(`(\w+.)?SPLITIO\/([^\/]+)\/([^\/]+)\/impressions.([\s\S]*)`)
 		match := re.FindStringSubmatch(key)
-		featureName := match[4]
-		impressionsToReturn = append(impressionsToReturn, api.ImpressionsDTO{TestName: featureName, KeyImpressions: _keyImpressions})
 
+		sdkNameAndVersion := match[2]
+		machineIP := match[3]
+		featureName := match[4]
+
+		log.Verbose.Println("Impression parsed key", match)
+
+		if _, ok := impressionsToReturn[sdkNameAndVersion][machineIP]; !ok {
+			impressionsToReturn[sdkNameAndVersion] = make(map[string][]api.ImpressionsDTO)
+		}
+		impressionsToReturn[sdkNameAndVersion][machineIP] = append(impressionsToReturn[sdkNameAndVersion][machineIP], api.ImpressionsDTO{TestName: featureName, KeyImpressions: _keyImpressions})
+
+		//DELETE impressions
+		_impressionsToDelete := make([]interface{}, len(impressions))
+		for i, v := range impressions {
+			_impressionsToDelete[i] = v
+		}
+		if err := r.client.SRem(key, _impressionsToDelete...).Err(); err != nil {
+			log.Error.Println("Error removing impressions from Redis", err.Error())
+		}
 	}
 
 	return impressionsToReturn, nil

@@ -117,6 +117,11 @@ type ImpressionDTO struct {
 	BucketingKey string `json:"bucketingKey"`
 }
 
+// MarshalBinary exports ImpressionDTO to JSON string
+func (s ImpressionDTO) MarshalBinary() (data []byte, err error) {
+	return json.Marshal(s)
+}
+
 // ImpressionsDTO struct mapping impressions to post
 type ImpressionsDTO struct {
 	TestName       string          `json:"testName"`
