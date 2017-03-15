@@ -6,34 +6,9 @@ import (
 	"encoding/json"
 	"strconv"
 
-	"github.com/splitio/go-agent/conf"
 	"github.com/splitio/go-agent/errors"
 	"github.com/splitio/go-agent/log"
 )
-
-const sdkName = "sdk"
-const eventsName = "events"
-const sdkURL = "https://sdk.splitio.io/api"
-const eventsURL = "https://events.splitio.io/api"
-
-var sdkClient *Client
-var eventsClient *Client
-
-// Initialize API fetchers
-func Initialize() {
-	for i := 0; i < len(conf.Data.APIServers); i++ {
-		switch conf.Data.APIServers[i].Name {
-		case sdkName:
-			sdkClient = NewClient(conf.Data.APIServers[i].URL)
-			log.Debug.Println("SDK API Client created with endpoint ", conf.Data.APIServers[i].URL)
-			break
-		case eventsName:
-			eventsClient = NewClient(conf.Data.APIServers[i].URL)
-			log.Debug.Println("EVENTS API Client created with endpoint ", conf.Data.APIServers[i].URL)
-			break
-		}
-	}
-}
 
 func sdkFetch(url string) ([]byte, error) {
 	data, err := sdkClient.Get(url)

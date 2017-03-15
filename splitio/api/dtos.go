@@ -102,3 +102,46 @@ type SegmentChangesDTO struct {
 	Since   int64    `json:"since"`
 	Till    int64    `json:"till"`
 }
+
+//
+// Impression DTO
+//
+
+// ImpressionDTO struct to map an impression
+type ImpressionDTO struct {
+	KeyName      string `json:"keyName"`
+	Treatment    string `json:"treatment"`
+	Time         int64  `json:"time"`
+	ChangeNumber int64  `json:"changeNumber"`
+	Label        string `json:"label"`
+	BucketingKey string `json:"bucketingKey"`
+}
+
+// MarshalBinary exports ImpressionDTO to JSON string
+func (s ImpressionDTO) MarshalBinary() (data []byte, err error) {
+	return json.Marshal(s)
+}
+
+// ImpressionsDTO struct mapping impressions to post
+type ImpressionsDTO struct {
+	TestName       string          `json:"testName"`
+	KeyImpressions []ImpressionDTO `json:"keyImpressions"`
+}
+
+// LatenciesDTO struct mapping latencies post
+type LatenciesDTO struct {
+	MetricName string  `json:"name"`
+	Latencies  []int64 `json:"latencies"`
+}
+
+// CounterDTO struct mapping counts post
+type CounterDTO struct {
+	MetricName string `json:"name"`
+	Count      int64  `json:"delta"`
+}
+
+// GaugeDTO struct mapping gauges post
+type GaugeDTO struct {
+	MetricName string  `json:"name"`
+	Gauge      float64 `json:"value"`
+}
