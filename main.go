@@ -1,4 +1,4 @@
-// main.go
+// Split Agent for across Split's SDKs
 package main
 
 import (
@@ -120,17 +120,21 @@ func loadLogger() {
 
 func startProducer() {
 
-	//splitFetcher := splitFetcherFactory()
-	//splitSorage := splitStorageFactory()
-	//go task.FetchSplits(splitFetcher, splitSorage)
+	splitFetcher := splitFetcherFactory()
+	splitSorage := splitStorageFactory()
+	go task.FetchSplits(splitFetcher, splitSorage, conf.Data.SplitsFetchRate)
 
-	//segmentFetcher := segmentFetcherFactory()
-	//segmentStorage := segmentStorageFactory()
-	//go task.FetchSegments(segmentFetcher, segmentStorage, conf.Data.SegmentFetchRate)
+	segmentFetcher := segmentFetcherFactory()
+	segmentStorage := segmentStorageFactory()
+	go task.FetchSegments(segmentFetcher, segmentStorage, conf.Data.SegmentFetchRate)
 
 	impressionsStorage := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 	impressionsRecorder := recorder.ImpressionsHTTPRecorder{}
 	go task.PostImpressions(impressionsRecorder, impressionsStorage, conf.Data.ImpressionsPostRate)
+
+	metricsStorage := redis.NewMetricsStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+	metricsRecorder := recorder.MetricsHTTPRecorder{}
+	go task.PostMetrics(metricsRecorder, metricsStorage, conf.Data.MetricsPostRate)
 }
 
 func splitFetcherFactory() fetcher.SplitFetcher {

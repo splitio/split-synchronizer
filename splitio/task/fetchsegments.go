@@ -85,7 +85,10 @@ func FetchSegments(segmentFetcherAdapter fetcher.SegmentFetcherFactory,
 	storageAdapterFactory storage.SegmentStorageFactory,
 	fetchRate int) {
 	log.Debug.Println("FetchSegments refresh rate", fetchRate)
+
+	//TODO Set blocker channel size by configuration
 	blocker = make(chan bool, 10)
+
 	jobs = make(chan job)
 	var jobsPool = make(map[string]*job)
 

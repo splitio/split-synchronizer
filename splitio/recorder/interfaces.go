@@ -7,3 +7,10 @@ import "github.com/splitio/go-agent/splitio/api"
 type ImpressionsRecorder interface {
 	Post(impressions []api.ImpressionsDTO, sdkVersion string, machineIP string) error
 }
+
+// MetricsRecorder interface to be implemented by Metrics loggers
+type MetricsRecorder interface {
+	PostLatencies(latencies []api.LatenciesDTO, sdkVersion string, machineIP string) error
+	PostCounters(counters []api.CounterDTO, sdkVersion string, machineIP string) error
+	PostGauge(gauge api.GaugeDTO, sdkVersion string, machineIP string) error
+}

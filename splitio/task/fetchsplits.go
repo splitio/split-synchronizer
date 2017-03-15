@@ -4,7 +4,6 @@ package task
 import (
 	"time"
 
-	"github.com/splitio/go-agent/conf"
 	"github.com/splitio/go-agent/errors"
 	"github.com/splitio/go-agent/log"
 	"github.com/splitio/go-agent/splitio/fetcher"
@@ -12,7 +11,9 @@ import (
 )
 
 // FetchSplits task to retrieve split changes from Split servers
-func FetchSplits(splitFetcherAdapter fetcher.SplitFetcher, splitStorageAdapter storage.SplitStorage) {
+func FetchSplits(splitFetcherAdapter fetcher.SplitFetcher,
+	splitStorageAdapter storage.SplitStorage,
+	splitsRefreshRate int) {
 	for {
 		lastChangeNumber, err := splitStorageAdapter.ChangeNumber()
 		if err != nil {
@@ -62,6 +63,6 @@ func FetchSplits(splitFetcherAdapter fetcher.SplitFetcher, splitStorageAdapter s
 			log.Debug.Println("Saved splits:", savedItems, "Removed splits:", deletedItems, "of Total items: ", totalItems)
 		}
 
-		time.Sleep(time.Duration(conf.Data.SplitsFetchRate) * time.Second)
+		time.Sleep(time.Duration(splitsRefreshRate) * time.Second)
 	}
 }

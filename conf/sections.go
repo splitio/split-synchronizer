@@ -31,6 +31,7 @@ type ConfigData struct {
 	SegmentFetchRate    int          `json:"segmentsRefreshRate"`
 	ImpressionsPostRate int          `json:"impressionsRefreshRate"`
 	ImpressionsPerPost  int64        `json:"impressionsPerPost"`
+	MetricsPostRate     int          `json:"metricsRefreshRate"`
 }
 
 //MarshalBinary exports ConfigData to JSON string
@@ -47,6 +48,7 @@ func getDefaultConfigData() ConfigData {
 	configData.SegmentFetchRate = 60
 	configData.ImpressionsPostRate = 60
 	configData.ImpressionsPerPost = 1000
+	configData.MetricsPostRate = 60
 
 	//logger parameters
 	configData.Logger.VerboseOn = false

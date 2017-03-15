@@ -23,6 +23,16 @@ type SegmentStorage interface {
 
 // ImpressionStorage interface defines the impressions data storage actions
 type ImpressionStorage interface {
-	//The map key must be the name of the feature
+	//Returns a map of impressions. The map key must be the name of the feature
 	RetrieveImpressions() (map[string]map[string][]api.ImpressionsDTO, error)
+}
+
+// MetricsStorage interface defines the metrics data storage actions
+type MetricsStorage interface {
+	//returns [sdkNameAndVersion][machineIP][metricName] = int64
+	RetrieveCounters() (map[string]map[string]map[string]int64, error)
+	//returns [sdkNameAndVersion][machineIP][metricName] = [0,0,0,0,0,0,0,0,0,0,0 ... ]
+	RetrieveLatencies() (map[string]map[string]map[string][]int64, error)
+	//returns [sdkNameAndVersion][machineIP][metricName] = float64
+	RetrieveGauges() (map[string]map[string]map[string]float64, error)
 }
