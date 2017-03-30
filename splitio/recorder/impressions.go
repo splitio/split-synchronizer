@@ -19,7 +19,7 @@ func (r ImpressionsHTTPRecorder) Post(impressions []api.ImpressionsDTO, sdkVersi
 		log.Error.Println("Error marshaling JSON", err.Error())
 		return err
 	}
-	log.Debug.Println(string(data))
+	log.Verbose.Println(string(data))
 
 	if err := api.PostImpressions(data, sdkVersion, machineIP); err != nil {
 		log.Error.Println("Error posting impressions", err.Error())

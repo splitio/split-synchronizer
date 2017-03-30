@@ -10,6 +10,32 @@ type RedisSection struct {
 	Db     int    `json:"db"`
 	Pass   string `json:"password"`
 	Prefix string `json:"prefix"`
+
+	// The network type, either tcp or unix.
+	// Default is tcp.
+	Network string `json:"network"`
+
+	// Maximum number of retries before giving up.
+	// Default is to not retry failed commands.
+	MaxRetries int `json:"maxRetries"`
+
+	// Dial timeout for establishing new connections.
+	// Default is 5 seconds.
+	DialTimeout int `json:"dialTimeout"`
+
+	// Timeout for socket reads. If reached, commands will fail
+	// with a timeout instead of blocking.
+	// Default is 10 seconds.
+	ReadTimeout int `json:"readTimeout"`
+
+	// Timeout for socket writes. If reached, commands will fail
+	// with a timeout instead of blocking.
+	// Default is 3 seconds.
+	WriteTimeout int `json:"writeTimeout"`
+
+	// Maximum number of socket connections.
+	// Default is 10 connections.
+	PoolSize int `json:"poolSize"`
 }
 
 // LogSection log instance configuration
@@ -31,6 +57,7 @@ type ConfigData struct {
 	SegmentFetchRate    int          `json:"segmentsRefreshRate"`
 	ImpressionsPostRate int          `json:"impressionsRefreshRate"`
 	ImpressionsPerPost  int64        `json:"impressionsPerPost"`
+	ImpressionsThreads  int          `json:"impressionsThreads"`
 	MetricsPostRate     int          `json:"metricsRefreshRate"`
 }
 
@@ -48,6 +75,7 @@ func getDefaultConfigData() ConfigData {
 	configData.SegmentFetchRate = 60
 	configData.ImpressionsPostRate = 60
 	configData.ImpressionsPerPost = 1000
+	configData.ImpressionsThreads = 1
 	configData.MetricsPostRate = 60
 
 	//logger parameters
@@ -62,6 +90,12 @@ func getDefaultConfigData() ConfigData {
 	configData.Redis.Pass = ""
 	configData.Redis.Port = 6379
 	configData.Redis.Prefix = ""
+	configData.Redis.Network = "tcp"
+	configData.Redis.DialTimeout = 5
+	configData.Redis.MaxRetries = 0
+	configData.Redis.PoolSize = 10
+	configData.Redis.ReadTimeout = 10
+	configData.Redis.WriteTimeout = 5
 
 	return configData
 }

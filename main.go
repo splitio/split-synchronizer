@@ -47,8 +47,9 @@ func init() {
 	loadConfiguration()
 	loadLogger()
 	api.Initialize()
-	redis.Initialize(conf.Data.Redis.Host, conf.Data.Redis.Port,
-		conf.Data.Redis.Pass, conf.Data.Redis.Db)
+
+	redis.Initialize(conf.Data.Redis)
+
 }
 
 func main() {
@@ -128,9 +129,11 @@ func startProducer() {
 	segmentStorage := segmentStorageFactory()
 	go task.FetchSegments(segmentFetcher, segmentStorage, conf.Data.SegmentFetchRate)
 
-	impressionsStorage := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-	impressionsRecorder := recorder.ImpressionsHTTPRecorder{}
-	go task.PostImpressions(impressionsRecorder, impressionsStorage, conf.Data.ImpressionsPostRate)
+	for i := 0; i < conf.Data.ImpressionsThreads; i++ {
+		impressionsStorage := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+		impressionsRecorder := recorder.ImpressionsHTTPRecorder{}
+		go task.PostImpressions(i, impressionsRecorder, impressionsStorage, conf.Data.ImpressionsPostRate)
+	}
 
 	metricsStorage := redis.NewMetricsStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 	metricsRecorder := recorder.MetricsHTTPRecorder{}

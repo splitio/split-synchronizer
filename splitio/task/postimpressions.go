@@ -2,6 +2,7 @@
 package task
 
 import (
+	"sync"
 	"time"
 
 	"github.com/splitio/go-agent/log"
@@ -9,12 +10,16 @@ import (
 	"github.com/splitio/go-agent/splitio/storage"
 )
 
+var mutex = &sync.Mutex{}
+
 // PostImpressions post impressions to Split Events server
-func PostImpressions(impressionsRecorderAdapter recorder.ImpressionsRecorder,
+func PostImpressions(tid int, impressionsRecorderAdapter recorder.ImpressionsRecorder,
 	impressionStorageAdapter storage.ImpressionStorage,
 	impressionsRefreshRate int) {
 	for {
+		mutex.Lock()
 		impressionsToSend, err := impressionStorageAdapter.RetrieveImpressions()
+		mutex.Unlock()
 		if err != nil {
 			log.Error.Println("Error Retrieving ")
 		} else {
