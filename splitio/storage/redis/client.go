@@ -4,7 +4,9 @@ package redis
 import (
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/splitio/go-agent/conf"
 	redis "gopkg.in/redis.v5"
 )
 
@@ -17,20 +19,32 @@ type BaseStorageAdapter struct {
 	client *redis.Client
 }
 
+/*
+
+
+configData.Redis.MaxRetries = 0
+configData.Redis.PoolSize = 10
+
+*/
+
 // Initialize Redis module with a pool connection
-func Initialize(host string, port int, password string, db int) {
-	Client = NewInstance(host, port, password, db)
+func Initialize(redisOptions conf.RedisSection) {
+	Client = NewInstance(redisOptions)
 }
 
 // NewInstance returns an instance of Redis Client
-func NewInstance(host string, port int,
-	password string, db int) *redis.Client {
+func NewInstance(opt conf.RedisSection) *redis.Client {
 
 	redisClient := redis.NewClient(&redis.Options{
-		Addr:     strings.Join([]string{host, strconv.FormatInt(int64(port), 10)}, ":"),
-		Password: password,
-		DB:       db,
-	})
+		Network:      opt.Network,
+		Addr:         strings.Join([]string{opt.Host, strconv.FormatInt(int64(opt.Port), 10)}, ":"),
+		Password:     opt.Pass,
+		DB:           opt.Db,
+		MaxRetries:   opt.MaxRetries,
+		PoolSize:     opt.PoolSize,
+		DialTimeout:  time.Duration(opt.DialTimeout) * time.Second,
+		ReadTimeout:  time.Duration(opt.ReadTimeout) * time.Second,
+		WriteTimeout: time.Duration(opt.WriteTimeout) * time.Second})
 
 	return redisClient
 }

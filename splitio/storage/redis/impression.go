@@ -37,9 +37,21 @@ func (r ImpressionStorageAdapter) RetrieveImpressions() (map[string]map[string][
 	}
 
 	impressionsToReturn := make(map[string]map[string][]api.ImpressionsDTO)
+
+	/*TODO see the edge case:
+	impressionsPerPost < len(keys)
+	*/
+	var impressionsPerKey = conf.Data.ImpressionsPerPost
+	if len(_keys) > 0 && impressionsPerKey >= int64(len(_keys)) {
+		impressionsPerKey = conf.Data.ImpressionsPerPost / int64(len(_keys))
+	} else if impressionsPerKey < int64(len(_keys)) {
+		// TODO add extra logic when impressionsPerKey is les than Key number in Redis
+		impressionsPerKey = 1
+	}
+
 	for _, key := range _keys {
-		impressions, err := r.client.SRandMemberN(key, conf.Data.ImpressionsPerPost).Result()
-		log.Debug.Println(impressions)
+		impressions, err := r.client.SRandMemberN(key, impressionsPerKey).Result()
+		log.Verbose.Println(impressions)
 		if err != nil {
 			log.Debug.Println("Fetching impressions", err.Error())
 			continue
@@ -79,6 +91,7 @@ func (r ImpressionStorageAdapter) RetrieveImpressions() (map[string]map[string][
 		}
 		if err := r.client.SRem(key, _impressionsToDelete...).Err(); err != nil {
 			log.Error.Println("Error removing impressions from Redis", err.Error())
+			log.Verbose.Println(impressions)
 		}
 	}
 
