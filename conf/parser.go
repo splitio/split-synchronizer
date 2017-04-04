@@ -26,6 +26,17 @@ func Load(path string) {
 	loadFile(path)
 }
 
+// NewInitializedConfigData returns an initialized by default config struct
+func NewInitializedConfigData() ConfigData {
+	return getDefaultConfigData()
+}
+
+// CliParametersToRegister returns a list of cli parameter struct
+func CliParametersToRegister() []CommandConfigData {
+	var data = getDefaultConfigData()
+	return data.cliParameters()
+}
+
 // WriteDefaultConfigFile writes a json file
 func WriteDefaultConfigFile(path string) {
 	data, err1 := getDefaultConfigData().MarshalBinary()

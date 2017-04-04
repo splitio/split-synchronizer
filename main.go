@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/url"
 	"os"
+	"reflect"
 	"time"
 
 	"github.com/splitio/go-agent/conf"
@@ -23,6 +24,7 @@ import (
 
 var configFile *string
 var writeDefaultConfigFile *string
+var cliParametersMap map[string]interface{}
 
 //------------------------------------------------------------------------------
 // MAIN PROGRAM
@@ -68,11 +70,76 @@ func main() {
 func parseFlags() {
 	configFile = flag.String("config", "splitio.agent.conf.json", "a configuration file")
 	writeDefaultConfigFile = flag.String("write-default-config", "", "write a default configuration file")
+
+	// dinamically configuration parameters
+	cliParameters := conf.CliParametersToRegister()
+	cliParametersMap = make(map[string]interface{}, len(cliParameters))
+	for _, param := range cliParameters {
+		switch param.AttributeType {
+		case "string":
+			cliParametersMap[param.Attribute] = flag.String(param.Command, param.DefaultValue.(string), param.Description)
+			break
+		case "int":
+			cliParametersMap[param.Attribute] = flag.Int(param.Command, param.DefaultValue.(int), param.Description)
+			break
+		case "int64":
+			cliParametersMap[param.Attribute] = flag.Int64(param.Command, param.DefaultValue.(int64), param.Description)
+			break
+		}
+	}
+
 	flag.Parse()
+	var test = cliParametersMap["SplitsFetchRate"].(*int)
+	fmt.Printf("String: %d\n", *test)
+	//os.Exit(1)
 }
 
 func loadConfiguration() {
+	//load from configuration file
 	conf.Load(*configFile)
+
+	// getting reflection pointer to configuration data struct
+	var configDataReflection = reflect.ValueOf(&conf.Data).Elem()
+
+	//overwrite conf.Data with cli parameters
+	cliParameters := conf.CliParametersToRegister()
+	for _, param := range cliParameters {
+		val, ok := cliParametersMap[param.Attribute]
+		if ok {
+			switch param.AttributeType {
+			case "string":
+				var cliVal = *(val.(*string))
+				var defaultVal = param.DefaultValue.(string)
+				fmt.Println(defaultVal)
+				if cliVal != defaultVal {
+					configDataReflection.FieldByName(param.Attribute).SetString(cliVal)
+				}
+				break
+			case "int":
+				var cliVal = *(val.(*int))
+				var defaultVal = param.DefaultValue.(int)
+				//var fromFile = int(configDataReflection.FieldByName(param.Attribute).Int())
+
+				if cliVal != defaultVal {
+					configDataReflection.FieldByName(param.Attribute).SetInt(int64(cliVal))
+				}
+				break
+			case "int64":
+				var cliVal = *(val.(*int64))
+				var defaultVal = param.DefaultValue.(int64)
+
+				if cliVal != defaultVal {
+					configDataReflection.FieldByName(param.Attribute).SetInt(int64(cliVal))
+				}
+				break
+			}
+		}
+	}
+
+	fmt.Println(conf.Data)
+	//conf.Data.Reflect()
+	//fmt.Println(conf.Data)
+	os.Exit(1)
 }
 
 func loadLogger() {
