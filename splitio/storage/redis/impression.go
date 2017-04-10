@@ -1,4 +1,4 @@
-// Package redis implements different kind of storages for split information
+// Package redis implements redis storage for split information
 package redis
 
 import (
@@ -54,6 +54,11 @@ func (r ImpressionStorageAdapter) RetrieveImpressions() (map[string]map[string][
 		log.Verbose.Println(impressions)
 		if err != nil {
 			log.Debug.Println("Fetching impressions", err.Error())
+			continue
+		}
+
+		if len(impressions) == 0 {
+			log.Debug.Println("Not found impressions for this key", key)
 			continue
 		}
 

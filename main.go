@@ -23,6 +23,7 @@ import (
 
 var configFile *string
 var writeDefaultConfigFile *string
+var cliParametersMap map[string]interface{}
 
 //------------------------------------------------------------------------------
 // MAIN PROGRAM
@@ -47,9 +48,7 @@ func init() {
 	loadConfiguration()
 	loadLogger()
 	api.Initialize()
-
 	redis.Initialize(conf.Data.Redis)
-
 }
 
 func main() {
@@ -68,11 +67,35 @@ func main() {
 func parseFlags() {
 	configFile = flag.String("config", "splitio.agent.conf.json", "a configuration file")
 	writeDefaultConfigFile = flag.String("write-default-config", "", "write a default configuration file")
+
+	// dinamically configuration parameters
+	cliParameters := conf.CliParametersToRegister()
+	cliParametersMap = make(map[string]interface{}, len(cliParameters))
+	for _, param := range cliParameters {
+		switch param.AttributeType {
+		case "string":
+			cliParametersMap[param.Command] = flag.String(param.Command, param.DefaultValue.(string), param.Description)
+			break
+		case "int":
+			cliParametersMap[param.Command] = flag.Int(param.Command, param.DefaultValue.(int), param.Description)
+			break
+		case "int64":
+			cliParametersMap[param.Command] = flag.Int64(param.Command, param.DefaultValue.(int64), param.Description)
+			break
+		case "bool":
+			cliParametersMap[param.Command] = flag.Bool(param.Command, param.DefaultValue.(bool), param.Description)
+			break
+		}
+	}
+
 	flag.Parse()
 }
 
 func loadConfiguration() {
-	conf.Load(*configFile)
+	//load from configuration file
+	conf.LoadFromFile(*configFile)
+	//overwrite with cli values
+	conf.LoadFromArgs(cliParametersMap)
 }
 
 func loadLogger() {
@@ -102,7 +125,7 @@ func loadLogger() {
 
 	_, err = url.ParseRequestURI(conf.Data.Logger.SlackWebhookURL)
 	if err == nil {
-		slackWriter = &log.SlackWriter{WebHookURL: conf.Data.Logger.SlackWebhookURL, Channel: conf.Data.Logger.SlackChannel}
+		slackWriter = &log.SlackWriter{WebHookURL: conf.Data.Logger.SlackWebhookURL, Channel: conf.Data.Logger.SlackChannel, RefreshRate: 30}
 	}
 
 	commonWriter = io.MultiWriter(stdoutWriter, fileWriter)
@@ -120,7 +143,6 @@ func loadLogger() {
 }
 
 func startProducer() {
-
 	splitFetcher := splitFetcherFactory()
 	splitSorage := splitStorageFactory()
 	go task.FetchSplits(splitFetcher, splitSorage, conf.Data.SplitsFetchRate)
