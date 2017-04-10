@@ -57,6 +57,11 @@ func (r ImpressionStorageAdapter) RetrieveImpressions() (map[string]map[string][
 			continue
 		}
 
+		if len(impressions) == 0 {
+			log.Debug.Println("Not found impressions for this key", key)
+			continue
+		}
+
 		var _keyImpressions []api.ImpressionDTO
 		for _, impression := range impressions {
 			var impressionDTO api.ImpressionDTO
