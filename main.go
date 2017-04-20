@@ -92,7 +92,9 @@ func parseFlags() {
 }
 
 func loadConfiguration() {
-	//load from configuration file
+	//load default values
+	conf.Initialize()
+	//overwrite default values from configuration file
 	conf.LoadFromFile(*configFile)
 	//overwrite with cli values
 	conf.LoadFromArgs(cliParametersMap)
@@ -171,10 +173,9 @@ func splitStorageFactory() storage.SplitStorage {
 }
 
 func segmentFetcherFactory() fetcher.SegmentFetcherFactory {
-	return fetcher.SegmentFetcherFactory{}
+	return fetcher.SegmentFetcherMainFactory{}
 }
 
 func segmentStorageFactory() storage.SegmentStorageFactory {
-	//return redis.NewSegmentStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-	return storage.SegmentStorageFactory{}
+	return storage.SegmentStorageMainFactory{}
 }

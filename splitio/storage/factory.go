@@ -1,4 +1,3 @@
-// Package storage implements different kind of storages for split information
 package storage
 
 import (
@@ -6,11 +5,11 @@ import (
 	"github.com/splitio/go-agent/splitio/storage/redis"
 )
 
-// SegmentStorageFactory factory for SegmentStorage
-type SegmentStorageFactory struct {
+// SegmentStorageMainFactory factory for SegmentStorage
+type SegmentStorageMainFactory struct {
 }
 
 // NewInstance returns an instance of implemented SegmentStorage interface
-func (f SegmentStorageFactory) NewInstance() SegmentStorage {
+func (f SegmentStorageMainFactory) NewInstance() SegmentStorage {
 	return redis.NewSegmentStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 }

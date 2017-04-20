@@ -1,4 +1,3 @@
-// Package api contains all functions and dtos Split APIs
 package api
 
 import (
@@ -6,13 +5,12 @@ import (
 	"encoding/json"
 	"strconv"
 
-	"github.com/splitio/go-agent/errors"
 	"github.com/splitio/go-agent/log"
 )
 
 func sdkFetch(url string) ([]byte, error) {
 	data, err := sdkClient.Get(url)
-	if errors.IsError(err) {
+	if err != nil {
 		return nil, err
 	}
 	return data, nil
@@ -30,14 +28,14 @@ func SplitChangesFetch(since int64) (*SplitChangesDTO, error) {
 	}
 
 	data, err := sdkFetch(bufferQuery.String())
-	if errors.IsError(err) {
+	if err != nil {
 		log.Error.Println("Error fetching split changes ", err)
 		return nil, err
 	}
 
 	var splitChangesDto SplitChangesDTO
 	err = json.Unmarshal(data, &splitChangesDto)
-	if errors.IsError(err) {
+	if err != nil {
 		log.Error.Println("Error parsing split changes JSON ", err)
 		return nil, err
 	}
@@ -57,14 +55,14 @@ func SegmentChangesFetch(name string, since int64) (*SegmentChangesDTO, error) {
 	}
 
 	data, err := sdkFetch(bufferQuery.String())
-	if errors.IsError(err) {
+	if err != nil {
 		log.Error.Println("Error fetching segment changes ", err)
 		return nil, err
 	}
 
 	var segmentChangesDto SegmentChangesDTO
 	err = json.Unmarshal(data, &segmentChangesDto)
-	if errors.IsError(err) {
+	if err != nil {
 		log.Error.Println("Error parsing segment changes JSON for segment ", name, err)
 		return nil, err
 	}

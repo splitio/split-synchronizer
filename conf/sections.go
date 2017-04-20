@@ -1,4 +1,3 @@
-// Package conf implements functions to read configuration data
 package conf
 
 import "encoding/json"

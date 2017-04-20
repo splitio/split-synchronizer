@@ -1,4 +1,3 @@
-// Package task contains all agent tasks
 package task
 
 import (
@@ -84,7 +83,6 @@ func worker() {
 func FetchSegments(segmentFetcherAdapter fetcher.SegmentFetcherFactory,
 	storageAdapterFactory storage.SegmentStorageFactory,
 	fetchRate int) {
-	log.Debug.Println("FetchSegments refresh rate", fetchRate)
 
 	//TODO Set blocker channel size by configuration
 	blocker = make(chan bool, 10)
@@ -92,11 +90,10 @@ func FetchSegments(segmentFetcherAdapter fetcher.SegmentFetcherFactory,
 	jobs = make(chan job)
 	var jobsPool = make(map[string]*job)
 
-	storageAdapter := storageAdapterFactory.NewInstance()
-
 	// worker to fetch jobs and run it.
 	go worker()
 
+	storageAdapter := storageAdapterFactory.NewInstance()
 	for {
 		segmentsNames, err := storageAdapter.RegisteredSegmentNames()
 		if err != nil {
@@ -106,23 +103,28 @@ func FetchSegments(segmentFetcherAdapter fetcher.SegmentFetcherFactory,
 		}
 		log.Verbose.Printf("Fetched Segments from storage: %s", segmentsNames)
 
-		for i := 0; i < len(segmentsNames); i++ {
-			if jobsPool[segmentsNames[i]] == nil {
-				jobsPool[segmentsNames[i]] = &job{segmentName: segmentsNames[i],
-					segmentFetcher: segmentFetcherAdapter.NewInstance(),
-					segmentStorage: storageAdapterFactory.NewInstance()}
-			}
-		}
-
-		// Running jobs in waiting group
-		for _, v := range jobsPool {
-			// Increment the WaitGroup counter.
-			jobsWaitingGroup.Add(1)
-			//go v.run()
-			jobs <- *v
-		}
+		taskFetchSegments(jobsPool, segmentsNames, segmentFetcherAdapter, storageAdapterFactory)
 
 		jobsWaitingGroup.Wait()
 		time.Sleep(time.Duration(fetchRate) * time.Second)
+	}
+}
+
+func taskFetchSegments(jobsPool map[string]*job, segmentsNames []string, segmentFetcherAdapter fetcher.SegmentFetcherFactory,
+	storageAdapterFactory storage.SegmentStorageFactory) {
+	for i := 0; i < len(segmentsNames); i++ {
+		if jobsPool[segmentsNames[i]] == nil {
+			jobsPool[segmentsNames[i]] = &job{segmentName: segmentsNames[i],
+				segmentFetcher: segmentFetcherAdapter.NewInstance(),
+				segmentStorage: storageAdapterFactory.NewInstance()}
+		}
+	}
+
+	// Running jobs in waiting group
+	for _, v := range jobsPool {
+		// Increment the WaitGroup counter.
+		jobsWaitingGroup.Add(1)
+		//go v.run()
+		jobs <- *v
 	}
 }

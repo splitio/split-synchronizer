@@ -1,4 +1,3 @@
-// Package redis implements redis storage for split information
 package redis
 
 import (
