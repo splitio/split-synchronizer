@@ -31,6 +31,11 @@ func TestPostImpressions(t *testing.T) {
 			t.Error("SDK Machine HEADER not match")
 		}
 
+		sdkMachineName := r.Header.Get("SplitSDKMachineName")
+		if sdkMachineName != "ip-127-0-0-1" {
+			t.Error("SDK Machine Name HEADER not match", sdkMachineName)
+		}
+
 		rBody, _ := ioutil.ReadAll(r.Body)
 		//fmt.Println(string(rBody))
 		var impressionsInPost []ImpressionsDTO
@@ -95,6 +100,11 @@ func TestPostMetricsLatency(t *testing.T) {
 			t.Error("SDK Machine HEADER not match")
 		}
 
+		sdkMachineName := r.Header.Get("SplitSDKMachineName")
+		if sdkMachineName != "ip-127-0-0-1" {
+			t.Error("SDK Machine Name HEADER not match", sdkMachineName)
+		}
+
 		rBody, _ := ioutil.ReadAll(r.Body)
 		var latenciesInPost []LatenciesDTO
 		err := json.Unmarshal(rBody, &latenciesInPost)
@@ -152,6 +162,11 @@ func TestPostMetricsCounters(t *testing.T) {
 			t.Error("SDK Machine HEADER not match")
 		}
 
+		sdkMachineName := r.Header.Get("SplitSDKMachineName")
+		if sdkMachineName != "ip-127-0-0-1" {
+			t.Error("SDK Machine Name HEADER not match", sdkMachineName)
+		}
+
 		rBody, _ := ioutil.ReadAll(r.Body)
 		var countersInPost []CounterDTO
 		err := json.Unmarshal(rBody, &countersInPost)
@@ -207,6 +222,11 @@ func TestPostMetricsGauge(t *testing.T) {
 
 		if sdkMachine != "127.0.0.1" {
 			t.Error("SDK Machine HEADER not match")
+		}
+
+		sdkMachineName := r.Header.Get("SplitSDKMachineName")
+		if sdkMachineName != "ip-127-0-0-1" {
+			t.Error("SDK Machine Name HEADER not match", sdkMachineName)
 		}
 
 		rBody, _ := ioutil.ReadAll(r.Body)

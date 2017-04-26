@@ -1,5 +1,10 @@
 package api
 
+import (
+	"fmt"
+	"strings"
+)
+
 // PostImpressions send impressions to Split events service
 func PostImpressions(data []byte, sdkVersion string, machineIP string) error {
 
@@ -9,6 +14,7 @@ func PostImpressions(data []byte, sdkVersion string, machineIP string) error {
 	_client.ResetHeaders()
 	_client.AddHeader("SplitSDKVersion", sdkVersion)
 	_client.AddHeader("SplitSDKMachineIP", machineIP)
+	_client.AddHeader("SplitSDKMachineName", fmt.Sprintf("ip-%s", strings.Replace(machineIP, ".", "-", -1)))
 
 	err := _client.Post(url, data)
 	if err != nil {
@@ -23,6 +29,7 @@ func postMetrics(url string, data []byte, sdkVersion string, machineIP string) e
 	_client.ResetHeaders()
 	_client.AddHeader("SplitSDKVersion", sdkVersion)
 	_client.AddHeader("SplitSDKMachineIP", machineIP)
+	_client.AddHeader("SplitSDKMachineName", fmt.Sprintf("ip-%s", strings.Replace(machineIP, ".", "-", -1)))
 
 	err := _client.Post(url, data)
 	if err != nil {
