@@ -1,4 +1,3 @@
-// Package redis implements different kind of storages for split information
 package redis
 
 import (
@@ -6,7 +5,6 @@ import (
 	"fmt"
 	"reflect"
 
-	e "github.com/splitio/go-agent/errors"
 	"github.com/splitio/go-agent/log"
 	"github.com/splitio/go-agent/splitio/api"
 
@@ -28,7 +26,7 @@ func NewSplitStorageAdapter(clientInstance *redis.Client, prefix string) *SplitS
 
 func (r SplitStorageAdapter) save(key string, split api.SplitDTO) error {
 	err := r.client.Set(r.splitNamespace(key), split, 0).Err()
-	if e.IsError(err) {
+	if err != nil {
 		log.Error.Println("Error saving item", key, "in Redis:", err)
 	} else {
 		log.Verbose.Println("Item saved at key:", key)
@@ -39,7 +37,7 @@ func (r SplitStorageAdapter) save(key string, split api.SplitDTO) error {
 
 func (r SplitStorageAdapter) remove(key string) error {
 	err := r.client.Del(r.splitNamespace(key)).Err()
-	if e.IsError(err) {
+	if err != nil {
 		log.Error.Println("Error removing item", key, "in Redis:", err)
 	} else {
 		log.Verbose.Println("Item removed at key:", key)

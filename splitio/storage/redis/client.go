@@ -1,4 +1,3 @@
-// Package redis implements different kind of storages for split information
 package redis
 
 import (
@@ -18,14 +17,6 @@ type BaseStorageAdapter struct {
 	*prefixAdapter
 	client *redis.Client
 }
-
-/*
-
-
-configData.Redis.MaxRetries = 0
-configData.Redis.PoolSize = 10
-
-*/
 
 // Initialize Redis module with a pool connection
 func Initialize(redisOptions conf.RedisSection) {

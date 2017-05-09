@@ -1,4 +1,3 @@
-// Package storage implements different kind of storages for split information
 package storage
 
 import "github.com/splitio/go-agent/splitio/api"
@@ -19,6 +18,12 @@ type SegmentStorage interface {
 	RemoveFromSegment(segmentName string, keys []string) error
 	SetChangeNumber(segmentName string, changeNumber int64) error
 	ChangeNumber(segmentName string) (int64, error)
+}
+
+// SegmentStorageFactory interface defines the segment storage Adapter
+type SegmentStorageFactory interface {
+	// NewInstance returns an instance of implemented SegmentStorage interface
+	NewInstance() SegmentStorage
 }
 
 // ImpressionStorage interface defines the impressions data storage actions

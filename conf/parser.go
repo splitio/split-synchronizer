@@ -1,4 +1,3 @@
-// Package conf implements functions to read configuration data
 package conf
 
 import (
@@ -7,8 +6,6 @@ import (
 	"io/ioutil"
 	"reflect"
 	"strconv"
-
-	"github.com/splitio/go-agent/errors"
 )
 
 // Data contains all configuration values
@@ -28,13 +25,20 @@ func NewInitializedConfigData() ConfigData {
 	return getDefaultConfigData()
 }
 
+// Initialize config module by default
+func Initialize() {
+	Data = getDefaultConfigData()
+}
+
 func loadFile(path string) {
 	dat, err := ioutil.ReadFile(path)
-	errors.CheckError(err)
-
-	Data = getDefaultConfigData()
+	if err != nil {
+		fmt.Println(err.Error())
+	}
 	err = json.Unmarshal(dat, &Data)
-	errors.CheckError(err)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
 }
 
 // LoadFromFile configuration values from file

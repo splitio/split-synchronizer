@@ -1,4 +1,3 @@
-// Package api contains all functions and dtos Split APIs
 package api
 
 import "encoding/json"
@@ -16,14 +15,17 @@ type SplitChangesDTO struct {
 
 // SplitDTO structure to map an Split definition fetched from JSON message.
 type SplitDTO struct {
-	ChangeNumber     int64          `json:"changeNumber"`
-	TrafficTypeName  string         `json:"trafficTypeName"`
-	Name             string         `json:"name"`
-	Seed             int64          `json:"seed"`
-	Status           string         `json:"status"`
-	Killed           bool           `json:"killed"`
-	DefaultTreatment string         `json:"defaultTreatment"`
-	Conditions       []ConditionDTO `json:"conditions"`
+	ChangeNumber          int64          `json:"changeNumber"`
+	TrafficTypeName       string         `json:"trafficTypeName"`
+	Name                  string         `json:"name"`
+	TrafficAllocation     int            `json:"trafficAllocation"`
+	TrafficAllocationSeed int64          `json:"trafficAllocationSeed"`
+	Seed                  int64          `json:"seed"`
+	Status                string         `json:"status"`
+	Killed                bool           `json:"killed"`
+	DefaultTreatment      string         `json:"defaultTreatment"`
+	Algo                  int            `json:"algo"`
+	Conditions            []ConditionDTO `json:"conditions"`
 }
 
 // MarshalBinary exports SplitDTO to JSON string
@@ -33,9 +35,10 @@ func (s SplitDTO) MarshalBinary() (data []byte, err error) {
 
 // ConditionDTO structure to map a Condition fetched from JSON message.
 type ConditionDTO struct {
-	MatcherGroup MatcherGroupDTO `json:"matcherGroup"`
-	Partitions   []PartitionDTO  `json:"partitions"`
-	Label        string          `json:"label"`
+	ConditionType string          `json:"conditionType"`
+	MatcherGroup  MatcherGroupDTO `json:"matcherGroup"`
+	Partitions    []PartitionDTO  `json:"partitions"`
+	Label         string          `json:"label"`
 }
 
 // PartitionDTO structure to map a Partition definition fetched from JSON message.
@@ -114,7 +117,7 @@ type ImpressionDTO struct {
 	Time         int64  `json:"time"`
 	ChangeNumber int64  `json:"changeNumber"`
 	Label        string `json:"label"`
-	BucketingKey string `json:"bucketingKey"`
+	BucketingKey string `json:"bucketingKey,omitempty"`
 }
 
 // MarshalBinary exports ImpressionDTO to JSON string

@@ -1,9 +1,9 @@
-// Package api contains all functions and dtos Split APIs
 package api
 
 import (
 	"bytes"
 	"compress/gzip"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -96,10 +96,14 @@ func (c *Client) Get(service string) ([]byte, error) {
 		log.Error.Println(err.Error())
 		return nil, err
 	}
-
+	log.Verbose.Println("[RESPONSE_STATUS]", resp.Status, " - ", resp.StatusCode, "[END_RESPONSE_STATUS]")
 	log.Verbose.Println("[RESPONSE_BODY]", string(body), "[END_RESPONSE_BODY]")
 
-	return body, nil
+	if resp.StatusCode >= 200 && resp.StatusCode < 400 {
+		return body, nil
+	}
+
+	return nil, fmt.Errorf("GET method: Status Code: %d - %s", resp.StatusCode, resp.Status)
 }
 
 // Post performs a HTTP POST request
@@ -138,7 +142,11 @@ func (c *Client) Post(service string, body []byte) error {
 	}
 	log.Verbose.Println("response Body:", string(respBody))
 
-	return nil
+	if resp.StatusCode >= 200 && resp.StatusCode < 400 {
+		return nil
+	}
+
+	return fmt.Errorf("POST method: Status Code: %d - %s", resp.StatusCode, resp.Status)
 }
 
 // AddHeader adds header value to HTTP client
