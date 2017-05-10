@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/splitio/go-agent/conf"
 	"github.com/splitio/go-agent/log"
@@ -54,7 +55,7 @@ type Client struct {
 
 // NewClient instance of Client
 func NewClient(endpoint string) *Client {
-	client := &http.Client{}
+	client := &http.Client{Timeout: time.Duration(conf.Data.HTTPTimeout) * time.Second}
 	return &Client{url: endpoint, httpClient: client, headers: make(map[string]string)}
 }
 
@@ -66,7 +67,7 @@ func (c *Client) Get(service string) ([]byte, error) {
 	req, _ := http.NewRequest("GET", serviceURL, nil)
 
 	authorization := conf.Data.APIKey
-	log.Debug.Println("Authorization [ApiKey]: " + authorization)
+	log.Debug.Println("Authorization [ApiKey]: ", log.ObfuscateAPIKey(authorization))
 
 	req.Header.Add("Authorization", "Bearer "+authorization)
 	req.Header.Add("SplitSDKVersion", "go-0.0.1")
@@ -74,12 +75,26 @@ func (c *Client) Get(service string) ([]byte, error) {
 	req.Header.Add("Accept-Encoding", "gzip")
 	req.Header.Add("Content-Type", "application/json")
 
+	//logging headers
+	if conf.Data.Logger.DebugOn {
+		log.Debug.Println("[REQUEST_HEADERS]", log.ObfuscateHTTPHeader(req.Header), "[END_REQUEST_HEADERS]")
+	}
+
+	startTimeInMillis := time.Now().UnixNano() / 1000000
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		log.Error.Println("Error requesting data to API: ", req.URL.String(), err.Error())
 		return nil, err
 	}
 	defer resp.Body.Close()
+	tookTimeInMillis := time.Now().UnixNano()/1000000 - startTimeInMillis
+	log.Debug.Println("REQUEST TIME TOOK:", tookTimeInMillis, "millis")
+
+	//logging headers
+	if conf.Data.Logger.DebugOn {
+		log.Debug.Println("[RESPONSE_HEADERS]", log.ObfuscateHTTPHeader(resp.Header), "[END_RESPONSE_HEADERS]")
+	}
+	log.Verbose.Println("[RESPONSE_STATUS]", resp.Status, " - ", resp.StatusCode, "[END_RESPONSE_STATUS]")
 
 	// Check that the server actually sent compressed data
 	var reader io.ReadCloser
@@ -96,7 +111,7 @@ func (c *Client) Get(service string) ([]byte, error) {
 		log.Error.Println(err.Error())
 		return nil, err
 	}
-	log.Verbose.Println("[RESPONSE_STATUS]", resp.Status, " - ", resp.StatusCode, "[END_RESPONSE_STATUS]")
+
 	log.Verbose.Println("[RESPONSE_BODY]", string(body), "[END_RESPONSE_BODY]")
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 400 {
@@ -114,10 +129,10 @@ func (c *Client) Post(service string, body []byte) error {
 	req, _ := http.NewRequest("POST", serviceURL, bytes.NewBuffer(body))
 
 	authorization := conf.Data.APIKey
-	log.Debug.Println("Authorization [ApiKey]: " + authorization)
+	log.Debug.Println("Authorization [ApiKey]: ", log.ObfuscateAPIKey(authorization))
 
 	req.Header.Add("Authorization", "Bearer "+authorization)
-	//req.Header.Add("SplitSDKVersion", "php-9.0.1")
+	//SplitSDKVersion added by poster tasks
 	req.Header.Add("User-Agent", "SplitIO-GO-AGENT/0.1")
 	req.Header.Add("Accept-Encoding", "gzip")
 	req.Header.Add("Content-Type", "application/json")
@@ -126,21 +141,34 @@ func (c *Client) Post(service string, body []byte) error {
 		req.Header.Add(headerName, headerValue)
 	}
 
+	//logging headers
+	if conf.Data.Logger.DebugOn {
+		log.Debug.Println("[REQUEST_HEADERS]", log.ObfuscateHTTPHeader(req.Header), "[END_REQUEST_HEADERS]")
+	}
+
+	startTimeInMillis := time.Now().UnixNano() / 1000000
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		log.Error.Println("Error requesting data to API: ", req.URL.String(), err.Error())
 		return err
 	}
 	defer resp.Body.Close()
+	tookTimeInMillis := time.Now().UnixNano()/1000000 - startTimeInMillis
+	log.Debug.Println("REQUEST TIME TOOK:", tookTimeInMillis, "millis")
 
-	log.Debug.Println("response Status:", resp.Status)
-	log.Debug.Println("response Headers:", resp.Header)
+	//logging headers
+	if conf.Data.Logger.DebugOn {
+		log.Debug.Println("[RESPONSE_HEADERS]", log.ObfuscateHTTPHeader(resp.Header), "[END_RESPONSE_HEADERS]")
+	}
+	log.Verbose.Println("[RESPONSE_STATUS]", resp.Status, " - ", resp.StatusCode, "[END_RESPONSE_STATUS]")
+
 	respBody, _ := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		log.Error.Println(err.Error())
 		return err
 	}
-	log.Verbose.Println("response Body:", string(respBody))
+
+	log.Verbose.Println("[RESPONSE_BODY]", string(respBody), "[END_RESPONSE_BODY]")
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 400 {
 		return nil
