@@ -55,13 +55,13 @@ type MatcherGroupDTO struct {
 
 // MatcherDTO structure to map a Matcher definition fetched from JSON message.
 type MatcherDTO struct {
-	KeySelector        KeySelectorDTO                   `json:"keySelector"`
-	MatcherType        string                           `json:"matcherType"`
-	Negate             bool                             `json:"negate"`
-	UserDefinedSegment UserDefinedSegmentMatcherDataDTO `json:"userDefinedSegmentMatcherData"`
-	UnaryNumeric       UnaryNumericMatcherDataDTO       `json:"unaryNumericMatcherData"`
-	Whitelist          WhitelistMatcherDataDTO          `json:"whitelistMatcherData"`
-	Between            BetweenMatcherDataDTO            `json:"betweenMatcherData"`
+	KeySelector        KeySelectorDTO                    `json:"keySelector"`
+	MatcherType        string                            `json:"matcherType"`
+	Negate             bool                              `json:"negate"`
+	UserDefinedSegment *UserDefinedSegmentMatcherDataDTO `json:"userDefinedSegmentMatcherData"`
+	UnaryNumeric       *UnaryNumericMatcherDataDTO       `json:"unaryNumericMatcherData"`
+	Whitelist          *WhitelistMatcherDataDTO          `json:"whitelistMatcherData"`
+	Between            *BetweenMatcherDataDTO            `json:"betweenMatcherData"`
 }
 
 // UserDefinedSegmentMatcherDataDTO structure to map a Matcher definition fetched from JSON message.
