@@ -55,7 +55,7 @@ type MatcherGroupDTO struct {
 
 // MatcherDTO structure to map a Matcher definition fetched from JSON message.
 type MatcherDTO struct {
-	KeySelector        KeySelectorDTO                    `json:"keySelector"`
+	KeySelector        *KeySelectorDTO                   `json:"keySelector"`
 	MatcherType        string                            `json:"matcherType"`
 	Negate             bool                              `json:"negate"`
 	UserDefinedSegment *UserDefinedSegmentMatcherDataDTO `json:"userDefinedSegmentMatcherData"`
@@ -89,8 +89,8 @@ type WhitelistMatcherDataDTO struct {
 
 // KeySelectorDTO structure to map a Key slector definition fetched from JSON message.
 type KeySelectorDTO struct {
-	TrafficType string `json:"trafficType"`
-	Attribute   string `json:"attribute"`
+	TrafficType string  `json:"trafficType"`
+	Attribute   *string `json:"attribute"`
 }
 
 //
