@@ -17,10 +17,12 @@ import (
 	"github.com/splitio/go-agent/splitio/fetcher"
 	"github.com/splitio/go-agent/splitio/recorder"
 	"github.com/splitio/go-agent/splitio/storage"
+	"github.com/splitio/go-agent/splitio/storage/boltdb"
 	"github.com/splitio/go-agent/splitio/storage/redis"
 	"github.com/splitio/go-agent/splitio/task"
 )
 
+var asProxy *bool
 var configFile *string
 var writeDefaultConfigFile *string
 var cliParametersMap map[string]interface{}
@@ -48,16 +50,38 @@ func init() {
 	loadConfiguration()
 	loadLogger()
 	api.Initialize()
-	redis.Initialize(conf.Data.Redis)
+
+	if *asProxy {
+		var dbpath = boltdb.InMemoryMode
+		if conf.Data.Proxy.PersistMemoryPath != "" {
+			dbpath = conf.Data.Proxy.PersistMemoryPath
+		}
+		boltdb.Initialize(dbpath, nil)
+	} else {
+		redis.Initialize(conf.Data.Redis)
+	}
+
+}
+
+func startAsProxy() {
+	go task.FetchRawSplits(conf.Data.SplitsFetchRate)
+
 }
 
 func main() {
-	startProducer()
 
-	//Keeping service alive
-	for {
-		time.Sleep(500 * time.Millisecond)
+	if *asProxy == true {
+		// Run as proxy using boltdb as in-memoy database
+		startAsProxy()
+	} else {
+		// Run as synchronizer using Redis as cache
+		startProducer()
+		//Keeping service alive
+		for {
+			time.Sleep(500 * time.Millisecond)
+		}
 	}
+
 }
 
 //------------------------------------------------------------------------------
@@ -67,6 +91,7 @@ func main() {
 func parseFlags() {
 	configFile = flag.String("config", "splitio.agent.conf.json", "a configuration file")
 	writeDefaultConfigFile = flag.String("write-default-config", "", "write a default configuration file")
+	asProxy = flag.Bool("proxy", false, "run as split server proxy to improve sdk performance")
 
 	// dinamically configuration parameters
 	cliParameters := conf.CliParametersToRegister()

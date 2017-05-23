@@ -2,6 +2,11 @@ package boltdb
 
 import "encoding/binary"
 
+// KeyInt returns an 8-byte big endian representation of v.
+func KeyInt(v uint64) []byte {
+	return itob(v)
+}
+
 // itob returns an 8-byte big endian representation of v.
 func itob(v uint64) []byte {
 	b := make([]byte, 8)

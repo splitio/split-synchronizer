@@ -49,19 +49,25 @@ type LogSection struct {
 
 // ConfigData main configuration container
 type ConfigData struct {
-	APIKey              string       `json:"apiKey" split-cli-option:"api-key" split-default-value:"YOUR API KEY" split-cli-description:"Your Split API-KEY"`
-	Redis               RedisSection `json:"redis" split-cli-option-group:"true"`
-	Logger              LogSection   `json:"log" split-cli-option-group:"true"`
-	SplitsFetchRate     int          `json:"splitsRefreshRate" split-cli-option:"split-refresh-rate" split-default-value:"60" split-cli-description:"Refresh rate of splits fetcher"`
-	SegmentFetchRate    int          `json:"segmentsRefreshRate" split-default-value:"60" split-cli-option:"segment-refresh-rate" split-cli-description:"Refresh rate of segments fetcher"`
-	ImpressionsPostRate int          `json:"impressionsRefreshRate" split-default-value:"60" split-cli-option:"impressions-post-rate" split-cli-description:"Post rate of impressions recorder"`
-	ImpressionsPerPost  int64        `json:"impressionsPerPost" split-cli-option:"impressions-per-post" split-default-value:"1000" split-cli-description:"Number of impressions to send in a POST request"`
-	ImpressionsThreads  int          `json:"impressionsThreads" split-default-value:"1" split-cli-option:"impressions-recorder-threads" split-cli-description:"Number of impressions recorder threads"`
-	MetricsPostRate     int          `json:"metricsRefreshRate" split-default-value:"60" split-cli-option:"metrics-post-rate" split-cli-description:"Post rate of metrics recorder"`
-	HTTPTimeout         int64        `json:"httpTimeout" split-default-value:"60" split-cli-option:"http-timeout" split-cli-description:"Timeout specifies a time limit for requests"`
+	APIKey              string          `json:"apiKey" split-cli-option:"api-key" split-default-value:"YOUR API KEY" split-cli-description:"Your Split API-KEY"`
+	Proxy               InMemorySection `json:"proxy" split-cli-option-group:"true"`
+	Redis               RedisSection    `json:"redis" split-cli-option-group:"true"`
+	Logger              LogSection      `json:"log" split-cli-option-group:"true"`
+	SplitsFetchRate     int             `json:"splitsRefreshRate" split-cli-option:"split-refresh-rate" split-default-value:"60" split-cli-description:"Refresh rate of splits fetcher"`
+	SegmentFetchRate    int             `json:"segmentsRefreshRate" split-default-value:"60" split-cli-option:"segment-refresh-rate" split-cli-description:"Refresh rate of segments fetcher"`
+	ImpressionsPostRate int             `json:"impressionsRefreshRate" split-default-value:"60" split-cli-option:"impressions-post-rate" split-cli-description:"Post rate of impressions recorder"`
+	ImpressionsPerPost  int64           `json:"impressionsPerPost" split-cli-option:"impressions-per-post" split-default-value:"1000" split-cli-description:"Number of impressions to send in a POST request"`
+	ImpressionsThreads  int             `json:"impressionsThreads" split-default-value:"1" split-cli-option:"impressions-recorder-threads" split-cli-description:"Number of impressions recorder threads"`
+	MetricsPostRate     int             `json:"metricsRefreshRate" split-default-value:"60" split-cli-option:"metrics-post-rate" split-cli-description:"Post rate of metrics recorder"`
+	HTTPTimeout         int64           `json:"httpTimeout" split-default-value:"60" split-cli-option:"http-timeout" split-cli-description:"Timeout specifies a time limit for requests"`
 }
 
 //MarshalBinary exports ConfigData to JSON string
 func (c ConfigData) MarshalBinary() (data []byte, err error) {
 	return json.MarshalIndent(c, "", "  ")
+}
+
+// InMemorySection represents configuration for in memory proxy
+type InMemorySection struct {
+	PersistMemoryPath string `json:"persistInFilePath" split-default-value:"" split-cli-option:"proxy-mmap-path" split-cli-description:"File path to persist memory in proxy mode"`
 }
