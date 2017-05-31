@@ -30,3 +30,4 @@ _testmain.go
 
 .DS_Store
 *.json
+!/test/dataset/test.conf.json
