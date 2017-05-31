@@ -1,0 +1,64 @@
+#!/bin/bash
+
+# ------------------------------------------------------------
+# Setup Environment
+# ------------------------------------------------------------
+PATH=/usr/bin:/bin
+umask 022
+PDIR=${0%`basename $0`}
+ZIP_FILENAME=Unpacked.zip
+
+# Number of lines in this script file (plus 1)
+SCRIPT_LINES=65
+
+# Run /bin/sum on your binary and put the two values here
+SUM1=AUTO_REPLACE_SUM1
+SUM2=AUTO_REPLACE_SUM2
+
+# ------------------------------------------------------------
+# This is a trap so that the script can attempt to clean up
+# if it exits abnormally or when unexpected.
+# ------------------------------------------------------------
+trap 'rm -f ${PDIR}/${ZIP_FILENAME}; exit 1' HUP INT QUIT TERM
+
+# ------------------------------------------------------------
+# Unpack the zip file (or binary) from the end of the script.
+# We do this with the tail command using the lines argument.
+# The (+) sign in front of the number of lines gives us the
+# number of lines in the file minus the number of lines
+# indicated.
+# ------------------------------------------------------------
+echo "* Unpacking binary files..."
+tail -n +$SCRIPT_LINES "$0" > ${PDIR}/${ZIP_FILENAME}
+
+# ------------------------------------------------------------
+# You could perform a checksum here on the unpacked zip file.
+# ------------------------------------------------------------
+SUM=`sum ${PDIR}/${ZIP_FILENAME}`
+ASUM1=`echo "${SUM}" | awk '{print $1}'`
+ASUM2=`echo "${SUM}" | awk '{print $2}'`
+if [ ${ASUM1} -ne ${SUM1} ] || [ ${ASUM2} -ne ${SUM2} ]; then
+  echo "The download file appears to be corrupted. Please download"
+  echo "the file again and re-try the installation."
+  exit 1
+fi
+
+# ------------------------------------------------------------
+# Now you can extract the contents of your zip file and do
+# whatever other tasks suite your fancy.
+# ------------------------------------------------------------
+unzip ${PDIR}/${ZIP_FILENAME}
+
+# ------------------------------------------------------------
+# Installing binary
+# ------------------------------------------------------------
+echo "* Installing splitio-sync binary in /usr/local/bin"
+install AUTO_REPLACE_BIN_FILENAME /usr/local/bin/splitio-sync
+
+# ------------------------------------------------------------
+# Done / Cleanup
+# ------------------------------------------------------------
+echo "* Deleting temporal files"
+rm -f ${PDIR}/${ZIP_FILENAME}
+rm -f AUTO_REPLACE_BIN_FILENAME
+exit 0
