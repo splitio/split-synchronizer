@@ -65,7 +65,7 @@ var splitMock = `{
 
 func TestSplitStorageAdapter(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 
 	config := conf.NewInitializedConfigData()
 	Initialize(config.Redis)

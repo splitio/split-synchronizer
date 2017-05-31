@@ -101,7 +101,7 @@ func (h testSplitStorage) ChangeNumber() (int64, error)             { return 149
 
 func TestFetchSplits(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 
 	//Initialize by default
 	conf.Initialize()

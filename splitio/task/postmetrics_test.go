@@ -58,7 +58,7 @@ func (r testMetricsStorage) RetrieveGauges() (map[string]map[string]map[string]f
 func TestPostMetrics(t *testing.T) {
 
 	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 
 	//Initialize by default
 	conf.Initialize()

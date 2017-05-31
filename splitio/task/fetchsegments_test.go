@@ -63,7 +63,7 @@ func (s testSegmentStorageFactory) NewInstance() storage.SegmentStorage { return
 
 func TestTaskFetchSegments(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 
 	//Initialize by default
 	conf.Initialize()
