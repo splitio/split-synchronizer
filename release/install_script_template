@@ -8,9 +8,10 @@ umask 022
 PDIR=${0%`basename $0`}
 ZIP_FILENAME=Unpacked.zip
 INSTALLER_VERSION=1.0.0
+SUCCESS_INSTALL=false
 
 # Number of lines in this script file (plus 1)
-SCRIPT_LINES=80
+SCRIPT_LINES=89
 
 # Run /bin/sum on your binary and put the two values here
 SUM1=AUTO_REPLACE_SUM1
@@ -28,7 +29,7 @@ echo -e "   / / \ \  \___ \| '_ \| | | __|"
 echo -e "   \ \  \ \  ___) | |_) | | | |_"
 echo -e "    \_\ / / |____/| .__/|_|_|\__|"
 echo -e "       /_/        |_|"
-echo -e "Split Synchroniser Agent - installer v${INSTALLER_VERSION}"
+echo -e "Split Synchronizer Agent - installer v${INSTALLER_VERSION}"
 echo -e "Split Software Inc."
 echo -e "\033[0m"
 
@@ -64,7 +65,9 @@ unzip ${PDIR}/${ZIP_FILENAME}
 # Installing binary
 # ------------------------------------------------------------
 echo "* Installing splitio-sync binary in /usr/local/bin"
-install AUTO_REPLACE_BIN_FILENAME /usr/local/bin/splitio-sync
+if install AUTO_REPLACE_BIN_FILENAME /usr/local/bin/splitio-sync
+then SUCCESS_INSTALL=true
+fi
 
 # ------------------------------------------------------------
 # Done / Cleanup
@@ -73,7 +76,13 @@ echo "* Deleting temporal files"
 rm -f ${PDIR}/${ZIP_FILENAME}
 rm -f AUTO_REPLACE_BIN_FILENAME
 
-echo "Split Synchronizer Agent has been installed."
-echo -e "Type \033[0;34msplitio-sync --help\033[0m for more information or visit https://split.io "
+if [ "$SUCCESS_INSTALL" = true ]; then
+  echo "Split Synchronizer Agent has been installed."
+  echo -e "Type \033[0;34msplitio-sync --help\033[0m for more information or visit https://split.io "
+else
+  echo "Something were wrong on the installation."
+  echo "Please try again, remember to check permissions or run it as root user."
+fi
+
 echo " "
 exit 0
