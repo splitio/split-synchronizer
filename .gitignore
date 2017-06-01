@@ -31,3 +31,10 @@ _testmain.go
 .DS_Store
 *.json
 !/test/dataset/test.conf.json
+
+# Release files
+release/install_linux.bin
+release/install_osx.bin
+release/splitio-agent-linux-amd64
+release/splitio-agent-osx-amd64
+release/splitio-sync-win.zip
