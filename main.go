@@ -33,7 +33,7 @@ var cliParametersMap map[string]interface{}
 func init() {
 	//Show initial banner
 	fmt.Println(splitio.ASCILogo)
-	fmt.Println("Split Software Agent - Version: ", splitio.Version)
+	fmt.Println("Split Synchroniser Agent - Version: ", splitio.Version)
 
 	//reading command line options
 	parseFlags()
