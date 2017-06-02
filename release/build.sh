@@ -1,9 +1,4 @@
 #!/bin/bash
-#
-# curl -L -o install_osx.bin http://downloads.split.io/synchronizer/install_osx.bin && chmod 755 install_osx.bin && ./install_osx.bin
-#
-# curl -L -o install_osx.bin https://s3.amazonaws.com/go-producer-stage.split.io/install_osx.bin && chmod 755 install_osx.bin && ./install_osx.bin
-# curl -L -o install_linux.bin https://s3.amazonaws.com/go-producer-stage.split.io/install_linux.bin && chmod 755 install_linux.bin && ./install_linux.bin
 
 OSX_ZIP_FILENAME=splitio-agent-osx-amd64.zip
 OSX_INSTALL_SCRIPT=osx_install_script

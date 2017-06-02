@@ -80,7 +80,7 @@ if [ "$SUCCESS_INSTALL" = true ]; then
   echo "Split Synchronizer Agent has been installed."
   echo -e "Type \033[0;34msplitio-sync --help\033[0m for more information or visit https://split.io "
 else
-  echo "Something were wrong on the installation."
+  echo -e "\033[0;31mSomething were wrong on the installation.\033[0m"
   echo "Please try again, remember to check permissions or run it as root user."
 fi
 
