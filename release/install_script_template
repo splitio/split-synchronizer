@@ -11,7 +11,7 @@ INSTALLER_VERSION=1.0.0
 SUCCESS_INSTALL=false
 
 # Number of lines in this script file (plus 1)
-SCRIPT_LINES=89
+SCRIPT_LINES=AUTO_REPLACE_SCRIPT_LINES
 
 # Run /bin/sum on your binary and put the two values here
 SUM1=AUTO_REPLACE_SUM1
