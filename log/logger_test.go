@@ -10,7 +10,7 @@ import (
 func TestInitialize(t *testing.T) {
 	var commonWriter = ioutil.Discard
 
-	Initialize(commonWriter, commonWriter, commonWriter, commonWriter, commonWriter)
+	Initialize(commonWriter, commonWriter, commonWriter, commonWriter, commonWriter, commonWriter)
 }
 
 func TestSlackWriter(t *testing.T) {

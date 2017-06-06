@@ -39,7 +39,7 @@ func (r testImpressionsRecorder) Post(impressions []api.ImpressionsDTO, sdkVersi
 
 func TestTaskPostImpressions(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 
 	//Initialize by default
 	conf.Initialize()

@@ -4,6 +4,7 @@ package api
 import (
 	"compress/gzip"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,8 +15,8 @@ import (
 )
 
 func before() {
-	stdoutWriter := os.Stdout //ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 	//Initialize by default
 	conf.Initialize()
 
