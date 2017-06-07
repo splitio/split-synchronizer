@@ -23,6 +23,7 @@ import (
 )
 
 var asProxy *bool
+var benchmarkMode *bool
 var configFile *string
 var writeDefaultConfigFile *string
 var cliParametersMap map[string]interface{}
@@ -34,7 +35,7 @@ var cliParametersMap map[string]interface{}
 func init() {
 	//Show initial banner
 	fmt.Println(splitio.ASCILogo)
-	fmt.Println("Split Software Agent - Version: ", splitio.Version)
+	fmt.Println("Split Synchronizer Agent - Version: ", splitio.Version)
 
 	//reading command line options
 	parseFlags()
@@ -66,6 +67,7 @@ func init() {
 func startAsProxy() {
 	go task.FetchRawSplits(conf.Data.SplitsFetchRate)
 
+	//Run webserver loop
 }
 
 func main() {
@@ -92,6 +94,7 @@ func parseFlags() {
 	configFile = flag.String("config", "splitio.agent.conf.json", "a configuration file")
 	writeDefaultConfigFile = flag.String("write-default-config", "", "write a default configuration file")
 	asProxy = flag.Bool("proxy", false, "run as split server proxy to improve sdk performance")
+	benchmarkMode = flag.Bool("benchmark", false, "Benchmark mode")
 
 	// dinamically configuration parameters
 	cliParameters := conf.CliParametersToRegister()
@@ -131,6 +134,7 @@ func loadLogger() {
 	var commonWriter io.Writer
 	var fullWriter io.Writer
 
+	var benchmarkWriter = ioutil.Discard
 	var verboseWriter = ioutil.Discard
 	var debugWriter = ioutil.Discard
 	var fileWriter = ioutil.Discard
@@ -166,7 +170,11 @@ func loadLogger() {
 		debugWriter = commonWriter
 	}
 
-	log.Initialize(verboseWriter, debugWriter, commonWriter, commonWriter, fullWriter)
+	if *benchmarkMode == true {
+		benchmarkWriter = commonWriter
+	}
+
+	log.Initialize(benchmarkWriter, verboseWriter, debugWriter, commonWriter, commonWriter, fullWriter)
 }
 
 func startProducer() {

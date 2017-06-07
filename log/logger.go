@@ -11,6 +11,8 @@ import (
 )
 
 var (
+	// Benchmark level
+	Benchmark *log.Logger
 	// Verbose level
 	Verbose *log.Logger
 	// Debug level
@@ -71,11 +73,15 @@ func (w *SlackWriter) postMessage() (err error) {
 }
 
 // Initialize log module
-func Initialize(verboseWriter io.Writer,
+func Initialize(benchmarkWriter io.Writer, verboseWriter io.Writer,
 	debugWriter io.Writer,
 	infoWriter io.Writer,
 	warningWriter io.Writer,
 	errorWriter io.Writer) {
+
+	Benchmark = log.New(benchmarkWriter,
+		"SPLITIO-AGENT | BENCHMARK: ",
+		log.Ldate|log.Ltime|log.Lshortfile)
 
 	Verbose = log.New(verboseWriter,
 		"SPLITIO-AGENT | VERBOSE: ",
