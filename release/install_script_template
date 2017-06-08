@@ -30,8 +30,13 @@ echo -e "   \ \  \ \  ___) | |_) | | | |_"
 echo -e "    \_\ / / |____/| .__/|_|_|\__|"
 echo -e "       /_/        |_|"
 echo -e "Split Synchronizer Agent - installer v${INSTALLER_VERSION}"
+echo -e "Commit version: AUTO_REPLACE_COMMIT_VERSION"
 echo -e "Split Software Inc."
 echo -e "\033[0m"
+
+if [ "$1" == "--version" ]; then
+   exit 0
+fi
 
 # ------------------------------------------------------------
 # Unpack the zip file (or binary) from the end of the script.
