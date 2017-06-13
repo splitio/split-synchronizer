@@ -8,7 +8,7 @@ LINUX_ZIP_FILENAME=splitio-agent-linux-amd64.zip
 LINUX_INSTALL_SCRIPT=linux_install_script
 LINUX_BINARY_PATH=splitio-agent-linux-amd64
 
-WINDOWS_ZIP_FILENAME=splitio-sync-win.zip
+WINDOWS_ZIP_FILENAME=split-sync-win.zip
 WINDOWS_BINARY_PATH=split-sync.exe
 
 #Compile agent

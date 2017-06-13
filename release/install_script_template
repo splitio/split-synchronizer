@@ -70,7 +70,7 @@ unzip ${PDIR}/${ZIP_FILENAME}
 # ------------------------------------------------------------
 # Installing binary
 # ------------------------------------------------------------
-echo "* Installing splitio-sync binary in /usr/local/bin"
+echo "* Installing split-sync binary in /usr/local/bin"
 if install AUTO_REPLACE_BIN_FILENAME /usr/local/bin/split-sync
 then SUCCESS_INSTALL=true
 fi
