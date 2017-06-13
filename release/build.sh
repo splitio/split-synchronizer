@@ -9,7 +9,7 @@ LINUX_INSTALL_SCRIPT=linux_install_script
 LINUX_BINARY_PATH=splitio-agent-linux-amd64
 
 WINDOWS_ZIP_FILENAME=splitio-sync-win.zip
-WINDOWS_BINARY_PATH=splitio-sync.exe
+WINDOWS_BINARY_PATH=split-sync.exe
 
 #Compile agent
 GOOS=darwin GOARCH=amd64 go build -o ${OSX_BINARY_PATH} ..
