@@ -147,3 +147,25 @@ func (c Collection) FetchBy(key []byte) ([]byte, error) {
 
 	return item, nil
 }
+
+// FetchAll fetch all saved items
+func (c Collection) FetchAll() ([][]byte, error) {
+	toReturn := make([][]byte, 0)
+	err := c.DB.View(func(tx *bolt.Tx) error {
+		// Assume bucket exists and has keys
+		bucket := tx.Bucket([]byte(c.Name))
+		if bucket == nil {
+			return fmt.Errorf("Bucket not found! %s", c.Name)
+		}
+
+		cursor := bucket.Cursor()
+
+		for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
+			toReturn = append(toReturn, v)
+		}
+
+		return nil
+	})
+
+	return toReturn, err
+}

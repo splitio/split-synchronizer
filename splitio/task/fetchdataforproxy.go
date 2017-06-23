@@ -2,7 +2,6 @@ package task
 
 import (
 	"encoding/json"
-	"fmt"
 	"sync"
 	"time"
 
@@ -14,8 +13,10 @@ import (
 
 var proxyFetchSegmentBlocker chan bool
 var proxyInProgressSegments map[string]struct{}
+var proxySegmentsTill map[string]int64
 var proxySegmentToProcess chan string
 var mutexInProgress = &sync.Mutex{}
+var mutexSegmentsTill = &sync.Mutex{}
 
 // worker to fetch segments
 func proxyFetchSegmentsWorker() {
@@ -30,11 +31,38 @@ func proxyFetchSegmentsWorker() {
 	}
 }
 
-func fetchSegment(segment string) {
-	fmt.Println(segment)
-	//time.Sleep(time.Duration(10) * time.Second)
+func saveSegmentData(segmentChangesDTO *api.SegmentChangesDTO) error {
 	segmentCollection := collections.NewSegmentChangesCollection(boltdb.DBB)
-	var since int64 = -1
+	segmentItem, _ := segmentCollection.Fetch(segmentChangesDTO.Name)
+
+	if segmentItem == nil {
+		segmentItem = &collections.SegmentChangesItem{}
+		segmentItem.Name = segmentChangesDTO.Name
+		segmentItem.Keys = make(map[string]struct{})
+	}
+
+	for _, removedSegment := range segmentChangesDTO.Removed {
+		log.Debug.Println("Removing", removedSegment, "from", segmentChangesDTO.Name)
+		delete(segmentItem.Keys, removedSegment)
+	}
+
+	for _, addedSegment := range segmentChangesDTO.Added {
+		log.Debug.Println("Adding", addedSegment, "in", segmentChangesDTO.Name)
+		segmentItem.Keys[addedSegment] = struct{}{}
+	}
+
+	err := segmentCollection.Add(segmentItem)
+	if err != nil {
+		log.Error.Println(err)
+		return err
+	}
+
+	return nil
+}
+
+func fetchSegment(segment string) {
+	//segmentCollection := collections.NewSegmentChangesCollection(boltdb.DBB)
+	var since int64 = proxySegmentsTill[segment]
 	for {
 		rawData, err := api.SegmentChangesFetchRaw(segment, since)
 		if err != nil {
@@ -44,29 +72,34 @@ func fetchSegment(segment string) {
 
 		log.Verbose.Println(string(rawData))
 
-		segmentChangesItem := &collections.SegmentChangesItem{}
-		err = json.Unmarshal(rawData, segmentChangesItem)
+		//segmentChangesItem := &collections.SegmentChangesItem{}
+		segmentChangesDTO := &api.SegmentChangesDTO{}
+		err = json.Unmarshal(rawData, segmentChangesDTO)
 		if err != nil {
 			log.Error.Println("Error parsing segment changes JSON ", err)
 			break
 		}
-		// Adding rawData into JSON attribute.
-		segmentChangesItem.JSON = rawData
-
-		//Saving in memory db
-		err = segmentCollection.Add(segmentChangesItem)
-		if err != nil {
-			log.Error.Println("Error saving segment", err)
+		// Old data shouldn't be processed
+		if since >= segmentChangesDTO.Till {
 			break
 		}
 
-		if segmentChangesItem.Since >= segmentChangesItem.Till {
+		err = saveSegmentData(segmentChangesDTO)
+		if err != nil {
+			log.Error.Println(err)
+		}
+
+		if segmentChangesDTO.Since >= segmentChangesDTO.Till {
 			break
 		} else {
-			since = segmentChangesItem.Till
+			since = segmentChangesDTO.Till
 		}
-
 	}
+
+	log.Verbose.Println("Saving last since value for", segment, "--->", since)
+	mutexSegmentsTill.Lock()
+	proxySegmentsTill[segment] = since
+	mutexSegmentsTill.Unlock()
 
 	// Release the in-progress segment
 	mutexInProgress.Lock()
@@ -74,58 +107,109 @@ func fetchSegment(segment string) {
 	mutexInProgress.Unlock()
 }
 
+func retrieveJSONdata(rawData []byte) (int64, []collections.SplitChangesItem, error) {
+	var till int64
+	var splits = make([]collections.SplitChangesItem, 0)
+	var err error
+
+	var objmap map[string]*json.RawMessage
+	if err = json.Unmarshal(rawData, &objmap); err != nil {
+		log.Error.Println(err)
+		return 0, nil, err
+	}
+
+	var tmpTill interface{}
+	if err = json.Unmarshal(*objmap["till"], &tmpTill); err != nil {
+		log.Error.Println(err)
+		return 0, nil, err
+	}
+
+	till = int64(tmpTill.(float64))
+	log.Verbose.Println("Fetched TILL (next since):", till)
+
+	var tmpSplits []*json.RawMessage
+	if err = json.Unmarshal(*objmap["splits"], &tmpSplits); err != nil {
+		log.Error.Println(err)
+		return 0, nil, err
+	}
+	log.Verbose.Println("Fetched splits:", len(tmpSplits))
+
+	for i := 0; i < len(tmpSplits); i++ {
+
+		splitChangesItem := &collections.SplitChangesItem{}
+		err = json.Unmarshal(*tmpSplits[i], splitChangesItem)
+		if err != nil {
+			log.Error.Println("Error parsing split changes JSON", err)
+			return 0, nil, err
+		}
+		rdat, _ := tmpSplits[i].MarshalJSON()
+		splitChangesItem.JSON = string(rdat)
+
+		splits = append(splits, *splitChangesItem)
+	}
+
+	return till, splits, nil
+}
+
 // FetchRawSplits task to retrieve split changes from Split servers
-func FetchRawSplits(splitsRefreshRate int) {
+func FetchRawSplits(splitsRefreshRate int, segmentsRefreshRate int) {
 	// Initialize global variables
 	proxyFetchSegmentBlocker = make(chan bool, 10)
 	proxyInProgressSegments = make(map[string]struct{}, 0)
 	proxySegmentToProcess = make(chan string)
+	proxySegmentsTill = make(map[string]int64, 0)
 
 	//Launch fetch segments worker
 	go proxyFetchSegmentsWorker()
 
+	//Fetch registered segments
+	go retrieveSegments(segmentsRefreshRate)
+
 	// Starting to fetch splits
 	splitCollection := collections.NewSplitChangesCollection(boltdb.DBB)
 
-	//TODO fetch last since from collection
+	// starting from beggining
 	var since int64 = -1
+	var splits []collections.SplitChangesItem
 
 	for {
+		//Fetch raw JSON from Split servers
 		rawData, err := api.SplitChangesFetchRaw(since)
 		if err != nil {
 			log.Error.Println("Error fetching split changes ", err)
+			time.Sleep(time.Duration(5) * time.Second)
 			continue
 		}
-
 		log.Verbose.Println(string(rawData))
 
-		splitChangesItem := &collections.SplitChangesItem{}
-		err = json.Unmarshal(rawData, splitChangesItem)
+		// Parsing JSON and update since for next call
+		prevSince := since
+		since, splits, err = retrieveJSONdata(rawData)
 		if err != nil {
-			log.Error.Println("Error parsing split changes JSON ", err)
+			log.Error.Println("Error parsing splits ", err)
+			time.Sleep(time.Duration(5) * time.Second)
+			since = prevSince
 			continue
 		}
-		// Adding rawData into JSON attribute.
-		splitChangesItem.JSON = rawData
 
 		//Saving in memory db
-		err = splitCollection.Add(splitChangesItem)
-		if err != nil {
-			log.Error.Println(err)
-			continue
+		for i := 0; i < len(splits); i++ {
+			err = splitCollection.Add(&splits[i])
+			if err != nil {
+				log.Error.Println(err)
+				continue
+			}
+			log.Verbose.Println(splits[i])
 		}
 
-		//Fetching segments
-		retrieveSegments(rawData)
-
-		//update since for next call
-		since = splitChangesItem.Till
+		//Registering segments
+		registerSegments(rawData)
 
 		time.Sleep(time.Duration(splitsRefreshRate) * time.Second)
 	}
 }
 
-func retrieveSegments(rawData []byte) {
+func registerSegments(rawData []byte) {
 	var splitChangesDto api.SplitChangesDTO
 	err := json.Unmarshal(rawData, &splitChangesDto)
 	if err != nil {
@@ -143,10 +227,23 @@ func retrieveSegments(rawData []byte) {
 				if splits[i].Conditions[j].MatcherGroup.Matchers[k].MatcherType == "IN_SEGMENT" {
 					segmentName := splits[i].Conditions[j].MatcherGroup.Matchers[k].UserDefinedSegment.SegmentName
 					log.Debug.Println("Fetching Segment:", segmentName)
-					// Adding segment to channel to be processed by worker
-					proxySegmentToProcess <- segmentName
+					mutexSegmentsTill.Lock()
+					if _, exists := proxySegmentsTill[segmentName]; !exists {
+						proxySegmentsTill[segmentName] = -1
+					}
+					mutexSegmentsTill.Unlock()
 				}
 			}
+		}
+	}
+}
+
+func retrieveSegments(segmentsRefreshRate int) {
+	for {
+		time.Sleep(time.Duration(segmentsRefreshRate) * time.Second)
+		for segmentName, _ := range proxySegmentsTill {
+			// Adding segment to channel to be processed by worker
+			proxySegmentToProcess <- segmentName
 		}
 	}
 }

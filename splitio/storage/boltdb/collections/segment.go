@@ -3,7 +3,6 @@ package collections
 import (
 	"bytes"
 	"encoding/gob"
-	"strconv"
 
 	"github.com/boltdb/bolt"
 	"github.com/splitio/go-agent/log"
@@ -21,10 +20,8 @@ func NewSegmentChangesCollection(dbb *bolt.DB) SegmentChangesCollection {
 
 // SegmentChangesItem represents an SplitChanges service response
 type SegmentChangesItem struct {
-	Name  string `json:"name"`
-	Till  int64  `json:"till"`
-	Since int64  `json:"since"`
-	JSON  []byte
+	Name string
+	Keys map[string]struct{}
 }
 
 // SegmentChangesCollection represents a collection of SplitChangesItem
@@ -34,17 +31,21 @@ type SegmentChangesCollection struct {
 
 // Add an item
 func (c SegmentChangesCollection) Add(item *SegmentChangesItem) error {
-	key := []byte(item.Name + "::" + strconv.Itoa(int(item.Since)))
+	key := []byte(item.Name)
 	err := c.Collection.SaveAs(key, item)
 	return err
 }
 
 // Fetch return a SegmentChangesItem
-func (c SegmentChangesCollection) Fetch(name string, since int64) (*SegmentChangesItem, error) {
-	key := []byte(name + "::" + strconv.Itoa(int(since)))
+func (c SegmentChangesCollection) Fetch(name string) (*SegmentChangesItem, error) {
+	key := []byte(name)
 	item, err := c.Collection.FetchBy(key)
 	if err != nil {
 		return nil, err
+	}
+
+	if item == nil {
+		return nil, nil
 	}
 
 	var decodeBuffer bytes.Buffer
