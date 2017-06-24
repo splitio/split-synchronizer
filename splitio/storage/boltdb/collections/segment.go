@@ -3,6 +3,7 @@ package collections
 import (
 	"bytes"
 	"encoding/gob"
+	"fmt"
 
 	"github.com/boltdb/bolt"
 	"github.com/splitio/go-agent/log"
@@ -18,10 +19,16 @@ func NewSegmentChangesCollection(dbb *bolt.DB) SegmentChangesCollection {
 	return sCollection
 }
 
+type SegmentKey struct {
+	Name         string
+	ChangeNumber int64
+	Removed      bool
+}
+
 // SegmentChangesItem represents an SplitChanges service response
 type SegmentChangesItem struct {
 	Name string
-	Keys map[string]struct{}
+	Keys map[string]SegmentKey
 }
 
 // SegmentChangesCollection represents a collection of SplitChangesItem
@@ -34,6 +41,33 @@ func (c SegmentChangesCollection) Add(item *SegmentChangesItem) error {
 	key := []byte(item.Name)
 	err := c.Collection.SaveAs(key, item)
 	return err
+}
+
+func (c SegmentChangesCollection) FetchAll() ([]*SegmentChangesItem, error) {
+	items, err := c.Collection.FetchAll()
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println(items)
+	toReturn := make([]*SegmentChangesItem, 0)
+	for _, v := range items {
+		var decodeBuffer bytes.Buffer
+		var q SegmentChangesItem
+
+		decodeBuffer.Write(v)
+		dec := gob.NewDecoder(&decodeBuffer)
+
+		errq := dec.Decode(&q)
+		if errq != nil {
+			log.Error.Println("decode error:", errq)
+			continue
+		}
+		toReturn = append(toReturn, &q)
+	}
+
+	//sort.Sort(toReturn)
+
+	return toReturn, nil
 }
 
 // Fetch return a SegmentChangesItem

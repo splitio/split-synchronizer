@@ -38,19 +38,35 @@ func saveSegmentData(segmentChangesDTO *api.SegmentChangesDTO) error {
 	if segmentItem == nil {
 		segmentItem = &collections.SegmentChangesItem{}
 		segmentItem.Name = segmentChangesDTO.Name
-		segmentItem.Keys = make(map[string]struct{})
+		segmentItem.Keys = make(map[string]collections.SegmentKey)
 	}
 
 	for _, removedSegment := range segmentChangesDTO.Removed {
 		log.Debug.Println("Removing", removedSegment, "from", segmentChangesDTO.Name)
-		delete(segmentItem.Keys, removedSegment)
+		if _, exists := segmentItem.Keys[removedSegment]; exists {
+			itemAux := segmentItem.Keys[removedSegment]
+			itemAux.Removed = true
+			itemAux.ChangeNumber = segmentChangesDTO.Till
+			segmentItem.Keys[removedSegment] = itemAux
+		} else {
+			segmentItem.Keys[removedSegment] = collections.SegmentKey{Name: removedSegment,
+				Removed: true, ChangeNumber: segmentChangesDTO.Till}
+		}
+
 	}
 
 	for _, addedSegment := range segmentChangesDTO.Added {
 		log.Debug.Println("Adding", addedSegment, "in", segmentChangesDTO.Name)
-		segmentItem.Keys[addedSegment] = struct{}{}
+		if _, exists := segmentItem.Keys[addedSegment]; exists {
+			itemAux := segmentItem.Keys[addedSegment]
+			itemAux.Removed = false
+			itemAux.ChangeNumber = segmentChangesDTO.Till
+			segmentItem.Keys[addedSegment] = itemAux
+		} else {
+			segmentItem.Keys[addedSegment] = collections.SegmentKey{Name: addedSegment,
+				Removed: false, ChangeNumber: segmentChangesDTO.Till}
+		}
 	}
-
 	err := segmentCollection.Add(segmentItem)
 	if err != nil {
 		log.Error.Println(err)
