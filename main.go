@@ -22,6 +22,7 @@ import (
 )
 
 var benchmarkMode *bool
+var versionInfo *bool
 var configFile *string
 var writeDefaultConfigFile *string
 var cliParametersMap map[string]interface{}
@@ -31,12 +32,18 @@ var cliParametersMap map[string]interface{}
 //------------------------------------------------------------------------------
 
 func init() {
-	//Show initial banner
-	fmt.Println(splitio.ASCILogo)
-	fmt.Println("Split Synchronizer Agent - Version: ", splitio.Version)
-
 	//reading command line options
 	parseFlags()
+
+	//print the version
+	if *versionInfo {
+		fmt.Println("Split Synchronizer - Version: ", splitio.Version)
+		os.Exit(0)
+	}
+
+	//Show initial banner
+	fmt.Println(splitio.ASCILogo)
+	fmt.Println("Split Synchronizer - Version: ", splitio.Version)
 
 	//writing a default configuration file if it is required by user
 	if *writeDefaultConfigFile != "" {
@@ -69,6 +76,7 @@ func parseFlags() {
 	configFile = flag.String("config", "splitio.agent.conf.json", "a configuration file")
 	writeDefaultConfigFile = flag.String("write-default-config", "", "write a default configuration file")
 	benchmarkMode = flag.Bool("benchmark", false, "Benchmark mode")
+	versionInfo = flag.Bool("version", false, "Print the version")
 
 	// dinamically configuration parameters
 	cliParameters := conf.CliParametersToRegister()
