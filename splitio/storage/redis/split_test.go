@@ -81,13 +81,15 @@ func TestSplitStorageAdapter(t *testing.T) {
 
 	redisStorageAdapter := NewSplitStorageAdapter(Client, "")
 
-	err = redisStorageAdapter.Save(splitChangesDtoFromMock.Splits[0])
+	//err = redisStorageAdapter.Save(splitChangesDtoFromMock.Splits[0])
+	err = redisStorageAdapter.Save([]byte(splitMock))
 	if err != nil {
 		t.Error(err)
 		return
 	}
 
-	err = redisStorageAdapter.Remove(splitChangesDtoFromMock.Splits[0])
+	//err = redisStorageAdapter.Remove(splitChangesDtoFromMock.Splits[0])
+	err = redisStorageAdapter.Remove([]byte(splitMock))
 	if err != nil {
 		t.Error(err)
 		return

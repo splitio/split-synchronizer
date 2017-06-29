@@ -1,9 +1,11 @@
 package task
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/splitio/go-agent/log"
+	"github.com/splitio/go-agent/splitio/api"
 	"github.com/splitio/go-agent/splitio/fetcher"
 	"github.com/splitio/go-agent/splitio/storage"
 )
@@ -28,21 +30,28 @@ func taskFetchSplits(splitFetcherAdapter fetcher.SplitFetcher,
 			log.Error.Println("Error saving till value into storage adapter.", errTill)
 		}
 
-		splits := data.Splits
-		totalItems := len(splits)
+		rawSplits := data.RawSplits
+		totalItemsRaw := len(data.RawSplits)
 		savedItems := 0
 		deletedItems := 0
-		for i := 0; i < totalItems; i++ {
-			//if split is active then save it!
-			if splits[i].Status == "ACTIVE" {
-				if err := splitStorageAdapter.Save(splits[i]); err == nil {
+		for i := 0; i < totalItemsRaw; i++ {
+			// Decode Raw JSON
+			var splitDTO api.SplitDTO
+			if err = json.Unmarshal(*rawSplits[i], &splitDTO); err != nil {
+				log.Error.Println(err)
+				continue
+			}
+
+			jsonD, _ := rawSplits[i].MarshalJSON()
+			if splitDTO.Status == "ACTIVE" {
+				if err := splitStorageAdapter.Save(jsonD); err == nil {
 					savedItems++
-					totalConditions := len(splits[i].Conditions)
+					totalConditions := len(splitDTO.Conditions)
 					for j := 0; j < totalConditions; j++ {
-						totalMatchers := len(splits[i].Conditions[j].MatcherGroup.Matchers)
+						totalMatchers := len(splitDTO.Conditions[j].MatcherGroup.Matchers)
 						for k := 0; k < totalMatchers; k++ {
-							if splits[i].Conditions[j].MatcherGroup.Matchers[k].MatcherType == "IN_SEGMENT" {
-								segmentName := splits[i].Conditions[j].MatcherGroup.Matchers[k].UserDefinedSegment.SegmentName
+							if splitDTO.Conditions[j].MatcherGroup.Matchers[k].MatcherType == "IN_SEGMENT" {
+								segmentName := splitDTO.Conditions[j].MatcherGroup.Matchers[k].UserDefinedSegment.SegmentName
 								if err := splitStorageAdapter.RegisterSegment(segmentName); err != nil {
 									log.Error.Println("Error registering segment", segmentName, err)
 								}
@@ -51,12 +60,12 @@ func taskFetchSplits(splitFetcherAdapter fetcher.SplitFetcher,
 					}
 				}
 			} else {
-				if err := splitStorageAdapter.Remove(splits[i]); err == nil {
+				if err := splitStorageAdapter.Remove(jsonD); err == nil {
 					deletedItems++
 				}
 			}
 		}
-		log.Debug.Println("Saved splits:", savedItems, "Removed splits:", deletedItems, "of Total items: ", totalItems)
+		log.Debug.Println("Saved splits:", savedItems, "Removed splits:", deletedItems, "of Total items: ", totalItemsRaw)
 	}
 }
 
