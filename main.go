@@ -69,12 +69,12 @@ func startAsProxy() {
 	go task.FetchRawSplits(conf.Data.SplitsFetchRate, conf.Data.SegmentFetchRate)
 
 	//Run webserver loop
-	proxy.Run(":3000")
+	proxy.Run(":" + conf.Data.Proxy.Port)
 }
 
 func main() {
 
-	if *asProxy == true {
+	if *asProxy {
 		// Run as proxy using boltdb as in-memoy database
 		startAsProxy()
 	} else {
