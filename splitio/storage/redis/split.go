@@ -1,9 +1,8 @@
 package redis
 
 import (
+	"encoding/json"
 	"errors"
-	"fmt"
-	"reflect"
 
 	"github.com/splitio/go-agent/log"
 	"github.com/splitio/go-agent/splitio/api"
@@ -46,24 +45,55 @@ func (r SplitStorageAdapter) remove(key string) error {
 	return err
 }
 
+func getKey(split []byte) (string, error) {
+	var tmpSplit map[string]interface{}
+	err := json.Unmarshal(split, &tmpSplit)
+	if err != nil {
+		log.Error.Println("Split Name couldn't be fetched", err)
+		return "", err
+	}
+	key := tmpSplit["name"].(string)
+	return key, nil
+}
+
 // Save an split object
 func (r SplitStorageAdapter) Save(split interface{}) error {
-	if splitDto, ok := split.(api.SplitDTO); ok {
-		return r.save(splitDto.Name, splitDto)
+
+	if _, ok := split.([]byte); !ok {
+		return errors.New("Expecting []byte type, Invalid format given")
 	}
-	message := fmt.Sprintf("Invalid parameter type, SplitDTO is expected but %s found", reflect.TypeOf(split))
-	log.Error.Println(message)
-	return errors.New(message)
+
+	key, err := getKey(split.([]byte))
+	if err != nil {
+		log.Error.Println("Split Name couldn't be fetched", err)
+		return err
+	}
+
+	err = r.client.Set(r.splitNamespace(key), string(split.([]byte)), 0).Err()
+	if err != nil {
+		log.Error.Println("Error saving item", key, "in Redis:", err)
+	} else {
+		log.Verbose.Println("Item saved at key:", key)
+	}
+
+	return err
+
 }
 
 //Remove removes split item from redis
 func (r SplitStorageAdapter) Remove(split interface{}) error {
-	if splitDto, ok := split.(api.SplitDTO); ok {
-		return r.remove(splitDto.Name)
+
+	if _, ok := split.([]byte); !ok {
+		return errors.New("Expecting []byte type, Invalid format given")
 	}
-	message := fmt.Sprintf("Invalid parameter type, SplitDTO is expected but %s found", reflect.TypeOf(split))
-	log.Error.Println(message)
-	return errors.New(message)
+
+	key, err := getKey(split.([]byte))
+	if err != nil {
+		log.Error.Println("Split Name couldn't be fetched", err)
+		return err
+	}
+
+	return r.remove(key)
 }
 
 //RegisterSegment add the segment name into redis set
