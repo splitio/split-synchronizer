@@ -69,6 +69,7 @@ func (c ConfigData) MarshalBinary() (data []byte, err error) {
 
 // InMemorySection represents configuration for in memory proxy
 type InMemorySection struct {
-	Port              string `json:"port" split-default-value:"3000" split-cli-option:"proxy-port" split-cli-description:"Proxy port to listen connections"`
-	PersistMemoryPath string `json:"persistInFilePath" split-default-value:"" split-cli-option:"proxy-mmap-path" split-cli-description:"File path to persist memory in proxy mode"`
+	Port               string `json:"port" split-default-value:"3000" split-cli-option:"proxy-port" split-cli-description:"Proxy port to listen connections"`
+	PersistMemoryPath  string `json:"persistInFilePath" split-default-value:"" split-cli-option:"proxy-mmap-path" split-cli-description:"File path to persist memory in proxy mode"`
+	ImpressionsMaxSize int64  `json:"impressionsMaxSize" split-default-value:"10485760" split-cli-option:"proxy-impressions-max-size" split-cli-description:"Max size, in bytes, to send impressions in proxy mode"`
 }

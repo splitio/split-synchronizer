@@ -16,6 +16,7 @@ import (
 	"github.com/splitio/go-agent/splitio/api"
 	"github.com/splitio/go-agent/splitio/fetcher"
 	"github.com/splitio/go-agent/splitio/proxy"
+	"github.com/splitio/go-agent/splitio/proxy/controllers"
 	"github.com/splitio/go-agent/splitio/recorder"
 	"github.com/splitio/go-agent/splitio/storage"
 	"github.com/splitio/go-agent/splitio/storage/boltdb"
@@ -67,6 +68,8 @@ func init() {
 
 func startAsProxy() {
 	go task.FetchRawSplits(conf.Data.SplitsFetchRate, conf.Data.SegmentFetchRate)
+
+	controllers.Initialize(conf.Data.Proxy.ImpressionsMaxSize, int64(conf.Data.ImpressionsPostRate))
 
 	//Run webserver loop
 	proxy.Run(":" + conf.Data.Proxy.Port)

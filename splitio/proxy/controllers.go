@@ -2,10 +2,13 @@ package proxy
 
 import (
 	"encoding/json"
+	"io/ioutil"
 	"net/http"
 	"strconv"
 
 	"github.com/splitio/go-agent/log"
+	"github.com/splitio/go-agent/splitio/api"
+	"github.com/splitio/go-agent/splitio/proxy/controllers"
 	"github.com/splitio/go-agent/splitio/storage/boltdb"
 	"github.com/splitio/go-agent/splitio/storage/boltdb/collections"
 
@@ -81,4 +84,57 @@ func segmentChanges(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"name": segmentName, "added": added,
 		"removed": removed, "since": since, "till": till})
+}
+
+//-----------------------------------------------------------------
+//                 I M P R E S S I O N S
+//-----------------------------------------------------------------
+func postBulkImpressions(c *gin.Context) {
+	sdkVersion := c.Request.Header.Get("SplitSDKVersion")
+	machineIP := c.Request.Header.Get("SplitSDKMachineIP")
+	data, err := ioutil.ReadAll(c.Request.Body)
+	if err != nil {
+		log.Error.Println(err)
+		c.JSON(http.StatusInternalServerError, nil)
+	}
+
+	controllers.AddImpressions(data, sdkVersion, machineIP)
+
+	c.JSON(http.StatusOK, nil)
+}
+
+//-----------------------------------------------------------------
+//-----------------------------------------------------------------
+
+func postMetricsTimes(c *gin.Context) {
+	postEvent(c, api.PostMetricsLatency)
+	c.JSON(http.StatusOK, "")
+}
+
+func postMetricsCount(c *gin.Context) {
+	postEvent(c, api.PostMetricsCounters)
+	c.JSON(http.StatusOK, "")
+}
+
+func postMetricsGauge(c *gin.Context) {
+	postEvent(c, api.PostMetricsGauge)
+	c.JSON(http.StatusOK, "")
+}
+
+func postEvent(c *gin.Context, fn func([]byte, string, string) error) {
+	sdkVersion := c.Request.Header.Get("SplitSDKVersion")
+	machineIP := c.Request.Header.Get("SplitSDKMachineIP")
+	data, err := ioutil.ReadAll(c.Request.Body)
+	if err != nil {
+		log.Error.Println(err)
+	}
+
+	// TODO add channel to control number of posts
+	go func() {
+		log.Debug.Println(sdkVersion, machineIP, string(data))
+		var e = fn(data, sdkVersion, machineIP)
+		if e != nil {
+			log.Error.Println(e)
+		}
+	}()
 }
