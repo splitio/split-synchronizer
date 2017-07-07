@@ -54,7 +54,12 @@ func segmentChanges(c *gin.Context) {
 	segmentCollection := collections.NewSegmentChangesCollection(boltdb.DBB)
 	item, err := segmentCollection.Fetch(segmentName)
 	if err != nil {
-		log.Error.Println(err)
+		switch err {
+		case boltdb.ErrorBucketNotFound:
+			log.Warning.Printf("Bucket not found for segment [%s]\n", segmentName)
+		default:
+			log.Error.Println(err)
+		}
 		c.JSON(http.StatusOK, gin.H{"name": segmentName, "added": added,
 			"removed": removed, "since": since, "till": till})
 		return

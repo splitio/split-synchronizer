@@ -63,9 +63,6 @@ func (slice SplitsChangesItems) Swap(i, j int) {
 // SplitChangesCollection represents a collection of SplitChangesItem
 type SplitChangesCollection struct {
 	boltdb.Collection
-	//NameIndex         boltdb.Index
-	//ChangeNumberIndex boltdb.Index
-	//StatusIndex       boltdb.Index
 }
 
 // Add an item

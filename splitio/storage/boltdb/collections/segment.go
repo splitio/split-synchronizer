@@ -3,7 +3,6 @@ package collections
 import (
 	"bytes"
 	"encoding/gob"
-	"fmt"
 
 	"github.com/boltdb/bolt"
 	"github.com/splitio/go-agent/log"
@@ -26,8 +25,9 @@ type SegmentKey struct {
 }
 
 //------------ Chunked Collection ------------------
+/*
 const sccBucketName = "SEGMENT_%s"
-const sccChunkBucketName = "CHUNK_%d"
+const sccChunkBucketName = "C_%d"
 const sccChunkSize = 100000
 
 func chunkSlice(list []SegmentKey) [][]SegmentKey {
@@ -57,43 +57,59 @@ type SegmentChunkedCollection struct {
 	Name string
 }
 
-func putChunkedKeysIntoNewBuckets(start int, root *bolt.Bucket, chunkedList [][]SegmentKey) error {
+func createChunkedBucket(root *bolt.Bucket) []byte {
+	var bucketName []byte
 
-	for i, chunk := range chunkedList {
-		bucketName := []byte(fmt.Sprintf(sccChunkBucketName, start+i))
-		bucket, errc := root.CreateBucketIfNotExists(bucketName)
-		if errc != nil {
-			log.Error.Println(errc)
-			return errc
-		}
-
-		errp := putKeysIntoBucket(root, bucket, chunk)
-		if errp != nil {
-			log.Error.Println(errp)
-			return errp
-		}
+	lastChunkBucket := root.Stats().BucketN - 1
+	bucketName = []byte(fmt.Sprintf(sccChunkBucketName, lastChunkBucket+1))
+	_, errc := root.CreateBucketIfNotExists(bucketName)
+	if errc != nil {
+		log.Error.Println(errc)
+		return nil
 	}
-	return nil
+
+	return bucketName
 }
 
-func putKeysIntoBucket(root *bolt.Bucket, b *bolt.Bucket, items []SegmentKey) error {
-	for _, k := range items {
-		var err error
-		var encodeBuffer bytes.Buffer
-		gob.NewEncoder(&encodeBuffer).Encode(k)
+func (c *SegmentChunkedCollection) getAvailableBucket() []byte {
 
-		bktName := keyExistsIn(root, []byte(k.Name))
-		if bktName != nil { //Update existing key
-			err = root.Bucket(bktName).Put([]byte(k.Name), encodeBuffer.Bytes())
-		} else { //Add new key
-			err = b.Put([]byte(k.Name), encodeBuffer.Bytes())
+	var bktName []byte
+
+	err := c.DB.Update(func(tx *bolt.Tx) error {
+		// fetching/creating parent bucket
+		root, errb := tx.CreateBucketIfNotExists([]byte(fmt.Sprintf(sccBucketName, c.Name)))
+		if errb != nil {
+			log.Error.Println("Error getting segment bucket", errb)
+			return errb
 		}
 
-		if err != nil {
-			return err
+		var lastChunkBucket = root.Stats().BucketN - 1
+		var lbkt *bolt.Bucket
+		if lastChunkBucket == 0 {
+			bktName = createChunkedBucket(root)
+		} else {
+			lastChunkBucketName := []byte(fmt.Sprintf(sccChunkBucketName, lastChunkBucket))
+			lbkt = root.Bucket(lastChunkBucketName)
+			var remainingKeys = sccChunkSize - lbkt.Stats().KeyN
+			if remainingKeys > 0 { //there are free slots to add items
+				bktName = lastChunkBucketName
+			} else { //a new bucket must be created
+				bktName = createChunkedBucket(root)
+			}
 		}
+
+		if bktName == nil {
+			return fmt.Errorf("Error fetching available bucket for segment %s", c.Name)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		log.Error.Println(err)
 	}
-	return nil
+
+	return bktName
 }
 
 func keyExistsIn(root *bolt.Bucket, key []byte) []byte {
@@ -110,63 +126,75 @@ func keyExistsIn(root *bolt.Bucket, key []byte) []byte {
 	return container
 }
 
-// Add an item
-func (c *SegmentChunkedCollection) Add(items []SegmentKey) error {
+func (c *SegmentChunkedCollection) putKeysIntoBucket(bktName []byte, items []SegmentKey) ([]SegmentKey, error) {
+	var remainingList = make([]SegmentKey, 0)
 
 	err := c.DB.Update(func(tx *bolt.Tx) error {
 
-		// fetching/creating parent bucket
-		root, errb := tx.CreateBucketIfNotExists([]byte(fmt.Sprintf(sccBucketName, c.Name)))
-		if errb != nil {
-			log.Error.Println("Error getting segment bucket", errb)
-			return errb
-		}
+		root := tx.Bucket([]byte(fmt.Sprintf(sccBucketName, c.Name)))
+		bkt := root.Bucket(bktName)
+		remaining := sccChunkSize - bkt.Stats().KeyN
 
-		//fetching chunk bucket to add impressions
-		var lastChunkBucket = root.Stats().BucketN - 1
-		var lastChunkBucketName []byte
-		var chunkBucket *bolt.Bucket
+		for _, k := range items {
+			var err error
+			var encodeBuffer bytes.Buffer
 
-		if lastChunkBucket == 0 { //First add, creates bucket named CHUNK_1
-
-			toAddInNewBuckets := chunkSlice(items)
-			putChunkedKeysIntoNewBuckets(lastChunkBucket+1, root, toAddInNewBuckets)
-
-		} else {
-			lastChunkBucketName = []byte(fmt.Sprintf(sccChunkBucketName, lastChunkBucket))
-			chunkBucket = root.Bucket(lastChunkBucketName)
-			var remainingKeys = sccChunkSize - chunkBucket.Stats().KeyN
-			if remainingKeys > 0 { //there are free slots to add items
-				if remainingKeys >= len(items) {
-					putKeysIntoBucket(root, chunkBucket, items)
+			existsInBktName := keyExistsIn(root, []byte(k.Name))
+			if existsInBktName != nil { //Update existing key
+				gob.NewEncoder(&encodeBuffer).Encode(k)
+				err = root.Bucket(existsInBktName).Put([]byte(k.Name), encodeBuffer.Bytes())
+			} else { //Add new key
+				if remaining > 0 {
+					gob.NewEncoder(&encodeBuffer).Encode(k)
+					err = bkt.Put([]byte(k.Name), encodeBuffer.Bytes())
+					if err == nil {
+						remaining--
+					}
 				} else {
-					toAddFirst := items[:remainingKeys]
-					putKeysIntoBucket(root, chunkBucket, toAddFirst)
-
-					toAddInNewBuckets := chunkSlice(items[remainingKeys:])
-					putChunkedKeysIntoNewBuckets(lastChunkBucket+1, root, toAddInNewBuckets)
+					remainingList = append(remainingList, k)
 				}
-			} else {
-				toAddInNewBuckets := chunkSlice(items)
-				putChunkedKeysIntoNewBuckets(lastChunkBucket+1, root, toAddInNewBuckets)
+			}
+
+			if err != nil {
+				return err
 			}
 		}
-
-		/*root.ForEach(func(k []byte, v []byte) error {
-			if k != nil && v == nil { // it is bucket
-				if root.Bucket(k).Stats().KeyN < 100000 {
-					lastChunkBucket = k //saving chunk bucket name
-				}
-			}
-			return nil
-		})*/
 
 		return nil
 	})
 
-	return err
+	if err != nil {
+		return remainingList, err
+	}
+
+	return remainingList, nil
 }
 
+// Add an item
+func (c *SegmentChunkedCollection) Add(items []SegmentKey) error {
+
+	chunks := chunkSlice(items)
+	for _, chunk := range chunks {
+		var bktName = c.getAvailableBucket()
+		remainingList, err := c.putKeysIntoBucket(bktName, chunk)
+		if err != nil {
+			log.Error.Println(err)
+			return err
+		}
+
+		if len(remainingList) > 0 { //items cannot be allocated on bucket
+			bktName = c.getAvailableBucket()
+			_, err := c.putKeysIntoBucket(bktName, remainingList)
+			if err != nil {
+				log.Error.Println(err)
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+*/
 //--------------------------------------------------
 //--------------------------------------------------
 
@@ -188,7 +216,7 @@ func (c SegmentChangesCollection) Add(item *SegmentChangesItem) error {
 	return err
 }
 
-func (c SegmentChangesCollection) FetchAll() ([]*SegmentChangesItem, error) {
+/*func (c SegmentChangesCollection) FetchAll() ([]*SegmentChangesItem, error) {
 	items, err := c.Collection.FetchAll()
 	if err != nil {
 		return nil, err
@@ -213,7 +241,7 @@ func (c SegmentChangesCollection) FetchAll() ([]*SegmentChangesItem, error) {
 	//sort.Sort(toReturn)
 
 	return toReturn, nil
-}
+}*/
 
 // Fetch return a SegmentChangesItem
 func (c SegmentChangesCollection) Fetch(name string) (*SegmentChangesItem, error) {

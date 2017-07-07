@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"encoding/gob"
 	"errors"
-	"fmt"
 
 	"github.com/boltdb/bolt"
 	"github.com/splitio/go-agent/log"
 )
+
+var ErrorBucketNotFound = errors.New("Bucket not found")
 
 // Collection sets
 type Collection struct {
@@ -112,7 +113,7 @@ func (c Collection) Fetch(id uint64) ([]byte, error) {
 	err := c.DB.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(c.Name))
 		if bucket == nil {
-			return fmt.Errorf("Bucket not found! %s", c.Name)
+			return ErrorBucketNotFound
 		}
 
 		item = bucket.Get(itob(id))
@@ -133,7 +134,7 @@ func (c Collection) FetchBy(key []byte) ([]byte, error) {
 	err := c.DB.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(c.Name))
 		if bucket == nil {
-			return fmt.Errorf("Bucket not found! %s", c.Name)
+			return ErrorBucketNotFound
 		}
 
 		item = bucket.Get(key)
@@ -155,7 +156,7 @@ func (c Collection) FetchAll() ([][]byte, error) {
 		// Assume bucket exists and has keys
 		bucket := tx.Bucket([]byte(c.Name))
 		if bucket == nil {
-			return fmt.Errorf("Bucket not found! %s", c.Name)
+			return ErrorBucketNotFound
 		}
 
 		cursor := bucket.Cursor()

@@ -6,10 +6,10 @@ import (
 
 func Run(port string) {
 	//gin.SetMode(gin.ReleaseMode)
-	//router := gin.Default()
-	router := gin.New()
+	router := gin.Default()
+	//router := gin.New()
 	//TODO add custom logger as middleware (?)
-	router.Use(gin.Recovery())
+	//router.Use(gin.Recovery())
 
 	router.GET("/api/splitChanges", splitChanges)
 	router.GET("/api/segmentChanges/:name", segmentChanges)

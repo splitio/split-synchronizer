@@ -42,12 +42,18 @@ func complement(s1 []uint64, s2 []uint64) []uint64 {
 func difference(s1 []uint64, s2 []uint64) []uint64 {
 	diffInt := []uint64{}
 	m := map[uint64]int{}
+	duplicates := map[uint64]int{}
 
 	for _, s1Val := range s1 {
 		m[s1Val] = 1
 	}
 	for _, s2Val := range s2 {
+		if duplicates[s2Val] == 1 {
+			continue
+		}
+		duplicates[s2Val] = 1
 		m[s2Val] = m[s2Val] + 1
+
 	}
 
 	for mKey, mVal := range m {
