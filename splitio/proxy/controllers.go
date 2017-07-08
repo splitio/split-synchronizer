@@ -15,18 +15,21 @@ import (
 	"gopkg.in/gin-gonic/gin.v1"
 )
 
-func splitChanges(c *gin.Context) {
-	sinceParam := c.DefaultQuery("since", "-1")
-	since, err := strconv.Atoi(sinceParam)
-	if err != nil {
-		since = -1
-	}
-
-	splitCollection := collections.NewSplitChangesCollection(boltdb.DBB)
-	items, err := splitCollection.FetchAll()
+//-----------------------------------------------------------------------------
+// SPLIT CHANGES
+//-----------------------------------------------------------------------------
+func fetchSplitsFromDB(since int) ([]json.RawMessage, int64, error) {
 
 	till := int64(since)
 	splits := make([]json.RawMessage, 0)
+
+	splitCollection := collections.NewSplitChangesCollection(boltdb.DBB)
+	items, err := splitCollection.FetchAll()
+	if err != nil {
+		log.Error.Println(err)
+		return splits, till, err
+	}
+
 	for _, split := range items {
 		if split.Status == "ACTIVE" && split.ChangeNumber > int64(since) {
 			if split.ChangeNumber > till {
@@ -36,21 +39,34 @@ func splitChanges(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"splits": splits, "since": since, "till": till})
+	return splits, till, nil
 }
 
-func segmentChanges(c *gin.Context) {
+func splitChanges(c *gin.Context) {
 	sinceParam := c.DefaultQuery("since", "-1")
 	since, err := strconv.Atoi(sinceParam)
 	if err != nil {
 		since = -1
 	}
 
+	splits, till, errf := fetchSplitsFromDB(since)
+	if errf != nil {
+		log.Error.Println(errf)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": errf.Error()})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"splits": splits, "since": since, "till": till})
+}
+
+//-----------------------------------------------------------------------------
+// SEGMENT CHANGES
+//-----------------------------------------------------------------------------
+
+func fetchSegmentsFromDB(since int, segmentName string) ([]string, []string, int64, error) {
 	added := make([]string, 0)
 	removed := make([]string, 0)
 	till := int64(since)
 
-	segmentName := c.Param("name")
 	segmentCollection := collections.NewSegmentChangesCollection(boltdb.DBB)
 	item, err := segmentCollection.Fetch(segmentName)
 	if err != nil {
@@ -60,9 +76,7 @@ func segmentChanges(c *gin.Context) {
 		default:
 			log.Error.Println(err)
 		}
-		c.JSON(http.StatusOK, gin.H{"name": segmentName, "added": added,
-			"removed": removed, "since": since, "till": till})
-		return
+		return added, removed, till, err
 	}
 
 	for _, skey := range item.Keys {
@@ -84,9 +98,26 @@ func segmentChanges(c *gin.Context) {
 					till = skey.ChangeNumber
 				}
 			}
-
 		}
 	}
+
+	return added, removed, till, nil
+}
+
+func segmentChanges(c *gin.Context) {
+	sinceParam := c.DefaultQuery("since", "-1")
+	since, err := strconv.Atoi(sinceParam)
+	if err != nil {
+		since = -1
+	}
+
+	segmentName := c.Param("name")
+	added, removed, till, errf := fetchSegmentsFromDB(since, segmentName)
+	if errf != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": errf.Error()})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{"name": segmentName, "added": added,
 		"removed": removed, "since": since, "till": till})
 }
@@ -108,8 +139,9 @@ func postBulkImpressions(c *gin.Context) {
 	c.JSON(http.StatusOK, nil)
 }
 
-//-----------------------------------------------------------------
-//-----------------------------------------------------------------
+//-----------------------------------------------------------------------------
+// METRICS
+//-----------------------------------------------------------------------------
 
 func postMetricsTimes(c *gin.Context) {
 	postEvent(c, api.PostMetricsLatency)

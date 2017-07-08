@@ -15,12 +15,14 @@ import (
 type machineIPBuffer map[string][][]byte
 type sdkVersionBuffer map[string]machineIPBuffer
 
+const impressionChannelCapacity = 5
+
 var poolBuffer sdkVersionBuffer = make(sdkVersionBuffer)
 
 var poolBufferSize = poolBufferSizeStruct{size: 0}
 var currentPoolBucket = 0
 var mutexPoolBuffer = sync.Mutex{}
-var impressionChannel = make(chan impressionChanMessage, 2)
+var impressionChannel = make(chan impressionChanMessage, impressionChannelCapacity)
 var poolBufferReleaseChannel = make(chan bool, 1)
 
 //----------------------------------------------------------------
@@ -64,8 +66,9 @@ type impressionChanMessage struct {
 // Initialize workers
 func Initialize(footprint int64, postRate int64) {
 	go conditionsWorker(postRate)
-	go addImpressionsToBufferWorker(footprint)
-	go addImpressionsToBufferWorker(footprint)
+	for i := 0; i < impressionChannelCapacity; i++ {
+		go addImpressionsToBufferWorker(footprint)
+	}
 }
 
 // AddImpressions non-blocking function to add impressions and return response
