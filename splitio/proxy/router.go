@@ -18,7 +18,14 @@ func Run(port string) {
 	router.POST("/api/testImpressions/bulk", postBulkImpressions)
 
 	//metrics
+	//latencies
 	router.POST("/api/metrics/times", postMetricsTimes)
+
+	//counters
+	router.POST("/api/metrics/counters", postMetricsCounters)
+
+	//gauge
+	router.POST("/api/metrics/gauge", postMetricsGauge)
 
 	router.Run(port)
 }

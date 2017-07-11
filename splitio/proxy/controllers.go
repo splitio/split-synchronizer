@@ -9,11 +9,20 @@ import (
 	"github.com/splitio/go-agent/log"
 	"github.com/splitio/go-agent/splitio/api"
 	"github.com/splitio/go-agent/splitio/proxy/controllers"
+	"github.com/splitio/go-agent/splitio/stats/latency"
 	"github.com/splitio/go-agent/splitio/storage/boltdb"
 	"github.com/splitio/go-agent/splitio/storage/boltdb/collections"
-
 	"gopkg.in/gin-gonic/gin.v1"
 )
+
+var controllerLatencies = latency.NewLatency()
+
+const latencyFetchSplitsFromDB = "goproxy.FetchSplitsFromBoltDB"
+const latencyFetchSegmentFromDB = "goproxy.FetchSegmentFromBoltDB"
+const latencyAddImpressionsInBuffer = "goproxy.AddImpressionsInBuffer"
+const latencyPostSDKLatencies = "goproxy.PostSDKLatencies"
+const latencyPostSDKCounters = "goproxy.PostSDKCounters"
+const latencyPostSDKGauge = "goproxy.PostSDKGague"
 
 //-----------------------------------------------------------------------------
 // SPLIT CHANGES
@@ -49,11 +58,13 @@ func splitChanges(c *gin.Context) {
 		since = -1
 	}
 
+	startTime := controllerLatencies.StartMeasuringLatency()
 	splits, till, errf := fetchSplitsFromDB(since)
 	if errf != nil {
 		log.Error.Println(errf)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": errf.Error()})
 	}
+	controllerLatencies.RegisterLatency(latencyFetchSplitsFromDB, startTime)
 
 	c.JSON(http.StatusOK, gin.H{"splits": splits, "since": since, "till": till})
 }
@@ -112,11 +123,13 @@ func segmentChanges(c *gin.Context) {
 	}
 
 	segmentName := c.Param("name")
+	startTime := controllerLatencies.StartMeasuringLatency()
 	added, removed, till, errf := fetchSegmentsFromDB(since, segmentName)
 	if errf != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": errf.Error()})
 		return
 	}
+	controllerLatencies.RegisterLatency(latencyFetchSegmentFromDB, startTime)
 
 	c.JSON(http.StatusOK, gin.H{"name": segmentName, "added": added,
 		"removed": removed, "since": since, "till": till})
@@ -133,9 +146,9 @@ func postBulkImpressions(c *gin.Context) {
 		log.Error.Println(err)
 		c.JSON(http.StatusInternalServerError, nil)
 	}
-
+	startTime := controllerLatencies.StartMeasuringLatency()
 	controllers.AddImpressions(data, sdkVersion, machineIP)
-
+	controllerLatencies.RegisterLatency(latencyAddImpressionsInBuffer, startTime)
 	c.JSON(http.StatusOK, nil)
 }
 
@@ -144,17 +157,23 @@ func postBulkImpressions(c *gin.Context) {
 //-----------------------------------------------------------------------------
 
 func postMetricsTimes(c *gin.Context) {
+	startTime := controllerLatencies.StartMeasuringLatency()
 	postEvent(c, api.PostMetricsLatency)
+	controllerLatencies.RegisterLatency(latencyPostSDKLatencies, startTime)
 	c.JSON(http.StatusOK, "")
 }
 
-func postMetricsCount(c *gin.Context) {
+func postMetricsCounters(c *gin.Context) {
+	startTime := controllerLatencies.StartMeasuringLatency()
 	postEvent(c, api.PostMetricsCounters)
+	controllerLatencies.RegisterLatency(latencyPostSDKCounters, startTime)
 	c.JSON(http.StatusOK, "")
 }
 
 func postMetricsGauge(c *gin.Context) {
+	startTime := controllerLatencies.StartMeasuringLatency()
 	postEvent(c, api.PostMetricsGauge)
+	controllerLatencies.RegisterLatency(latencyPostSDKGauge, startTime)
 	c.JSON(http.StatusOK, "")
 }
 

@@ -127,7 +127,9 @@ func (c *Client) Post(service string, body []byte) error {
 	serviceURL := c.url + service
 	log.Debug.Println("[POST] ", serviceURL)
 	req, _ := http.NewRequest("POST", serviceURL, bytes.NewBuffer(body))
-
+	//****************
+	req.Close = true // To prevent EOF error when connection is closed
+	//****************
 	authorization := conf.Data.APIKey
 	log.Debug.Println("Authorization [ApiKey]: ", log.ObfuscateAPIKey(authorization))
 
