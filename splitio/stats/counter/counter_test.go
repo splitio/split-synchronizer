@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/splitio/go-agent/log"
+	"github.com/splitio/go-agent/splitio"
 	"github.com/splitio/go-agent/splitio/api"
 )
 
@@ -30,7 +31,7 @@ func TestCounter(t *testing.T) {
 		sdkVersion := r.Header.Get("SplitSDKVersion")
 		sdkMachine := r.Header.Get("SplitSDKMachineIP")
 
-		if sdkVersion != "goproxy-1.0.0" {
+		if sdkVersion != "goproxy-"+splitio.Version {
 			t.Error("SDK Version HEADER not match")
 		}
 
