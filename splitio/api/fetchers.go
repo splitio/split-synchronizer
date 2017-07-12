@@ -52,6 +52,18 @@ func SplitChangesFetch(since int64) (*SplitChangesDTO, error) {
 		return nil, err
 	}
 
+	// RAW DATA --------------
+	var objmap map[string]*json.RawMessage
+	if err = json.Unmarshal(data, &objmap); err != nil {
+		log.Error.Println(err)
+		return nil, err
+	}
+
+	if err = json.Unmarshal(*objmap["splits"], &splitChangesDto.RawSplits); err != nil {
+		log.Error.Println(err)
+		return nil, err
+	}
+	//-------------------------
 	return &splitChangesDto, nil
 }
 
