@@ -9,6 +9,7 @@ import (
 	"github.com/splitio/go-agent/log"
 	"github.com/splitio/go-agent/splitio/api"
 	"github.com/splitio/go-agent/splitio/proxy/controllers"
+	"github.com/splitio/go-agent/splitio/stats/counter"
 	"github.com/splitio/go-agent/splitio/stats/latency"
 	"github.com/splitio/go-agent/splitio/storage/boltdb"
 	"github.com/splitio/go-agent/splitio/storage/boltdb/collections"
@@ -16,6 +17,7 @@ import (
 )
 
 var controllerLatencies = latency.NewLatency()
+var controllerCounters = counter.NewCounter()
 
 const latencyFetchSplitsFromDB = "goproxy.FetchSplitsFromBoltDB"
 const latencyFetchSegmentFromDB = "goproxy.FetchSegmentFromBoltDB"
@@ -62,10 +64,14 @@ func splitChanges(c *gin.Context) {
 	splits, till, errf := fetchSplitsFromDB(since)
 	if errf != nil {
 		log.Error.Println(errf)
+		controllerCounters.Increment("splitChangeFetcher.status.500")
+		controllerCounters.Increment("splitChangeFetcher.exception")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": errf.Error()})
+		return
 	}
+	controllerLatencies.RegisterLatency("splitChangeFetcher.time", startTime)
 	controllerLatencies.RegisterLatency(latencyFetchSplitsFromDB, startTime)
-
+	controllerCounters.Increment("splitChangeFetcher.status.200")
 	c.JSON(http.StatusOK, gin.H{"splits": splits, "since": since, "till": till})
 }
 
@@ -126,11 +132,14 @@ func segmentChanges(c *gin.Context) {
 	startTime := controllerLatencies.StartMeasuringLatency()
 	added, removed, till, errf := fetchSegmentsFromDB(since, segmentName)
 	if errf != nil {
+		controllerCounters.Increment("segmentChangeFetcher.status.500")
+		controllerCounters.Increment("segmentChangeFetcher.exception")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": errf.Error()})
 		return
 	}
+	controllerLatencies.RegisterLatency("segmentChangeFetcher.time", startTime)
 	controllerLatencies.RegisterLatency(latencyFetchSegmentFromDB, startTime)
-
+	controllerCounters.Increment("segmentChangeFetcher.status.200")
 	c.JSON(http.StatusOK, gin.H{"name": segmentName, "added": added,
 		"removed": removed, "since": since, "till": till})
 }

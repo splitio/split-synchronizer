@@ -1,7 +1,6 @@
 package latency
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -59,25 +58,27 @@ func (l *Latency) getBucketForLatencyMicros(latency int64) int {
 // RegisterLatency regists
 func (l *Latency) RegisterLatency(name string, startCheckpoint int64) {
 	latency := l.calculateLatency(startCheckpoint)
-	bucket := l.getBucketForLatencyMicros(latency)
+	//bucket := l.getBucketForLatencyMicros(latency)
 	l.lmutex.Lock()
 	if l.latencies[name] == nil {
-		l.latencies[name] = make([]int64, len(buckets))
+		//l.latencies[name] = make([]int64, len(buckets))
+		l.latencies[name] = make([]int64, 0)
 	}
-	l.latencies[name][bucket] += 1
+
+	//l.latencies[name][bucket] += 1
+	l.latencies[name] = append(l.latencies[name], latency)
 	l.lmutex.Unlock()
 }
 
 func (l *Latency) PostLatenciesWorker() {
 	for {
-		fmt.Println("Running POST LATENCY WORKER...")
 		select {
 		case <-time.After(time.Second * time.Duration(l.postRate)):
 			log.Debug.Println("Posting go proxy latencies")
 		}
 
 		l.lmutex.Lock()
-		fmt.Println(l.latencies)
+
 		var latenciesDataSet []api.LatenciesDTO
 		for metricName, latencyValues := range l.latencies {
 			latenciesDataSet = append(latenciesDataSet, api.LatenciesDTO{MetricName: metricName, Latencies: latencyValues})
@@ -93,11 +94,9 @@ func (l *Latency) PostLatenciesWorker() {
 		}
 
 		if len(latenciesDataSet) > 0 {
-			fmt.Println("SENDING LATENCIES")
 			errp := l.recorderAdapter.PostLatencies(latenciesDataSet, sdkVersion, machineIP)
 			if errp != nil {
 				log.Error.Println("Go-proxy latencies worker:", errp)
-				log.Warning.Println(l.latencies)
 			}
 		}
 	}

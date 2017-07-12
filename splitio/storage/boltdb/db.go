@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/boltdb/bolt"
@@ -32,7 +33,11 @@ func Initialize(path string, options *bolt.Options) {
 func NewInstance(path string, options *bolt.Options) (*bolt.DB, error) {
 	var dbpath string
 	if path == InMemoryMode {
-		dbpath = os.TempDir() + "/" + inMemoryDBName + strconv.Itoa(int(time.Now().Unix())) + ".db"
+		tmpDir := os.TempDir()
+		if !strings.HasSuffix(tmpDir, "/") {
+			tmpDir = tmpDir + "/"
+		}
+		dbpath = tmpDir + inMemoryDBName + strconv.Itoa(int(time.Now().UnixNano())) + ".db"
 		log.Debug.Println("Temporary database will be created at", dbpath)
 		fmt.Println("DB PATH:", dbpath)
 	} else {

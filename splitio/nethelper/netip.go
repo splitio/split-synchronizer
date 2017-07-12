@@ -5,6 +5,7 @@ import (
 	"net"
 )
 
+// ExternalIP tries to fetch server IP
 func ExternalIP() (string, error) {
 	ifaces, err := net.Interfaces()
 	if err != nil {
@@ -39,5 +40,5 @@ func ExternalIP() (string, error) {
 			return ip.String(), nil
 		}
 	}
-	return "", errors.New("are you connected to the network?")
+	return "", errors.New("IP could not be found")
 }
