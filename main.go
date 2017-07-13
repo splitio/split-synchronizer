@@ -18,6 +18,7 @@ import (
 	"github.com/splitio/go-agent/splitio/proxy"
 	"github.com/splitio/go-agent/splitio/proxy/controllers"
 	"github.com/splitio/go-agent/splitio/recorder"
+	"github.com/splitio/go-agent/splitio/stats"
 	"github.com/splitio/go-agent/splitio/storage"
 	"github.com/splitio/go-agent/splitio/storage/boltdb"
 	"github.com/splitio/go-agent/splitio/storage/redis"
@@ -67,6 +68,7 @@ func init() {
 			dbpath = conf.Data.Proxy.PersistMemoryPath
 		}
 		boltdb.Initialize(dbpath, nil)
+		stats.Initialize()
 	} else {
 		redis.Initialize(conf.Data.Redis)
 	}

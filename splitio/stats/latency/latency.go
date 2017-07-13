@@ -9,6 +9,7 @@ import (
 	"github.com/splitio/go-agent/splitio/api"
 	"github.com/splitio/go-agent/splitio/nethelper"
 	"github.com/splitio/go-agent/splitio/recorder"
+	"github.com/splitio/go-agent/splitio/stats"
 )
 
 const maxLatency = 7481828
@@ -82,6 +83,7 @@ func (l *Latency) PostLatenciesWorker() {
 		var latenciesDataSet []api.LatenciesDTO
 		for metricName, latencyValues := range l.latencies {
 			latenciesDataSet = append(latenciesDataSet, api.LatenciesDTO{MetricName: metricName, Latencies: latencyValues})
+			stats.SaveLatency(metricName, latencyValues)
 		}
 		//Dropping latencies
 		l.latencies = make(map[string][]int64)

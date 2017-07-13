@@ -13,6 +13,7 @@ import (
 	"github.com/splitio/go-agent/log"
 	"github.com/splitio/go-agent/splitio"
 	"github.com/splitio/go-agent/splitio/api"
+	"github.com/splitio/go-agent/splitio/stats"
 )
 
 func TestCounter(t *testing.T) {
@@ -68,7 +69,7 @@ func TestCounter(t *testing.T) {
 	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
 
 	api.Initialize()
-
+	stats.Initialize()
 	// Counter Code
 	counter := NewCounter()
 	counter.postRate = 1

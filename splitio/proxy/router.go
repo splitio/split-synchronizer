@@ -1,8 +1,6 @@
 package proxy
 
 import (
-	"net/http"
-
 	"gopkg.in/gin-gonic/gin.v1"
 )
 
@@ -14,18 +12,19 @@ func Run(port string) {
 	//TODO add custom logger as middleware (?)
 	router.Use(gin.Logger())
 
-	/*go func() {
+	go func() {
 		adminRouter := gin.Default()
-		adminRouter.GET("/ping", func(c *gin.Context) {
-			c.String(http.StatusOK, "%s", "pong")
-		})
-		adminRouter.Run("0.0.0.0:3010")
-	}()*/
+		// Admin routes
+		admin := adminRouter.Group("/admin")
+		{
+			admin.GET("/ping", ping)
+			admin.GET("/version", version)
+			admin.GET("/uptime", uptime)
+			admin.GET("/stats", showStats)
+		}
 
-	//Admin route
-	router.GET("/ping", func(c *gin.Context) {
-		c.String(http.StatusOK, "%s", "pong")
-	})
+		adminRouter.Run("0.0.0.0:3010")
+	}()
 
 	// API routes
 	api := router.Group("/api")

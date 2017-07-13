@@ -10,6 +10,7 @@ import (
 	"github.com/splitio/go-agent/splitio/api"
 	"github.com/splitio/go-agent/splitio/nethelper"
 	"github.com/splitio/go-agent/splitio/recorder"
+	"github.com/splitio/go-agent/splitio/stats"
 )
 
 // NewCounter returns a Counter instance
@@ -74,6 +75,7 @@ func (c *Counter) PostCounterWorker() {
 		var countersDataSet []api.CounterDTO
 		for metricName, count := range c.counts {
 			countersDataSet = append(countersDataSet, api.CounterDTO{MetricName: metricName, Count: count})
+			stats.SaveCounter(metricName, count)
 		}
 		// Drop counts
 		c.counts = make(map[string]int64)

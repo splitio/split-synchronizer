@@ -77,6 +77,7 @@ func saveSegmentData(segmentChangesDTO *api.SegmentChangesDTO) error {
 }
 
 func fetchSegment(segment string) {
+	log.Debug.Println("Fetching segment:", segment)
 	//segmentCollection := collections.NewSegmentChangesCollection(boltdb.DBB)
 	var since int64 = proxySegmentsTill[segment]
 	for {
@@ -242,7 +243,7 @@ func registerSegments(rawData []byte) {
 			for k := 0; k < totalMatchers; k++ {
 				if splits[i].Conditions[j].MatcherGroup.Matchers[k].MatcherType == "IN_SEGMENT" {
 					segmentName := splits[i].Conditions[j].MatcherGroup.Matchers[k].UserDefinedSegment.SegmentName
-					log.Debug.Println("Fetching Segment:", segmentName)
+					log.Debug.Println("Segment to be fetched:", segmentName)
 					mutexSegmentsTill.Lock()
 					if _, exists := proxySegmentsTill[segmentName]; !exists {
 						proxySegmentsTill[segmentName] = -1

@@ -2,13 +2,16 @@ package proxy
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strconv"
 
 	"github.com/splitio/go-agent/log"
+	"github.com/splitio/go-agent/splitio"
 	"github.com/splitio/go-agent/splitio/api"
 	"github.com/splitio/go-agent/splitio/proxy/controllers"
+	"github.com/splitio/go-agent/splitio/stats"
 	"github.com/splitio/go-agent/splitio/stats/counter"
 	"github.com/splitio/go-agent/splitio/stats/latency"
 	"github.com/splitio/go-agent/splitio/storage/boltdb"
@@ -202,4 +205,47 @@ func postEvent(c *gin.Context, fn func([]byte, string, string) error) {
 			log.Error.Println(e)
 		}
 	}()
+}
+
+//-----------------------------------------------------------------------------
+// ADMIN
+//-----------------------------------------------------------------------------
+
+func uptime(c *gin.Context) {
+	upt := stats.Uptime()
+	d := int64(0)
+	h := int64(0)
+	m := int64(0)
+	s := int64(upt.Seconds())
+
+	if s > 60 {
+		m = int64(s / 60)
+		s = s - m*60
+	}
+
+	if m > 60 {
+		h = int64(m / 60)
+		m = m - h*60
+	}
+
+	if h > 24 {
+		d = int64(h / 24)
+		h = h - d*24
+	}
+
+	c.JSON(http.StatusOK, gin.H{"uptime": fmt.Sprintf("%dd %dh %dm %ds", d, h, m, s)})
+}
+
+func version(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"version": splitio.Version})
+}
+
+func ping(c *gin.Context) {
+	c.String(http.StatusOK, "%s", "pong")
+}
+
+func showStats(c *gin.Context) {
+	counters := stats.Counters()
+	latencies := stats.Latencies()
+	c.JSON(http.StatusOK, gin.H{"counters": counters, "latencies": latencies})
 }
