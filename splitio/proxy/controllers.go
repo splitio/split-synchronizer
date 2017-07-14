@@ -147,7 +147,9 @@ func segmentChanges(c *gin.Context) {
 		controllerCounters.Increment("segmentChangeFetcher.status.500")
 		controllerCounters.Increment("segmentChangeFetcher.exception")
 		controllerCounters.Increment("request.error")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": errf.Error()})
+		c.JSON(http.StatusNotFound, gin.H{"error": errf.Error()})
+		//c.JSON(http.StatusOK, gin.H{"name": segmentName, "added": added,
+		//	"removed": removed, "since": since, "till": till})
 		return
 	}
 	controllerLatencies.RegisterLatency("segmentChangeFetcher.time", startTime)
@@ -296,6 +298,18 @@ func showDashboard(c *gin.Context) {
 		}
 	}
 	htmlString = strings.Replace(htmlString, "{{splitRows}}", splitRows, 1)
+
+	segmentsRows := ""
+	segmentCollection := collections.NewSegmentChangesCollection(boltdb.DBB)
+	segments, errs := segmentCollection.FetchAll()
+	if errs != nil {
+		log.Warning.Println(errs)
+	} else {
+		for _, segment := range segments {
+			segmentsRows += dashboard.ParseSegment(segment)
+		}
+	}
+	htmlString = strings.Replace(htmlString, "{{segmentRows}}", segmentsRows, 1)
 
 	//Write your 200 header status (or other status codes, but only WriteHeader once)
 	c.Writer.WriteHeader(http.StatusOK)

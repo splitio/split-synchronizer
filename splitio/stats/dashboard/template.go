@@ -151,13 +151,7 @@ var HTML = `
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td>Gold_users</td>
-              <td>2345</td>
-              <td>345</td>
-              <td>2000</td>
-              <td>07/12/2017 12:42PM</td>
-            </tr>
+            {{segmentRows}}
           </tbody>
         </table>
       </div>

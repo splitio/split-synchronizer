@@ -64,6 +64,25 @@ func TestSegmentCollection(t *testing.T) {
 			t.Error("Key mismatch object name")
 		}
 	}
+
+	items, err := col.FetchAll()
+	if err != nil {
+		t.Error(err)
+	}
+
+	if len(items) != 1 {
+		t.Error("Invalid number of segments returned by FetchAll")
+	}
+
+	if len(items[0].Keys) != 100 {
+		t.Error("Invalid number of keys")
+	}
+
+	for key, obj := range items[0].Keys {
+		if key != obj.Name {
+			t.Error("Key mismatch object name")
+		}
+	}
 }
 
 func benchmarkSegmentAllocation(t *testing.T) {

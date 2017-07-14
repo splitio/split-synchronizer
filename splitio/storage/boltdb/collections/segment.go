@@ -266,3 +266,32 @@ func (c SegmentChangesCollection) Fetch(name string) (*SegmentChangesItem, error
 	}
 	return &q, nil
 }
+
+// FetchAll return a list of SegmentChangesItem
+func (c SegmentChangesCollection) FetchAll() ([]SegmentChangesItem, error) {
+
+	items, err := c.Collection.FetchAll()
+	if err != nil {
+		return nil, err
+	}
+
+	var toReturn = make([]SegmentChangesItem, 0)
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+
+		var q SegmentChangesItem
+		var decodeBuffer bytes.Buffer
+		decodeBuffer.Write(item)
+		errq := gob.NewDecoder(&decodeBuffer).Decode(&q)
+		if errq != nil {
+			log.Error.Println("decode error:", errq)
+			continue
+		}
+
+		toReturn = append(toReturn, q)
+	}
+
+	return toReturn, nil
+}
