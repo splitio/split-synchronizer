@@ -243,11 +243,11 @@ func registerSegments(rawData []byte) {
 			for k := 0; k < totalMatchers; k++ {
 				if splits[i].Conditions[j].MatcherGroup.Matchers[k].MatcherType == "IN_SEGMENT" {
 					segmentName := splits[i].Conditions[j].MatcherGroup.Matchers[k].UserDefinedSegment.SegmentName
-					log.Debug.Println("Segment to be fetched:", segmentName)
 					mutexSegmentsTill.Lock()
 					if _, exists := proxySegmentsTill[segmentName]; !exists {
 						proxySegmentsTill[segmentName] = -1
 					}
+					log.Debug.Println("Segments to be fetched:", proxySegmentsTill)
 					mutexSegmentsTill.Unlock()
 				}
 			}

@@ -50,13 +50,16 @@ func (c *CounterStorage) Counters() map[string]int64 {
 //------------------------------------------------------------------------------
 //LATENCIES STORAGE
 //------------------------------------------------------------------------------
+
+type LatencyStorageAddFunc func(string, []int64) error
+
 // LatencyStorage struct to storage latencies in memory
 type LatencyStorage struct {
 	latencies map[string][]int64
 	mutext    *sync.RWMutex
 }
 
-// Add adds a counter.
+// Add adds a latency
 func (l *LatencyStorage) Add(name string, value []int64) {
 	l.mutext.Lock()
 
@@ -70,19 +73,32 @@ func (l *LatencyStorage) Add(name string, value []int64) {
 		start := len(l.latencies[name]) - lastStoredLatencies
 		l.latencies[name] = l.latencies[name][start:]
 	}
-	fmt.Println("LATENCIAS", l.latencies)
 	l.mutext.Unlock()
 }
 
+// AddBkt adds a latency bucket
+func (l *LatencyStorage) AddBkt(name string, value []int64) {
+	l.mutext.Lock()
+
+	if l.latencies[name] == nil {
+		l.latencies[name] = make([]int64, 23)
+	}
+
+	for i, v := range l.latencies[name] {
+		l.latencies[name][i] = v + value[i]
+	}
+
+	l.mutext.Unlock()
+}
+
+// Latencies returns latencies
 func (l *LatencyStorage) Latencies() map[string][]int64 {
 	var toReturn = make(map[string][]int64)
 	l.mutext.RLock()
-	fmt.Println("GETING LATENCIAS", l.latencies)
 	for k, v := range l.latencies {
 		toReturn[k] = v
 	}
 	l.mutext.RUnlock()
-	fmt.Println("TO RETURN", toReturn)
 	return toReturn
 }
 
@@ -107,6 +123,31 @@ func Uptime() time.Duration {
 	return time.Since(startTime)
 }
 
+func UptimeFormated() string {
+	upt := time.Since(startTime)
+	d := int64(0)
+	h := int64(0)
+	m := int64(0)
+	s := int64(upt.Seconds())
+
+	if s > 60 {
+		m = int64(s / 60)
+		s = s - m*60
+	}
+
+	if m > 60 {
+		h = int64(m / 60)
+		m = m - h*60
+	}
+
+	if h > 24 {
+		d = int64(h / 24)
+		h = h - d*24
+	}
+
+	return fmt.Sprintf("%dd %dh %dm %ds", d, h, m, s)
+}
+
 // SaveCounter saves counter value
 func SaveCounter(name string, value int64) error {
 	if !storageInitialized {
@@ -127,6 +168,15 @@ func SaveLatency(name string, latencies []int64) error {
 		return notStorageInitialiazedError
 	}
 	latenciesStorage.Add(name, latencies)
+	return nil
+}
+
+// SaveLatencyBkt saves the latencies for a given metric
+func SaveLatencyBkt(name string, latencies []int64) error {
+	if !storageInitialized {
+		return notStorageInitialiazedError
+	}
+	latenciesStorage.AddBkt(name, latencies)
 	return nil
 }
 

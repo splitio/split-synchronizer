@@ -19,7 +19,7 @@ func TestSplitController(t *testing.T) {
 	boltdb.DBB = db
 
 	var split1 = &collections.SplitChangesItem{Name: "SPLIT_1", ChangeNumber: 333333, Status: "ACTIVE", JSON: "some_json_split1"}
-	var split2 = &collections.SplitChangesItem{Name: "SPLIT_2", ChangeNumber: 222222, Status: "KILLED", JSON: "some_json_split2"}
+	var split2 = &collections.SplitChangesItem{Name: "SPLIT_2", ChangeNumber: 222222, Status: "ARCHIVED", JSON: "some_json_split2"}
 	var split3 = &collections.SplitChangesItem{Name: "SPLIT_3", ChangeNumber: 111111, Status: "ACTIVE", JSON: "some_json_split3"}
 
 	splitCollection := collections.NewSplitChangesCollection(db)
@@ -45,7 +45,7 @@ func TestSplitController(t *testing.T) {
 		t.Error(errf)
 	}
 
-	if len(splits) != 2 {
+	if len(splits) != 3 {
 		t.Error("Invalid len result")
 	}
 

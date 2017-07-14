@@ -2,10 +2,10 @@ package proxy
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/splitio/go-agent/log"
 	"github.com/splitio/go-agent/splitio"
@@ -13,12 +13,14 @@ import (
 	"github.com/splitio/go-agent/splitio/proxy/controllers"
 	"github.com/splitio/go-agent/splitio/stats"
 	"github.com/splitio/go-agent/splitio/stats/counter"
+	"github.com/splitio/go-agent/splitio/stats/dashboard"
 	"github.com/splitio/go-agent/splitio/stats/latency"
 	"github.com/splitio/go-agent/splitio/storage/boltdb"
 	"github.com/splitio/go-agent/splitio/storage/boltdb/collections"
 	"gopkg.in/gin-gonic/gin.v1"
 )
 
+var controllerLatenciesBkt = latency.NewLatencyBucket()
 var controllerLatencies = latency.NewLatency()
 var controllerCounters = counter.NewCounter()
 
@@ -45,7 +47,7 @@ func fetchSplitsFromDB(since int) ([]json.RawMessage, int64, error) {
 	}
 
 	for _, split := range items {
-		if split.Status == "ACTIVE" && split.ChangeNumber > int64(since) {
+		if split.ChangeNumber > int64(since) {
 			if split.ChangeNumber > till {
 				till = split.ChangeNumber
 			}
@@ -69,12 +71,15 @@ func splitChanges(c *gin.Context) {
 		log.Error.Println(errf)
 		controllerCounters.Increment("splitChangeFetcher.status.500")
 		controllerCounters.Increment("splitChangeFetcher.exception")
+		controllerCounters.Increment("request.error")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": errf.Error()})
 		return
 	}
 	controllerLatencies.RegisterLatency("splitChangeFetcher.time", startTime)
 	controllerLatencies.RegisterLatency(latencyFetchSplitsFromDB, startTime)
 	controllerCounters.Increment("splitChangeFetcher.status.200")
+	controllerCounters.Increment("request.ok")
+	controllerLatenciesBkt.RegisterLatency("/api/splitChanges", startTime)
 	c.JSON(http.StatusOK, gin.H{"splits": splits, "since": since, "till": till})
 }
 
@@ -96,6 +101,10 @@ func fetchSegmentsFromDB(since int, segmentName string) ([]string, []string, int
 		default:
 			log.Error.Println(err)
 		}
+		return added, removed, till, err
+	}
+
+	if item == nil {
 		return added, removed, till, err
 	}
 
@@ -137,12 +146,15 @@ func segmentChanges(c *gin.Context) {
 	if errf != nil {
 		controllerCounters.Increment("segmentChangeFetcher.status.500")
 		controllerCounters.Increment("segmentChangeFetcher.exception")
+		controllerCounters.Increment("request.error")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": errf.Error()})
 		return
 	}
 	controllerLatencies.RegisterLatency("segmentChangeFetcher.time", startTime)
 	controllerLatencies.RegisterLatency(latencyFetchSegmentFromDB, startTime)
 	controllerCounters.Increment("segmentChangeFetcher.status.200")
+	controllerCounters.Increment("request.ok")
+	controllerLatenciesBkt.RegisterLatency("/api/segmentChanges/*", startTime)
 	c.JSON(http.StatusOK, gin.H{"name": segmentName, "added": added,
 		"removed": removed, "since": since, "till": till})
 }
@@ -156,11 +168,14 @@ func postBulkImpressions(c *gin.Context) {
 	data, err := ioutil.ReadAll(c.Request.Body)
 	if err != nil {
 		log.Error.Println(err)
+		controllerCounters.Increment("request.error")
 		c.JSON(http.StatusInternalServerError, nil)
 	}
 	startTime := controllerLatencies.StartMeasuringLatency()
 	controllers.AddImpressions(data, sdkVersion, machineIP)
 	controllerLatencies.RegisterLatency(latencyAddImpressionsInBuffer, startTime)
+	controllerCounters.Increment("request.ok")
+	controllerLatenciesBkt.RegisterLatency("/api/testImpressions/bulk", startTime)
 	c.JSON(http.StatusOK, nil)
 }
 
@@ -172,6 +187,8 @@ func postMetricsTimes(c *gin.Context) {
 	startTime := controllerLatencies.StartMeasuringLatency()
 	postEvent(c, api.PostMetricsLatency)
 	controllerLatencies.RegisterLatency(latencyPostSDKLatencies, startTime)
+	controllerCounters.Increment("request.ok")
+	controllerLatenciesBkt.RegisterLatency("/api/metrics/times", startTime)
 	c.JSON(http.StatusOK, "")
 }
 
@@ -179,6 +196,8 @@ func postMetricsCounters(c *gin.Context) {
 	startTime := controllerLatencies.StartMeasuringLatency()
 	postEvent(c, api.PostMetricsCounters)
 	controllerLatencies.RegisterLatency(latencyPostSDKCounters, startTime)
+	controllerCounters.Increment("request.ok")
+	controllerLatenciesBkt.RegisterLatency("/api/metrics/counters", startTime)
 	c.JSON(http.StatusOK, "")
 }
 
@@ -186,6 +205,8 @@ func postMetricsGauge(c *gin.Context) {
 	startTime := controllerLatencies.StartMeasuringLatency()
 	postEvent(c, api.PostMetricsGauge)
 	controllerLatencies.RegisterLatency(latencyPostSDKGauge, startTime)
+	controllerCounters.Increment("request.ok")
+	controllerLatenciesBkt.RegisterLatency("/api/metrics/gauge", startTime)
 	c.JSON(http.StatusOK, "")
 }
 
@@ -212,28 +233,7 @@ func postEvent(c *gin.Context, fn func([]byte, string, string) error) {
 //-----------------------------------------------------------------------------
 
 func uptime(c *gin.Context) {
-	upt := stats.Uptime()
-	d := int64(0)
-	h := int64(0)
-	m := int64(0)
-	s := int64(upt.Seconds())
-
-	if s > 60 {
-		m = int64(s / 60)
-		s = s - m*60
-	}
-
-	if m > 60 {
-		h = int64(m / 60)
-		m = m - h*60
-	}
-
-	if h > 24 {
-		d = int64(h / 24)
-		h = h - d*24
-	}
-
-	c.JSON(http.StatusOK, gin.H{"uptime": fmt.Sprintf("%dd %dh %dm %ds", d, h, m, s)})
+	c.JSON(http.StatusOK, gin.H{"uptime": stats.UptimeFormated()})
 }
 
 func version(c *gin.Context) {
@@ -248,4 +248,58 @@ func showStats(c *gin.Context) {
 	counters := stats.Counters()
 	latencies := stats.Latencies()
 	c.JSON(http.StatusOK, gin.H{"counters": counters, "latencies": latencies})
+}
+
+func showDashboard(c *gin.Context) {
+
+	counters := stats.Counters()
+	latencies := stats.Latencies()
+
+	htmlString := dashboard.HTML
+	htmlString = strings.Replace(htmlString, "{{uptime}}", stats.UptimeFormated(), 1)
+	htmlString = strings.Replace(htmlString, "{{request_ok}}", strconv.Itoa(int(counters["request.ok"])), 2)
+	htmlString = strings.Replace(htmlString, "{{request_error}}", strconv.Itoa(int(counters["request.error"])), 2)
+
+	//latenciesGroupData
+	var latenciesGroupData string
+	if ldata, ok := latencies["/api/splitChanges"]; ok {
+		latenciesGroupData += dashboard.ParseLatencyBktDataSerie("/api/splitChanges",
+			ldata,
+			"rgba(255, 159, 64, 0.2)",
+			"rgba(255, 159, 64, 1)")
+	}
+
+	if ldata, ok := latencies["/api/segmentChanges/*"]; ok {
+		latenciesGroupData += dashboard.ParseLatencyBktDataSerie("/api/segmentChanges/*",
+			ldata,
+			"rgba(54, 162, 235, 0.2)",
+			"rgba(54, 162, 235, 1)")
+	}
+
+	if ldata, ok := latencies["/api/testImpressions/bulk"]; ok {
+		latenciesGroupData += dashboard.ParseLatencyBktDataSerie("/api/testImpressions/bulk",
+			ldata,
+			"rgba(75, 192, 192, 0.2)",
+			"rgba(75, 192, 192, 1)")
+	}
+
+	htmlString = strings.Replace(htmlString, "{{latenciesGroupData}}", latenciesGroupData, 1)
+
+	splitRows := ""
+	splitCollection := collections.NewSplitChangesCollection(boltdb.DBB)
+	splits, err := splitCollection.FetchAll()
+	if err != nil {
+		log.Warning.Println(err)
+	} else {
+		for _, split := range splits {
+			splitRows += dashboard.ParseSplit(split.JSON)
+		}
+	}
+	htmlString = strings.Replace(htmlString, "{{splitRows}}", splitRows, 1)
+
+	//Write your 200 header status (or other status codes, but only WriteHeader once)
+	c.Writer.WriteHeader(http.StatusOK)
+	//Convert your cached html string to byte array
+	c.Writer.Write([]byte(htmlString))
+	return
 }

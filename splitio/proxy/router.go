@@ -4,7 +4,7 @@ import (
 	"gopkg.in/gin-gonic/gin.v1"
 )
 
-func Run(port string) {
+func Run(port string, adminPort string) {
 	//gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New()
@@ -21,9 +21,10 @@ func Run(port string) {
 			admin.GET("/version", version)
 			admin.GET("/uptime", uptime)
 			admin.GET("/stats", showStats)
+			admin.GET("/dashboard", showDashboard)
 		}
 
-		adminRouter.Run("0.0.0.0:3010")
+		adminRouter.Run(adminPort)
 	}()
 
 	// API routes
