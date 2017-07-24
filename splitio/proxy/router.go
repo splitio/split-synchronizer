@@ -34,6 +34,7 @@ func Run(port string, adminPort string) {
 	{
 		api.GET("/splitChanges", splitChanges)
 		api.GET("/segmentChanges/:name", segmentChanges)
+		api.GET("/mySegments/:key", mySegments)
 		api.POST("/testImpressions/bulk", postBulkImpressions)
 		api.POST("/metrics/times", postMetricsTimes)
 		api.POST("/metrics/counters", postMetricsCounters)

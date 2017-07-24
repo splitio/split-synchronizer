@@ -161,6 +161,32 @@ func segmentChanges(c *gin.Context) {
 		"removed": removed, "since": since, "till": till})
 }
 
+//-----------------------------------------------------------------------------
+// MY SEGMENTS
+//-----------------------------------------------------------------------------
+func mySegments(c *gin.Context) {
+
+	key := c.Param("key")
+	var mysegments = make([]string, 0)
+
+	segmentCollection := collections.NewSegmentChangesCollection(boltdb.DBB)
+	segments, errs := segmentCollection.FetchAll()
+	if errs != nil {
+		log.Warning.Println(errs)
+	} else {
+		for _, segment := range segments {
+			for _, skey := range segment.Keys {
+				if !skey.Removed && skey.Name == key {
+					mysegments = append(mysegments, segment.Name)
+					break
+				}
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"mySegments": mysegments})
+}
+
 //-----------------------------------------------------------------
 //                 I M P R E S S I O N S
 //-----------------------------------------------------------------
