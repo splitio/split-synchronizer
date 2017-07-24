@@ -96,9 +96,12 @@ func fetchSegment(segment string) {
 			log.Error.Println("Error parsing segment changes JSON ", err)
 			break
 		}
-		// Old data shouldn't be processed
-		if since >= segmentChangesDTO.Till {
-			break
+
+		if segmentChangesDTO.Till != -1 {
+			// Old data shouldn't be processed
+			if since >= segmentChangesDTO.Till {
+				break
+			}
 		}
 
 		err = saveSegmentData(segmentChangesDTO)
