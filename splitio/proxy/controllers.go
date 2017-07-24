@@ -165,7 +165,7 @@ func segmentChanges(c *gin.Context) {
 // MY SEGMENTS
 //-----------------------------------------------------------------------------
 func mySegments(c *gin.Context) {
-
+	startTime := controllerLatenciesBkt.StartMeasuringLatency()
 	key := c.Param("key")
 	var mysegments = make([]string, 0)
 
@@ -173,6 +173,8 @@ func mySegments(c *gin.Context) {
 	segments, errs := segmentCollection.FetchAll()
 	if errs != nil {
 		log.Warning.Println(errs)
+		controllerCounters.Increment("mySegments.status.500")
+		controllerCounters.Increment("request.error")
 	} else {
 		for _, segment := range segments {
 			for _, skey := range segment.Keys {
@@ -184,6 +186,9 @@ func mySegments(c *gin.Context) {
 		}
 	}
 
+	controllerCounters.Increment("mySegments.status.200")
+	controllerCounters.Increment("request.ok")
+	controllerLatenciesBkt.RegisterLatency("/api/mySegments/*", startTime)
 	c.JSON(http.StatusOK, gin.H{"mySegments": mysegments})
 }
 
@@ -309,6 +314,13 @@ func showDashboard(c *gin.Context) {
 			ldata,
 			"rgba(75, 192, 192, 0.2)",
 			"rgba(75, 192, 192, 1)")
+	}
+
+	if ldata, ok := latencies["/api/mySegments/*"]; ok {
+		latenciesGroupData += dashboard.ParseLatencyBktDataSerie("/api/mySegments/*",
+			ldata,
+			"rgba(153, 102, 255, 0.2)",
+			"rgba(153, 102, 255, 1)")
 	}
 
 	htmlString = strings.Replace(htmlString, "{{latenciesGroupData}}", latenciesGroupData, 1)
