@@ -1,7 +1,8 @@
 package proxy
 
 import (
-	"gopkg.in/gin-gonic/gin.v1"
+	"github.com/gin-contrib/gzip"
+	"github.com/gin-gonic/gin"
 )
 
 func Run(port string, adminPort string) {
@@ -9,6 +10,7 @@ func Run(port string, adminPort string) {
 
 	router := gin.New()
 	router.Use(gin.Recovery())
+	router.Use(gzip.Gzip(gzip.DefaultCompression))
 	//TODO add custom logger as middleware (?)
 	router.Use(gin.Logger())
 
@@ -36,6 +38,10 @@ func Run(port string, adminPort string) {
 		api.POST("/metrics/times", postMetricsTimes)
 		api.POST("/metrics/counters", postMetricsCounters)
 		api.POST("/metrics/gauge", postMetricsGauge)
+
+		//TODO add single metrics endpoints
+		//api.POST("/metrics/time", postMetricsTimes)
+		//api.POST("/metrics/counter", postMetricsCounters)
 	}
 	router.Run(port)
 }

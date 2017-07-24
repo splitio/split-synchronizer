@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	"github.com/splitio/go-agent/log"
 	"github.com/splitio/go-agent/splitio"
 	"github.com/splitio/go-agent/splitio/api"
@@ -17,7 +18,6 @@ import (
 	"github.com/splitio/go-agent/splitio/stats/latency"
 	"github.com/splitio/go-agent/splitio/storage/boltdb"
 	"github.com/splitio/go-agent/splitio/storage/boltdb/collections"
-	"gopkg.in/gin-gonic/gin.v1"
 )
 
 var controllerLatenciesBkt = latency.NewLatencyBucket()
