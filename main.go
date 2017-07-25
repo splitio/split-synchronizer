@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/splitio/go-agent/conf"
@@ -81,7 +82,7 @@ func startAsProxy() {
 	controllers.Initialize(conf.Data.Proxy.ImpressionsMaxSize, int64(conf.Data.ImpressionsPostRate))
 
 	//Run webserver loop
-	proxy.Run(":"+conf.Data.Proxy.Port, ":"+conf.Data.Proxy.AdminPort)
+	proxy.Run(":"+conf.Data.Proxy.Port, ":"+conf.Data.Proxy.AdminPort, conf.Data.Proxy.Auth.ApiKeys)
 }
 
 func main() {
@@ -118,6 +119,9 @@ func parseFlags() {
 		switch param.AttributeType {
 		case "string":
 			cliParametersMap[param.Command] = flag.String(param.Command, param.DefaultValue.(string), param.Description)
+			break
+		case "[]string":
+			cliParametersMap[param.Command] = flag.String(param.Command, strings.Join(param.DefaultValue.([]string), ","), param.Description)
 			break
 		case "int":
 			cliParametersMap[param.Command] = flag.Int(param.Command, param.DefaultValue.(int), param.Description)
@@ -157,6 +161,7 @@ func loadLogger() {
 	var slackWriter = ioutil.Discard
 
 	if len(conf.Data.Logger.File) > 3 {
+		//TODO: Replace this File by LogRotate file
 		fileWriter, err = os.OpenFile(conf.Data.Logger.File, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err != nil {
 			fmt.Printf("Error opening log file: %s \n", err.Error())

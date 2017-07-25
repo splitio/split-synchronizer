@@ -3,9 +3,10 @@ package proxy
 import (
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
+	"github.com/splitio/go-agent/splitio/proxy/middleware"
 )
 
-func Run(port string, adminPort string) {
+func Run(port string, adminPort string, apiKeys []string) {
 	//gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New()
@@ -13,6 +14,7 @@ func Run(port string, adminPort string) {
 	router.Use(gzip.Gzip(gzip.DefaultCompression))
 	//TODO add custom logger as middleware (?)
 	router.Use(gin.Logger())
+	router.Use(middleware.ValidateAPIKeys(apiKeys))
 
 	go func() {
 		adminRouter := gin.Default()

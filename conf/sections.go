@@ -73,4 +73,12 @@ type InMemorySection struct {
 	AdminPort          string `json:"adminPort" split-default-value:"3010" split-cli-option:"proxy-admin-port" split-cli-description:"Proxy port for admin"`
 	PersistMemoryPath  string `json:"persistInFilePath" split-default-value:"" split-cli-option:"proxy-mmap-path" split-cli-description:"File path to persist memory in proxy mode"`
 	ImpressionsMaxSize int64  `json:"impressionsMaxSize" split-default-value:"10485760" split-cli-option:"proxy-impressions-max-size" split-cli-description:"Max size, in bytes, to send impressions in proxy mode"`
+	Auth               Auth   `json:"auth" split-cli-option-group:"true"`
+}
+
+// Auth struct for proxy authentication
+type Auth struct {
+	// ApiKeys list of alloweb API-Keys for SDKs
+	// split-default-value must be set as SDK_API_KEY just to write config file by cli (see func getDefaultConfigData() at parser.go)
+	ApiKeys []string `json:"sdkAPIKeys" split-default-value:"SDK_API_KEY" split-cli-option:"proxy-apikeys" split-cli-description:"List of allowed custom API Keys for SDKs"`
 }
