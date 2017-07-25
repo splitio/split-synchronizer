@@ -161,8 +161,10 @@ func loadLogger() {
 	var slackWriter = ioutil.Discard
 
 	if len(conf.Data.Logger.File) > 3 {
-		//TODO: Replace this File by LogRotate file
-		fileWriter, err = os.OpenFile(conf.Data.Logger.File, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		opt := &log.FileRotateOptions{
+			RotateBytes: conf.Data.Logger.FileMaxSize,
+			Path:        conf.Data.Logger.File}
+		fileWriter, err = log.NewFileRotate(opt)
 		if err != nil {
 			fmt.Printf("Error opening log file: %s \n", err.Error())
 		} else {
