@@ -3,7 +3,6 @@ package log
 import (
 	"io/ioutil"
 	"os"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -19,22 +18,37 @@ func TestRotateFile(t *testing.T) {
 		tmpDir = tmpDir + "/"
 	}
 
-	opt := &FileRotateOptions{RotateBytes: 100, Path: tmpDir + "rotate.log"}
+	opt := &FileRotateOptions{MaxBytes: 100, Path: tmpDir + "rotate.log", BackupCount: 2}
 	fr, err := NewFileRotate(opt)
 	if err != nil {
 		t.Error(err)
 	}
 
-	for i := 0; i < 5; i++ {
-		var toWrite = "String with data to log added the UNIX TIMESTAMP " + strconv.Itoa(int(time.Now().UnixNano()))
-		n, errw := fr.Write([]byte(toWrite))
-		if errw != nil {
-			t.Error(errw)
-		}
-		if n != len([]byte(toWrite)) {
-			t.Error("Amount of written bytes is invalid")
-		}
-		time.Sleep(time.Duration(100) * time.Millisecond)
+	var toWrite = "String with data to log added the UNIX TIMESTAMP " + time.Now().String()
+	n, errw := fr.write([]byte(toWrite))
+	if errw != nil {
+		t.Error(errw)
 	}
 
+	if n != len([]byte(toWrite)) {
+		t.Error("Amount of written bytes is invalid")
+	}
+
+	var shouldRotateBytes = "String with data to force rotation at log file " + time.Now().String()
+	if !fr.shouldRotate(int64(len(shouldRotateBytes))) {
+		t.Error("The log file should rotate due MaxBytes condition")
+	} else {
+		if err = fr.rotate(); err != nil {
+			t.Error(err)
+		}
+	}
+
+	toWrite = "String with data to log added the UNIX TIMESTAMP " + time.Now().String()
+	if fr.shouldRotate(int64(len(toWrite))) {
+		t.Error("The log file should not rotate at this point")
+	}
+	n, errw = fr.Write([]byte(toWrite))
+	if errw != nil {
+		t.Error(errw)
+	}
 }

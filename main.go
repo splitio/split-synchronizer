@@ -162,7 +162,8 @@ func loadLogger() {
 
 	if len(conf.Data.Logger.File) > 3 {
 		opt := &log.FileRotateOptions{
-			RotateBytes: conf.Data.Logger.FileMaxSize,
+			MaxBytes:    conf.Data.Logger.FileMaxSize,
+			BackupCount: conf.Data.Logger.FileBackupCount,
 			Path:        conf.Data.Logger.File}
 		fileWriter, err = log.NewFileRotate(opt)
 		if err != nil {

@@ -44,6 +44,7 @@ type LogSection struct {
 	StdoutOn        bool   `json:"stdout" split-default-value:"false" split-cli-option:"log-stdout" split-cli-description:"Enable log standard output"`
 	File            string `json:"file" split-default-value:"/tmp/split-agent.log" split-cli-option:"log-file" split-cli-description:"Set the log file"`
 	FileMaxSize     int64  `json:"fileMaxSizeBytes" split-cli-option:"log-file-max-size" split-default-value:"2000000" split-cli-description:"Max file log size in bytes"`
+	FileBackupCount int    `json:"fileBackupCount" split-cli-option:"log-file-backup-count" split-default-value:"3" split-cli-description:"Number of last log files to keep in filesystem"`
 	SlackChannel    string `json:"slackChannel" split-default-value:"" split-cli-option:"log-slack-channel" split-cli-description:"Set the Slack channel or user"`
 	SlackWebhookURL string `json:"slackWebhookURL" split-default-value:"" split-cli-option:"log-slack-webhook-url" split-cli-description:"Set the Slack webhook url"`
 }
