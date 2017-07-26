@@ -56,3 +56,15 @@ func PostMetricsGauge(data []byte, sdkVersion string, machineIP string) error {
 	url := "/metrics/gauge"
 	return postMetrics(url, data, sdkVersion, machineIP)
 }
+
+// PostMetricsCount send count to Split events service.
+func PostMetricsCount(data []byte, sdkVersion string, machineIP string) error {
+	url := "/metrics/counter"
+	return postMetrics(url, data, sdkVersion, machineIP)
+}
+
+// PostMetricsTime send time latency to Split events service.
+func PostMetricsTime(data []byte, sdkVersion string, machineIP string) error {
+	url := "/metrics/time"
+	return postMetrics(url, data, sdkVersion, machineIP)
+}

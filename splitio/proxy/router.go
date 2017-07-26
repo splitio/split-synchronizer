@@ -41,10 +41,8 @@ func Run(port string, adminPort string, apiKeys []string) {
 		api.POST("/metrics/times", postMetricsTimes)
 		api.POST("/metrics/counters", postMetricsCounters)
 		api.POST("/metrics/gauge", postMetricsGauge)
-
-		//TODO add single metrics endpoints
-		//api.POST("/metrics/time", postMetricsTimes)
-		//api.POST("/metrics/counter", postMetricsCounters)
+		api.POST("/metrics/time", postMetricsTime)
+		api.POST("/metrics/counter", postMetricsCounter)
 	}
 	router.Run(port)
 }

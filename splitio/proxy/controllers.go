@@ -29,6 +29,8 @@ const latencyFetchSegmentFromDB = "goproxy.FetchSegmentFromBoltDB"
 const latencyAddImpressionsInBuffer = "goproxy.AddImpressionsInBuffer"
 const latencyPostSDKLatencies = "goproxy.PostSDKLatencies"
 const latencyPostSDKCounters = "goproxy.PostSDKCounters"
+const latencyPostSDKLatency = "goproxy.PostSDKTime"
+const latencyPostSDKCount = "goproxy.PostSDKCount"
 const latencyPostSDKGauge = "goproxy.PostSDKGague"
 
 //-----------------------------------------------------------------------------
@@ -225,12 +227,30 @@ func postMetricsTimes(c *gin.Context) {
 	c.JSON(http.StatusOK, "")
 }
 
+func postMetricsTime(c *gin.Context) {
+	startTime := controllerLatencies.StartMeasuringLatency()
+	postEvent(c, api.PostMetricsTime)
+	controllerLatencies.RegisterLatency(latencyPostSDKLatency, startTime)
+	controllerCounters.Increment("request.ok")
+	controllerLatenciesBkt.RegisterLatency("/api/metrics/time", startTime)
+	c.JSON(http.StatusOK, "")
+}
+
 func postMetricsCounters(c *gin.Context) {
 	startTime := controllerLatencies.StartMeasuringLatency()
 	postEvent(c, api.PostMetricsCounters)
 	controllerLatencies.RegisterLatency(latencyPostSDKCounters, startTime)
 	controllerCounters.Increment("request.ok")
 	controllerLatenciesBkt.RegisterLatency("/api/metrics/counters", startTime)
+	c.JSON(http.StatusOK, "")
+}
+
+func postMetricsCounter(c *gin.Context) {
+	startTime := controllerLatencies.StartMeasuringLatency()
+	postEvent(c, api.PostMetricsCount)
+	controllerLatencies.RegisterLatency(latencyPostSDKCount, startTime)
+	controllerCounters.Increment("request.ok")
+	controllerLatenciesBkt.RegisterLatency("/api/metrics/counter", startTime)
 	c.JSON(http.StatusOK, "")
 }
 
