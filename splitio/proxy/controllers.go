@@ -169,7 +169,7 @@ func segmentChanges(c *gin.Context) {
 func mySegments(c *gin.Context) {
 	startTime := controllerLatenciesBkt.StartMeasuringLatency()
 	key := c.Param("key")
-	var mysegments = make([]string, 0)
+	var mysegments = make([]api.MySegmentDTO, 0)
 
 	segmentCollection := collections.NewSegmentChangesCollection(boltdb.DBB)
 	segments, errs := segmentCollection.FetchAll()
@@ -181,7 +181,7 @@ func mySegments(c *gin.Context) {
 		for _, segment := range segments {
 			for _, skey := range segment.Keys {
 				if !skey.Removed && skey.Name == key {
-					mysegments = append(mysegments, segment.Name)
+					mysegments = append(mysegments, api.MySegmentDTO{Name: segment.Name})
 					break
 				}
 			}
