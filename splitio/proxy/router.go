@@ -1,14 +1,19 @@
+// Package proxy to connect SDKs
 package proxy
 
 import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
+	"github.com/splitio/go-agent/conf"
 	"github.com/splitio/go-agent/splitio/proxy/middleware"
 )
 
+// Run runs the proxy server
 func Run(port string, adminPort string, apiKeys []string) {
-	//gin.SetMode(gin.ReleaseMode)
+	if !conf.Data.Logger.DebugOn {
+		gin.SetMode(gin.ReleaseMode)
+	}
 
 	router := gin.New()
 	router.Use(gin.Recovery())
@@ -27,12 +32,13 @@ func Run(port string, adminPort string, apiKeys []string) {
 	router.Use(cors.New(corsConfig))
 
 	router.Use(gzip.Gzip(gzip.DefaultCompression))
-	//TODO add custom logger as middleware (?)
-	router.Use(gin.Logger())
+	router.Use(middleware.Logger())
 	router.Use(middleware.ValidateAPIKeys(apiKeys))
 
 	go func() {
-		adminRouter := gin.Default()
+		adminRouter := gin.New()
+		adminRouter.Use(gin.Recovery())
+		adminRouter.Use(middleware.Logger())
 		// Admin routes
 		admin := adminRouter.Group("/admin")
 		{
