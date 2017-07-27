@@ -7,9 +7,15 @@ import (
 
 	"github.com/splitio/go-agent/log"
 	"github.com/splitio/go-agent/splitio/api"
+	"github.com/splitio/go-agent/splitio/stats/counter"
+	"github.com/splitio/go-agent/splitio/stats/latency"
 	"github.com/splitio/go-agent/splitio/storage/boltdb"
 	"github.com/splitio/go-agent/splitio/storage/boltdb/collections"
 )
+
+// Stats
+var latencyRegister = latency.NewLatencyBucket()
+var counterRegister = counter.NewCounter()
 
 var proxyFetchSegmentBlocker chan bool
 var proxyInProgressSegments map[string]struct{}
@@ -78,18 +84,19 @@ func saveSegmentData(segmentChangesDTO *api.SegmentChangesDTO) error {
 
 func fetchSegment(segment string) {
 	log.Debug.Println("Fetching segment:", segment)
-	//segmentCollection := collections.NewSegmentChangesCollection(boltdb.DBB)
 	var since int64 = proxySegmentsTill[segment]
 	for {
+		start := latencyRegister.StartMeasuringLatency()
 		rawData, err := api.SegmentChangesFetchRaw(segment, since)
 		if err != nil {
 			log.Error.Println("Error fetching split changes ", err)
+			counterRegister.Increment("backend::request.error")
 			break
 		}
-
+		latencyRegister.RegisterLatency("backend::/api/segmentChanges", start)
+		counterRegister.Increment("backend::request.ok")
 		log.Verbose.Println(string(rawData))
 
-		//segmentChangesItem := &collections.SegmentChangesItem{}
 		segmentChangesDTO := &api.SegmentChangesDTO{}
 		err = json.Unmarshal(rawData, segmentChangesDTO)
 		if err != nil {
@@ -194,12 +201,16 @@ func FetchRawSplits(splitsRefreshRate int, segmentsRefreshRate int) {
 
 	for {
 		//Fetch raw JSON from Split servers
+		start := latencyRegister.StartMeasuringLatency()
 		rawData, err := api.SplitChangesFetchRaw(since)
 		if err != nil {
 			log.Error.Println("Error fetching split changes ", err)
+			counterRegister.Increment("backend::request.error")
 			time.Sleep(time.Duration(5) * time.Second)
 			continue
 		}
+		latencyRegister.RegisterLatency("backend::/api/splitChanges", start)
+		counterRegister.Increment("backend::request.ok")
 		log.Verbose.Println(string(rawData))
 
 		// Parsing JSON and update since for next call
