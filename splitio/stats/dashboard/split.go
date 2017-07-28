@@ -11,8 +11,8 @@ import (
 	"github.com/splitio/go-agent/splitio/api"
 )
 
-var splitRow = `<tr>
-  <td>{{name}}</td>
+var splitRow = `<tr class="splitItem">
+  <td><span class="splitItemName">{{name}}</span></td>
   <td class="{{statusColor}}">{{status}}</td>
   <td class="{{killedColor}}">{{killed}}</td>
   <td>{{treatments}}</td>

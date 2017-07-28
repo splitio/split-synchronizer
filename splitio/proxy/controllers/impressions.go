@@ -7,7 +7,12 @@ import (
 
 	"github.com/splitio/go-agent/log"
 	"github.com/splitio/go-agent/splitio/api"
+	"github.com/splitio/go-agent/splitio/stats/counter"
+	"github.com/splitio/go-agent/splitio/stats/latency"
 )
+
+var latencyRegister = latency.NewLatencyBucket()
+var counterRegister = counter.NewCounter()
 
 //-----------------------------------------------------------------
 // IMPRESSIONS
@@ -153,10 +158,14 @@ func sendImpressions() {
 				log.Error.Println(errl)
 				continue
 			}
-
+			startCheckpoint := latencyRegister.StartMeasuringLatency()
 			errp := api.PostImpressions(data, sdkVersion, machineIP)
 			if errp != nil {
 				log.Error.Println(errp)
+				counterRegister.Increment("backend::request.ok")
+			} else {
+				latencyRegister.RegisterLatency("backend::/api/testImpressions/bulk", startCheckpoint)
+				counterRegister.Increment("backend::request.ok")
 			}
 		}
 	}
