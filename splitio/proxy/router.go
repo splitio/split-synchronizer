@@ -47,6 +47,7 @@ func Run(port string, adminPort string, apiKeys []string) {
 			admin.GET("/uptime", uptime)
 			admin.GET("/stats", showStats)
 			admin.GET("/dashboard", showDashboard)
+			admin.GET("/dashboard/segmentKeys/:segment", showDashboardSegmentKeys)
 		}
 
 		adminRouter.Run(adminPort)

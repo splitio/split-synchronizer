@@ -303,6 +303,21 @@ func showStats(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"counters": counters, "latencies": latencies})
 }
 
+func showDashboardSegmentKeys(c *gin.Context) {
+	segmentName := c.Param("segment")
+	var toReturn = ""
+	segmentCollection := collections.NewSegmentChangesCollection(boltdb.DBB)
+	segment, errs := segmentCollection.Fetch(segmentName)
+	if errs != nil {
+		log.Warning.Println(errs)
+	} else {
+		for _, key := range segment.Keys {
+			toReturn += dashboard.ParseSegmentKey(key)
+		}
+	}
+	c.String(http.StatusOK, "%s", toReturn)
+}
+
 func showDashboard(c *gin.Context) {
 	counters := stats.Counters()
 	latencies := stats.Latencies()
@@ -311,8 +326,6 @@ func showDashboard(c *gin.Context) {
 	htmlString = strings.Replace(htmlString, "{{uptime}}", stats.UptimeFormated(), 1)
 	htmlString = strings.Replace(htmlString, "{{proxy_errors}}", strconv.Itoa(int(log.ErrorDashboard.Counts())), 1)
 	htmlString = strings.Replace(htmlString, "{{proxy_version}}", splitio.Version, 1)
-	//fmt.Println("MESSAGESS!!!!---->", log.ErrorDashboard.Messages())
-
 	htmlString = strings.Replace(htmlString, "{{lastErrorsRows}}", dashboard.ParseLastErrors(log.ErrorDashboard.Messages()), 1)
 
 	//---> SDKs stats

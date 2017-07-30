@@ -279,6 +279,7 @@ var HTML = `
                 <table class="table table-condensed table-hover">
                   <thead>
                     <tr>
+                      <th>&nbsp;</th>
                       <th>Segment</th>
                       <th>Total Keys</th>
                       <th>Removed Keys</th>
@@ -308,6 +309,27 @@ var HTML = `
 
 
 <script>
+
+  function getKeys(segment) {
+    if($("#showKeys-"+segment+" span").hasClass("glyphicon-menu-down")){
+      $("#showKeys-"+segment+" span").removeClass("glyphicon-menu-down");
+      $("#showKeys-"+segment+" span").addClass("glyphicon-menu-right");
+      $('#segmentKeysDetailedList-'+segment).addClass("filterDisplayNone");
+      return false;
+    }
+    $("tr.segmentKeysDetailedList").addClass("filterDisplayNone");
+    $("a.showKeysLnk span").removeClass("glyphicon-menu-down");
+    $("a.showKeysLnk span").addClass("glyphicon-menu-right");
+    $("#showKeys-"+segment+" span").removeClass("glyphicon-menu-right");
+    $("#showKeys-"+segment+" span").addClass("glyphicon-menu-down");
+    $('#segmentKeysDetailedList-'+segment).removeClass("filterDisplayNone");
+
+    $('.segmentKeysDetailedList-tbody').html("");
+    $('#segmentKeysDetailedList-tbody-'+segment).html('<tr><td colspan="3"><p>Loading keys...</p></td></tr>');
+    $.get( "/admin/dashboard/segmentKeys/"+segment, function(data) {
+      $('#segmentKeysDetailedList-tbody-'+segment).html(data);
+    })
+  }
 
   function resetFilterSplits(){
     $("tr.splitItem").removeClass("filterDisplayNone");
