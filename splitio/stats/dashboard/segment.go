@@ -20,6 +20,17 @@ var segmentRow = `<tr>
 </tr>
 <tr id="segmentKeysDetailedList-{{name}}" class="segmentKeysDetailedList filterDisplayNone">
 	<td colspan="6">
+	<div class="row">
+		<div class="col-md-4">
+			<div class="input-group">
+				<input type="text" id="filterSegmentKeyInput-{{name}}" class="form-control input-sm filterSegmentKeyInput" placeholder="Filter by Key">
+				<span class="input-group-btn">
+					<button class="btn btn-default btn-sm" type="button" onclick="javascript:filterSegmentKeys('{{name}}');"><span class="glyphicon glyphicon-filter" aria-hidden="true"></span></button>
+					<button class="btn btn-default btn-sm" type="button" onclick="javascript:resetFilterSegmentKeys();"><span class="glyphicon glyphicon-remove" aria-hidden="true"></span></button>
+				</span>
+			</div>
+		</div>
+	</div>
 	<table class="table table-condensed table-hover">
 		<thead>
 			<tr>
@@ -35,8 +46,8 @@ var segmentRow = `<tr>
 	</td>
 </tr>`
 
-var segmentKeyRow = `<tr class="{{removedColor}}">
-  <td>{{name}}</td>
+var segmentKeyRow = `<tr class="{{removedColor}} segmentKeyItem">
+  <td><span class="segmentKeyItemName">{{name}}</span></td>
   <td>{{removed}}</td>
   <td>{{lastModified}}</td>
 </tr>`
@@ -45,7 +56,7 @@ var segmentKeyRow = `<tr class="{{removedColor}}">
 func ParseSegment(segment collections.SegmentChangesItem) string {
 	var html = segmentRow
 
-	html = strings.Replace(html, "{{name}}", segment.Name, 5)
+	html = strings.Replace(html, "{{name}}", segment.Name, 7)
 	html = strings.Replace(html, "{{totalKeys}}", strconv.FormatInt(int64(len(segment.Keys)), 10), 1)
 
 	changeNumber := int64(0)
