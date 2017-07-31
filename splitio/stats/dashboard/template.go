@@ -98,7 +98,7 @@ var HTML = `
         <ul class="nav nav-tabs split-main-tabs" role="tablist">
             <li role="presentation" class="active"><a href="#split-dashboard" aria-controls="split-dashboard" role="tab" data-toggle="tab"><span class="glyphicon glyphicon-th" aria-hidden="true"></span>&nbsp;Dashboard</a></li>
             <li role="presentation"><a href="#sdk-stats" aria-controls="sdk-stats" role="tab" data-toggle="tab"><span class="glyphicon glyphicon-stats" aria-hidden="true"></span>&nbsp;SDK stats</a></li>
-            <li role="presentation"><a href="#backend-stats" aria-controls="backend-stats" role="tab" data-toggle="tab"><span class="glyphicon glyphicon-stats" aria-hidden="true"></span>&nbsp;Backend stats</a></li>
+            <li role="presentation"><a href="#backend-stats" aria-controls="backend-stats" role="tab" data-toggle="tab"><span class="glyphicon glyphicon-stats" aria-hidden="true"></span>&nbsp;Split stats</a></li>
             <li role="presentation"><a href="#data-inspector" aria-controls="data-inspector" role="tab" data-toggle="tab"><span class="glyphicon glyphicon-search" aria-hidden="true"></span>&nbsp;Data inspector</a></li>
           </ul>
         </div>
@@ -368,7 +368,7 @@ var HTML = `
     $("tr.segmentKeyItem").each(function() {
       $this = $(this);
       var segmentName = $this.find("span.segmentKeyItemName").html();
-      if (segmentName.indexOf(filter) == -1) {
+      if (segmentName.indexOf(filter.trim()) == -1) {
         $this.addClass("filterDisplayNone");
       }
     });
@@ -390,7 +390,7 @@ var HTML = `
     $("tr.splitItem").each(function() {
       $this = $(this);
       var splitName = $this.find("span.splitItemName").html();
-      if (splitName.indexOf(filter) == -1) {
+      if (splitName.indexOf(filter.trim()) == -1) {
         $this.addClass("filterDisplayNone");
       }
     });
@@ -498,27 +498,3 @@ var myChart = new Chart(ctxRB, {
 </html>
 
 `
-
-/*
-{
-    label: '/api/splitChanges',
-    data: [43, 5, 1, 22,34, 5,43, 5, 1, 22,34, 5,43, 5, 1, 22,34, 5,43, 5, 1, 22,34],
-    backgroundColor:'rgba(255, 159, 64, 0.2)',
-    borderColor: 'rgba(255, 159, 64, 1)',
-    borderWidth: 1
-},
-{
-    label: '/api/segmentChanges/*',
-    data: [123, 25, 12, 222,364, 25,123, 25, 12, 222,364, 25,123, 25, 12, 222,364, 25,123, 25, 12, 222,364],
-    backgroundColor:'rgba(54, 162, 235, 0.2)',
-    borderColor: 'rgba(54, 162, 235, 1)',
-    borderWidth: 1
-},
-{
-    label: '/testImpressions/bulk',
-    data: [43, 5, 1, 22,34, 5,43, 5, 1, 22,34, 5,43, 5, 1, 22,34, 5,43, 5, 1, 22,34],
-    backgroundColor:'rgba(75, 192, 192, 0.2)',
-    borderColor: 'rgba(75, 192, 192, 1)',
-    borderWidth: 1
-},
-*/

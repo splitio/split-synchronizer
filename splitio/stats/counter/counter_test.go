@@ -72,7 +72,7 @@ func TestCounter(t *testing.T) {
 	stats.Initialize()
 	// Counter Code
 	counter := NewCounter()
-	counter.postRate = 1
+	counter.postRate = 2
 
 	counter.Increment(counterA)
 	counter.IncrementN(counterA, 7)
@@ -99,6 +99,6 @@ func TestCounter(t *testing.T) {
 	}
 
 	//Delaying test to let PostCounterWorker timeout do its work!
-	time.Sleep(time.Duration(3) * time.Second)
+	time.Sleep(time.Duration(5) * time.Second)
 
 }
