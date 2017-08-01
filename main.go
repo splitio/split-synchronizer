@@ -81,8 +81,16 @@ func startAsProxy() {
 
 	controllers.Initialize(conf.Data.Proxy.ImpressionsMaxSize, int64(conf.Data.ImpressionsPostRate))
 
+	proxyOptions := &proxy.ProxyOptions{
+		Port:          ":" + conf.Data.Proxy.Port,
+		APIKeys:       conf.Data.Proxy.Auth.ApiKeys,
+		AdminPort:     ":" + conf.Data.Proxy.AdminPort,
+		AdminUsername: conf.Data.Proxy.AdminUsername,
+		AdminPassword: conf.Data.Proxy.AdminPassword,
+	}
+
 	//Run webserver loop
-	proxy.Run(":"+conf.Data.Proxy.Port, ":"+conf.Data.Proxy.AdminPort, conf.Data.Proxy.Auth.ApiKeys)
+	proxy.Run(proxyOptions)
 }
 
 func main() {

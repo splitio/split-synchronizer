@@ -1,4 +1,3 @@
-// Package proxy to connect SDKs
 package proxy
 
 import (
@@ -9,8 +8,16 @@ import (
 	"github.com/splitio/go-agent/splitio/proxy/middleware"
 )
 
+type ProxyOptions struct {
+	Port          string
+	AdminPort     string
+	AdminUsername string
+	AdminPassword string
+	APIKeys       []string
+}
+
 // Run runs the proxy server
-func Run(port string, adminPort string, apiKeys []string) {
+func Run(options *ProxyOptions) {
 	if !conf.Data.Logger.DebugOn {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -33,12 +40,17 @@ func Run(port string, adminPort string, apiKeys []string) {
 
 	router.Use(gzip.Gzip(gzip.DefaultCompression))
 	router.Use(middleware.Logger())
-	router.Use(middleware.ValidateAPIKeys(apiKeys))
+	router.Use(middleware.ValidateAPIKeys(options.APIKeys))
 
+	// running admin endpoints
 	go func() {
 		adminRouter := gin.New()
 		adminRouter.Use(gin.Recovery())
 		adminRouter.Use(middleware.Logger())
+		if options.AdminUsername != "" && options.AdminPassword != "" {
+			adminRouter.Use(middleware.HTTPBasicAuth(options.AdminUsername, options.AdminPassword))
+		}
+
 		// Admin routes
 		admin := adminRouter.Group("/admin")
 		{
@@ -50,7 +62,7 @@ func Run(port string, adminPort string, apiKeys []string) {
 			admin.GET("/dashboard/segmentKeys/:segment", showDashboardSegmentKeys)
 		}
 
-		adminRouter.Run(adminPort)
+		adminRouter.Run(options.AdminPort)
 	}()
 
 	// API routes
@@ -66,5 +78,5 @@ func Run(port string, adminPort string, apiKeys []string) {
 		api.POST("/metrics/time", postMetricsTime)
 		api.POST("/metrics/counter", postMetricsCounter)
 	}
-	router.Run(port)
+	router.Run(options.Port)
 }

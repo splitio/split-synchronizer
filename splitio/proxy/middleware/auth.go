@@ -35,7 +35,27 @@ func ValidateAPIKeys(keys []string) gin.HandlerFunc {
 
 		c.Next()
 
-		// after request
+	}
+}
+
+// HTTPBasicAuth middleware to check basic credentials
+func HTTPBasicAuth(username string, password string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		c.Writer.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
+
+		rUsername, rPassword, authOK := c.Request.BasicAuth() //r.BasicAuth()
+		if authOK == false {
+			c.AbortWithStatus(401)
+			return
+		}
+
+		if rUsername != username || rPassword != password {
+			c.AbortWithStatus(401)
+			return
+		}
+
+		c.Next()
 
 	}
 }
