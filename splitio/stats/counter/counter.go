@@ -1,3 +1,4 @@
+// Package counter implements metrics counters
 package counter
 
 import (
@@ -75,7 +76,7 @@ func (c *Counter) PostCounterWorker() {
 		var countersDataSet []api.CounterDTO
 		for metricName, count := range c.counts {
 			countersDataSet = append(countersDataSet, api.CounterDTO{MetricName: metricName, Count: count})
-			stats.SaveCounter(metricName, count)
+			//stats.SaveCounter(metricName, count)
 		}
 		// Drop counts
 		c.counts = make(map[string]int64)
@@ -93,4 +94,47 @@ func (c *Counter) PostCounterWorker() {
 			}
 		}
 	}
+}
+
+//------------------------------------------------------------------------------
+// LOCAL COUNTER
+//------------------------------------------------------------------------------
+
+// NewLocalCounter returns a Local Counter instance
+func NewLocalCounter() *LocalCounter {
+	counter := &Counter{counts: make(map[string]int64),
+		cmutex:          &sync.Mutex{},
+		recorderAdapter: recorder.MetricsHTTPRecorder{},
+		postRate:        60}
+
+	localCounter := &LocalCounter{counter}
+
+	go localCounter.PostCounterWorker()
+
+	return localCounter
+}
+
+// LocalCounter struc to count metrics locally and not post to Split servers
+type LocalCounter struct {
+	*Counter
+}
+
+// PostCounterWorker post metrics to local storage
+func (c *LocalCounter) PostCounterWorker() {
+
+	for {
+		select {
+		case <-time.After(time.Second * time.Duration(c.postRate)):
+			log.Debug.Println("Posting LOCAL proxy counters")
+		}
+
+		c.cmutex.Lock()
+		for metricName, count := range c.counts {
+			stats.SaveCounter(metricName, count)
+		}
+		// Drop counts
+		c.counts = make(map[string]int64)
+		c.cmutex.Unlock()
+	}
+
 }

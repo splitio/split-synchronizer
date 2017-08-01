@@ -1,3 +1,4 @@
+// Package controllers implements functions to call from http controllers
 package controllers
 
 import (
@@ -12,7 +13,7 @@ import (
 )
 
 var latencyRegister = latency.NewLatencyBucket()
-var counterRegister = counter.NewCounter()
+var counterRegister = counter.NewLocalCounter()
 
 //-----------------------------------------------------------------
 // IMPRESSIONS
@@ -162,7 +163,7 @@ func sendImpressions() {
 			errp := api.PostImpressions(data, sdkVersion, machineIP)
 			if errp != nil {
 				log.Error.Println(errp)
-				counterRegister.Increment("backend::request.ok")
+				counterRegister.Increment("backend::request.error")
 			} else {
 				latencyRegister.RegisterLatency("backend::/api/testImpressions/bulk", startCheckpoint)
 				counterRegister.Increment("backend::request.ok")

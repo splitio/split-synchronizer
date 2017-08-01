@@ -23,6 +23,7 @@ import (
 var controllerLatenciesBkt = latency.NewLatencyBucket()
 var controllerLatencies = latency.NewLatency()
 var controllerCounters = counter.NewCounter()
+var controllerLocalCounters = counter.NewLocalCounter()
 
 const latencyFetchSplitsFromDB = "goproxy.FetchSplitsFromBoltDB"
 const latencyFetchSegmentFromDB = "goproxy.FetchSegmentFromBoltDB"
@@ -73,14 +74,14 @@ func splitChanges(c *gin.Context) {
 		log.Error.Println(errf)
 		controllerCounters.Increment("splitChangeFetcher.status.500")
 		controllerCounters.Increment("splitChangeFetcher.exception")
-		controllerCounters.Increment("request.error")
+		controllerLocalCounters.Increment("request.error")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": errf.Error()})
 		return
 	}
 	controllerLatencies.RegisterLatency("splitChangeFetcher.time", startTime)
 	controllerLatencies.RegisterLatency(latencyFetchSplitsFromDB, startTime)
 	controllerCounters.Increment("splitChangeFetcher.status.200")
-	controllerCounters.Increment("request.ok")
+	controllerLocalCounters.Increment("request.ok")
 	controllerLatenciesBkt.RegisterLatency("/api/splitChanges", startTime)
 	c.JSON(http.StatusOK, gin.H{"splits": splits, "since": since, "till": till})
 }
@@ -148,16 +149,14 @@ func segmentChanges(c *gin.Context) {
 	if errf != nil {
 		controllerCounters.Increment("segmentChangeFetcher.status.500")
 		controllerCounters.Increment("segmentChangeFetcher.exception")
-		controllerCounters.Increment("request.error")
+		controllerLocalCounters.Increment("request.error")
 		c.JSON(http.StatusNotFound, gin.H{"error": errf.Error()})
-		//c.JSON(http.StatusOK, gin.H{"name": segmentName, "added": added,
-		//	"removed": removed, "since": since, "till": till})
 		return
 	}
 	controllerLatencies.RegisterLatency("segmentChangeFetcher.time", startTime)
 	controllerLatencies.RegisterLatency(latencyFetchSegmentFromDB, startTime)
 	controllerCounters.Increment("segmentChangeFetcher.status.200")
-	controllerCounters.Increment("request.ok")
+	controllerLocalCounters.Increment("request.ok")
 	controllerLatenciesBkt.RegisterLatency("/api/segmentChanges/*", startTime)
 	c.JSON(http.StatusOK, gin.H{"name": segmentName, "added": added,
 		"removed": removed, "since": since, "till": till})
@@ -176,7 +175,7 @@ func mySegments(c *gin.Context) {
 	if errs != nil {
 		log.Warning.Println(errs)
 		controllerCounters.Increment("mySegments.status.500")
-		controllerCounters.Increment("request.error")
+		controllerLocalCounters.Increment("request.error")
 	} else {
 		for _, segment := range segments {
 			for _, skey := range segment.Keys {
@@ -189,7 +188,7 @@ func mySegments(c *gin.Context) {
 	}
 
 	controllerCounters.Increment("mySegments.status.200")
-	controllerCounters.Increment("request.ok")
+	controllerLocalCounters.Increment("request.ok")
 	controllerLatenciesBkt.RegisterLatency("/api/mySegments/*", startTime)
 	c.JSON(http.StatusOK, gin.H{"mySegments": mysegments})
 }
@@ -203,13 +202,13 @@ func postBulkImpressions(c *gin.Context) {
 	data, err := ioutil.ReadAll(c.Request.Body)
 	if err != nil {
 		log.Error.Println(err)
-		controllerCounters.Increment("request.error")
+		controllerLocalCounters.Increment("request.error")
 		c.JSON(http.StatusInternalServerError, nil)
 	}
 	startTime := controllerLatencies.StartMeasuringLatency()
 	controllers.AddImpressions(data, sdkVersion, machineIP)
 	controllerLatencies.RegisterLatency(latencyAddImpressionsInBuffer, startTime)
-	controllerCounters.Increment("request.ok")
+	controllerLocalCounters.Increment("request.ok")
 	controllerLatenciesBkt.RegisterLatency("/api/testImpressions/bulk", startTime)
 	c.JSON(http.StatusOK, nil)
 }
@@ -222,7 +221,7 @@ func postMetricsTimes(c *gin.Context) {
 	startTime := controllerLatencies.StartMeasuringLatency()
 	postEvent(c, api.PostMetricsLatency)
 	controllerLatencies.RegisterLatency(latencyPostSDKLatencies, startTime)
-	controllerCounters.Increment("request.ok")
+	controllerLocalCounters.Increment("request.ok")
 	controllerLatenciesBkt.RegisterLatency("/api/metrics/times", startTime)
 	c.JSON(http.StatusOK, "")
 }
@@ -231,7 +230,7 @@ func postMetricsTime(c *gin.Context) {
 	startTime := controllerLatencies.StartMeasuringLatency()
 	postEvent(c, api.PostMetricsTime)
 	controllerLatencies.RegisterLatency(latencyPostSDKLatency, startTime)
-	controllerCounters.Increment("request.ok")
+	controllerLocalCounters.Increment("request.ok")
 	controllerLatenciesBkt.RegisterLatency("/api/metrics/time", startTime)
 	c.JSON(http.StatusOK, "")
 }
@@ -240,7 +239,7 @@ func postMetricsCounters(c *gin.Context) {
 	startTime := controllerLatencies.StartMeasuringLatency()
 	postEvent(c, api.PostMetricsCounters)
 	controllerLatencies.RegisterLatency(latencyPostSDKCounters, startTime)
-	controllerCounters.Increment("request.ok")
+	controllerLocalCounters.Increment("request.ok")
 	controllerLatenciesBkt.RegisterLatency("/api/metrics/counters", startTime)
 	c.JSON(http.StatusOK, "")
 }
@@ -249,7 +248,7 @@ func postMetricsCounter(c *gin.Context) {
 	startTime := controllerLatencies.StartMeasuringLatency()
 	postEvent(c, api.PostMetricsCount)
 	controllerLatencies.RegisterLatency(latencyPostSDKCount, startTime)
-	controllerCounters.Increment("request.ok")
+	controllerLocalCounters.Increment("request.ok")
 	controllerLatenciesBkt.RegisterLatency("/api/metrics/counter", startTime)
 	c.JSON(http.StatusOK, "")
 }
@@ -258,7 +257,7 @@ func postMetricsGauge(c *gin.Context) {
 	startTime := controllerLatencies.StartMeasuringLatency()
 	postEvent(c, api.PostMetricsGauge)
 	controllerLatencies.RegisterLatency(latencyPostSDKGauge, startTime)
-	controllerCounters.Increment("request.ok")
+	controllerLocalCounters.Increment("request.ok")
 	controllerLatenciesBkt.RegisterLatency("/api/metrics/gauge", startTime)
 	c.JSON(http.StatusOK, "")
 }
@@ -271,12 +270,12 @@ func postEvent(c *gin.Context, fn func([]byte, string, string) error) {
 		log.Error.Println(err)
 	}
 
-	// TODO add channel to control number of posts
 	go func() {
 		log.Debug.Println(sdkVersion, machineIP, string(data))
 		var e = fn(data, sdkVersion, machineIP)
 		if e != nil {
 			log.Error.Println(e)
+			controllerLocalCounters.Increment("request.error")
 		}
 	}()
 }

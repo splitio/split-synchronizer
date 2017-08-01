@@ -1,3 +1,4 @@
+// Package latency implements functions to track latencies
 package latency
 
 import (
@@ -41,6 +42,8 @@ func NewLatencyBucket() *LatencyBucket {
 //------------------------------------------------------------------------------
 //Latency
 //------------------------------------------------------------------------------
+
+// Latency struct to track http latencies
 type Latency struct {
 	latencies       map[string][]int64
 	lmutex          *sync.Mutex
@@ -74,6 +77,7 @@ func (l *Latency) RegisterLatency(name string, startCheckpoint int64) {
 	l.lmutex.Unlock()
 }
 
+// PostLatenciesWorker posts latencies
 func (l *Latency) PostLatenciesWorker(f stats.LatencyStorageAddFunc) {
 	for {
 		select {
@@ -86,7 +90,6 @@ func (l *Latency) PostLatenciesWorker(f stats.LatencyStorageAddFunc) {
 		var latenciesDataSet []api.LatenciesDTO
 		for metricName, latencyValues := range l.latencies {
 			latenciesDataSet = append(latenciesDataSet, api.LatenciesDTO{MetricName: metricName, Latencies: latencyValues})
-			//stats.SaveLatency(metricName, latencyValues)
 			f(metricName, latencyValues)
 		}
 		//Dropping latencies
