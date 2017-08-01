@@ -199,6 +199,7 @@ func mySegments(c *gin.Context) {
 func postBulkImpressions(c *gin.Context) {
 	sdkVersion := c.Request.Header.Get("SplitSDKVersion")
 	machineIP := c.Request.Header.Get("SplitSDKMachineIP")
+	machineName := c.Request.Header.Get("SplitSDKMachineName")
 	data, err := ioutil.ReadAll(c.Request.Body)
 	if err != nil {
 		log.Error.Println(err)
@@ -206,7 +207,7 @@ func postBulkImpressions(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, nil)
 	}
 	startTime := controllerLatencies.StartMeasuringLatency()
-	controllers.AddImpressions(data, sdkVersion, machineIP)
+	controllers.AddImpressions(data, sdkVersion, machineIP, machineName)
 	controllerLatencies.RegisterLatency(latencyAddImpressionsInBuffer, startTime)
 	controllerLocalCounters.Increment("request.ok")
 	controllerLatenciesBkt.RegisterLatency("/api/testImpressions/bulk", startTime)

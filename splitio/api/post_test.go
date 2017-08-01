@@ -32,7 +32,7 @@ func TestPostImpressions(t *testing.T) {
 		}
 
 		sdkMachineName := r.Header.Get("SplitSDKMachineName")
-		if sdkMachineName != "ip-127-0-0-1" {
+		if sdkMachineName != "SOME_MACHINE_NAME" {
 			t.Error("SDK Machine Name HEADER not match", sdkMachineName)
 		}
 
@@ -76,7 +76,7 @@ func TestPostImpressions(t *testing.T) {
 		return
 	}
 
-	err2 := PostImpressions(data, "test-1.0.0", "127.0.0.1")
+	err2 := PostImpressions(data, "test-1.0.0", "127.0.0.1", "SOME_MACHINE_NAME")
 	if err2 != nil {
 		t.Error(err2)
 	}

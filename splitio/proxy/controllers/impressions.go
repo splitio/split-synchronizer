@@ -18,7 +18,8 @@ var counterRegister = counter.NewLocalCounter()
 //-----------------------------------------------------------------
 // IMPRESSIONS
 //-----------------------------------------------------------------
-type machineIPBuffer map[string][][]byte
+type machineNameBuffer map[string][][]byte
+type machineIPBuffer map[string]machineNameBuffer
 type sdkVersionBuffer map[string]machineIPBuffer
 
 const impressionChannelCapacity = 5
@@ -64,9 +65,10 @@ func (s *poolBufferSizeStruct) GreaterThan(v int64) bool {
 //----------------------------------------------------------------
 
 type impressionChanMessage struct {
-	SdkVersion string
-	MachineIP  string
-	Data       []byte
+	SdkVersion  string
+	MachineIP   string
+	MachineName string
+	Data        []byte
 }
 
 // Initialize workers
@@ -78,9 +80,9 @@ func Initialize(footprint int64, postRate int64) {
 }
 
 // AddImpressions non-blocking function to add impressions and return response
-func AddImpressions(data []byte, sdkVersion string, machineIP string) {
+func AddImpressions(data []byte, sdkVersion string, machineIP string, machineName string) {
 	var imp = impressionChanMessage{SdkVersion: sdkVersion,
-		MachineIP: machineIP, Data: data}
+		MachineIP: machineIP, MachineName: machineName, Data: data}
 
 	impressionChannel <- imp
 }
@@ -107,6 +109,7 @@ func addImpressionsToBufferWorker(footprint int64) {
 		data := impMessage.Data
 		sdkVersion := impMessage.SdkVersion
 		machineIP := impMessage.MachineIP
+		machineName := impMessage.MachineName
 
 		mutexPoolBuffer.Lock()
 		//Update current buffer size
@@ -118,10 +121,14 @@ func addImpressionsToBufferWorker(footprint int64) {
 		}
 
 		if poolBuffer[sdkVersion][machineIP] == nil {
-			poolBuffer[sdkVersion][machineIP] = make([][]byte, 0)
+			poolBuffer[sdkVersion][machineIP] = make(machineNameBuffer)
 		}
 
-		poolBuffer[sdkVersion][machineIP] = append(poolBuffer[sdkVersion][machineIP], data)
+		if poolBuffer[sdkVersion][machineIP][machineName] == nil {
+			poolBuffer[sdkVersion][machineIP][machineName] = make([][]byte, 0)
+		}
+
+		poolBuffer[sdkVersion][machineIP][machineName] = append(poolBuffer[sdkVersion][machineIP][machineName], data)
 
 		mutexPoolBuffer.Unlock()
 
@@ -135,38 +142,41 @@ func addImpressionsToBufferWorker(footprint int64) {
 func sendImpressions() {
 	mutexPoolBuffer.Lock()
 	poolBufferSize.Reset()
-	for sdkVersion, machineMap := range poolBuffer {
-		for machineIP, listImpressions := range machineMap {
+	for sdkVersion, machineIPMap := range poolBuffer {
+		for machineIP, machineMap := range machineIPMap {
+			for machineName, listImpressions := range machineMap {
 
-			var toSend = make([]json.RawMessage, 0)
+				var toSend = make([]json.RawMessage, 0)
 
-			for _, byteImpression := range listImpressions {
-				var rawImpressions []json.RawMessage
-				err := json.Unmarshal(byteImpression, &rawImpressions)
-				if err != nil {
-					log.Error.Println(err)
+				for _, byteImpression := range listImpressions {
+					var rawImpressions []json.RawMessage
+					err := json.Unmarshal(byteImpression, &rawImpressions)
+					if err != nil {
+						log.Error.Println(err)
+						continue
+					}
+
+					for _, impression := range rawImpressions {
+						toSend = append(toSend, impression)
+					}
+
+				}
+
+				data, errl := json.Marshal(toSend)
+				if errl != nil {
+					log.Error.Println(errl)
 					continue
 				}
-
-				for _, impression := range rawImpressions {
-					toSend = append(toSend, impression)
+				startCheckpoint := latencyRegister.StartMeasuringLatency()
+				errp := api.PostImpressions(data, sdkVersion, machineIP, machineName)
+				if errp != nil {
+					log.Error.Println(errp)
+					counterRegister.Increment("backend::request.error")
+				} else {
+					latencyRegister.RegisterLatency("backend::/api/testImpressions/bulk", startCheckpoint)
+					counterRegister.Increment("backend::request.ok")
 				}
 
-			}
-
-			data, errl := json.Marshal(toSend)
-			if errl != nil {
-				log.Error.Println(errl)
-				continue
-			}
-			startCheckpoint := latencyRegister.StartMeasuringLatency()
-			errp := api.PostImpressions(data, sdkVersion, machineIP)
-			if errp != nil {
-				log.Error.Println(errp)
-				counterRegister.Increment("backend::request.error")
-			} else {
-				latencyRegister.RegisterLatency("backend::/api/testImpressions/bulk", startCheckpoint)
-				counterRegister.Increment("backend::request.ok")
 			}
 		}
 	}

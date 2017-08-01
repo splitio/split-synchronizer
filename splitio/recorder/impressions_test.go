@@ -22,6 +22,7 @@ func TestImpressionsHTTPRecorderPOST(t *testing.T) {
 
 		sdkVersion := r.Header.Get("SplitSDKVersion")
 		sdkMachine := r.Header.Get("SplitSDKMachineIP")
+		sdkMachineName := r.Header.Get("SplitSDKMachineName")
 
 		if sdkVersion != "test-1.0.0" {
 			t.Error("SDK Version HEADER not match")
@@ -29,6 +30,10 @@ func TestImpressionsHTTPRecorderPOST(t *testing.T) {
 
 		if sdkMachine != "127.0.0.1" {
 			t.Error("SDK Machine HEADER not match")
+		}
+
+		if sdkMachineName != "SOME_MACHINE_NAME" {
+			t.Error("SDK Machine Name HEADER not match")
 		}
 
 		rBody, _ := ioutil.ReadAll(r.Body)
@@ -67,7 +72,7 @@ func TestImpressionsHTTPRecorderPOST(t *testing.T) {
 
 	impressionsHTTPRecorder := ImpressionsHTTPRecorder{}
 
-	err2 := impressionsHTTPRecorder.Post(impressions, "test-1.0.0", "127.0.0.1")
+	err2 := impressionsHTTPRecorder.Post(impressions, "test-1.0.0", "127.0.0.1", "SOME_MACHINE_NAME")
 	if err2 != nil {
 		t.Error(err2)
 	}
@@ -92,7 +97,7 @@ func TestImpressionsHTTPRecorderPOSTWithError(t *testing.T) {
 
 	impressionsHTTPRecorder := ImpressionsHTTPRecorder{}
 
-	err2 := impressionsHTTPRecorder.Post(impressions, "test-1.0.0", "127.0.0.1")
+	err2 := impressionsHTTPRecorder.Post(impressions, "test-1.0.0", "127.0.0.1", "SOME_MACHINE_NAME")
 	if err2 == nil {
 		t.Error(err2)
 	}
