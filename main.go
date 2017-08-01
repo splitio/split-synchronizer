@@ -53,7 +53,7 @@ func init() {
 
 	//writing a default configuration file if it is required by user
 	if *writeDefaultConfigFile != "" {
-		fmt.Println("DEFAULT CONFIG FILE HAS BEEN WROTE:", *writeDefaultConfigFile)
+		fmt.Println("DEFAULT CONFIG FILE HAS BEEN WRITTEN:", *writeDefaultConfigFile)
 		conf.WriteDefaultConfigFile(*writeDefaultConfigFile)
 		os.Exit(0)
 	}
@@ -87,6 +87,7 @@ func startAsProxy() {
 		AdminPort:     ":" + conf.Data.Proxy.AdminPort,
 		AdminUsername: conf.Data.Proxy.AdminUsername,
 		AdminPassword: conf.Data.Proxy.AdminPassword,
+		DebugOn:       conf.Data.Logger.DebugOn,
 	}
 
 	//Run webserver loop

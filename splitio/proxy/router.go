@@ -4,7 +4,6 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/go-agent/conf"
 	"github.com/splitio/go-agent/splitio/proxy/middleware"
 )
 
@@ -14,11 +13,12 @@ type ProxyOptions struct {
 	AdminUsername string
 	AdminPassword string
 	APIKeys       []string
+	DebugOn       bool
 }
 
 // Run runs the proxy server
 func Run(options *ProxyOptions) {
-	if !conf.Data.Logger.DebugOn {
+	if !options.DebugOn {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
