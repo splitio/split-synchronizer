@@ -12,9 +12,9 @@ import (
 	"github.com/splitio/go-agent/splitio"
 	"github.com/splitio/go-agent/splitio/api"
 	"github.com/splitio/go-agent/splitio/proxy/controllers"
+	"github.com/splitio/go-agent/splitio/proxy/dashboard"
 	"github.com/splitio/go-agent/splitio/stats"
 	"github.com/splitio/go-agent/splitio/stats/counter"
-	"github.com/splitio/go-agent/splitio/stats/dashboard"
 	"github.com/splitio/go-agent/splitio/stats/latency"
 	"github.com/splitio/go-agent/splitio/storage/boltdb"
 	"github.com/splitio/go-agent/splitio/storage/boltdb/collections"
@@ -413,7 +413,7 @@ func showDashboard(c *gin.Context) {
 	segmentCollection := collections.NewSegmentChangesCollection(boltdb.DBB)
 	segments, errs := segmentCollection.FetchAll()
 	if errs != nil {
-		log.Warning.Println(errs)
+		log.Warning.Println(errs, "- Maybe segments are not synchronized.")
 		htmlString = strings.Replace(htmlString, "{{segments_number}}", "0", 1)
 	} else {
 		htmlString = strings.Replace(htmlString, "{{segments_number}}", strconv.Itoa(len(segments)), 1)
