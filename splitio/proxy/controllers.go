@@ -205,6 +205,7 @@ func postBulkImpressions(c *gin.Context) {
 		log.Error.Println(err)
 		controllerLocalCounters.Increment("request.error")
 		c.JSON(http.StatusInternalServerError, nil)
+		return
 	}
 	startTime := controllerLatencies.StartMeasuringLatency()
 	controllers.AddImpressions(data, sdkVersion, machineIP, machineName)
