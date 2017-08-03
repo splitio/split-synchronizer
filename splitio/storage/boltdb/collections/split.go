@@ -82,10 +82,11 @@ func (c SplitChangesCollection) FetchAll() (SplitsChangesItems, error) {
 
 	toReturn := make(SplitsChangesItems, 0)
 
+	var decodeBuffer bytes.Buffer
 	for _, v := range items {
-		var decodeBuffer bytes.Buffer
 		var q SplitChangesItem
-
+		// resets buffer data
+		decodeBuffer.Reset()
 		decodeBuffer.Write(v)
 		dec := gob.NewDecoder(&decodeBuffer)
 
