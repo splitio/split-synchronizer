@@ -38,3 +38,6 @@ release/install_osx.bin
 release/splitio-agent-linux-amd64
 release/splitio-agent-osx-amd64
 release/splitio-sync-win.zip
+
+# vim backup files
+*.swp
