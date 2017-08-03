@@ -29,6 +29,7 @@ func (c Collection) SaveAs(key []byte, item interface{}) error {
 		}
 
 		var encodeBuffer bytes.Buffer
+		encodeBuffer.Reset()
 		enc := gob.NewEncoder(&encodeBuffer)
 		enc.Encode(item)
 

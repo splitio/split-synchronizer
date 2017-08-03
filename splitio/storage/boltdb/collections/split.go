@@ -2,6 +2,7 @@ package collections
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/gob"
 	"sort"
 
@@ -24,7 +25,7 @@ func NewSplitChangesCollection(dbb *bolt.DB) SplitChangesCollection {
 
 // SplitChangesItem represents an SplitChanges service response
 type SplitChangesItem struct {
-	id           uint64
+	//id           uint64
 	ChangeNumber int64  `json:"changeNumber"`
 	Name         string `json:"name"`
 	Status       string `json:"status"`
@@ -32,14 +33,14 @@ type SplitChangesItem struct {
 }
 
 // SetID returns identifier
-func (f *SplitChangesItem) SetID(id uint64) {
+/*func (f *SplitChangesItem) SetID(id uint64) {
 	f.id = id
 }
 
 // ID returns identifier
 func (f *SplitChangesItem) ID() uint64 {
 	return f.id
-}
+}*/
 
 //----------------------------------------------------
 
@@ -68,6 +69,10 @@ type SplitChangesCollection struct {
 // Add an item
 func (c SplitChangesCollection) Add(item *SplitChangesItem) error {
 	key := []byte(item.Name)
+
+	// Base64 encode to wrap up chars
+	item.JSON = base64.StdEncoding.EncodeToString([]byte(item.JSON))
+
 	err := c.Collection.SaveAs(key, item)
 	return err
 }
@@ -95,6 +100,12 @@ func (c SplitChangesCollection) FetchAll() (SplitsChangesItems, error) {
 			log.Error.Println("decode error:", errq, "|", string(v))
 			continue
 		}
+		jsonb, errb := base64.StdEncoding.DecodeString(q.JSON)
+		if errb != nil {
+			log.Error.Println("BASE64 decode", errb, "|", string(q.JSON))
+			continue
+		}
+		q.JSON = string(jsonb)
 		toReturn = append(toReturn, &q)
 	}
 
