@@ -15,7 +15,7 @@ import (
 
 // Stats
 var latencyRegister = latency.NewLatencyBucket()
-var counterRegister = counter.NewCounter()
+var counterRegister = counter.NewLocalCounter()
 
 var proxyFetchSegmentBlocker chan bool
 var proxyInProgressSegments map[string]struct{}

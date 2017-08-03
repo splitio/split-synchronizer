@@ -11,7 +11,7 @@ import (
 type ImpressionsHTTPRecorder struct{}
 
 // Post send impressions to Split Events servers
-func (r ImpressionsHTTPRecorder) Post(impressions []api.ImpressionsDTO, sdkVersion string, machineIP string) error {
+func (r ImpressionsHTTPRecorder) Post(impressions []api.ImpressionsDTO, sdkVersion string, machineIP string, machineName string) error {
 
 	data, err := json.Marshal(impressions)
 	if err != nil {
@@ -20,7 +20,7 @@ func (r ImpressionsHTTPRecorder) Post(impressions []api.ImpressionsDTO, sdkVersi
 	}
 	log.Verbose.Println(string(data))
 
-	if err := api.PostImpressions(data, sdkVersion, machineIP); err != nil {
+	if err := api.PostImpressions(data, sdkVersion, machineIP, machineName); err != nil {
 		log.Error.Println("Error posting impressions", err.Error())
 		return err
 	}

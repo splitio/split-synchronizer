@@ -33,7 +33,7 @@ func (r testImpressionStorage) RetrieveImpressions() (map[string]map[string][]ap
 /* ImpressionsRecorder for testing */
 type testImpressionsRecorder struct{}
 
-func (r testImpressionsRecorder) Post(impressions []api.ImpressionsDTO, sdkVersion string, machineIP string) error {
+func (r testImpressionsRecorder) Post(impressions []api.ImpressionsDTO, sdkVersion string, machineIP string, machineName string) error {
 	return nil
 }
 

@@ -41,7 +41,7 @@ func taskPostImpressions(tid int, impressionsRecorderAdapter recorder.Impression
 			for machineIP, impressions := range impressionsByMachineIP {
 				log.Debug.Println("Posting impressions from ", sdkVersion, machineIP)
 				beforePostServer := time.Now().UnixNano()
-				err := impressionsRecorderAdapter.Post(impressions, sdkVersion, machineIP)
+				err := impressionsRecorderAdapter.Post(impressions, sdkVersion, machineIP, "")
 				if ImpressionListenerEnabled {
 					impressionListenerStream <- impressionBulk{
 						data:       impressions,
@@ -67,7 +67,7 @@ func postImpressionsToListener(impressionsRecorderAdapter recorder.ImpressionsRe
 		for {
 			select {
 			case msg := <-failedQueue:
-				err := impressionsRecorderAdapter.Post(msg.data, msg.sdkVersion, msg.machineIP)
+				err := impressionsRecorderAdapter.Post(msg.data, msg.sdkVersion, msg.machineIP, "")
 				if err != nil {
 					msg.attempt++
 					if msg.attempt < 3 {

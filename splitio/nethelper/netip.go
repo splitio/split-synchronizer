@@ -1,3 +1,4 @@
+// Package nethelper implements helppers to work with networks
 package nethelper
 
 import (
