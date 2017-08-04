@@ -10,7 +10,7 @@ import (
 	"github.com/splitio/go-agent/log"
 )
 
-var rwmutex = &sync.RWMutex{}
+var mutex = &sync.Mutex{}
 
 var ErrorBucketNotFound = errors.New("Bucket not found")
 
@@ -25,8 +25,8 @@ type Collection struct {
 // SaveAs saves an item into collection under key parameter
 func (c Collection) SaveAs(key []byte, item interface{}) error {
 
-	rwmutex.Lock()
-	defer rwmutex.Unlock()
+	mutex.Lock()
+	defer mutex.Unlock()
 
 	// Insert value in DB
 	return c.DB.Update(func(tx *bolt.Tx) error {
@@ -50,8 +50,8 @@ func (c Collection) SaveAs(key []byte, item interface{}) error {
 
 // Save an item into collection setting autoincrement ID
 func (c Collection) Save(item CollectionItem) (uint64, error) {
-	rwmutex.Lock()
-	defer rwmutex.Unlock()
+	mutex.Lock()
+	defer mutex.Unlock()
 
 	var id uint64
 	// Insert value in DB
@@ -90,8 +90,8 @@ func (c Collection) Update(item CollectionItem) error {
 		return errors.New("Invalid ID, it must be grater than zero")
 	}
 
-	rwmutex.Lock()
-	defer rwmutex.Unlock()
+	mutex.Lock()
+	defer mutex.Unlock()
 
 	// Insert value in DB
 	updateError := c.DB.Update(func(tx *bolt.Tx) error {
@@ -124,8 +124,8 @@ func (c Collection) Update(item CollectionItem) error {
 // Fetch returns an item from collection
 func (c Collection) Fetch(id uint64) ([]byte, error) {
 
-	rwmutex.RLock()
-	defer rwmutex.RUnlock()
+	mutex.Lock()
+	defer mutex.Unlock()
 
 	var item []byte
 	err := c.DB.View(func(tx *bolt.Tx) error {
@@ -149,8 +149,8 @@ func (c Collection) Fetch(id uint64) ([]byte, error) {
 // FetchBy returns an item from collection given a key
 func (c Collection) FetchBy(key []byte) ([]byte, error) {
 
-	rwmutex.RLock()
-	defer rwmutex.RUnlock()
+	mutex.Lock()
+	defer mutex.Unlock()
 
 	var item []byte
 	err := c.DB.View(func(tx *bolt.Tx) error {
@@ -174,8 +174,8 @@ func (c Collection) FetchBy(key []byte) ([]byte, error) {
 // FetchAll fetch all saved items
 func (c Collection) FetchAll() ([][]byte, error) {
 
-	rwmutex.RLock()
-	defer rwmutex.RUnlock()
+	mutex.Lock()
+	defer mutex.Unlock()
 
 	toReturn := make([][]byte, 0)
 	err := c.DB.View(func(tx *bolt.Tx) error {
