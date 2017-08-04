@@ -43,3 +43,36 @@ func TestSplitCollection(t *testing.T) {
 	}
 
 }
+
+func TestSplitCollectionDeleteItem(t *testing.T) {
+	db, err := boltdb.NewInstance(fmt.Sprintf("/tmp/testcollection_%d.db", time.Now().UnixNano()), nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	var split1 = &SplitChangesItem{Name: "SPLIT_1", ChangeNumber: 999888, Status: "ACTIVE", JSON: fmt.Sprintf("%d", time.Now().UnixNano())}
+
+	splitCollection := NewSplitChangesCollection(db)
+
+	for i := 1; i < 10; i++ {
+		erra := splitCollection.Add(split1)
+		if erra != nil {
+			t.Error(erra)
+		}
+	}
+
+	errd := splitCollection.Delete(split1)
+	if errd != nil {
+		t.Error(errd)
+	}
+
+	items, errs := splitCollection.FetchAll()
+	if errs != nil {
+		t.Error(errs)
+	}
+
+	if len(items) != 0 {
+		t.Error("Bad len of items")
+	}
+
+}

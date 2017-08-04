@@ -22,6 +22,27 @@ type Collection struct {
 	Name string
 }
 
+// Delete removess an item into collection under key parameter
+func (c Collection) Delte(key []byte) error {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	// Insert value in DB
+	return c.DB.Update(func(tx *bolt.Tx) error {
+		bucket, err := tx.CreateBucketIfNotExists([]byte(c.Name))
+		if err != nil {
+			return err
+		}
+
+		err = bucket.Delete(key)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
+
 // SaveAs saves an item into collection under key parameter
 func (c Collection) SaveAs(key []byte, item interface{}) error {
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/gob"
+	"fmt"
 	"sort"
 
 	"github.com/boltdb/bolt"
@@ -66,6 +67,13 @@ type SplitChangesCollection struct {
 	boltdb.Collection
 }
 
+// Delete an item
+func (c SplitChangesCollection) Delete(item *SplitChangesItem) error {
+	key := []byte(item.Name)
+	err := c.Collection.Delte(key)
+	return err
+}
+
 // Add an item
 func (c SplitChangesCollection) Add(item *SplitChangesItem) error {
 	key := []byte(item.Name)
@@ -98,6 +106,11 @@ func (c SplitChangesCollection) FetchAll() (SplitsChangesItems, error) {
 		errq := dec.Decode(&q)
 		if errq != nil {
 			log.Error.Println("decode error:", errq, "|", string(v))
+
+			fmt.Println("--------------")
+			fmt.Println("LEN", len(items))
+			fmt.Println("--------------")
+
 			continue
 		}
 		jsonb, errb := base64.StdEncoding.DecodeString(q.JSON)
