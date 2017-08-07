@@ -24,6 +24,7 @@ import (
 	"github.com/splitio/go-agent/splitio/storage/boltdb"
 	"github.com/splitio/go-agent/splitio/storage/redis"
 	"github.com/splitio/go-agent/splitio/task"
+	"github.com/splitio/go-agent/splitio/util"
 )
 
 var asProxy *bool
@@ -218,10 +219,15 @@ func startProducer() {
 	segmentStorage := segmentStorageFactory()
 	go task.FetchSegments(segmentFetcher, segmentStorage, conf.Data.SegmentFetchRate)
 
+	task.ImpressionListenerEnabled = true
+
 	for i := 0; i < conf.Data.ImpressionsThreads; i++ {
 		impressionsStorage := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 		impressionsRecorder := recorder.ImpressionsHTTPRecorder{}
 		go task.PostImpressions(i, impressionsRecorder, impressionsStorage, conf.Data.ImpressionsPostRate)
+		impressionsListenerRecorder := util.SecondaryHTTPImpressionRecorder{}
+		go task.PostImpressionsToListener(impressionsListenerRecorder)
+
 	}
 
 	metricsStorage := redis.NewMetricsStorageAdapter(redis.Client, conf.Data.Redis.Prefix)

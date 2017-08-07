@@ -8,17 +8,19 @@ import (
 	"github.com/splitio/go-agent/splitio/api"
 	"github.com/splitio/go-agent/splitio/recorder"
 	"github.com/splitio/go-agent/splitio/storage"
+	"github.com/splitio/go-agent/splitio/util"
 )
 
 type impressionBulk struct {
-	data       []api.ImpressionsDTO
-	sdkVersion string
-	machineIP  string
-	attempt    int
+	data        []api.ImpressionsDTO
+	sdkVersion  string
+	machineIP   string
+	machineName string
+	attempt     int
 }
 
 var ImpressionListenerEnabled = false
-var impressionListenerStream = make(chan impressionBulk)
+var impressionListenerStream = make(chan impressionBulk, util.ImpressionListenerMainQueueSize)
 var mutex = &sync.Mutex{}
 
 func taskPostImpressions(tid int, impressionsRecorderAdapter recorder.ImpressionsRecorder,
@@ -43,10 +45,16 @@ func taskPostImpressions(tid int, impressionsRecorderAdapter recorder.Impression
 				beforePostServer := time.Now().UnixNano()
 				err := impressionsRecorderAdapter.Post(impressions, sdkVersion, machineIP, "")
 				if ImpressionListenerEnabled {
-					impressionListenerStream <- impressionBulk{
-						data:       impressions,
-						sdkVersion: sdkVersion,
-						machineIP:  machineIP,
+					select {
+					case impressionListenerStream <- impressionBulk{
+						data:        impressions,
+						sdkVersion:  sdkVersion,
+						machineIP:   machineIP,
+						machineName: "",
+					}:
+					default:
+						log.Error.Println("Impression listenser send queue is full, " +
+							"impressions not sent to listener")
 					}
 
 				}
@@ -61,10 +69,11 @@ func taskPostImpressions(tid int, impressionsRecorderAdapter recorder.Impression
 	}
 }
 
-func postImpressionsToListener(impressionsRecorderAdapter recorder.ImpressionsRecorder) {
-	var failedQueue = make(chan impressionBulk)
+func PostImpressionsToListener(impressionsRecorderAdapter recorder.ImpressionsRecorder) {
+	var failedQueue = make(chan impressionBulk, util.ImpressionListenerFailedQueueSize)
 	for {
-		for {
+		failedImpressions := true
+		for failedImpressions {
 			select {
 			case msg := <-failedQueue:
 				err := impressionsRecorderAdapter.Post(msg.data, msg.sdkVersion, msg.machineIP, "")
@@ -73,21 +82,22 @@ func postImpressionsToListener(impressionsRecorderAdapter recorder.ImpressionsRe
 					if msg.attempt < 3 {
 						failedQueue <- msg
 					}
-					time.Sleep(time.Second * 3)
+					time.Sleep(time.Millisecond * 100)
 				}
 			default:
-				// If no elements are fetched from the failed queue,
-				// break this loop and start sending impressions recieved
-				// in the main channel
-				break
+				failedImpressions = false
 			}
 		}
-
 		msg := <-impressionListenerStream
-		err := impressionsRecorderAdapter.Post(msg.data, msg.sdkVersion, msg.machineIP)
+		err := impressionsRecorderAdapter.Post(msg.data, msg.sdkVersion, msg.machineIP, msg.machineName)
 		if err != nil {
-			failedQueue <- msg
-			time.Sleep(time.Second * 3)
+			select {
+			case failedQueue <- msg:
+			default:
+				log.Error.Println("Impression listener queue is full. " +
+					"Impressions will be dropped until the listener enpoint is restored.")
+			}
+			time.Sleep(time.Millisecond * 100)
 		}
 	}
 }
