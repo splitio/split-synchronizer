@@ -400,7 +400,7 @@ func showDashboard(c *gin.Context) {
 	splitCollection := collections.NewSplitChangesCollection(boltdb.DBB)
 	splits, err := splitCollection.FetchAll()
 	if err != nil {
-		log.Warning.Println(err)
+		//	log.Warning.Println(err)
 		htmlString = strings.Replace(htmlString, "{{splits_number}}", "0", 1)
 	} else {
 		htmlString = strings.Replace(htmlString, "{{splits_number}}", strconv.Itoa(len(splits)), 1)
@@ -414,7 +414,7 @@ func showDashboard(c *gin.Context) {
 	segmentCollection := collections.NewSegmentChangesCollection(boltdb.DBB)
 	segments, errs := segmentCollection.FetchAll()
 	if errs != nil {
-		log.Warning.Println(errs, "- Maybe segments are not synchronized.")
+		log.Warning.Println(errs, "- Maybe segments are not yet synchronized.")
 		htmlString = strings.Replace(htmlString, "{{segments_number}}", "0", 1)
 	} else {
 		htmlString = strings.Replace(htmlString, "{{segments_number}}", strconv.Itoa(len(segments)), 1)
