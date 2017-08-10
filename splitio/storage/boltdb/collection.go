@@ -6,8 +6,6 @@ import (
 	"errors"
 	"sync"
 
-	"fmt"
-
 	"github.com/boltdb/bolt"
 	"github.com/splitio/go-agent/log"
 )
@@ -165,7 +163,6 @@ func (c Collection) Fetch(id uint64) ([]byte, error) {
 	})
 
 	if err != nil {
-		fmt.Println("ERROR %s", err)
 		return nil, err
 	}
 
