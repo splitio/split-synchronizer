@@ -6,6 +6,8 @@ import (
 	"errors"
 	"sync"
 
+	"fmt"
+
 	"github.com/boltdb/bolt"
 	"github.com/splitio/go-agent/log"
 )
@@ -155,12 +157,15 @@ func (c Collection) Fetch(id uint64) ([]byte, error) {
 			return ErrorBucketNotFound
 		}
 
-		item = bucket.Get(itob(id))
+		itemRef := bucket.Get(itob(id))
+		item = make([]byte, len(itemRef))
+		copy(item, itemRef)
 
 		return nil
 	})
 
 	if err != nil {
+		fmt.Println("ERROR %s", err)
 		return nil, err
 	}
 
@@ -180,7 +185,9 @@ func (c Collection) FetchBy(key []byte) ([]byte, error) {
 			return ErrorBucketNotFound
 		}
 
-		item = bucket.Get(key)
+		itemRef := bucket.Get(key)
+		item = make([]byte, len(itemRef))
+		copy(item, itemRef)
 
 		return nil
 	})
@@ -209,7 +216,9 @@ func (c Collection) FetchAll() ([][]byte, error) {
 		cursor := bucket.Cursor()
 
 		for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
-			toReturn = append(toReturn, v)
+			it := make([]byte, len(v))
+			copy(it, v)
+			toReturn = append(toReturn, it)
 		}
 
 		return nil

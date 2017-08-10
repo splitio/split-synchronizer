@@ -2,9 +2,7 @@ package collections
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/gob"
-	"fmt"
 	"sort"
 
 	"github.com/boltdb/bolt"
@@ -46,7 +44,7 @@ func (f *SplitChangesItem) ID() uint64 {
 //----------------------------------------------------
 
 // SplitsChangesItems Sortable list
-type SplitsChangesItems []*SplitChangesItem
+type SplitsChangesItems []SplitChangesItem
 
 func (slice SplitsChangesItems) Len() int {
 	return len(slice)
@@ -78,9 +76,6 @@ func (c SplitChangesCollection) Delete(item *SplitChangesItem) error {
 func (c SplitChangesCollection) Add(item *SplitChangesItem) error {
 	key := []byte(item.Name)
 
-	// Base64 encode to wrap up chars
-	item.JSON = base64.StdEncoding.EncodeToString([]byte(item.JSON))
-
 	err := c.Collection.SaveAs(key, item)
 	return err
 }
@@ -106,20 +101,9 @@ func (c SplitChangesCollection) FetchAll() (SplitsChangesItems, error) {
 		errq := dec.Decode(&q)
 		if errq != nil {
 			log.Error.Println("decode error:", errq, "|", string(v))
-
-			fmt.Println("--------------")
-			fmt.Println("LEN", len(items))
-			fmt.Println("--------------")
-
 			continue
 		}
-		jsonb, errb := base64.StdEncoding.DecodeString(q.JSON)
-		if errb != nil {
-			log.Error.Println("BASE64 decode", errb, "|", string(q.JSON))
-			continue
-		}
-		q.JSON = string(jsonb)
-		toReturn = append(toReturn, &q)
+		toReturn = append(toReturn, q)
 	}
 
 	sort.Sort(toReturn)
