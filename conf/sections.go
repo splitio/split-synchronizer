@@ -84,5 +84,5 @@ type InMemorySection struct {
 type Auth struct {
 	// ApiKeys list of alloweb API-Keys for SDKs
 	// split-default-value must be set as SDK_API_KEY just to write config file by cli (see func getDefaultConfigData() at parser.go)
-	ApiKeys []string `json:"sdkAPIKeys" split-default-value:"SDK_API_KEY" split-cli-option:"proxy-apikeys" split-cli-description:"List of allowed custom API Keys for SDKs"`
+	APIKeys []string `json:"sdkAPIKeys" split-default-value:"SDK_API_KEY" split-cli-option:"proxy-apikeys" split-cli-description:"List of allowed custom API Keys for SDKs"`
 }

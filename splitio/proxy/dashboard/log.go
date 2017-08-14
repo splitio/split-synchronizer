@@ -6,6 +6,7 @@ var logRow = `<tr>
   <td>%s</td>
 </tr>`
 
+// ParseLastErrors return HTML table row per message
 func ParseLastErrors(messages []string) string {
 	var html = ""
 

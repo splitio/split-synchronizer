@@ -7,6 +7,7 @@ import (
 	"github.com/splitio/go-agent/splitio/proxy/middleware"
 )
 
+// ProxyOptions struct to set options for Proxy mode.
 type ProxyOptions struct {
 	Port          string
 	AdminPort     string

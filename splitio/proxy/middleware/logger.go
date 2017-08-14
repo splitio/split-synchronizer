@@ -8,6 +8,7 @@ import (
 	"github.com/splitio/go-agent/log"
 )
 
+// Logger middleware to log HTTP requests at Debug level
 func Logger() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Start timer

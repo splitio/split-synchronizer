@@ -217,7 +217,7 @@ func getDefaultConfigData() ConfigData {
 	configData := ConfigData{}
 	// Setting SDK_API_KEY value to write in JSON File when it is exported.
 	// This value MUST be equal to split-default-value set at sections.go
-	configData.Proxy.Auth.ApiKeys = append(configData.Proxy.Auth.ApiKeys, "SDK_API_KEY")
+	configData.Proxy.Auth.APIKeys = append(configData.Proxy.Auth.APIKeys, "SDK_API_KEY")
 	var configDataReflection = reflect.ValueOf(&configData).Elem()
 	loadDefaultValuesRecursiveChildren(configDataReflection)
 	return configData

@@ -83,7 +83,7 @@ func startAsProxy() {
 
 	proxyOptions := &proxy.ProxyOptions{
 		Port:          ":" + conf.Data.Proxy.Port,
-		APIKeys:       conf.Data.Proxy.Auth.ApiKeys,
+		APIKeys:       conf.Data.Proxy.Auth.APIKeys,
 		AdminPort:     ":" + conf.Data.Proxy.AdminPort,
 		AdminUsername: conf.Data.Proxy.AdminUsername,
 		AdminPassword: conf.Data.Proxy.AdminPassword,

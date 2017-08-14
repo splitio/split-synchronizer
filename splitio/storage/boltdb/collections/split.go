@@ -68,7 +68,7 @@ type SplitChangesCollection struct {
 // Delete an item
 func (c SplitChangesCollection) Delete(item *SplitChangesItem) error {
 	key := []byte(item.Name)
-	err := c.Collection.Delte(key)
+	err := c.Collection.Delete(key)
 	return err
 }
 

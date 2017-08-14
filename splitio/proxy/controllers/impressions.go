@@ -24,7 +24,7 @@ type sdkVersionBuffer map[string]machineIPBuffer
 
 const impressionChannelCapacity = 5
 
-var poolBuffer sdkVersionBuffer = make(sdkVersionBuffer)
+var poolBuffer = make(sdkVersionBuffer)
 
 var poolBufferSize = poolBufferSizeStruct{size: 0}
 var currentPoolBucket = 0

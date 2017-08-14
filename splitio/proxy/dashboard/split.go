@@ -19,6 +19,7 @@ var splitRow = `<tr class="splitItem">
   <td>{{lastModified}}</td>
 </tr>`
 
+// ParseSplit returns parsed HTML for split table
 func ParseSplit(splitJSON string) string {
 	var html = splitRow
 

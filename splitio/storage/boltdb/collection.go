@@ -23,7 +23,7 @@ type Collection struct {
 }
 
 // Delete removess an item into collection under key parameter
-func (c Collection) Delte(key []byte) error {
+func (c Collection) Delete(key []byte) error {
 	mutex.Lock()
 	defer mutex.Unlock()
 

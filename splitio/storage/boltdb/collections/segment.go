@@ -18,6 +18,7 @@ func NewSegmentChangesCollection(dbb *bolt.DB) SegmentChangesCollection {
 	return sCollection
 }
 
+// SegmentKey represents a segment key data
 type SegmentKey struct {
 	Name         string
 	ChangeNumber int64

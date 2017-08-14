@@ -26,6 +26,7 @@ func NewCounter() *Counter {
 	return counter
 }
 
+// Counter atomic counter
 type Counter struct {
 	counts          map[string]int64
 	cmutex          *sync.Mutex
@@ -33,6 +34,7 @@ type Counter struct {
 	postRate        int64
 }
 
+// Counts returns the total count for a given metric name
 func (c *Counter) Counts(name string) (int64, error) {
 	if _, ok := c.counts[name]; ok {
 		return c.counts[name], nil
@@ -41,30 +43,35 @@ func (c *Counter) Counts(name string) (int64, error) {
 	return 0, errors.New("Counter not found")
 }
 
+// Increment a counter +1 for the given metric name
 func (c *Counter) Increment(name string) {
 	c.cmutex.Lock()
 	c.counts[name] += 1
 	c.cmutex.Unlock()
 }
 
+// Decrement a counter -1 for the given metric name
 func (c *Counter) Decrement(name string) {
 	c.cmutex.Lock()
 	c.counts[name] -= 1
 	c.cmutex.Unlock()
 }
 
+// IncrementN a counter +N for the given metric name
 func (c *Counter) IncrementN(name string, inc int64) {
 	c.cmutex.Lock()
 	c.counts[name] += inc
 	c.cmutex.Unlock()
 }
 
+// DecrementN a counter -N for the given metric name
 func (c *Counter) DecrementN(name string, dec int64) {
 	c.cmutex.Lock()
 	c.counts[name] -= dec
 	c.cmutex.Unlock()
 }
 
+// PostCounterWorker post counter metrics
 func (c *Counter) PostCounterWorker() {
 	for {
 		select {
