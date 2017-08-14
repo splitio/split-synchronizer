@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"encoding/gob"
 	"errors"
+	"sync"
 
 	"github.com/boltdb/bolt"
 	"github.com/splitio/go-agent/log"
 )
+
+var mutex = &sync.Mutex{}
 
 var ErrorBucketNotFound = errors.New("Bucket not found")
 
@@ -19,8 +22,33 @@ type Collection struct {
 	Name string
 }
 
+// Delete removess an item into collection under key parameter
+func (c Collection) Delte(key []byte) error {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	// Insert value in DB
+	return c.DB.Update(func(tx *bolt.Tx) error {
+		bucket, err := tx.CreateBucketIfNotExists([]byte(c.Name))
+		if err != nil {
+			return err
+		}
+
+		err = bucket.Delete(key)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
+
 // SaveAs saves an item into collection under key parameter
 func (c Collection) SaveAs(key []byte, item interface{}) error {
+
+	mutex.Lock()
+	defer mutex.Unlock()
+
 	// Insert value in DB
 	return c.DB.Update(func(tx *bolt.Tx) error {
 		bucket, err := tx.CreateBucketIfNotExists([]byte(c.Name))
@@ -29,6 +57,7 @@ func (c Collection) SaveAs(key []byte, item interface{}) error {
 		}
 
 		var encodeBuffer bytes.Buffer
+		encodeBuffer.Reset()
 		enc := gob.NewEncoder(&encodeBuffer)
 		enc.Encode(item)
 
@@ -42,6 +71,9 @@ func (c Collection) SaveAs(key []byte, item interface{}) error {
 
 // Save an item into collection setting autoincrement ID
 func (c Collection) Save(item CollectionItem) (uint64, error) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
 	var id uint64
 	// Insert value in DB
 	updateError := c.DB.Update(func(tx *bolt.Tx) error {
@@ -79,6 +111,9 @@ func (c Collection) Update(item CollectionItem) error {
 		return errors.New("Invalid ID, it must be grater than zero")
 	}
 
+	mutex.Lock()
+	defer mutex.Unlock()
+
 	// Insert value in DB
 	updateError := c.DB.Update(func(tx *bolt.Tx) error {
 		bucket, err := tx.CreateBucketIfNotExists([]byte(c.Name))
@@ -109,6 +144,10 @@ func (c Collection) Update(item CollectionItem) error {
 
 // Fetch returns an item from collection
 func (c Collection) Fetch(id uint64) ([]byte, error) {
+
+	mutex.Lock()
+	defer mutex.Unlock()
+
 	var item []byte
 	err := c.DB.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(c.Name))
@@ -116,7 +155,9 @@ func (c Collection) Fetch(id uint64) ([]byte, error) {
 			return ErrorBucketNotFound
 		}
 
-		item = bucket.Get(itob(id))
+		itemRef := bucket.Get(itob(id))
+		item = make([]byte, len(itemRef))
+		copy(item, itemRef)
 
 		return nil
 	})
@@ -130,6 +171,10 @@ func (c Collection) Fetch(id uint64) ([]byte, error) {
 
 // FetchBy returns an item from collection given a key
 func (c Collection) FetchBy(key []byte) ([]byte, error) {
+
+	mutex.Lock()
+	defer mutex.Unlock()
+
 	var item []byte
 	err := c.DB.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(c.Name))
@@ -137,7 +182,9 @@ func (c Collection) FetchBy(key []byte) ([]byte, error) {
 			return ErrorBucketNotFound
 		}
 
-		item = bucket.Get(key)
+		itemRef := bucket.Get(key)
+		item = make([]byte, len(itemRef))
+		copy(item, itemRef)
 
 		return nil
 	})
@@ -151,6 +198,10 @@ func (c Collection) FetchBy(key []byte) ([]byte, error) {
 
 // FetchAll fetch all saved items
 func (c Collection) FetchAll() ([][]byte, error) {
+
+	mutex.Lock()
+	defer mutex.Unlock()
+
 	toReturn := make([][]byte, 0)
 	err := c.DB.View(func(tx *bolt.Tx) error {
 		// Assume bucket exists and has keys
@@ -162,7 +213,9 @@ func (c Collection) FetchAll() ([][]byte, error) {
 		cursor := bucket.Cursor()
 
 		for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
-			toReturn = append(toReturn, v)
+			it := make([]byte, len(v))
+			copy(it, v)
+			toReturn = append(toReturn, it)
 		}
 
 		return nil

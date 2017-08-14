@@ -24,7 +24,7 @@ func NewSplitChangesCollection(dbb *bolt.DB) SplitChangesCollection {
 
 // SplitChangesItem represents an SplitChanges service response
 type SplitChangesItem struct {
-	id           uint64
+	//id           uint64
 	ChangeNumber int64  `json:"changeNumber"`
 	Name         string `json:"name"`
 	Status       string `json:"status"`
@@ -32,19 +32,19 @@ type SplitChangesItem struct {
 }
 
 // SetID returns identifier
-func (f *SplitChangesItem) SetID(id uint64) {
+/*func (f *SplitChangesItem) SetID(id uint64) {
 	f.id = id
 }
 
 // ID returns identifier
 func (f *SplitChangesItem) ID() uint64 {
 	return f.id
-}
+}*/
 
 //----------------------------------------------------
 
 // SplitsChangesItems Sortable list
-type SplitsChangesItems []*SplitChangesItem
+type SplitsChangesItems []SplitChangesItem
 
 func (slice SplitsChangesItems) Len() int {
 	return len(slice)
@@ -65,9 +65,17 @@ type SplitChangesCollection struct {
 	boltdb.Collection
 }
 
+// Delete an item
+func (c SplitChangesCollection) Delete(item *SplitChangesItem) error {
+	key := []byte(item.Name)
+	err := c.Collection.Delte(key)
+	return err
+}
+
 // Add an item
 func (c SplitChangesCollection) Add(item *SplitChangesItem) error {
 	key := []byte(item.Name)
+
 	err := c.Collection.SaveAs(key, item)
 	return err
 }
@@ -82,19 +90,20 @@ func (c SplitChangesCollection) FetchAll() (SplitsChangesItems, error) {
 
 	toReturn := make(SplitsChangesItems, 0)
 
+	var decodeBuffer bytes.Buffer
 	for _, v := range items {
-		var decodeBuffer bytes.Buffer
 		var q SplitChangesItem
-
+		// resets buffer data
+		decodeBuffer.Reset()
 		decodeBuffer.Write(v)
 		dec := gob.NewDecoder(&decodeBuffer)
 
 		errq := dec.Decode(&q)
 		if errq != nil {
-			log.Error.Println("decode error:", errq)
+			log.Error.Println("decode error:", errq, "|", string(v))
 			continue
 		}
-		toReturn = append(toReturn, &q)
+		toReturn = append(toReturn, q)
 	}
 
 	sort.Sort(toReturn)
