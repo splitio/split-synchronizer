@@ -50,7 +50,7 @@ func (c SegmentChangesCollection) Fetch(name string) (*SegmentChangesItem, error
 		return nil, err
 	}
 
-	if item == nil {
+	if item == nil || len(item) <= 0 {
 		return nil, nil
 	}
 

@@ -235,7 +235,6 @@ func FetchRawSplits(splitsRefreshRate int, segmentsRefreshRate int) {
 
 		//Registering segments
 		registerSegments(rawData)
-
 		time.Sleep(time.Duration(splitsRefreshRate) * time.Second)
 	}
 }
