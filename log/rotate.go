@@ -26,7 +26,6 @@ func NewFileRotate(opt *FileRotateOptions) (*FileRotate, error) {
 
 	fileWriter, err := os.OpenFile(opt.Path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
-		fmt.Printf("Error opening log file: %s \n", err.Error())
 		return nil, err
 	}
 

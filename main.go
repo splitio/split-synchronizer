@@ -177,6 +177,7 @@ func loadLogger() {
 		fileWriter, err = log.NewFileRotate(opt)
 		if err != nil {
 			fmt.Printf("Error opening log file: %s \n", err.Error())
+			fileWriter = ioutil.Discard
 		} else {
 			fmt.Printf("Log file: %s \n", conf.Data.Logger.File)
 		}

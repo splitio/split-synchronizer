@@ -213,7 +213,7 @@ var HTML = `
         <div class="row">
           <div class="col-md-8">
             <div class="bg-primary metricBox">
-              <h4>Latencies group</h4>
+              <h4>Latencies group <small>(microseconds)</small></h4>
               <canvas id="LatencyBucket"></canvas>
             </div>
           </div>
@@ -248,7 +248,7 @@ var HTML = `
         <div class="row">
           <div class="col-md-8">
             <div class="bg-primary metricBox">
-              <h4>Latencies group</h4>
+              <h4>Latencies group <small>(microseconds)</small></h4>
               <canvas id="LatencyBucketBackend"></canvas>
             </div>
           </div>
