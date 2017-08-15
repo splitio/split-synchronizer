@@ -18,6 +18,10 @@
 #    - SPLIT_SYNC_LOG_SLACK_CHANNEL           Set the Slack channel or user
 #    - SPLIT_SYNC_LOG_SLACK_WEBHOOK           Set the Slack webhook url
 #
+#    - SPLIT_SYNC_ADVANCED_PARAMETERS         Set custom parameters that are not configured via provided Env vars.
+#                                             Sample:
+#                                               SPLIT_SYNC_ADVANCED_PARAMETERS="-redis-read-timeout=20 -redis-max-retries=10"
+#
 #   Proxy vars:
 #    - SPLIT_SYNC_PROXY                       Enables the proxy mode: Set as 'on'
 #    - SPLIT_SYNC_PROXY_SDK_APIKEYS           List of custom API-KEYs for your SDKs (Comma separated string)
@@ -144,6 +148,10 @@ else
     PARAMETERS="${PARAMETERS} -impressions-recorder-threads=${SPLIT_SYNC_IMPRESSIONS_THREADS}"
   fi
 
+fi
+
+if [ ! -z ${SPLIT_SYNC_ADVANCED_PARAMETERS+x} ]; then
+  PARAMETERS="${PARAMETERS} ${SPLIT_SYNC_ADVANCED_PARAMETERS}"
 fi
 
 exec split-sync ${PARAMETERS}
