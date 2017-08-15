@@ -4,8 +4,10 @@ WORKDIR /go/src/github.com/splitio/go-agent
 
 COPY . .
 
-RUN go build
+RUN go build -o split-sync
+
+RUN cp split-sync /usr/bin/split-sync
 
 EXPOSE 3000 3010
 
-ENTRYPOINT ["./go-agent"]
+ENTRYPOINT ["sh", "entrypoint.sh"]
