@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -82,9 +83,9 @@ func startAsProxy() {
 	controllers.Initialize(conf.Data.Proxy.ImpressionsMaxSize, int64(conf.Data.ImpressionsPostRate))
 
 	proxyOptions := &proxy.ProxyOptions{
-		Port:          ":" + conf.Data.Proxy.Port,
+		Port:          ":" + strconv.Itoa(conf.Data.Proxy.Port),
 		APIKeys:       conf.Data.Proxy.Auth.APIKeys,
-		AdminPort:     ":" + conf.Data.Proxy.AdminPort,
+		AdminPort:     ":" + strconv.Itoa(conf.Data.Proxy.AdminPort),
 		AdminUsername: conf.Data.Proxy.AdminUsername,
 		AdminPassword: conf.Data.Proxy.AdminPassword,
 		DebugOn:       conf.Data.Logger.DebugOn,
