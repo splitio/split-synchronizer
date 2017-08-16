@@ -10,7 +10,7 @@ Split synchronizer is able to run in 2 different modes.
 
 ## Docker
 #### Creating the image
- The follow command creates the Docker image tagged with the branch build version
+ The following command creates the Docker image tagged with the branch build version
  ```
  docker build -t splitsoftware/split-sync:$(tail -n 1 ./splitio/version.go | awk '{print $4}' | tr -d '"') .
  ```
@@ -55,4 +55,16 @@ The container can be run on both modes (producer and proxy). To run it, differen
     - SPLIT_SYNC_IMPRESSIONS_PER_POST        Number of impressions to send in a POST request
     - SPLIT_SYNC_IMPRESSIONS_THREADS         Number of impressions recorder threads
 
+```
+
+For instance the following command run the *split-sync* as proxy:
+```
+docker run --rm --name split-sync-proxy \
+  -e SPLIT_SYNC_API_KEY="your-api-key" \
+  -e SPLIT_SYNC_PROXY="on" \
+  -e SPLIT_SYNC_PROXY_SDK_APIKEYS="123456,qwerty" \
+  -e SPLIT_SYNC_LOG_STDOUT="on" \
+  -e SPLIT_SYNC_HTTP_TIMEOUT=120 \
+  splitsoftware/split-sync:1.0
+  
 ```
