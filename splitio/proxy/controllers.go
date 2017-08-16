@@ -25,14 +25,12 @@ var controllerLatencies = latency.NewLatency()
 var controllerCounters = counter.NewCounter()
 var controllerLocalCounters = counter.NewLocalCounter()
 
-const latencyFetchSplitsFromDB = "goproxy.FetchSplitsFromBoltDB"
-const latencyFetchSegmentFromDB = "goproxy.FetchSegmentFromBoltDB"
-const latencyAddImpressionsInBuffer = "goproxy.AddImpressionsInBuffer"
-const latencyPostSDKLatencies = "goproxy.PostSDKLatencies"
-const latencyPostSDKCounters = "goproxy.PostSDKCounters"
-const latencyPostSDKLatency = "goproxy.PostSDKTime"
-const latencyPostSDKCount = "goproxy.PostSDKCount"
-const latencyPostSDKGauge = "goproxy.PostSDKGague"
+const latencyAddImpressionsInBuffer = "goproxyAddImpressionsInBuffer.time"
+const latencyPostSDKLatencies = "goproxyPostSDKLatencies.time"
+const latencyPostSDKCounters = "goproxyPostSDKCounters.time"
+const latencyPostSDKLatency = "goproxyPostSDKTime.time"
+const latencyPostSDKCount = "goproxyPostSDKCount.time"
+const latencyPostSDKGauge = "goproxyPostSDKGague.time"
 
 //-----------------------------------------------------------------------------
 // SPLIT CHANGES
@@ -45,7 +43,6 @@ func fetchSplitsFromDB(since int) ([]json.RawMessage, int64, error) {
 	splitCollection := collections.NewSplitChangesCollection(boltdb.DBB)
 	items, err := splitCollection.FetchAll()
 	if err != nil {
-		log.Error.Println(err)
 		return splits, till, err
 	}
 
@@ -71,15 +68,18 @@ func splitChanges(c *gin.Context) {
 	startTime := controllerLatencies.StartMeasuringLatency()
 	splits, till, errf := fetchSplitsFromDB(since)
 	if errf != nil {
-		log.Error.Println(errf)
+		switch errf {
+		case boltdb.ErrorBucketNotFound:
+			log.Warning.Println("Maybe Splits are not yet synchronized")
+		default:
+			log.Error.Println(errf)
+		}
 		controllerCounters.Increment("splitChangeFetcher.status.500")
-		controllerCounters.Increment("splitChangeFetcher.exception")
 		controllerLocalCounters.Increment("request.error")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": errf.Error()})
 		return
 	}
 	controllerLatencies.RegisterLatency("splitChangeFetcher.time", startTime)
-	controllerLatencies.RegisterLatency(latencyFetchSplitsFromDB, startTime)
 	controllerCounters.Increment("splitChangeFetcher.status.200")
 	controllerLocalCounters.Increment("request.ok")
 	controllerLatenciesBkt.RegisterLatency("/api/splitChanges", startTime)
@@ -148,13 +148,11 @@ func segmentChanges(c *gin.Context) {
 	added, removed, till, errf := fetchSegmentsFromDB(since, segmentName)
 	if errf != nil {
 		controllerCounters.Increment("segmentChangeFetcher.status.500")
-		controllerCounters.Increment("segmentChangeFetcher.exception")
 		controllerLocalCounters.Increment("request.error")
 		c.JSON(http.StatusNotFound, gin.H{"error": errf.Error()})
 		return
 	}
 	controllerLatencies.RegisterLatency("segmentChangeFetcher.time", startTime)
-	controllerLatencies.RegisterLatency(latencyFetchSegmentFromDB, startTime)
 	controllerCounters.Increment("segmentChangeFetcher.status.200")
 	controllerLocalCounters.Increment("request.ok")
 	controllerLatenciesBkt.RegisterLatency("/api/segmentChanges/*", startTime)
