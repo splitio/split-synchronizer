@@ -7,3 +7,12 @@ Split synchronizer is able to run in 2 different modes.
  - **Proxy mode**: keep synchronized SDKs connecting they with split-sync proxy to reduce connection latencies and letting the proxy receive information and post impressions to Split servers.
 
  For further information check the official documentation at: [https://docs.split.io/docs/split-synchronizer](https://docs.split.io/docs/split-synchronizer)
+
+## Docker
+===
+#### Creating the image
+ The follow command creates the Docker image tagged with the builded version 
+ ```
+ docker build -t splitsoftware/split-sync:$(tail -n 1 ./splitio/version.go | awk '{print $4}' | tr -d '"') .
+ ```
+#### Running the container
