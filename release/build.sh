@@ -8,7 +8,7 @@ LINUX_ZIP_FILENAME=splitio-agent-linux-amd64.zip
 LINUX_INSTALL_SCRIPT=linux_install_script
 LINUX_BINARY_PATH=splitio-agent-linux-amd64
 
-WINDOWS_ZIP_FILENAME=split-sync-win.zip
+WINDOWS_ZIP_FILENAME=split-sync-win_
 WINDOWS_BINARY_PATH=split-sync.exe
 
 #Compile agent
@@ -16,13 +16,14 @@ GOOS=darwin GOARCH=amd64 go build -o ${OSX_BINARY_PATH} ..
 GOOS=linux GOARCH=amd64 go build -o ${LINUX_BINARY_PATH} ..
 GOOS=windows GOARCH=amd64 go build -o ${WINDOWS_BINARY_PATH} ..
 
+#Versionning
+COMMIT_VERSION=`git rev-parse --short HEAD`
+BUILD_VERSION=`tail -n 1 ../splitio/version.go | awk '{print $4}' | tr -d '"'`
+
 #Compress binaries
 zip -9 ${OSX_ZIP_FILENAME}  ${OSX_BINARY_PATH}
 zip -9 ${LINUX_ZIP_FILENAME} ${LINUX_BINARY_PATH}
-zip -9 ${WINDOWS_ZIP_FILENAME} ${WINDOWS_BINARY_PATH}
-
-COMMIT_VERSION=`git rev-parse --short HEAD`
-BUILD_VERSION=`tail -n 1 ../splitio/version.go | awk '{print $4}' | tr -d '"'`
+zip -9 ${WINDOWS_ZIP_FILENAME}${BUILD_VERSION}.zip ${WINDOWS_BINARY_PATH}
 
 TEMPLATELINES=`wc -l install_script_template | awk '{print $1}'`
 TOTALLINES=$(($TEMPLATELINES + 1))
@@ -42,3 +43,4 @@ make
 
 #Delete aux files
 rm ${OSX_INSTALL_SCRIPT} ${OSX_ZIP_FILENAME} ${LINUX_INSTALL_SCRIPT} ${LINUX_ZIP_FILENAME}
+rm ${OSX_BINARY_PATH} ${LINUX_BINARY_PATH} ${WINDOWS_BINARY_PATH}
