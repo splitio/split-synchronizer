@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/splitio/go-agent/log"
-	"github.com/splitio/go-agent/splitio/api"
+	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/api"
 )
 
 func TestImpressionsBufferCounter(t *testing.T) {

@@ -8,16 +8,16 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/go-agent/log"
-	"github.com/splitio/go-agent/splitio"
-	"github.com/splitio/go-agent/splitio/api"
-	"github.com/splitio/go-agent/splitio/proxy/controllers"
-	"github.com/splitio/go-agent/splitio/proxy/dashboard"
-	"github.com/splitio/go-agent/splitio/stats"
-	"github.com/splitio/go-agent/splitio/stats/counter"
-	"github.com/splitio/go-agent/splitio/stats/latency"
-	"github.com/splitio/go-agent/splitio/storage/boltdb"
-	"github.com/splitio/go-agent/splitio/storage/boltdb/collections"
+	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio"
+	"github.com/splitio/split-synchronizer/splitio/api"
+	"github.com/splitio/split-synchronizer/splitio/proxy/controllers"
+	"github.com/splitio/split-synchronizer/splitio/proxy/dashboard"
+	"github.com/splitio/split-synchronizer/splitio/stats"
+	"github.com/splitio/split-synchronizer/splitio/stats/counter"
+	"github.com/splitio/split-synchronizer/splitio/stats/latency"
+	"github.com/splitio/split-synchronizer/splitio/storage/boltdb"
+	"github.com/splitio/split-synchronizer/splitio/storage/boltdb/collections"
 )
 
 var controllerLatenciesBkt = latency.NewLatencyBucket()

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/splitio/go-agent/log"
-	"github.com/splitio/go-agent/splitio/api"
+	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/api"
 )
 
 var splitRow = `<tr class="splitItem">

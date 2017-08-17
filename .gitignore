@@ -1,5 +1,5 @@
 #Project files
-go-agent
+split-synchronizer
 run.sh
 bin/*
 

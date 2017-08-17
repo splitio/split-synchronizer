@@ -7,11 +7,12 @@ import (
 	"sync"
 
 	"github.com/boltdb/bolt"
-	"github.com/splitio/go-agent/log"
+	"github.com/splitio/split-synchronizer/log"
 )
 
 var mutex = &sync.Mutex{}
 
+// ErrorBucketNotFound error type for bucket not found
 var ErrorBucketNotFound = errors.New("Bucket not found")
 
 // Collection sets

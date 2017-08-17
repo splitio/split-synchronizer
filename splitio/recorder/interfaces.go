@@ -1,6 +1,6 @@
 package recorder
 
-import "github.com/splitio/go-agent/splitio/api"
+import "github.com/splitio/split-synchronizer/splitio/api"
 
 // ImpressionsRecorder interface to be implemented by Impressions loggers
 type ImpressionsRecorder interface {

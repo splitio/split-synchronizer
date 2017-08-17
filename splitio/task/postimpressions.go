@@ -4,9 +4,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/splitio/go-agent/log"
-	"github.com/splitio/go-agent/splitio/recorder"
-	"github.com/splitio/go-agent/splitio/storage"
+	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/recorder"
+	"github.com/splitio/split-synchronizer/splitio/storage"
 )
 
 var mutex = &sync.Mutex{}

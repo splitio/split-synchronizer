@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/splitio/go-agent/log"
-	"github.com/splitio/go-agent/splitio"
-	"github.com/splitio/go-agent/splitio/api"
-	"github.com/splitio/go-agent/splitio/stats"
+	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio"
+	"github.com/splitio/split-synchronizer/splitio/api"
+	"github.com/splitio/split-synchronizer/splitio/stats"
 )
 
 func TestCounter(t *testing.T) {

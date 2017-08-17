@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"strconv"
 
-	"github.com/splitio/go-agent/log"
+	"github.com/splitio/split-synchronizer/log"
 )
 
 func sdkFetch(url string) ([]byte, error) {

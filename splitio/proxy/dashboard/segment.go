@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/splitio/go-agent/splitio/storage/boltdb/collections"
+	"github.com/splitio/split-synchronizer/splitio/storage/boltdb/collections"
 )
 
 var segmentRow = `<tr>

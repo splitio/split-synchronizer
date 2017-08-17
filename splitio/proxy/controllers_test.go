@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/splitio/go-agent/splitio/storage/boltdb"
-	"github.com/splitio/go-agent/splitio/storage/boltdb/collections"
+	"github.com/splitio/split-synchronizer/splitio/storage/boltdb"
+	"github.com/splitio/split-synchronizer/splitio/storage/boltdb/collections"
 )
 
 func TestSplitController(t *testing.T) {

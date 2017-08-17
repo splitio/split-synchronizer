@@ -10,8 +10,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/splitio/go-agent/conf"
-	"github.com/splitio/go-agent/log"
+	"github.com/splitio/split-synchronizer/conf"
+	"github.com/splitio/split-synchronizer/log"
 )
 
 const sdkName = "sdk"
