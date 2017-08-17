@@ -142,7 +142,7 @@ func TestLatencyBucket(t *testing.T) {
 	api.Initialize()
 
 	latency := NewLatencyBucket()
-	latency.postRate = 2
+	latency.postRate = 5
 
 	start := latency.StartMeasuringLatency()
 	time.Sleep(time.Duration(10) * time.Microsecond)
@@ -160,5 +160,5 @@ func TestLatencyBucket(t *testing.T) {
 	}
 
 	//Delaying test to let PostLatenciesWorker timeout do its work!
-	time.Sleep(time.Duration(3) * time.Second)
+	time.Sleep(time.Duration(8) * time.Second)
 }
