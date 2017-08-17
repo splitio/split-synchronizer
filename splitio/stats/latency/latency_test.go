@@ -160,5 +160,5 @@ func TestLatencyBucket(t *testing.T) {
 	}
 
 	//Delaying test to let PostLatenciesWorker timeout do its work!
-	time.Sleep(time.Duration(8) * time.Second)
+	time.Sleep(time.Duration(10) * time.Second)
 }
