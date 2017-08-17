@@ -329,9 +329,11 @@ func showDashboard(c *gin.Context) {
 
 	//---> SDKs stats
 
-	htmlString = strings.Replace(htmlString, "{{request_ok}}", strconv.Itoa(int(counters["request.ok"])), 2)
-	htmlString = strings.Replace(htmlString, "{{request_error}}", strconv.Itoa(int(counters["request.error"])), 2)
-	htmlString = strings.Replace(htmlString, "{{sdks_total_requests}}", strconv.Itoa(int(counters["request.ok"]+counters["request.error"])), 1)
+	htmlString = strings.Replace(htmlString, "{{request_ok}}", strconv.Itoa(int(counters["request.ok"])), 1)
+	htmlString = strings.Replace(htmlString, "{{request_ok_formated}}", dashboard.FormatNumber(counters["request.ok"]), 1)
+	htmlString = strings.Replace(htmlString, "{{request_error}}", strconv.Itoa(int(counters["request.error"])), 1)
+	htmlString = strings.Replace(htmlString, "{{request_error_formated}}", dashboard.FormatNumber(counters["request.error"]), 1)
+	htmlString = strings.Replace(htmlString, "{{sdks_total_requests}}", dashboard.FormatNumber(counters["request.ok"]+counters["request.error"]), 1)
 
 	//latenciesGroupData
 	var latenciesGroupData string
@@ -367,8 +369,10 @@ func showDashboard(c *gin.Context) {
 
 	//---> Backend stats
 
-	htmlString = strings.Replace(htmlString, "{{backend_request_ok}}", strconv.Itoa(int(counters["backend::request.ok"])), 2)
-	htmlString = strings.Replace(htmlString, "{{backend_request_error}}", strconv.Itoa(int(counters["backend::request.error"])), 2)
+	htmlString = strings.Replace(htmlString, "{{backend_request_ok}}", strconv.Itoa(int(counters["backend::request.ok"])), 1)
+	htmlString = strings.Replace(htmlString, "{{backend_request_ok_formated}}", dashboard.FormatNumber(counters["backend::request.ok"]), 1)
+	htmlString = strings.Replace(htmlString, "{{backend_request_error}}", strconv.Itoa(int(counters["backend::request.error"])), 1)
+	htmlString = strings.Replace(htmlString, "{{backend_request_error_formated}}", dashboard.FormatNumber(counters["backend::request.error"]), 1)
 
 	var latenciesGroupDataBackend string
 	if ldata, ok := latencies["backend::/api/splitChanges"]; ok {
