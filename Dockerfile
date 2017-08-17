@@ -1,6 +1,6 @@
 FROM golang:1.8
 
-WORKDIR /go/src/github.com/splitio/go-agent
+WORKDIR /go/src/github.com/splitio/split-synchronizer
 
 COPY . .
 
