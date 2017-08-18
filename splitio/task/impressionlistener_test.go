@@ -38,13 +38,14 @@ func TestTaskPostImpressionsToListener(t *testing.T) {
 		body, _ := ioutil.ReadAll(r.Body)
 		err := json.Unmarshal(body, &data)
 		if err != nil {
-			t.Error("Error unmarshaling impression bulk in mocked impression listener")
+			t.Error("Error unmarshaling impressions bulk message in mocked impression listener")
 		}
-		if string(data.Impressions) != `["123"]` {
+		var impData string
+		err = json.Unmarshal(data.Impressions, &impData)
+		if impData != "123" {
 			t.Error("Recieved data does not match")
-			t.Error(string(data.Impressions))
+			t.Error(impData)
 		}
-
 	}))
 	defer ts.Close()
 
@@ -53,7 +54,7 @@ func TestTaskPostImpressionsToListener(t *testing.T) {
 	go taskPostImpressionsToListener(ils, failedQueue)
 
 	impressionListenerStream <- &ImpressionBulk{
-		Data: json.RawMessage(`["123"]`),
+		Data: json.RawMessage(`"123"`),
 	}
 
 	time.Sleep(time.Duration(5) * time.Second)
