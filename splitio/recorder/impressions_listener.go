@@ -30,7 +30,7 @@ func (r ImpressionListenerSubmitter) Post(
 
 	client := &http.Client{}
 
-	bundle := ImpressionListenerPostBody{
+	bundle := &ImpressionListenerPostBody{
 		Impressions: impressions,
 		SdkVersion:  sdkVersion,
 		MachineIP:   machineIP,
