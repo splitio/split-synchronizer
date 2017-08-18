@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -24,6 +25,42 @@ var (
 	// Error level
 	Error *log.Logger
 )
+
+// ErrorDashboard is an instance of DashboardWriter
+var ErrorDashboard = &DashboardWriter{cmutex: &sync.Mutex{}, counts: 0, messages: make([]string, 0), messagesSize: 10}
+
+// DashboardWriter counts each call to Write method
+type DashboardWriter struct {
+	counts       int64
+	cmutex       *sync.Mutex
+	messages     []string
+	messagesSize int
+}
+
+func (c *DashboardWriter) Write(p []byte) (n int, err error) {
+	c.cmutex.Lock()
+	c.counts++
+	c.messages = append(c.messages, string(p))
+	if len(c.messages) > c.messagesSize {
+		c.messages = c.messages[len(c.messages)-c.messagesSize : len(c.messages)]
+	}
+	c.cmutex.Unlock()
+	return 0, nil
+}
+
+// Counts returns the count number
+func (c *DashboardWriter) Counts() int64 {
+	c.cmutex.Lock()
+	defer c.cmutex.Unlock()
+	return c.counts
+}
+
+// Messages returns the last logged messages
+func (c *DashboardWriter) Messages() []string {
+	c.cmutex.Lock()
+	defer c.cmutex.Unlock()
+	return c.messages
+}
 
 // SlackWriter writes messages to Slack user or channel. Implements io.Writer interface
 type SlackWriter struct {
@@ -99,7 +136,8 @@ func Initialize(benchmarkWriter io.Writer, verboseWriter io.Writer,
 		"SPLITIO-AGENT | WARNING: ",
 		log.Ldate|log.Ltime|log.Lshortfile)
 
-	Error = log.New(errorWriter,
+	errWriter := io.MultiWriter(errorWriter, ErrorDashboard)
+	Error = log.New(errWriter,
 		"SPLITIO-AGENT | ERROR: ",
 		log.Ldate|log.Ltime|log.Lshortfile)
 }

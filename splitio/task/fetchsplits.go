@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/splitio/go-agent/log"
-	"github.com/splitio/go-agent/splitio/api"
-	"github.com/splitio/go-agent/splitio/fetcher"
-	"github.com/splitio/go-agent/splitio/storage"
+	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/api"
+	"github.com/splitio/split-synchronizer/splitio/fetcher"
+	"github.com/splitio/split-synchronizer/splitio/storage"
 )
 
 func taskFetchSplits(splitFetcherAdapter fetcher.SplitFetcher,

@@ -1,6 +1,6 @@
 package fetcher
 
-import "github.com/splitio/go-agent/splitio/api"
+import "github.com/splitio/split-synchronizer/splitio/api"
 
 // SplitFetcher interface to be implemented by Split Fetchers
 type SplitFetcher interface {

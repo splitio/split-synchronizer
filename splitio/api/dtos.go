@@ -151,3 +151,8 @@ type GaugeDTO struct {
 	MetricName string  `json:"name"`
 	Gauge      float64 `json:"value"`
 }
+
+// MySegmentDTO struct mapping segment data for mySegments endpoint
+type MySegmentDTO struct {
+	Name string `json:"name"`
+}

@@ -6,7 +6,7 @@ import (
 
 	redis "gopkg.in/redis.v5"
 
-	"github.com/splitio/go-agent/log"
+	"github.com/splitio/split-synchronizer/log"
 )
 
 const maxBuckets = 23

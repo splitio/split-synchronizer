@@ -4,9 +4,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/splitio/go-agent/log"
-	"github.com/splitio/go-agent/splitio/recorder"
-	"github.com/splitio/go-agent/splitio/storage"
+	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/recorder"
+	"github.com/splitio/split-synchronizer/splitio/storage"
 )
 
 var mutex = &sync.Mutex{}
@@ -31,7 +31,7 @@ func taskPostImpressions(tid int, impressionsRecorderAdapter recorder.Impression
 			for machineIP, impressions := range impressionsByMachineIP {
 				log.Debug.Println("Posting impressions from ", sdkVersion, machineIP)
 				beforePostServer := time.Now().UnixNano()
-				err := impressionsRecorderAdapter.Post(impressions, sdkVersion, machineIP)
+				err := impressionsRecorderAdapter.Post(impressions, sdkVersion, machineIP, "")
 				if err != nil {
 					log.Error.Println("Error posting impressions", err.Error())
 					continue

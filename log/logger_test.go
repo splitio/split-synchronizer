@@ -3,7 +3,10 @@
 package log
 
 import (
+	"fmt"
 	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -14,7 +17,22 @@ func TestInitialize(t *testing.T) {
 }
 
 func TestSlackWriter(t *testing.T) {
-	slackWriter := &SlackWriter{WebHookURL: "", Channel: "", RefreshRate: 30}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		expectedJSON := `{"channel": "some-channel", "username": "splitio-go-agent", "text": "Some error message", "icon_emoji": ":robot_face:"}`
+		rBody, _ := ioutil.ReadAll(r.Body)
+		//fmt.Println(string(rBody))
+
+		if string(rBody) != expectedJSON {
+			t.Error("malformed JSON at SLACK message")
+		}
+
+		fmt.Fprintln(w, "ok")
+	}))
+	defer ts.Close()
+
+	slackWriter := &SlackWriter{WebHookURL: ts.URL, Channel: "some-channel", RefreshRate: 30}
 	slackWriter.Write([]byte("Some error message"))
 
 }

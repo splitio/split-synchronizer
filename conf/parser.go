@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"reflect"
 	"strconv"
+	"strings"
 )
 
 // Data contains all configuration values
@@ -66,6 +67,14 @@ func loadDefaultValuesRecursiveChildren(val reflect.Value) {
 			case "string":
 				val.Field(i).SetString(defaultVal)
 				break
+			case "[]string":
+				auxSlice := strings.Split(defaultVal, ",")
+				rval := reflect.MakeSlice(typeField.Type, len(auxSlice), cap(auxSlice))
+				for idx, v := range auxSlice {
+					rval.Index(idx).SetString(v)
+				}
+				val.Field(i).Set(rval)
+				break
 			case "int":
 				defaultValInt, _ := strconv.Atoi(defaultVal)
 				val.Field(i).SetInt(int64(defaultValInt))
@@ -107,6 +116,17 @@ func loadFromArgsRecursiveChildren(val reflect.Value, cliParametersMap map[strin
 					var cliVal = *(v.(*string))
 					if cliVal != defaultVal {
 						val.Field(i).SetString(cliVal)
+					}
+					break
+				case "[]string":
+					var cliVal = *(v.(*string))
+					if cliVal != defaultVal {
+						auxSlice := strings.Split(cliVal, ",")
+						rval := reflect.MakeSlice(typeField.Type, len(auxSlice), cap(auxSlice))
+						for idx, v := range auxSlice {
+							rval.Index(idx).SetString(v)
+						}
+						val.Field(i).Set(rval)
 					}
 					break
 				case "int":
@@ -195,6 +215,9 @@ func WriteDefaultConfigFile(path string) {
 
 func getDefaultConfigData() ConfigData {
 	configData := ConfigData{}
+	// Setting SDK_API_KEY value to write in JSON File when it is exported.
+	// This value MUST be equal to split-default-value set at sections.go
+	configData.Proxy.Auth.APIKeys = append(configData.Proxy.Auth.APIKeys, "SDK_API_KEY")
 	var configDataReflection = reflect.ValueOf(&configData).Elem()
 	loadDefaultValuesRecursiveChildren(configDataReflection)
 	return configData

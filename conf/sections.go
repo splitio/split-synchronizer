@@ -43,25 +43,46 @@ type LogSection struct {
 	DebugOn         bool   `json:"debug" split-default-value:"false" split-cli-option:"log-debug" split-cli-description:"Enable debug mode"`
 	StdoutOn        bool   `json:"stdout" split-default-value:"false" split-cli-option:"log-stdout" split-cli-description:"Enable log standard output"`
 	File            string `json:"file" split-default-value:"/tmp/split-agent.log" split-cli-option:"log-file" split-cli-description:"Set the log file"`
+	FileMaxSize     int64  `json:"fileMaxSizeBytes" split-cli-option:"log-file-max-size" split-default-value:"2000000" split-cli-description:"Max file log size in bytes"`
+	FileBackupCount int    `json:"fileBackupCount" split-cli-option:"log-file-backup-count" split-default-value:"3" split-cli-description:"Number of last log files to keep in filesystem"`
 	SlackChannel    string `json:"slackChannel" split-default-value:"" split-cli-option:"log-slack-channel" split-cli-description:"Set the Slack channel or user"`
 	SlackWebhookURL string `json:"slackWebhookURL" split-default-value:"" split-cli-option:"log-slack-webhook-url" split-cli-description:"Set the Slack webhook url"`
 }
 
 // ConfigData main configuration container
 type ConfigData struct {
-	APIKey              string       `json:"apiKey" split-cli-option:"api-key" split-default-value:"YOUR API KEY" split-cli-description:"Your Split API-KEY"`
-	Redis               RedisSection `json:"redis" split-cli-option-group:"true"`
-	Logger              LogSection   `json:"log" split-cli-option-group:"true"`
-	SplitsFetchRate     int          `json:"splitsRefreshRate" split-cli-option:"split-refresh-rate" split-default-value:"60" split-cli-description:"Refresh rate of splits fetcher"`
-	SegmentFetchRate    int          `json:"segmentsRefreshRate" split-default-value:"60" split-cli-option:"segment-refresh-rate" split-cli-description:"Refresh rate of segments fetcher"`
-	ImpressionsPostRate int          `json:"impressionsRefreshRate" split-default-value:"60" split-cli-option:"impressions-post-rate" split-cli-description:"Post rate of impressions recorder"`
-	ImpressionsPerPost  int64        `json:"impressionsPerPost" split-cli-option:"impressions-per-post" split-default-value:"1000" split-cli-description:"Number of impressions to send in a POST request"`
-	ImpressionsThreads  int          `json:"impressionsThreads" split-default-value:"1" split-cli-option:"impressions-recorder-threads" split-cli-description:"Number of impressions recorder threads"`
-	MetricsPostRate     int          `json:"metricsRefreshRate" split-default-value:"60" split-cli-option:"metrics-post-rate" split-cli-description:"Post rate of metrics recorder"`
-	HTTPTimeout         int64        `json:"httpTimeout" split-default-value:"60" split-cli-option:"http-timeout" split-cli-description:"Timeout specifies a time limit for requests"`
+	APIKey              string          `json:"apiKey" split-cli-option:"api-key" split-default-value:"YOUR API KEY" split-cli-description:"Your Split API-KEY"`
+	Proxy               InMemorySection `json:"proxy" split-cli-option-group:"true"`
+	Redis               RedisSection    `json:"redis" split-cli-option-group:"true"`
+	Logger              LogSection      `json:"log" split-cli-option-group:"true"`
+	SplitsFetchRate     int             `json:"splitsRefreshRate" split-cli-option:"split-refresh-rate" split-default-value:"60" split-cli-description:"Refresh rate of splits fetcher"`
+	SegmentFetchRate    int             `json:"segmentsRefreshRate" split-default-value:"60" split-cli-option:"segment-refresh-rate" split-cli-description:"Refresh rate of segments fetcher"`
+	ImpressionsPostRate int             `json:"impressionsRefreshRate" split-default-value:"60" split-cli-option:"impressions-post-rate" split-cli-description:"Post rate of impressions recorder"`
+	ImpressionsPerPost  int64           `json:"impressionsPerPost" split-cli-option:"impressions-per-post" split-default-value:"1000" split-cli-description:"Number of impressions to send in a POST request"`
+	ImpressionsThreads  int             `json:"impressionsThreads" split-default-value:"1" split-cli-option:"impressions-recorder-threads" split-cli-description:"Number of impressions recorder threads"`
+	MetricsPostRate     int             `json:"metricsRefreshRate" split-default-value:"60" split-cli-option:"metrics-post-rate" split-cli-description:"Post rate of metrics recorder"`
+	HTTPTimeout         int64           `json:"httpTimeout" split-default-value:"60" split-cli-option:"http-timeout" split-cli-description:"Timeout specifies a time limit for requests"`
 }
 
 //MarshalBinary exports ConfigData to JSON string
 func (c ConfigData) MarshalBinary() (data []byte, err error) {
 	return json.MarshalIndent(c, "", "  ")
+}
+
+// InMemorySection represents configuration for in memory proxy
+type InMemorySection struct {
+	Port               int    `json:"port" split-default-value:"3000" split-cli-option:"proxy-port" split-cli-description:"Proxy port to listen connections"`
+	AdminPort          int    `json:"adminPort" split-default-value:"3010" split-cli-option:"proxy-admin-port" split-cli-description:"Proxy port for admin endpoints"`
+	AdminUsername      string `json:"adminUsername" split-default-value:"" split-cli-option:"proxy-admin-username" split-cli-description:"HTTP basic auth username for admin endpoints"`
+	AdminPassword      string `json:"adminPassword" split-default-value:"" split-cli-option:"proxy-admin-password" split-cli-description:"HTTP basic auth password for admin endpoints"`
+	PersistMemoryPath  string `json:"persistInFilePath" split-default-value:"" split-cli-option:"proxy-mmap-path" split-cli-description:"File path to persist memory in proxy mode"`
+	ImpressionsMaxSize int64  `json:"impressionsMaxSize" split-default-value:"10485760" split-cli-option:"proxy-impressions-max-size" split-cli-description:"Max size, in bytes, to send impressions in proxy mode"`
+	Auth               Auth   `json:"auth" split-cli-option-group:"true"`
+}
+
+// Auth struct for proxy authentication
+type Auth struct {
+	// ApiKeys list of alloweb API-Keys for SDKs
+	// split-default-value must be set as SDK_API_KEY just to write config file by cli (see func getDefaultConfigData() at parser.go)
+	APIKeys []string `json:"sdkAPIKeys" split-default-value:"SDK_API_KEY" split-cli-option:"proxy-apikeys" split-cli-description:"List of allowed custom API Keys for SDKs"`
 }

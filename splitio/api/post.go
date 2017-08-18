@@ -6,7 +6,7 @@ import (
 )
 
 // PostImpressions send impressions to Split events service
-func PostImpressions(data []byte, sdkVersion string, machineIP string) error {
+func PostImpressions(data []byte, sdkVersion string, machineIP string, machineName string) error {
 
 	url := "/testImpressions/bulk"
 
@@ -14,7 +14,11 @@ func PostImpressions(data []byte, sdkVersion string, machineIP string) error {
 	_client.ResetHeaders()
 	_client.AddHeader("SplitSDKVersion", sdkVersion)
 	_client.AddHeader("SplitSDKMachineIP", machineIP)
-	_client.AddHeader("SplitSDKMachineName", fmt.Sprintf("ip-%s", strings.Replace(machineIP, ".", "-", -1)))
+	if machineName == "" && machineIP != "" {
+		_client.AddHeader("SplitSDKMachineName", fmt.Sprintf("ip-%s", strings.Replace(machineIP, ".", "-", -1)))
+	} else {
+		_client.AddHeader("SplitSDKMachineName", machineName)
+	}
 
 	err := _client.Post(url, data)
 	if err != nil {
@@ -54,5 +58,17 @@ func PostMetricsCounters(data []byte, sdkVersion string, machineIP string) error
 // PostMetricsGauge send counts to Split events service.
 func PostMetricsGauge(data []byte, sdkVersion string, machineIP string) error {
 	url := "/metrics/gauge"
+	return postMetrics(url, data, sdkVersion, machineIP)
+}
+
+// PostMetricsCount send count to Split events service.
+func PostMetricsCount(data []byte, sdkVersion string, machineIP string) error {
+	url := "/metrics/counter"
+	return postMetrics(url, data, sdkVersion, machineIP)
+}
+
+// PostMetricsTime send time latency to Split events service.
+func PostMetricsTime(data []byte, sdkVersion string, machineIP string) error {
+	url := "/metrics/time"
 	return postMetrics(url, data, sdkVersion, machineIP)
 }
