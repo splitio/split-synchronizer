@@ -60,6 +60,8 @@ The container can be run on both modes (producer and proxy). To run it, differen
 For instance the following command run the *split-sync* as proxy:
 ```
 docker run --rm --name split-sync-proxy \
+  -p 3000:3000 \
+  -p 3010:3010 \
   -e SPLIT_SYNC_API_KEY="your-api-key" \
   -e SPLIT_SYNC_PROXY="on" \
   -e SPLIT_SYNC_PROXY_SDK_APIKEYS="123456,qwerty" \
