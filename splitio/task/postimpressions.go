@@ -1,30 +1,31 @@
 package task
 
 import (
+	"encoding/json"
 	"sync"
 	"time"
 
 	"github.com/splitio/go-agent/log"
-	"github.com/splitio/go-agent/splitio/api"
 	"github.com/splitio/go-agent/splitio/recorder"
 	"github.com/splitio/go-agent/splitio/storage"
-	"github.com/splitio/go-agent/splitio/util"
 )
 
-type impressionBulk struct {
-	data        []api.ImpressionsDTO
-	sdkVersion  string
-	machineIP   string
-	machineName string
+type ImpressionBulk struct {
+	Data        json.RawMessage
+	SdkVersion  string
+	MachineIP   string
+	MachineName string
 	attempt     int
 }
 
-var ImpressionListenerEnabled = false
-var impressionListenerStream = make(chan impressionBulk, util.ImpressionListenerMainQueueSize)
 var mutex = &sync.Mutex{}
 
-func taskPostImpressions(tid int, impressionsRecorderAdapter recorder.ImpressionsRecorder,
-	impressionStorageAdapter storage.ImpressionStorage) {
+func taskPostImpressions(
+	tid int,
+	impressionsRecorderAdapter recorder.ImpressionsRecorder,
+	impressionStorageAdapter storage.ImpressionStorage,
+	impressionListenerEnabled bool,
+) {
 
 	mutex.Lock()
 	beforeHitRedis := time.Now().UnixNano()
@@ -43,71 +44,50 @@ func taskPostImpressions(tid int, impressionsRecorderAdapter recorder.Impression
 			for machineIP, impressions := range impressionsByMachineIP {
 				log.Debug.Println("Posting impressions from ", sdkVersion, machineIP)
 				beforePostServer := time.Now().UnixNano()
-				err := impressionsRecorderAdapter.Post(impressions, sdkVersion, machineIP, "")
-				if ImpressionListenerEnabled {
-					select {
-					case impressionListenerStream <- impressionBulk{
-						data:        impressions,
-						sdkVersion:  sdkVersion,
-						machineIP:   machineIP,
-						machineName: "",
-					}:
-					default:
-						log.Error.Println("Impression listenser send queue is full, " +
-							"impressions not sent to listener")
-					}
-
-				}
+				err = impressionsRecorderAdapter.Post(impressions, sdkVersion, machineIP, "")
 				if err != nil {
-					log.Error.Println("Error posting impressions", err.Error())
-					continue
+					log.Error.Println("Error posting impressions to split backend", err.Error())
+				} else {
+					log.Benchmark.Println("POST impressions to Server took", (time.Now().UnixNano() - beforePostServer))
+					log.Debug.Println("Impressions sent")
 				}
-				log.Benchmark.Println("POST impressions to Server took", (time.Now().UnixNano() - beforePostServer))
-				log.Debug.Println("Impressions sent")
-			}
-		}
-	}
-}
-
-func PostImpressionsToListener(impressionsRecorderAdapter recorder.ImpressionsRecorder) {
-	var failedQueue = make(chan impressionBulk, util.ImpressionListenerFailedQueueSize)
-	for {
-		failedImpressions := true
-		for failedImpressions {
-			select {
-			case msg := <-failedQueue:
-				err := impressionsRecorderAdapter.Post(msg.data, msg.sdkVersion, msg.machineIP, "")
-				if err != nil {
-					msg.attempt++
-					if msg.attempt < 3 {
-						failedQueue <- msg
+				if impressionListenerEnabled {
+					rawImpressions, err := json.Marshal(impressions)
+					if err != nil {
+						log.Error.Println("JSON encoding failed for the following impressions", impressions)
+						continue
 					}
-					time.Sleep(time.Millisecond * 100)
+					err = QueueImpressionsForListener(&ImpressionBulk{
+						Data:        json.RawMessage(rawImpressions),
+						SdkVersion:  sdkVersion,
+						MachineIP:   machineIP,
+						MachineName: "",
+					})
+					if err != nil {
+						log.Error.Println(err)
+					}
 				}
-			default:
-				failedImpressions = false
 			}
-		}
-		msg := <-impressionListenerStream
-		err := impressionsRecorderAdapter.Post(msg.data, msg.sdkVersion, msg.machineIP, msg.machineName)
-		if err != nil {
-			select {
-			case failedQueue <- msg:
-			default:
-				log.Error.Println("Impression listener queue is full. " +
-					"Impressions will be dropped until the listener enpoint is restored.")
-			}
-			time.Sleep(time.Millisecond * 100)
 		}
 	}
 }
 
 // PostImpressions post impressions to Split Events server
-func PostImpressions(tid int, impressionsRecorderAdapter recorder.ImpressionsRecorder,
+func PostImpressions(
+	tid int,
+	impressionsRecorderAdapter recorder.ImpressionsRecorder,
 	impressionStorageAdapter storage.ImpressionStorage,
-	impressionsRefreshRate int) {
+	impressionsRefreshRate int,
+	impressionListenerEnabled bool,
+) {
 	for {
-		taskPostImpressions(tid, impressionsRecorderAdapter, impressionStorageAdapter)
+		taskPostImpressions(
+			tid,
+			impressionsRecorderAdapter,
+			impressionStorageAdapter,
+			impressionListenerEnabled,
+		)
+
 		time.Sleep(time.Duration(impressionsRefreshRate) * time.Second)
 	}
 

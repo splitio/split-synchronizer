@@ -54,6 +54,6 @@ func TestTaskPostImpressions(t *testing.T) {
 				t.Error("Recovered task", r)
 			}
 		}()
-		taskPostImpressions(tid, impressionsRecorderAdapter, impressionStorageAdapter)
+		taskPostImpressions(tid, impressionsRecorderAdapter, impressionStorageAdapter, false)
 	}()
 }

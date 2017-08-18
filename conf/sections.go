@@ -55,7 +55,7 @@ type ConfigData struct {
 	Proxy               InMemorySection    `json:"proxy" split-cli-option-group:"true"`
 	Redis               RedisSection       `json:"redis" split-cli-option-group:"true"`
 	Logger              LogSection         `json:"log" split-cli-option-group:"true"`
-	ImpressionListener  ImpressionListener `json:"impressionsListener" split-cli-option-group:"true"`
+	ImpressionListener  ImpressionListener `json:"impressionListener" split-cli-option-group:"true"`
 	SplitsFetchRate     int                `json:"splitsRefreshRate" split-cli-option:"split-refresh-rate" split-default-value:"60" split-cli-description:"Refresh rate of splits fetcher"`
 	SegmentFetchRate    int                `json:"segmentsRefreshRate" split-default-value:"60" split-cli-option:"segment-refresh-rate" split-cli-description:"Refresh rate of segments fetcher"`
 	ImpressionsPostRate int                `json:"impressionsRefreshRate" split-default-value:"60" split-cli-option:"impressions-post-rate" split-cli-description:"Post rate of impressions recorder"`
@@ -89,5 +89,6 @@ type Auth struct {
 }
 
 type ImpressionListener struct {
-	Endpoint string `json:"endpoint" split-default-value:"" split-cli-option:"impression-listener" split-cli-description:"HTTP endpoint where impression bulks will be posted"`
+	Enabled  bool   `json:"enabled" split-default-value:false split-cli-option:"impression-listener" split-cli-description:"Enable posting impressions to an user specified endpoint"`
+	Endpoint string `json:"endpoint" split-default-value:"" split-cli-option:"impression-listener-endpoint" split-cli-description:"HTTP endpoint where impression bulks will be posted"`
 }

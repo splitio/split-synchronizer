@@ -4,32 +4,33 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
-
-	"github.com/splitio/go-agent/splitio/api"
 )
 
-type SecondaryHTTPImpressionRecorder struct{}
+type ImpressionListenerSubmitter struct {
+	Endpoint string
+}
 
-type impressionBundle struct {
-	Impressions []api.ImpressionsDTO `json:"impressions"`
-	SdkVersion  string               `json:"sdkVersion"`
-	MachineIP   string               `json:"machineIP"`
-	MachineName string               `json:"machineName:`
+// This struct is used to put together all the data posted by the impression's listener
+type impressionListenerPostBody struct {
+	Impressions json.RawMessage `json:"impressions"`
+	SdkVersion  string          `json:"sdkVersion"`
+	MachineIP   string          `json:"machineIP"`
+	MachineName string          `json:"machineName"`
 }
 
 // Default queue sizes to 10 in case they're not specified at config time
 var ImpressionListenerMainQueueSize int = 10
 var ImpressionListenerFailedQueueSize int = 10
 
-func (r SecondaryHTTPImpressionRecorder) Post(
-	impressions []api.ImpressionsDTO,
+func (r ImpressionListenerSubmitter) Post(
+	impressions json.RawMessage,
 	sdkVersion string,
 	machineIP string,
 	machineName string) error {
 
 	client := &http.Client{}
 
-	bundle := impressionBundle{
+	bundle := impressionListenerPostBody{
 		Impressions: impressions,
 		SdkVersion:  sdkVersion,
 		MachineIP:   machineIP,
@@ -41,7 +42,7 @@ func (r SecondaryHTTPImpressionRecorder) Post(
 		return err
 	}
 
-	request, _ := http.NewRequest("POST", "http://localhost:8888", bytes.NewBuffer(data))
+	request, _ := http.NewRequest("POST", r.Endpoint, bytes.NewBuffer(data))
 	request.Close = true
 	response, err := client.Do(request)
 	if err != nil {

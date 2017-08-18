@@ -80,15 +80,22 @@ func init() {
 func startAsProxy() {
 	go task.FetchRawSplits(conf.Data.SplitsFetchRate, conf.Data.SegmentFetchRate)
 
+	if conf.Data.ImpressionListener.Enabled {
+		go task.PostImpressionsToListener(util.ImpressionListenerSubmitter{
+			Endpoint: conf.Data.ImpressionListener.Endpoint,
+		})
+	}
+
 	controllers.Initialize(conf.Data.Proxy.ImpressionsMaxSize, int64(conf.Data.ImpressionsPostRate))
 
 	proxyOptions := &proxy.ProxyOptions{
-		Port:          ":" + conf.Data.Proxy.Port,
-		APIKeys:       conf.Data.Proxy.Auth.ApiKeys,
-		AdminPort:     ":" + conf.Data.Proxy.AdminPort,
-		AdminUsername: conf.Data.Proxy.AdminUsername,
-		AdminPassword: conf.Data.Proxy.AdminPassword,
-		DebugOn:       conf.Data.Logger.DebugOn,
+		Port:                      ":" + conf.Data.Proxy.Port,
+		APIKeys:                   conf.Data.Proxy.Auth.ApiKeys,
+		AdminPort:                 ":" + conf.Data.Proxy.AdminPort,
+		AdminUsername:             conf.Data.Proxy.AdminUsername,
+		AdminPassword:             conf.Data.Proxy.AdminPassword,
+		DebugOn:                   conf.Data.Logger.DebugOn,
+		ImpressionListenerEnabled: conf.Data.ImpressionListener.Enabled,
 	}
 
 	//Run webserver loop
@@ -219,14 +226,20 @@ func startProducer() {
 	segmentStorage := segmentStorageFactory()
 	go task.FetchSegments(segmentFetcher, segmentStorage, conf.Data.SegmentFetchRate)
 
-	task.ImpressionListenerEnabled = true
-
 	for i := 0; i < conf.Data.ImpressionsThreads; i++ {
 		impressionsStorage := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 		impressionsRecorder := recorder.ImpressionsHTTPRecorder{}
-		go task.PostImpressions(i, impressionsRecorder, impressionsStorage, conf.Data.ImpressionsPostRate)
-		impressionsListenerRecorder := util.SecondaryHTTPImpressionRecorder{}
-		go task.PostImpressionsToListener(impressionsListenerRecorder)
+		if conf.Data.ImpressionListener.Enabled {
+			impressionsListenerRecorder := util.ImpressionListenerSubmitter{}
+			go task.PostImpressionsToListener(impressionsListenerRecorder)
+		}
+		go task.PostImpressions(
+			i,
+			impressionsRecorder,
+			impressionsStorage,
+			conf.Data.ImpressionsPostRate,
+			conf.Data.ImpressionListener.Enabled,
+		)
 
 	}
 
