@@ -1,4 +1,4 @@
-Split Synchronizer [ ![Codeship Status for splitio/go-agent](https://app.codeship.com/projects/ce54acf0-1c95-0135-d754-16467d9e760e/status?branch=staging)](https://app.codeship.com/projects/220048)
+Split Synchronizer [ ![Codeship Status for splitio/split-synchronizer](https://app.codeship.com/projects/ce54acf0-1c95-0135-d754-16467d9e760e/status?branch=master)](https://app.codeship.com/projects/220048)
 ===
  > **split-sync** A background service to synchronize Split information with your SDK
 
@@ -66,5 +66,5 @@ docker run --rm --name split-sync-proxy \
   -e SPLIT_SYNC_LOG_STDOUT="on" \
   -e SPLIT_SYNC_HTTP_TIMEOUT=120 \
   splitsoftware/split-sync:1.0
-  
+
 ```
