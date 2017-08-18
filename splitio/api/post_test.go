@@ -10,7 +10,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/splitio/go-agent/log"
+	"github.com/splitio/split-synchronizer/log"
 )
 
 func TestPostImpressions(t *testing.T) {

@@ -3,7 +3,7 @@ package storage
 import (
 	"testing"
 
-	"github.com/splitio/go-agent/splitio/storage/redis"
+	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 )
 
 func TestSegmentStorageFactory(t *testing.T) {

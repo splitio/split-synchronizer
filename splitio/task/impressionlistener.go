@@ -2,12 +2,12 @@ package task
 
 import (
 	"errors"
-	"github.com/splitio/go-agent/log"
-	"github.com/splitio/go-agent/splitio/util"
+	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/recorder"
 	"time"
 )
 
-var impressionListenerStream = make(chan *ImpressionBulk, util.ImpressionListenerMainQueueSize)
+var impressionListenerStream = make(chan *ImpressionBulk, recorder.ImpressionListenerMainQueueSize)
 
 func QueueImpressionsForListener(impressions *ImpressionBulk) error {
 	select {
@@ -19,7 +19,7 @@ func QueueImpressionsForListener(impressions *ImpressionBulk) error {
 
 }
 
-func taskPostImpressionsToListener(ilSubmitter util.ImpressionListenerSubmitter, failedQueue chan *ImpressionBulk) {
+func taskPostImpressionsToListener(ilSubmitter recorder.ImpressionListenerSubmitter, failedQueue chan *ImpressionBulk) {
 	failedImpressions := true
 	for failedImpressions {
 		select {
@@ -49,8 +49,8 @@ func taskPostImpressionsToListener(ilSubmitter util.ImpressionListenerSubmitter,
 	}
 }
 
-func PostImpressionsToListener(ilSubmitter util.ImpressionListenerSubmitter) {
-	var failedQueue = make(chan *ImpressionBulk, util.ImpressionListenerFailedQueueSize)
+func PostImpressionsToListener(ilSubmitter recorder.ImpressionListenerSubmitter) {
+	var failedQueue = make(chan *ImpressionBulk, recorder.ImpressionListenerFailedQueueSize)
 	for {
 		taskPostImpressionsToListener(ilSubmitter, failedQueue)
 	}

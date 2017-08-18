@@ -7,11 +7,12 @@ import (
 	"sync"
 
 	"github.com/boltdb/bolt"
-	"github.com/splitio/go-agent/log"
+	"github.com/splitio/split-synchronizer/log"
 )
 
 var mutex = &sync.Mutex{}
 
+// ErrorBucketNotFound error type for bucket not found
 var ErrorBucketNotFound = errors.New("Bucket not found")
 
 // Collection sets
@@ -23,7 +24,7 @@ type Collection struct {
 }
 
 // Delete removess an item into collection under key parameter
-func (c Collection) Delte(key []byte) error {
+func (c Collection) Delete(key []byte) error {
 	mutex.Lock()
 	defer mutex.Unlock()
 

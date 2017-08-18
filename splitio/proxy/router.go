@@ -4,9 +4,10 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/go-agent/splitio/proxy/middleware"
+	"github.com/splitio/split-synchronizer/splitio/proxy/middleware"
 )
 
+// ProxyOptions struct to set options for Proxy mode.
 type ProxyOptions struct {
 	Port                      string
 	AdminPort                 string

@@ -1,4 +1,4 @@
-package util
+package recorder
 
 import (
 	"bytes"
@@ -11,7 +11,7 @@ type ImpressionListenerSubmitter struct {
 }
 
 // This struct is used to put together all the data posted by the impression's listener
-type impressionListenerPostBody struct {
+type ImpressionListenerPostBody struct {
 	Impressions json.RawMessage `json:"impressions"`
 	SdkVersion  string          `json:"sdkVersion"`
 	MachineIP   string          `json:"machineIP"`
@@ -30,7 +30,7 @@ func (r ImpressionListenerSubmitter) Post(
 
 	client := &http.Client{}
 
-	bundle := impressionListenerPostBody{
+	bundle := ImpressionListenerPostBody{
 		Impressions: impressions,
 		SdkVersion:  sdkVersion,
 		MachineIP:   machineIP,

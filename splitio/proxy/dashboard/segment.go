@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/splitio/go-agent/splitio/storage/boltdb/collections"
+	"github.com/splitio/split-synchronizer/splitio/storage/boltdb/collections"
 )
 
 var segmentRow = `<tr>
@@ -88,6 +88,7 @@ func ParseSegment(segment collections.SegmentChangesItem) string {
 	return html
 }
 
+// ParseSegmentKey returns HTML for segment table
 func ParseSegmentKey(key collections.SegmentKey) string {
 	var html = segmentKeyRow
 

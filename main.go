@@ -8,23 +8,23 @@ import (
 	"io/ioutil"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/splitio/go-agent/conf"
-	"github.com/splitio/go-agent/log"
-	"github.com/splitio/go-agent/splitio"
-	"github.com/splitio/go-agent/splitio/api"
-	"github.com/splitio/go-agent/splitio/fetcher"
-	"github.com/splitio/go-agent/splitio/proxy"
-	"github.com/splitio/go-agent/splitio/proxy/controllers"
-	"github.com/splitio/go-agent/splitio/recorder"
-	"github.com/splitio/go-agent/splitio/stats"
-	"github.com/splitio/go-agent/splitio/storage"
-	"github.com/splitio/go-agent/splitio/storage/boltdb"
-	"github.com/splitio/go-agent/splitio/storage/redis"
-	"github.com/splitio/go-agent/splitio/task"
-	"github.com/splitio/go-agent/splitio/util"
+	"github.com/splitio/split-synchronizer/conf"
+	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio"
+	"github.com/splitio/split-synchronizer/splitio/api"
+	"github.com/splitio/split-synchronizer/splitio/fetcher"
+	"github.com/splitio/split-synchronizer/splitio/proxy"
+	"github.com/splitio/split-synchronizer/splitio/proxy/controllers"
+	"github.com/splitio/split-synchronizer/splitio/recorder"
+	"github.com/splitio/split-synchronizer/splitio/stats"
+	"github.com/splitio/split-synchronizer/splitio/storage"
+	"github.com/splitio/split-synchronizer/splitio/storage/boltdb"
+	"github.com/splitio/split-synchronizer/splitio/storage/redis"
+	"github.com/splitio/split-synchronizer/splitio/task"
 )
 
 var asProxy *bool
@@ -81,7 +81,7 @@ func startAsProxy() {
 	go task.FetchRawSplits(conf.Data.SplitsFetchRate, conf.Data.SegmentFetchRate)
 
 	if conf.Data.ImpressionListener.Enabled {
-		go task.PostImpressionsToListener(util.ImpressionListenerSubmitter{
+		go task.PostImpressionsToListener(recorder.ImpressionListenerSubmitter{
 			Endpoint: conf.Data.ImpressionListener.Endpoint,
 		})
 	}
@@ -89,9 +89,9 @@ func startAsProxy() {
 	controllers.Initialize(conf.Data.Proxy.ImpressionsMaxSize, int64(conf.Data.ImpressionsPostRate))
 
 	proxyOptions := &proxy.ProxyOptions{
-		Port:                      ":" + conf.Data.Proxy.Port,
-		APIKeys:                   conf.Data.Proxy.Auth.ApiKeys,
-		AdminPort:                 ":" + conf.Data.Proxy.AdminPort,
+		Port:                      ":" + strconv.Itoa(conf.Data.Proxy.Port),
+		APIKeys:                   conf.Data.Proxy.Auth.APIKeys,
+		AdminPort:                 ":" + strconv.Itoa(conf.Data.Proxy.AdminPort),
 		AdminUsername:             conf.Data.Proxy.AdminUsername,
 		AdminPassword:             conf.Data.Proxy.AdminPassword,
 		DebugOn:                   conf.Data.Logger.DebugOn,
@@ -185,6 +185,7 @@ func loadLogger() {
 		fileWriter, err = log.NewFileRotate(opt)
 		if err != nil {
 			fmt.Printf("Error opening log file: %s \n", err.Error())
+			fileWriter = ioutil.Discard
 		} else {
 			fmt.Printf("Log file: %s \n", conf.Data.Logger.File)
 		}
@@ -230,7 +231,7 @@ func startProducer() {
 		impressionsStorage := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 		impressionsRecorder := recorder.ImpressionsHTTPRecorder{}
 		if conf.Data.ImpressionListener.Enabled {
-			impressionsListenerRecorder := util.ImpressionListenerSubmitter{}
+			impressionsListenerRecorder := recorder.ImpressionListenerSubmitter{}
 			go task.PostImpressionsToListener(impressionsListenerRecorder)
 		}
 		go task.PostImpressions(

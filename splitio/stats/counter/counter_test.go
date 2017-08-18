@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/splitio/go-agent/log"
-	"github.com/splitio/go-agent/splitio"
-	"github.com/splitio/go-agent/splitio/api"
-	"github.com/splitio/go-agent/splitio/stats"
+	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio"
+	"github.com/splitio/split-synchronizer/splitio/api"
+	"github.com/splitio/split-synchronizer/splitio/stats"
 )
 
 func TestCounter(t *testing.T) {
@@ -72,7 +72,7 @@ func TestCounter(t *testing.T) {
 	stats.Initialize()
 	// Counter Code
 	counter := NewCounter()
-	counter.postRate = 2
+	counter.postRate = 5
 
 	counter.Increment(counterA)
 	counter.IncrementN(counterA, 7)
@@ -99,6 +99,6 @@ func TestCounter(t *testing.T) {
 	}
 
 	//Delaying test to let PostCounterWorker timeout do its work!
-	time.Sleep(time.Duration(5) * time.Second)
+	time.Sleep(time.Duration(10) * time.Second)
 
 }

@@ -6,8 +6,8 @@ import (
 	"sort"
 
 	"github.com/boltdb/bolt"
-	"github.com/splitio/go-agent/log"
-	"github.com/splitio/go-agent/splitio/storage/boltdb"
+	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/storage/boltdb"
 )
 
 const splitChangesCollectionName = "SPLIT_CHANGES_COLLECTION"
@@ -68,7 +68,7 @@ type SplitChangesCollection struct {
 // Delete an item
 func (c SplitChangesCollection) Delete(item *SplitChangesItem) error {
 	key := []byte(item.Name)
-	err := c.Collection.Delte(key)
+	err := c.Collection.Delete(key)
 	return err
 }
 

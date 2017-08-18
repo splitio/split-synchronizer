@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/splitio/go-agent/log"
-	"github.com/splitio/go-agent/splitio/api"
-	"github.com/splitio/go-agent/splitio/stats/counter"
-	"github.com/splitio/go-agent/splitio/stats/latency"
+	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/api"
+	"github.com/splitio/split-synchronizer/splitio/stats/counter"
+	"github.com/splitio/split-synchronizer/splitio/stats/latency"
 )
 
 var latencyRegister = latency.NewLatencyBucket()
@@ -24,7 +24,7 @@ type sdkVersionBuffer map[string]machineIPBuffer
 
 const impressionChannelCapacity = 5
 
-var poolBuffer sdkVersionBuffer = make(sdkVersionBuffer)
+var poolBuffer = make(sdkVersionBuffer)
 
 var poolBufferSize = poolBufferSizeStruct{size: 0}
 var currentPoolBucket = 0

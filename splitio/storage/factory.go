@@ -1,8 +1,8 @@
 package storage
 
 import (
-	"github.com/splitio/go-agent/conf"
-	"github.com/splitio/go-agent/splitio/storage/redis"
+	"github.com/splitio/split-synchronizer/conf"
+	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 )
 
 // SegmentStorageMainFactory factory for SegmentStorage

@@ -5,9 +5,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/go-agent/log"
+	"github.com/splitio/split-synchronizer/log"
 )
 
+// Logger middleware to log HTTP requests at Debug level
 func Logger() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Start timer

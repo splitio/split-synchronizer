@@ -1,7 +1,7 @@
 package redis
 
 import (
-	"github.com/splitio/go-agent/log"
+	"github.com/splitio/split-synchronizer/log"
 	redis "gopkg.in/redis.v5"
 )
 

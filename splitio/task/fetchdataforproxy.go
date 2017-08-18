@@ -5,12 +5,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/splitio/go-agent/log"
-	"github.com/splitio/go-agent/splitio/api"
-	"github.com/splitio/go-agent/splitio/stats/counter"
-	"github.com/splitio/go-agent/splitio/stats/latency"
-	"github.com/splitio/go-agent/splitio/storage/boltdb"
-	"github.com/splitio/go-agent/splitio/storage/boltdb/collections"
+	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/api"
+	"github.com/splitio/split-synchronizer/splitio/stats/counter"
+	"github.com/splitio/split-synchronizer/splitio/stats/latency"
+	"github.com/splitio/split-synchronizer/splitio/storage/boltdb"
+	"github.com/splitio/split-synchronizer/splitio/storage/boltdb/collections"
 )
 
 // Stats
@@ -84,7 +84,7 @@ func saveSegmentData(segmentChangesDTO *api.SegmentChangesDTO) error {
 
 func fetchSegment(segment string) {
 	log.Debug.Println("Fetching segment:", segment)
-	var since int64 = proxySegmentsTill[segment]
+	var since = proxySegmentsTill[segment]
 	for {
 		start := latencyRegister.StartMeasuringLatency()
 		rawData, err := api.SegmentChangesFetchRaw(segment, since)

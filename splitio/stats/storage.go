@@ -9,7 +9,7 @@ import (
 
 const lastStoredLatencies = 500
 
-var notStorageInitialiazedError = errors.New("Stats storage has not been initialized")
+var errNotStorageInitialiazed = errors.New("Stats storage has not been initialized")
 var storageInitialized = false
 var startTime time.Time
 var countersStorage *CounterStorage
@@ -51,6 +51,7 @@ func (c *CounterStorage) Counters() map[string]int64 {
 //LATENCIES STORAGE
 //------------------------------------------------------------------------------
 
+// LatencyStorageAddFunc defines a function to storage latencies
 type LatencyStorageAddFunc func(string, []int64) error
 
 // LatencyStorage struct to storage latencies in memory
@@ -123,6 +124,7 @@ func Uptime() time.Duration {
 	return time.Since(startTime)
 }
 
+// UptimeFormated formats uptime for humman read
 func UptimeFormated() string {
 	upt := time.Since(startTime)
 	d := int64(0)
@@ -151,7 +153,7 @@ func UptimeFormated() string {
 // SaveCounter saves counter value
 func SaveCounter(name string, value int64) error {
 	if !storageInitialized {
-		return notStorageInitialiazedError
+		return errNotStorageInitialiazed
 	}
 	countersStorage.Add(name, value)
 	return nil
@@ -165,7 +167,7 @@ func Counters() map[string]int64 {
 // SaveLatency saves the last N latencies for a given metric
 func SaveLatency(name string, latencies []int64) error {
 	if !storageInitialized {
-		return notStorageInitialiazedError
+		return errNotStorageInitialiazed
 	}
 	latenciesStorage.Add(name, latencies)
 	return nil
@@ -174,7 +176,7 @@ func SaveLatency(name string, latencies []int64) error {
 // SaveLatencyBkt saves the latencies for a given metric
 func SaveLatencyBkt(name string, latencies []int64) error {
 	if !storageInitialized {
-		return notStorageInitialiazedError
+		return errNotStorageInitialiazed
 	}
 	latenciesStorage.AddBkt(name, latencies)
 	return nil

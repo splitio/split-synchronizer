@@ -5,8 +5,8 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/splitio/go-agent/conf"
-	"github.com/splitio/go-agent/log"
+	"github.com/splitio/split-synchronizer/conf"
+	"github.com/splitio/split-synchronizer/log"
 )
 
 func TestImpressionStorageAdapter(t *testing.T) {

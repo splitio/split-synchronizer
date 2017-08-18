@@ -8,18 +8,17 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/go-agent/log"
-	"github.com/splitio/go-agent/splitio"
-	"github.com/splitio/go-agent/splitio/api"
-	"github.com/splitio/go-agent/splitio/proxy/controllers"
-	"github.com/splitio/go-agent/splitio/proxy/dashboard"
-	"github.com/splitio/go-agent/splitio/stats"
-	"github.com/splitio/go-agent/splitio/stats/counter"
-	"github.com/splitio/go-agent/splitio/stats/latency"
-	"github.com/splitio/go-agent/splitio/storage/boltdb"
-	"github.com/splitio/go-agent/splitio/storage/boltdb/collections"
-	"github.com/splitio/go-agent/splitio/task"
-	//"github.com/splitio/go-agent/splitio/util"
+	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio"
+	"github.com/splitio/split-synchronizer/splitio/api"
+	"github.com/splitio/split-synchronizer/splitio/proxy/controllers"
+	"github.com/splitio/split-synchronizer/splitio/proxy/dashboard"
+	"github.com/splitio/split-synchronizer/splitio/stats"
+	"github.com/splitio/split-synchronizer/splitio/stats/counter"
+	"github.com/splitio/split-synchronizer/splitio/stats/latency"
+	"github.com/splitio/split-synchronizer/splitio/storage/boltdb"
+	"github.com/splitio/split-synchronizer/splitio/storage/boltdb/collections"
+	"github.com/splitio/split-synchronizer/splitio/task"
 )
 
 var controllerLatenciesBkt = latency.NewLatencyBucket()
@@ -27,14 +26,12 @@ var controllerLatencies = latency.NewLatency()
 var controllerCounters = counter.NewCounter()
 var controllerLocalCounters = counter.NewLocalCounter()
 
-const latencyFetchSplitsFromDB = "goproxy.FetchSplitsFromBoltDB"
-const latencyFetchSegmentFromDB = "goproxy.FetchSegmentFromBoltDB"
-const latencyAddImpressionsInBuffer = "goproxy.AddImpressionsInBuffer"
-const latencyPostSDKLatencies = "goproxy.PostSDKLatencies"
-const latencyPostSDKCounters = "goproxy.PostSDKCounters"
-const latencyPostSDKLatency = "goproxy.PostSDKTime"
-const latencyPostSDKCount = "goproxy.PostSDKCount"
-const latencyPostSDKGauge = "goproxy.PostSDKGague"
+const latencyAddImpressionsInBuffer = "goproxyAddImpressionsInBuffer.time"
+const latencyPostSDKLatencies = "goproxyPostSDKLatencies.time"
+const latencyPostSDKCounters = "goproxyPostSDKCounters.time"
+const latencyPostSDKLatency = "goproxyPostSDKTime.time"
+const latencyPostSDKCount = "goproxyPostSDKCount.time"
+const latencyPostSDKGauge = "goproxyPostSDKGague.time"
 
 //-----------------------------------------------------------------------------
 // SPLIT CHANGES
@@ -47,7 +44,6 @@ func fetchSplitsFromDB(since int) ([]json.RawMessage, int64, error) {
 	splitCollection := collections.NewSplitChangesCollection(boltdb.DBB)
 	items, err := splitCollection.FetchAll()
 	if err != nil {
-		log.Error.Println(err)
 		return splits, till, err
 	}
 
@@ -73,15 +69,18 @@ func splitChanges(c *gin.Context) {
 	startTime := controllerLatencies.StartMeasuringLatency()
 	splits, till, errf := fetchSplitsFromDB(since)
 	if errf != nil {
-		log.Error.Println(errf)
+		switch errf {
+		case boltdb.ErrorBucketNotFound:
+			log.Warning.Println("Maybe Splits are not yet synchronized")
+		default:
+			log.Error.Println(errf)
+		}
 		controllerCounters.Increment("splitChangeFetcher.status.500")
-		controllerCounters.Increment("splitChangeFetcher.exception")
 		controllerLocalCounters.Increment("request.error")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": errf.Error()})
 		return
 	}
 	controllerLatencies.RegisterLatency("splitChangeFetcher.time", startTime)
-	controllerLatencies.RegisterLatency(latencyFetchSplitsFromDB, startTime)
 	controllerCounters.Increment("splitChangeFetcher.status.200")
 	controllerLocalCounters.Increment("request.ok")
 	controllerLatenciesBkt.RegisterLatency("/api/splitChanges", startTime)
@@ -150,13 +149,11 @@ func segmentChanges(c *gin.Context) {
 	added, removed, till, errf := fetchSegmentsFromDB(since, segmentName)
 	if errf != nil {
 		controllerCounters.Increment("segmentChangeFetcher.status.500")
-		controllerCounters.Increment("segmentChangeFetcher.exception")
 		controllerLocalCounters.Increment("request.error")
 		c.JSON(http.StatusNotFound, gin.H{"error": errf.Error()})
 		return
 	}
 	controllerLatencies.RegisterLatency("segmentChangeFetcher.time", startTime)
-	controllerLatencies.RegisterLatency(latencyFetchSegmentFromDB, startTime)
 	controllerCounters.Increment("segmentChangeFetcher.status.200")
 	controllerLocalCounters.Increment("request.ok")
 	controllerLatenciesBkt.RegisterLatency("/api/segmentChanges/*", startTime)
@@ -345,9 +342,11 @@ func showDashboard(c *gin.Context) {
 
 	//---> SDKs stats
 
-	htmlString = strings.Replace(htmlString, "{{request_ok}}", strconv.Itoa(int(counters["request.ok"])), 2)
-	htmlString = strings.Replace(htmlString, "{{request_error}}", strconv.Itoa(int(counters["request.error"])), 2)
-	htmlString = strings.Replace(htmlString, "{{sdks_total_requests}}", strconv.Itoa(int(counters["request.ok"]+counters["request.error"])), 1)
+	htmlString = strings.Replace(htmlString, "{{request_ok}}", strconv.Itoa(int(counters["request.ok"])), 1)
+	htmlString = strings.Replace(htmlString, "{{request_ok_formated}}", dashboard.FormatNumber(counters["request.ok"]), 1)
+	htmlString = strings.Replace(htmlString, "{{request_error}}", strconv.Itoa(int(counters["request.error"])), 1)
+	htmlString = strings.Replace(htmlString, "{{request_error_formated}}", dashboard.FormatNumber(counters["request.error"]), 1)
+	htmlString = strings.Replace(htmlString, "{{sdks_total_requests}}", dashboard.FormatNumber(counters["request.ok"]+counters["request.error"]), 1)
 
 	//latenciesGroupData
 	var latenciesGroupData string
@@ -383,8 +382,10 @@ func showDashboard(c *gin.Context) {
 
 	//---> Backend stats
 
-	htmlString = strings.Replace(htmlString, "{{backend_request_ok}}", strconv.Itoa(int(counters["backend::request.ok"])), 2)
-	htmlString = strings.Replace(htmlString, "{{backend_request_error}}", strconv.Itoa(int(counters["backend::request.error"])), 2)
+	htmlString = strings.Replace(htmlString, "{{backend_request_ok}}", strconv.Itoa(int(counters["backend::request.ok"])), 1)
+	htmlString = strings.Replace(htmlString, "{{backend_request_ok_formated}}", dashboard.FormatNumber(counters["backend::request.ok"]), 1)
+	htmlString = strings.Replace(htmlString, "{{backend_request_error}}", strconv.Itoa(int(counters["backend::request.error"])), 1)
+	htmlString = strings.Replace(htmlString, "{{backend_request_error_formated}}", dashboard.FormatNumber(counters["backend::request.error"]), 1)
 
 	var latenciesGroupDataBackend string
 	if ldata, ok := latencies["backend::/api/splitChanges"]; ok {

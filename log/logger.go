@@ -26,7 +26,7 @@ var (
 	Error *log.Logger
 )
 
-// ErrorDashboard
+// ErrorDashboard is an instance of DashboardWriter
 var ErrorDashboard = &DashboardWriter{cmutex: &sync.Mutex{}, counts: 0, messages: make([]string, 0), messagesSize: 10}
 
 // DashboardWriter counts each call to Write method
@@ -39,7 +39,7 @@ type DashboardWriter struct {
 
 func (c *DashboardWriter) Write(p []byte) (n int, err error) {
 	c.cmutex.Lock()
-	c.counts += 1
+	c.counts++
 	c.messages = append(c.messages, string(p))
 	if len(c.messages) > c.messagesSize {
 		c.messages = c.messages[len(c.messages)-c.messagesSize : len(c.messages)]
@@ -48,12 +48,14 @@ func (c *DashboardWriter) Write(p []byte) (n int, err error) {
 	return 0, nil
 }
 
+// Counts returns the count number
 func (c *DashboardWriter) Counts() int64 {
 	c.cmutex.Lock()
 	defer c.cmutex.Unlock()
 	return c.counts
 }
 
+// Messages returns the last logged messages
 func (c *DashboardWriter) Messages() []string {
 	c.cmutex.Lock()
 	defer c.cmutex.Unlock()

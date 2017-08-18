@@ -199,13 +199,13 @@ var HTML = `
           <div class="col-md-6">
             <div class="greenBox metricBox">
               <h4>Successful Requests</h4>
-              <h1 class="centerText">{{request_ok}}</h1>
+              <h1 class="centerText">{{request_ok_formated}}</h1>
             </div>
           </div>
           <div class="col-md-6">
             <div class="redBox metricBox">
               <h4>Error Requests</h4>
-              <h1 class="centerText">{{request_error}}</h1>
+              <h1 class="centerText">{{request_error_formated}}</h1>
             </div>
           </div>
         </div>
@@ -213,7 +213,7 @@ var HTML = `
         <div class="row">
           <div class="col-md-8">
             <div class="bg-primary metricBox">
-              <h4>Latencies group</h4>
+              <h4>Latencies group <small>(microseconds)</small></h4>
               <canvas id="LatencyBucket"></canvas>
             </div>
           </div>
@@ -234,13 +234,13 @@ var HTML = `
           <div class="col-md-6">
             <div class="greenBox metricBox">
               <h4>Successful Requests</h4>
-              <h1 class="centerText">{{backend_request_ok}}</h1>
+              <h1 class="centerText">{{backend_request_ok_formated}}</h1>
             </div>
           </div>
           <div class="col-md-6">
             <div class="redBox metricBox">
               <h4>Error Requests</h4>
-              <h1 class="centerText">{{backend_request_error}}</h1>
+              <h1 class="centerText">{{backend_request_error_formated}}</h1>
             </div>
           </div>
         </div>
@@ -248,7 +248,7 @@ var HTML = `
         <div class="row">
           <div class="col-md-8">
             <div class="bg-primary metricBox">
-              <h4>Latencies group</h4>
+              <h4>Latencies group <small>(microseconds)</small></h4>
               <canvas id="LatencyBucketBackend"></canvas>
             </div>
           </div>
