@@ -41,7 +41,8 @@ func TestTaskPostImpressionsToListener(t *testing.T) {
 			t.Error("Error unmarshaling impressions bulk message in mocked impression listener")
 		}
 		var impData string
-		err = json.Unmarshal(data.Impressions, &impData)
+		rawImpressions := (*json.RawMessage)(&data.Impressions)
+		err = json.Unmarshal((*rawImpressions), &impData)
 		if impData != "123" {
 			t.Error("Recieved data does not match")
 			t.Error(impData)
