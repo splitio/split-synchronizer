@@ -9,11 +9,20 @@ Split synchronizer is able to run in 2 different modes.
  For further information check the official documentation at: [https://docs.split.io/docs/split-synchronizer](https://docs.split.io/docs/split-synchronizer)
 
 ## Docker
+The Docker image has been created to run the split-sync command in both modes, `producer or proxy`, setting different environment vars described below.
+The image exposes 2 ports 3000 and 3010 that are opened in proxy mode to listen SDKs connections `port 3000` and `port 3010` to listen admin connections.
+
 #### Creating the image
  The following command creates the Docker image tagged with the branch build version
  ```
- docker build -t splitsoftware/split-sync:$(tail -n 1 ./splitio/version.go | awk '{print $4}' | tr -d '"') .
+ docker build -t splitsoftware/split-synchronizer:$(tail -n 1 ./splitio/version.go | awk '{print $4}' | tr -d '"') .
  ```
+
+ Additionally the image can be pulled from **Docker Hub:**
+ ```
+ docker pull splitsoftware/split-synchronizer
+ ```
+
 #### Running the container
 The container can be run on both modes (producer and proxy). To run it, different environment variables are available to be tuned.
 ```
@@ -57,9 +66,9 @@ The container can be run on both modes (producer and proxy). To run it, differen
 
 ```
 
-For instance the following command run the *split-sync* as proxy:
+For instance the following command run the ***split-sync*** as proxy:
 ```
-docker run --rm --name split-sync-proxy \
+docker run --rm --name split-synchronizer-proxy \
   -p 3000:3000 \
   -p 3010:3010 \
   -e SPLIT_SYNC_API_KEY="your-api-key" \
@@ -67,6 +76,6 @@ docker run --rm --name split-sync-proxy \
   -e SPLIT_SYNC_PROXY_SDK_APIKEYS="123456,qwerty" \
   -e SPLIT_SYNC_LOG_STDOUT="on" \
   -e SPLIT_SYNC_HTTP_TIMEOUT=120 \
-  splitsoftware/split-sync:1.0
+  splitsoftware/split-synchronizer:1.1.0
 
 ```
