@@ -1,3 +1,7 @@
+1.1.0 (Aug 21, 2017)
+ - Proxy mode for SDKs local connections
+ - Proxy admin endpoints and dashboard monitoring tool
+ - Log rotation
 1.0.1 (Jun 29, 2017)
  - Removing fixed json schema and saving the raw split JSON into Redis
 1.0.0 (Jun 16, 2017)
