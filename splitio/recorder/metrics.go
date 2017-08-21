@@ -3,8 +3,8 @@ package recorder
 import (
 	"encoding/json"
 
-	"github.com/splitio/go-agent/log"
-	"github.com/splitio/go-agent/splitio/api"
+	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/api"
 )
 
 // MetricsHTTPRecorder implrements ImpressionsRecorder interface

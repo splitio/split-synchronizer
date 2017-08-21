@@ -4,18 +4,24 @@ import (
 	"sync"
 	"time"
 
-	"github.com/splitio/go-agent/log"
-	"github.com/splitio/go-agent/splitio/recorder"
-	"github.com/splitio/go-agent/splitio/storage"
+	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/recorder"
+	"github.com/splitio/split-synchronizer/splitio/storage"
 )
 
 var mutex = &sync.Mutex{}
 
 func taskPostImpressions(tid int, impressionsRecorderAdapter recorder.ImpressionsRecorder,
 	impressionStorageAdapter storage.ImpressionStorage) {
+
 	mutex.Lock()
+	beforeHitRedis := time.Now().UnixNano()
 	impressionsToSend, err := impressionStorageAdapter.RetrieveImpressions()
+	afterHitRedis := time.Now().UnixNano()
+	tookHitRedis := afterHitRedis - beforeHitRedis
+	log.Benchmark.Println("Redis Request took", tookHitRedis)
 	mutex.Unlock()
+
 	if err != nil {
 		log.Error.Println("Error Retrieving ")
 	} else {
@@ -24,11 +30,13 @@ func taskPostImpressions(tid int, impressionsRecorderAdapter recorder.Impression
 		for sdkVersion, impressionsByMachineIP := range impressionsToSend {
 			for machineIP, impressions := range impressionsByMachineIP {
 				log.Debug.Println("Posting impressions from ", sdkVersion, machineIP)
-				err := impressionsRecorderAdapter.Post(impressions, sdkVersion, machineIP)
+				beforePostServer := time.Now().UnixNano()
+				err := impressionsRecorderAdapter.Post(impressions, sdkVersion, machineIP, "")
 				if err != nil {
 					log.Error.Println("Error posting impressions", err.Error())
 					continue
 				}
+				log.Benchmark.Println("POST impressions to Server took", (time.Now().UnixNano() - beforePostServer))
 				log.Debug.Println("Impressions sent")
 			}
 		}

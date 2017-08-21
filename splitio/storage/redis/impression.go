@@ -3,10 +3,11 @@ package redis
 import (
 	"encoding/json"
 	"regexp"
+	"time"
 
-	"github.com/splitio/go-agent/conf"
-	"github.com/splitio/go-agent/log"
-	"github.com/splitio/go-agent/splitio/api"
+	"github.com/splitio/split-synchronizer/conf"
+	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/api"
 	redis "gopkg.in/redis.v5"
 )
 
@@ -40,6 +41,7 @@ func (r ImpressionStorageAdapter) RetrieveImpressions() (map[string]map[string][
 	/*TODO see the edge case:
 	impressionsPerPost < len(keys)
 	*/
+	log.Benchmark.Println("Impressions per post", conf.Data.ImpressionsPerPost)
 	var impressionsPerKey = conf.Data.ImpressionsPerPost
 	if len(_keys) > 0 && impressionsPerKey >= int64(len(_keys)) {
 		impressionsPerKey = conf.Data.ImpressionsPerPost / int64(len(_keys))
@@ -48,8 +50,14 @@ func (r ImpressionStorageAdapter) RetrieveImpressions() (map[string]map[string][
 		impressionsPerKey = 1
 	}
 
+	log.Benchmark.Println("Number of Keys", len(_keys))
+	log.Benchmark.Println("Impressions per key", impressionsPerKey)
+
 	for _, key := range _keys {
+		log.Benchmark.Println("---", key)
+		beforeSRandMemberN := time.Now().UnixNano()
 		impressions, err := r.client.SRandMemberN(key, impressionsPerKey).Result()
+		log.Benchmark.Println("SRandMemberN took", (time.Now().UnixNano() - beforeSRandMemberN))
 		log.Verbose.Println(impressions)
 		if err != nil {
 			log.Debug.Println("Fetching impressions", err.Error())
@@ -93,10 +101,12 @@ func (r ImpressionStorageAdapter) RetrieveImpressions() (map[string]map[string][
 		for i, v := range impressions {
 			_impressionsToDelete[i] = v
 		}
+		beforeSRem := time.Now().UnixNano()
 		if err := r.client.SRem(key, _impressionsToDelete...).Err(); err != nil {
 			log.Error.Println("Error removing impressions from Redis", err.Error())
 			log.Verbose.Println(impressions)
 		}
+		log.Benchmark.Println("Srem took", (time.Now().UnixNano() - beforeSRem))
 	}
 
 	return impressionsToReturn, nil

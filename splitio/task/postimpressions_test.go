@@ -5,9 +5,9 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/splitio/go-agent/conf"
-	"github.com/splitio/go-agent/log"
-	"github.com/splitio/go-agent/splitio/api"
+	"github.com/splitio/split-synchronizer/conf"
+	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/api"
 )
 
 /* ImpressionStorage for testing */
@@ -33,13 +33,13 @@ func (r testImpressionStorage) RetrieveImpressions() (map[string]map[string][]ap
 /* ImpressionsRecorder for testing */
 type testImpressionsRecorder struct{}
 
-func (r testImpressionsRecorder) Post(impressions []api.ImpressionsDTO, sdkVersion string, machineIP string) error {
+func (r testImpressionsRecorder) Post(impressions []api.ImpressionsDTO, sdkVersion string, machineIP string, machineName string) error {
 	return nil
 }
 
 func TestTaskPostImpressions(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 
 	//Initialize by default
 	conf.Initialize()

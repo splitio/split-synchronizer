@@ -7,11 +7,11 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/splitio/go-agent/conf"
-	"github.com/splitio/go-agent/log"
-	"github.com/splitio/go-agent/splitio/api"
-	"github.com/splitio/go-agent/splitio/fetcher"
-	"github.com/splitio/go-agent/splitio/storage"
+	"github.com/splitio/split-synchronizer/conf"
+	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/api"
+	"github.com/splitio/split-synchronizer/splitio/fetcher"
+	"github.com/splitio/split-synchronizer/splitio/storage"
 )
 
 var segmentMock = `
@@ -63,7 +63,7 @@ func (s testSegmentStorageFactory) NewInstance() storage.SegmentStorage { return
 
 func TestTaskFetchSegments(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 
 	//Initialize by default
 	conf.Initialize()

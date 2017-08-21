@@ -4,7 +4,7 @@ package redis
 import (
 	"testing"
 
-	"github.com/splitio/go-agent/conf"
+	"github.com/splitio/split-synchronizer/conf"
 )
 
 func TestInitializeClient(t *testing.T) {

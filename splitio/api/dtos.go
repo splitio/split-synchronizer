@@ -1,6 +1,8 @@
 package api
 
-import "encoding/json"
+import (
+	"encoding/json"
+)
 
 //
 // Splits DTOs
@@ -8,9 +10,10 @@ import "encoding/json"
 
 // SplitChangesDTO structure to map JSON message sent by Split servers.
 type SplitChangesDTO struct {
-	Till   int64      `json:"till"`
-	Since  int64      `json:"since"`
-	Splits []SplitDTO `json:"splits"`
+	Till      int64      `json:"till"`
+	Since     int64      `json:"since"`
+	Splits    []SplitDTO `json:"splits"`
+	RawSplits []*json.RawMessage
 }
 
 // SplitDTO structure to map an Split definition fetched from JSON message.
@@ -147,4 +150,9 @@ type CounterDTO struct {
 type GaugeDTO struct {
 	MetricName string  `json:"name"`
 	Gauge      float64 `json:"value"`
+}
+
+// MySegmentDTO struct mapping segment data for mySegments endpoint
+type MySegmentDTO struct {
+	Name string `json:"name"`
 }

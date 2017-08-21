@@ -10,13 +10,13 @@ import (
 	"os"
 	"testing"
 
-	"github.com/splitio/go-agent/log"
+	"github.com/splitio/split-synchronizer/log"
 )
 
 func TestPostImpressions(t *testing.T) {
 
 	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
@@ -32,7 +32,7 @@ func TestPostImpressions(t *testing.T) {
 		}
 
 		sdkMachineName := r.Header.Get("SplitSDKMachineName")
-		if sdkMachineName != "ip-127-0-0-1" {
+		if sdkMachineName != "SOME_MACHINE_NAME" {
 			t.Error("SDK Machine Name HEADER not match", sdkMachineName)
 		}
 
@@ -76,7 +76,7 @@ func TestPostImpressions(t *testing.T) {
 		return
 	}
 
-	err2 := PostImpressions(data, "test-1.0.0", "127.0.0.1")
+	err2 := PostImpressions(data, "test-1.0.0", "127.0.0.1", "SOME_MACHINE_NAME")
 	if err2 != nil {
 		t.Error(err2)
 	}
@@ -85,7 +85,7 @@ func TestPostImpressions(t *testing.T) {
 func TestPostMetricsLatency(t *testing.T) {
 
 	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
@@ -147,7 +147,7 @@ func TestPostMetricsLatency(t *testing.T) {
 func TestPostMetricsCounters(t *testing.T) {
 
 	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
@@ -209,7 +209,7 @@ func TestPostMetricsCounters(t *testing.T) {
 func TestPostMetricsGauge(t *testing.T) {
 
 	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
@@ -265,4 +265,126 @@ func TestPostMetricsGauge(t *testing.T) {
 		t.Error(err2)
 	}
 
+}
+
+func TestPostMetricsCounter(t *testing.T) {
+
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		sdkVersion := r.Header.Get("SplitSDKVersion")
+		sdkMachine := r.Header.Get("SplitSDKMachineIP")
+
+		if sdkVersion != "test-1.0.0" {
+			t.Error("SDK Version HEADER not match")
+		}
+
+		if sdkMachine != "127.0.0.1" {
+			t.Error("SDK Machine HEADER not match")
+		}
+
+		sdkMachineName := r.Header.Get("SplitSDKMachineName")
+		if sdkMachineName != "ip-127-0-0-1" {
+			t.Error("SDK Machine Name HEADER not match", sdkMachineName)
+		}
+
+		rBody, _ := ioutil.ReadAll(r.Body)
+		var counterInPost CounterDTO
+		err := json.Unmarshal(rBody, &counterInPost)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		if counterInPost.MetricName != "counter_1" ||
+			counterInPost.Count != 111 {
+			t.Error("Counter arrived mal-formed")
+		}
+
+		fmt.Fprintln(w, "ok")
+	}))
+	defer ts.Close()
+
+	os.Setenv(envSdkURLNamespace, ts.URL)
+	os.Setenv(envEventsURLNamespace, ts.URL)
+
+	Initialize()
+
+	var counterDataSet CounterDTO
+	counterDataSet = CounterDTO{MetricName: "counter_1", Count: 111}
+
+	data, err := json.Marshal(counterDataSet)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	err2 := PostMetricsCount(data, "test-1.0.0", "127.0.0.1")
+	if err2 != nil {
+		t.Error(err2)
+	}
+}
+
+func TestPostMetricsTime(t *testing.T) {
+
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		sdkVersion := r.Header.Get("SplitSDKVersion")
+		sdkMachine := r.Header.Get("SplitSDKMachineIP")
+
+		if sdkVersion != "test-1.0.0" {
+			t.Error("SDK Version HEADER not match")
+		}
+
+		if sdkMachine != "127.0.0.1" {
+			t.Error("SDK Machine HEADER not match")
+		}
+
+		sdkMachineName := r.Header.Get("SplitSDKMachineName")
+		if sdkMachineName != "ip-127-0-0-1" {
+			t.Error("SDK Machine Name HEADER not match", sdkMachineName)
+		}
+
+		rBody, _ := ioutil.ReadAll(r.Body)
+		var latenciesInPost LatenciesDTO
+		err := json.Unmarshal(rBody, &latenciesInPost)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		if latenciesInPost.MetricName != "some_metric_name" ||
+			latenciesInPost.Latencies[5] != 1234567890 {
+			t.Error("Latencies arrived mal-formed")
+		}
+
+		fmt.Fprintln(w, "ok")
+	}))
+	defer ts.Close()
+
+	os.Setenv(envSdkURLNamespace, ts.URL)
+	os.Setenv(envEventsURLNamespace, ts.URL)
+
+	Initialize()
+
+	var latencyValues = make([]int64, 23) //23 maximun number of buckets
+	latencyValues[5] = 1234567890
+	var latenciesDataSet LatenciesDTO
+	latenciesDataSet = LatenciesDTO{MetricName: "some_metric_name", Latencies: latencyValues}
+
+	data, err := json.Marshal(latenciesDataSet)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	err2 := PostMetricsTime(data, "test-1.0.0", "127.0.0.1")
+	if err2 != nil {
+		t.Error(err2)
+	}
 }

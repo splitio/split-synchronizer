@@ -6,9 +6,9 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/splitio/go-agent/conf"
-	"github.com/splitio/go-agent/log"
-	"github.com/splitio/go-agent/splitio/api"
+	"github.com/splitio/split-synchronizer/conf"
+	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/api"
 )
 
 var splitsMock = `{
@@ -65,7 +65,7 @@ var splitMock = `{
 
 func TestSplitStorageAdapter(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 
 	config := conf.NewInitializedConfigData()
 	Initialize(config.Redis)
@@ -81,13 +81,15 @@ func TestSplitStorageAdapter(t *testing.T) {
 
 	redisStorageAdapter := NewSplitStorageAdapter(Client, "")
 
-	err = redisStorageAdapter.Save(splitChangesDtoFromMock.Splits[0])
+	//err = redisStorageAdapter.Save(splitChangesDtoFromMock.Splits[0])
+	err = redisStorageAdapter.Save([]byte(splitMock))
 	if err != nil {
 		t.Error(err)
 		return
 	}
 
-	err = redisStorageAdapter.Remove(splitChangesDtoFromMock.Splits[0])
+	//err = redisStorageAdapter.Remove(splitChangesDtoFromMock.Splits[0])
+	err = redisStorageAdapter.Remove([]byte(splitMock))
 	if err != nil {
 		t.Error(err)
 		return

@@ -1,6 +1,6 @@
 package storage
 
-import "github.com/splitio/go-agent/splitio/api"
+import "github.com/splitio/split-synchronizer/splitio/api"
 
 // ImpressionsByMachineIP maps a list of impressions using as map key the machine IP
 type ImpressionsByMachineIP map[string][]api.ImpressionsDTO

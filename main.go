@@ -8,19 +8,28 @@ import (
 	"io/ioutil"
 	"net/url"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
-	"github.com/splitio/go-agent/conf"
-	"github.com/splitio/go-agent/log"
-	"github.com/splitio/go-agent/splitio"
-	"github.com/splitio/go-agent/splitio/api"
-	"github.com/splitio/go-agent/splitio/fetcher"
-	"github.com/splitio/go-agent/splitio/recorder"
-	"github.com/splitio/go-agent/splitio/storage"
-	"github.com/splitio/go-agent/splitio/storage/redis"
-	"github.com/splitio/go-agent/splitio/task"
+	"github.com/splitio/split-synchronizer/conf"
+	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio"
+	"github.com/splitio/split-synchronizer/splitio/api"
+	"github.com/splitio/split-synchronizer/splitio/fetcher"
+	"github.com/splitio/split-synchronizer/splitio/proxy"
+	"github.com/splitio/split-synchronizer/splitio/proxy/controllers"
+	"github.com/splitio/split-synchronizer/splitio/recorder"
+	"github.com/splitio/split-synchronizer/splitio/stats"
+	"github.com/splitio/split-synchronizer/splitio/storage"
+	"github.com/splitio/split-synchronizer/splitio/storage/boltdb"
+	"github.com/splitio/split-synchronizer/splitio/storage/redis"
+	"github.com/splitio/split-synchronizer/splitio/task"
 )
 
+var asProxy *bool
+var benchmarkMode *bool
+var versionInfo *bool
 var configFile *string
 var writeDefaultConfigFile *string
 var cliParametersMap map[string]interface{}
@@ -30,16 +39,22 @@ var cliParametersMap map[string]interface{}
 //------------------------------------------------------------------------------
 
 func init() {
-	//Show initial banner
-	fmt.Println(splitio.ASCILogo)
-	fmt.Println("Split Software Agent - Version: ", splitio.Version)
-
 	//reading command line options
 	parseFlags()
 
+	//print the version
+	if *versionInfo {
+		fmt.Println("Split Synchronizer - Version: ", splitio.Version)
+		os.Exit(0)
+	}
+
+	//Show initial banner
+	fmt.Println(splitio.ASCILogo)
+	fmt.Println("Split Synchronizer - Version: ", splitio.Version)
+
 	//writing a default configuration file if it is required by user
 	if *writeDefaultConfigFile != "" {
-		fmt.Println("DEFAULT CONFIG FILE HAS BEEN WROTE:", *writeDefaultConfigFile)
+		fmt.Println("DEFAULT CONFIG FILE HAS BEEN WRITTEN:", *writeDefaultConfigFile)
 		conf.WriteDefaultConfigFile(*writeDefaultConfigFile)
 		os.Exit(0)
 	}
@@ -48,16 +63,52 @@ func init() {
 	loadConfiguration()
 	loadLogger()
 	api.Initialize()
-	redis.Initialize(conf.Data.Redis)
+
+	if *asProxy {
+		var dbpath = boltdb.InMemoryMode
+		if conf.Data.Proxy.PersistMemoryPath != "" {
+			dbpath = conf.Data.Proxy.PersistMemoryPath
+		}
+		boltdb.Initialize(dbpath, nil)
+		stats.Initialize()
+	} else {
+		redis.Initialize(conf.Data.Redis)
+	}
+
+}
+
+func startAsProxy() {
+	go task.FetchRawSplits(conf.Data.SplitsFetchRate, conf.Data.SegmentFetchRate)
+
+	controllers.Initialize(conf.Data.Proxy.ImpressionsMaxSize, int64(conf.Data.ImpressionsPostRate))
+
+	proxyOptions := &proxy.ProxyOptions{
+		Port:          ":" + strconv.Itoa(conf.Data.Proxy.Port),
+		APIKeys:       conf.Data.Proxy.Auth.APIKeys,
+		AdminPort:     ":" + strconv.Itoa(conf.Data.Proxy.AdminPort),
+		AdminUsername: conf.Data.Proxy.AdminUsername,
+		AdminPassword: conf.Data.Proxy.AdminPassword,
+		DebugOn:       conf.Data.Logger.DebugOn,
+	}
+
+	//Run webserver loop
+	proxy.Run(proxyOptions)
 }
 
 func main() {
-	startProducer()
 
-	//Keeping service alive
-	for {
-		time.Sleep(500 * time.Millisecond)
+	if *asProxy {
+		// Run as proxy using boltdb as in-memoy database
+		startAsProxy()
+	} else {
+		// Run as synchronizer using Redis as cache
+		startProducer()
+		//Keeping service alive
+		for {
+			time.Sleep(500 * time.Millisecond)
+		}
 	}
+
 }
 
 //------------------------------------------------------------------------------
@@ -67,6 +118,9 @@ func main() {
 func parseFlags() {
 	configFile = flag.String("config", "splitio.agent.conf.json", "a configuration file")
 	writeDefaultConfigFile = flag.String("write-default-config", "", "write a default configuration file")
+	asProxy = flag.Bool("proxy", false, "run as split server proxy to improve sdk performance")
+	benchmarkMode = flag.Bool("benchmark", false, "Benchmark mode")
+	versionInfo = flag.Bool("version", false, "Print the version")
 
 	// dinamically configuration parameters
 	cliParameters := conf.CliParametersToRegister()
@@ -75,6 +129,9 @@ func parseFlags() {
 		switch param.AttributeType {
 		case "string":
 			cliParametersMap[param.Command] = flag.String(param.Command, param.DefaultValue.(string), param.Description)
+			break
+		case "[]string":
+			cliParametersMap[param.Command] = flag.String(param.Command, strings.Join(param.DefaultValue.([]string), ","), param.Description)
 			break
 		case "int":
 			cliParametersMap[param.Command] = flag.Int(param.Command, param.DefaultValue.(int), param.Description)
@@ -106,6 +163,7 @@ func loadLogger() {
 	var commonWriter io.Writer
 	var fullWriter io.Writer
 
+	var benchmarkWriter = ioutil.Discard
 	var verboseWriter = ioutil.Discard
 	var debugWriter = ioutil.Discard
 	var fileWriter = ioutil.Discard
@@ -113,9 +171,14 @@ func loadLogger() {
 	var slackWriter = ioutil.Discard
 
 	if len(conf.Data.Logger.File) > 3 {
-		fileWriter, err = os.OpenFile(conf.Data.Logger.File, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		opt := &log.FileRotateOptions{
+			MaxBytes:    conf.Data.Logger.FileMaxSize,
+			BackupCount: conf.Data.Logger.FileBackupCount,
+			Path:        conf.Data.Logger.File}
+		fileWriter, err = log.NewFileRotate(opt)
 		if err != nil {
 			fmt.Printf("Error opening log file: %s \n", err.Error())
+			fileWriter = ioutil.Discard
 		} else {
 			fmt.Printf("Log file: %s \n", conf.Data.Logger.File)
 		}
@@ -141,7 +204,11 @@ func loadLogger() {
 		debugWriter = commonWriter
 	}
 
-	log.Initialize(verboseWriter, debugWriter, commonWriter, commonWriter, fullWriter)
+	if *benchmarkMode == true {
+		benchmarkWriter = commonWriter
+	}
+
+	log.Initialize(benchmarkWriter, verboseWriter, debugWriter, commonWriter, commonWriter, fullWriter)
 }
 
 func startProducer() {

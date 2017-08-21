@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/splitio/go-agent/conf"
+	"github.com/splitio/split-synchronizer/conf"
 	redis "gopkg.in/redis.v5"
 )
 

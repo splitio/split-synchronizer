@@ -1,5 +1,5 @@
 #Project files
-go-agent
+split-synchronizer
 run.sh
 bin/*
 
@@ -30,3 +30,8 @@ _testmain.go
 
 .DS_Store
 *.json
+!/test/dataset/test.conf.json
+
+# Release files
+release/*.bin
+release/*.zip
