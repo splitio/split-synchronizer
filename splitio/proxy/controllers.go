@@ -197,7 +197,6 @@ func mySegments(c *gin.Context) {
 //-----------------------------------------------------------------
 func postImpressionBulk(impressionListenerEnabled bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		//func postBulkImpressions(c *gin.Context) {
 		sdkVersion := c.Request.Header.Get("SplitSDKVersion")
 		machineIP := c.Request.Header.Get("SplitSDKMachineIP")
 		machineName := c.Request.Header.Get("SplitSDKMachineName")
