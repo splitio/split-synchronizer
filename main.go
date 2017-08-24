@@ -231,8 +231,9 @@ func startProducer() {
 		impressionsStorage := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 		impressionsRecorder := recorder.ImpressionsHTTPRecorder{}
 		if conf.Data.ImpressionListener.Enabled {
-			impressionsListenerRecorder := recorder.ImpressionListenerSubmitter{}
-			go task.PostImpressionsToListener(impressionsListenerRecorder)
+			go task.PostImpressionsToListener(recorder.ImpressionListenerSubmitter{
+				Endpoint: conf.Data.ImpressionListener.Endpoint,
+			})
 		}
 		go task.PostImpressions(
 			i,
