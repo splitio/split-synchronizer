@@ -1,4 +1,4 @@
-1.1.1
+1.1.1 (Aug 28, 2017)
  - Fixed concurrency issue fetching Segments in parallel
 1.1.0 (Aug 21, 2017)
  - Proxy mode for SDKs local connections
