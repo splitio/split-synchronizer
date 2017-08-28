@@ -18,7 +18,7 @@ type ImpressionListenerPostBody struct {
 	MachineName string          `json:"machineName"`
 }
 
-// Default queue sizes to 10 in case they're not specified at config time
+// Impression queue sizes
 var ImpressionListenerMainQueueSize int = 10
 var ImpressionListenerFailedQueueSize int = 10
 
