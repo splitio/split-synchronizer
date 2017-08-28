@@ -84,7 +84,9 @@ func saveSegmentData(segmentChangesDTO *api.SegmentChangesDTO) error {
 
 func fetchSegment(segment string) {
 	log.Debug.Println("Fetching segment:", segment)
+	mutexSegmentsTill.Lock()
 	var since = proxySegmentsTill[segment]
+	mutexSegmentsTill.Unlock()
 	for {
 		start := latencyRegister.StartMeasuringLatency()
 		rawData, err := api.SegmentChangesFetchRaw(segment, since)
@@ -271,9 +273,11 @@ func registerSegments(rawData []byte) {
 func retrieveSegments(segmentsRefreshRate int) {
 	for {
 		time.Sleep(time.Duration(segmentsRefreshRate) * time.Second)
+		mutexSegmentsTill.Lock()
 		for segmentName, _ := range proxySegmentsTill {
 			// Adding segment to channel to be processed by worker
 			proxySegmentToProcess <- segmentName
 		}
+		mutexSegmentsTill.Unlock()
 	}
 }
