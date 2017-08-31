@@ -16,7 +16,15 @@ func QueueImpressionsForListener(impressions *ImpressionBulk) error {
 	default:
 		return errors.New("Impression listener queue is full. Last bulk not added")
 	}
+}
 
+func queueFailedImpressions(failedQueue chan *ImpressionBulk, msg *ImpressionBulk) {
+	select {
+	case failedQueue <- msg:
+	default:
+		log.Error.Println("Impression listener failed queue is full. " +
+			"Impressions will be dropped until the listener enpoint is restored.")
+	}
 }
 
 func taskPostImpressionsToListener(ilSubmitter recorder.ImpressionListenerSubmitter, failedQueue chan *ImpressionBulk) {
@@ -24,11 +32,11 @@ func taskPostImpressionsToListener(ilSubmitter recorder.ImpressionListenerSubmit
 	for failedImpressions {
 		select {
 		case msg := <-failedQueue:
-			err := ilSubmitter.Post(msg.Data, msg.SdkVersion, msg.MachineIP, "")
+			err := ilSubmitter.Post(msg.Data, msg.SdkVersion, msg.MachineIP, msg.MachineName)
 			if err != nil {
 				msg.attempt++
 				if msg.attempt < 3 {
-					failedQueue <- msg
+					queueFailedImpressions(failedQueue, msg)
 				}
 				time.Sleep(time.Millisecond * 100)
 			}
@@ -39,13 +47,7 @@ func taskPostImpressionsToListener(ilSubmitter recorder.ImpressionListenerSubmit
 	msg := <-impressionListenerStream
 	err := ilSubmitter.Post(msg.Data, msg.SdkVersion, msg.MachineIP, msg.MachineName)
 	if err != nil {
-		select {
-		case failedQueue <- msg:
-		default:
-			log.Error.Println("Impression listener queue is full. " +
-				"Impressions will be dropped until the listener enpoint is restored.")
-		}
-		time.Sleep(time.Millisecond * 100)
+		queueFailedImpressions(failedQueue, msg)
 	}
 }
 
@@ -53,5 +55,6 @@ func PostImpressionsToListener(ilSubmitter recorder.ImpressionListenerSubmitter)
 	var failedQueue = make(chan *ImpressionBulk, recorder.ImpressionListenerFailedQueueSize)
 	for {
 		taskPostImpressionsToListener(ilSubmitter, failedQueue)
+		time.Sleep(time.Duration(100) * time.Millisecond)
 	}
 }
