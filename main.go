@@ -80,15 +80,22 @@ func init() {
 func startAsProxy() {
 	go task.FetchRawSplits(conf.Data.SplitsFetchRate, conf.Data.SegmentFetchRate)
 
+	if conf.Data.ImpressionListener.Enabled {
+		go task.PostImpressionsToListener(recorder.ImpressionListenerSubmitter{
+			Endpoint: conf.Data.ImpressionListener.Endpoint,
+		})
+	}
+
 	controllers.Initialize(conf.Data.Proxy.ImpressionsMaxSize, int64(conf.Data.ImpressionsPostRate))
 
 	proxyOptions := &proxy.ProxyOptions{
-		Port:          ":" + strconv.Itoa(conf.Data.Proxy.Port),
-		APIKeys:       conf.Data.Proxy.Auth.APIKeys,
-		AdminPort:     ":" + strconv.Itoa(conf.Data.Proxy.AdminPort),
-		AdminUsername: conf.Data.Proxy.AdminUsername,
-		AdminPassword: conf.Data.Proxy.AdminPassword,
-		DebugOn:       conf.Data.Logger.DebugOn,
+		Port:                      ":" + strconv.Itoa(conf.Data.Proxy.Port),
+		APIKeys:                   conf.Data.Proxy.Auth.APIKeys,
+		AdminPort:                 ":" + strconv.Itoa(conf.Data.Proxy.AdminPort),
+		AdminUsername:             conf.Data.Proxy.AdminUsername,
+		AdminPassword:             conf.Data.Proxy.AdminPassword,
+		DebugOn:                   conf.Data.Logger.DebugOn,
+		ImpressionListenerEnabled: conf.Data.ImpressionListener.Enabled,
 	}
 
 	//Run webserver loop
@@ -223,7 +230,19 @@ func startProducer() {
 	for i := 0; i < conf.Data.ImpressionsThreads; i++ {
 		impressionsStorage := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 		impressionsRecorder := recorder.ImpressionsHTTPRecorder{}
-		go task.PostImpressions(i, impressionsRecorder, impressionsStorage, conf.Data.ImpressionsPostRate)
+		if conf.Data.ImpressionListener.Enabled {
+			go task.PostImpressionsToListener(recorder.ImpressionListenerSubmitter{
+				Endpoint: conf.Data.ImpressionListener.Endpoint,
+			})
+		}
+		go task.PostImpressions(
+			i,
+			impressionsRecorder,
+			impressionsStorage,
+			conf.Data.ImpressionsPostRate,
+			conf.Data.ImpressionListener.Enabled,
+		)
+
 	}
 
 	metricsStorage := redis.NewMetricsStorageAdapter(redis.Client, conf.Data.Redis.Prefix)

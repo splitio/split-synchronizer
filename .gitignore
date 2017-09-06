@@ -32,6 +32,9 @@ _testmain.go
 *.json
 !/test/dataset/test.conf.json
 
+# vim backup files
+*.swp
+
 # Release files
 release/*.bin
 release/*.zip

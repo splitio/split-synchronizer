@@ -9,12 +9,13 @@ import (
 
 // ProxyOptions struct to set options for Proxy mode.
 type ProxyOptions struct {
-	Port          string
-	AdminPort     string
-	AdminUsername string
-	AdminPassword string
-	APIKeys       []string
-	DebugOn       bool
+	Port                      string
+	AdminPort                 string
+	AdminUsername             string
+	AdminPassword             string
+	APIKeys                   []string
+	ImpressionListenerEnabled bool
+	DebugOn                   bool
 }
 
 // Run runs the proxy server
@@ -72,7 +73,7 @@ func Run(options *ProxyOptions) {
 		api.GET("/splitChanges", splitChanges)
 		api.GET("/segmentChanges/:name", segmentChanges)
 		api.GET("/mySegments/:key", mySegments)
-		api.POST("/testImpressions/bulk", postBulkImpressions)
+		api.POST("/testImpressions/bulk", postImpressionBulk(options.ImpressionListenerEnabled))
 		api.POST("/metrics/times", postMetricsTimes)
 		api.POST("/metrics/counters", postMetricsCounters)
 		api.POST("/metrics/gauge", postMetricsGauge)

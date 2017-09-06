@@ -18,6 +18,7 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/stats/latency"
 	"github.com/splitio/split-synchronizer/splitio/storage/boltdb"
 	"github.com/splitio/split-synchronizer/splitio/storage/boltdb/collections"
+	"github.com/splitio/split-synchronizer/splitio/task"
 )
 
 var controllerLatenciesBkt = latency.NewLatencyBucket()
@@ -194,23 +195,34 @@ func mySegments(c *gin.Context) {
 //-----------------------------------------------------------------
 //                 I M P R E S S I O N S
 //-----------------------------------------------------------------
-func postBulkImpressions(c *gin.Context) {
-	sdkVersion := c.Request.Header.Get("SplitSDKVersion")
-	machineIP := c.Request.Header.Get("SplitSDKMachineIP")
-	machineName := c.Request.Header.Get("SplitSDKMachineName")
-	data, err := ioutil.ReadAll(c.Request.Body)
-	if err != nil {
-		log.Error.Println(err)
-		controllerLocalCounters.Increment("request.error")
-		c.JSON(http.StatusInternalServerError, nil)
-		return
+func postImpressionBulk(impressionListenerEnabled bool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		sdkVersion := c.Request.Header.Get("SplitSDKVersion")
+		machineIP := c.Request.Header.Get("SplitSDKMachineIP")
+		machineName := c.Request.Header.Get("SplitSDKMachineName")
+		data, err := ioutil.ReadAll(c.Request.Body)
+		if err != nil {
+			log.Error.Println(err)
+			controllerLocalCounters.Increment("request.error")
+			c.JSON(http.StatusInternalServerError, nil)
+			return
+		}
+		if impressionListenerEnabled {
+			err = task.QueueImpressionsForListener(&task.ImpressionBulk{
+				Data:        json.RawMessage(data),
+				SdkVersion:  sdkVersion,
+				MachineIP:   machineIP,
+				MachineName: machineName,
+			})
+		}
+
+		startTime := controllerLatencies.StartMeasuringLatency()
+		controllers.AddImpressions(data, sdkVersion, machineIP, machineName)
+		controllerLatencies.RegisterLatency(latencyAddImpressionsInBuffer, startTime)
+		controllerLocalCounters.Increment("request.ok")
+		controllerLatenciesBkt.RegisterLatency("/api/testImpressions/bulk", startTime)
+		c.JSON(http.StatusOK, nil)
 	}
-	startTime := controllerLatencies.StartMeasuringLatency()
-	controllers.AddImpressions(data, sdkVersion, machineIP, machineName)
-	controllerLatencies.RegisterLatency(latencyAddImpressionsInBuffer, startTime)
-	controllerLocalCounters.Increment("request.ok")
-	controllerLatenciesBkt.RegisterLatency("/api/testImpressions/bulk", startTime)
-	c.JSON(http.StatusOK, nil)
 }
 
 //-----------------------------------------------------------------------------

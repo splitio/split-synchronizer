@@ -51,17 +51,18 @@ type LogSection struct {
 
 // ConfigData main configuration container
 type ConfigData struct {
-	APIKey              string          `json:"apiKey" split-cli-option:"api-key" split-default-value:"YOUR API KEY" split-cli-description:"Your Split API-KEY"`
-	Proxy               InMemorySection `json:"proxy" split-cli-option-group:"true"`
-	Redis               RedisSection    `json:"redis" split-cli-option-group:"true"`
-	Logger              LogSection      `json:"log" split-cli-option-group:"true"`
-	SplitsFetchRate     int             `json:"splitsRefreshRate" split-cli-option:"split-refresh-rate" split-default-value:"60" split-cli-description:"Refresh rate of splits fetcher"`
-	SegmentFetchRate    int             `json:"segmentsRefreshRate" split-default-value:"60" split-cli-option:"segment-refresh-rate" split-cli-description:"Refresh rate of segments fetcher"`
-	ImpressionsPostRate int             `json:"impressionsRefreshRate" split-default-value:"60" split-cli-option:"impressions-post-rate" split-cli-description:"Post rate of impressions recorder"`
-	ImpressionsPerPost  int64           `json:"impressionsPerPost" split-cli-option:"impressions-per-post" split-default-value:"1000" split-cli-description:"Number of impressions to send in a POST request"`
-	ImpressionsThreads  int             `json:"impressionsThreads" split-default-value:"1" split-cli-option:"impressions-recorder-threads" split-cli-description:"Number of impressions recorder threads"`
-	MetricsPostRate     int             `json:"metricsRefreshRate" split-default-value:"60" split-cli-option:"metrics-post-rate" split-cli-description:"Post rate of metrics recorder"`
-	HTTPTimeout         int64           `json:"httpTimeout" split-default-value:"60" split-cli-option:"http-timeout" split-cli-description:"Timeout specifies a time limit for requests"`
+	APIKey              string             `json:"apiKey" split-cli-option:"api-key" split-default-value:"YOUR API KEY" split-cli-description:"Your Split API-KEY"`
+	Proxy               InMemorySection    `json:"proxy" split-cli-option-group:"true"`
+	Redis               RedisSection       `json:"redis" split-cli-option-group:"true"`
+	Logger              LogSection         `json:"log" split-cli-option-group:"true"`
+	ImpressionListener  ImpressionListener `json:"impressionListener" split-cli-option-group:"true"`
+	SplitsFetchRate     int                `json:"splitsRefreshRate" split-cli-option:"split-refresh-rate" split-default-value:"60" split-cli-description:"Refresh rate of splits fetcher"`
+	SegmentFetchRate    int                `json:"segmentsRefreshRate" split-default-value:"60" split-cli-option:"segment-refresh-rate" split-cli-description:"Refresh rate of segments fetcher"`
+	ImpressionsPostRate int                `json:"impressionsRefreshRate" split-default-value:"60" split-cli-option:"impressions-post-rate" split-cli-description:"Post rate of impressions recorder"`
+	ImpressionsPerPost  int64              `json:"impressionsPerPost" split-cli-option:"impressions-per-post" split-default-value:"1000" split-cli-description:"Number of impressions to send in a POST request"`
+	ImpressionsThreads  int                `json:"impressionsThreads" split-default-value:"1" split-cli-option:"impressions-recorder-threads" split-cli-description:"Number of impressions recorder threads"`
+	MetricsPostRate     int                `json:"metricsRefreshRate" split-default-value:"60" split-cli-option:"metrics-post-rate" split-cli-description:"Post rate of metrics recorder"`
+	HTTPTimeout         int64              `json:"httpTimeout" split-default-value:"60" split-cli-option:"http-timeout" split-cli-description:"Timeout specifies a time limit for requests"`
 }
 
 //MarshalBinary exports ConfigData to JSON string
@@ -85,4 +86,9 @@ type Auth struct {
 	// ApiKeys list of alloweb API-Keys for SDKs
 	// split-default-value must be set as SDK_API_KEY just to write config file by cli (see func getDefaultConfigData() at parser.go)
 	APIKeys []string `json:"sdkAPIKeys" split-default-value:"SDK_API_KEY" split-cli-option:"proxy-apikeys" split-cli-description:"List of allowed custom API Keys for SDKs"`
+}
+
+type ImpressionListener struct {
+	Enabled  bool   `json:"enabled" split-default-value:"false" split-cli-option:"impression-listener" split-cli-description:"Enable posting impressions to an user specified endpoint"`
+	Endpoint string `json:"endpoint" split-default-value:"" split-cli-option:"impression-listener-endpoint" split-cli-description:"HTTP endpoint where impression bulks will be posted"`
 }
