@@ -80,7 +80,7 @@ func init() {
 func startAsProxy() {
 	go task.FetchRawSplits(conf.Data.SplitsFetchRate, conf.Data.SegmentFetchRate)
 
-	if conf.Data.ImpressionListener.Enabled {
+	if conf.Data.ImpressionListener.Endpoint != "" {
 		go task.PostImpressionsToListener(recorder.ImpressionListenerSubmitter{
 			Endpoint: conf.Data.ImpressionListener.Endpoint,
 		})
@@ -95,7 +95,7 @@ func startAsProxy() {
 		AdminUsername:             conf.Data.Proxy.AdminUsername,
 		AdminPassword:             conf.Data.Proxy.AdminPassword,
 		DebugOn:                   conf.Data.Logger.DebugOn,
-		ImpressionListenerEnabled: conf.Data.ImpressionListener.Enabled,
+		ImpressionListenerEnabled: conf.Data.ImpressionListener.Endpoint != "",
 	}
 
 	//Run webserver loop
@@ -230,7 +230,7 @@ func startProducer() {
 	for i := 0; i < conf.Data.ImpressionsThreads; i++ {
 		impressionsStorage := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 		impressionsRecorder := recorder.ImpressionsHTTPRecorder{}
-		if conf.Data.ImpressionListener.Enabled {
+		if conf.Data.ImpressionListener.Endpoint != "" {
 			go task.PostImpressionsToListener(recorder.ImpressionListenerSubmitter{
 				Endpoint: conf.Data.ImpressionListener.Endpoint,
 			})
@@ -240,7 +240,7 @@ func startProducer() {
 			impressionsRecorder,
 			impressionsStorage,
 			conf.Data.ImpressionsPostRate,
-			conf.Data.ImpressionListener.Enabled,
+			conf.Data.ImpressionListener.Endpoint != "",
 		)
 
 	}
