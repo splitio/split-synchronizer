@@ -1,3 +1,5 @@
+1.2.1 (Sep 13, 2017)
+ - Update configuration file structure for impression listener
 1.2.0 (Sep 6, 2017)
  - Added HTTP Impression Listener
 1.1.1 (Aug 28, 2017)
