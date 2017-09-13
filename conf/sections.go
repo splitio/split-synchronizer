@@ -89,6 +89,5 @@ type Auth struct {
 }
 
 type ImpressionListener struct {
-	Enabled  bool   `json:"enabled" split-default-value:"false" split-cli-option:"impression-listener" split-cli-description:"Enable posting impressions to an user specified endpoint"`
 	Endpoint string `json:"endpoint" split-default-value:"" split-cli-option:"impression-listener-endpoint" split-cli-description:"HTTP endpoint where impression bulks will be posted"`
 }
