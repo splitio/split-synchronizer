@@ -95,7 +95,6 @@ if [ ! -z ${SPLIT_SYNC_LOG_SLACK_WEBHOOK+x} ]; then
 fi
 
 if [ ! -z ${SPLIT_SYNC_IMPRESSION_LISTENER_ENDPOINT+x} ]; then
-  echo "HAY IMPRESSION LISTENER!"
   PARAMETERS="${PARAMETERS} -impression-listener-endpoint=${SPLIT_SYNC_IMPRESSION_LISTENER_ENDPOINT}"
 fi
 
