@@ -296,16 +296,17 @@ func postEvent(c *gin.Context, fn func([]byte, string, string) error) {
 // ADMIN
 //-----------------------------------------------------------------------------
 
-func uptime(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"uptime": stats.UptimeFormated()})
-}
+func healthCheck(c *gin.Context) {
 
-func version(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"version": splitio.Version})
-}
+	proxyStatus := make(map[string]interface{})
+	//cdnStatus := make(map[string]interface{})
 
-func ping(c *gin.Context) {
-	c.String(http.StatusOK, "%s", "pong")
+	// Producer service
+	proxyStatus["healthy"] = true
+	proxyStatus["message"] = "Proxy service working as expected"
+
+	c.JSON(http.StatusOK, gin.H{"proxy": proxyStatus})
+
 }
 
 func showStats(c *gin.Context) {

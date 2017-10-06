@@ -12,6 +12,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/splitio/split-synchronizer/splitio/web/admin/controllers/producer"
+
+	"github.com/gin-gonic/gin"
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio"
@@ -25,6 +28,7 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/storage/boltdb"
 	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 	"github.com/splitio/split-synchronizer/splitio/task"
+	"github.com/splitio/split-synchronizer/splitio/web/admin"
 )
 
 var asProxy *bool
@@ -91,7 +95,7 @@ func startAsProxy() {
 	proxyOptions := &proxy.ProxyOptions{
 		Port:                      ":" + strconv.Itoa(conf.Data.Proxy.Port),
 		APIKeys:                   conf.Data.Proxy.Auth.APIKeys,
-		AdminPort:                 ":" + strconv.Itoa(conf.Data.Proxy.AdminPort),
+		AdminPort:                 conf.Data.Proxy.AdminPort,
 		AdminUsername:             conf.Data.Proxy.AdminUsername,
 		AdminPassword:             conf.Data.Proxy.AdminPassword,
 		DebugOn:                   conf.Data.Logger.DebugOn,
@@ -219,8 +223,30 @@ func loadLogger() {
 }
 
 func startProducer() {
+
 	splitFetcher := splitFetcherFactory()
 	splitSorage := splitStorageFactory()
+
+	go func() {
+		// WebAdmin configuration
+		waOptions := &admin.WebAdminOptions{
+			Port:          conf.Data.Producer.ProducerAdmin.Port,
+			AdminUsername: conf.Data.Producer.ProducerAdmin.AdminUsername,
+			AdminPassword: conf.Data.Producer.ProducerAdmin.AdminPassword,
+			DebugOn:       conf.Data.Logger.DebugOn,
+		}
+
+		waServer := admin.NewWebAdminServer(waOptions)
+
+		waServer.Router().Use(func(c *gin.Context) {
+			c.Set("SplitStorage", splitSorage)
+		})
+
+		waServer.Router().GET("/admin/healthcheck", producer.HealthCheck)
+
+		waServer.Run()
+	}()
+
 	go task.FetchSplits(splitFetcher, splitSorage, conf.Data.SplitsFetchRate)
 
 	segmentFetcher := segmentFetcherFactory()

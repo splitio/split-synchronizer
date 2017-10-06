@@ -4,13 +4,14 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/split-synchronizer/splitio/proxy/middleware"
+	"github.com/splitio/split-synchronizer/splitio/web/admin"
+	"github.com/splitio/split-synchronizer/splitio/web/middleware"
 )
 
 // ProxyOptions struct to set options for Proxy mode.
 type ProxyOptions struct {
 	Port                      string
-	AdminPort                 string
+	AdminPort                 int
 	AdminUsername             string
 	AdminPassword             string
 	APIKeys                   []string
@@ -46,6 +47,25 @@ func Run(options *ProxyOptions) {
 
 	// running admin endpoints
 	go func() {
+		// WebAdmin configuration
+		waOptions := &admin.WebAdminOptions{
+			Port:          options.AdminPort,
+			AdminUsername: options.AdminUsername,
+			AdminPassword: options.AdminPassword,
+			DebugOn:       options.DebugOn,
+		}
+
+		waServer := admin.NewWebAdminServer(waOptions)
+
+		waServer.Router().GET("/admin/healthcheck", healthCheck)
+		waServer.Router().GET("/admin/stats", showStats)
+		waServer.Router().GET("/admin/dashboard", showDashboard)
+		waServer.Router().GET("/admin/dashboard/segmentKeys/:segment", showDashboardSegmentKeys)
+
+		waServer.Run()
+	}()
+
+	/*go func() {
 		adminRouter := gin.New()
 		adminRouter.Use(gin.Recovery())
 		adminRouter.Use(middleware.Logger())
@@ -65,7 +85,7 @@ func Run(options *ProxyOptions) {
 		}
 
 		adminRouter.Run(options.AdminPort)
-	}()
+	}()*/
 
 	// API routes
 	api := router.Group("/api")
