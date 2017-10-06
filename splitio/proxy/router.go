@@ -65,28 +65,6 @@ func Run(options *ProxyOptions) {
 		waServer.Run()
 	}()
 
-	/*go func() {
-		adminRouter := gin.New()
-		adminRouter.Use(gin.Recovery())
-		adminRouter.Use(middleware.Logger())
-		if options.AdminUsername != "" && options.AdminPassword != "" {
-			adminRouter.Use(middleware.HTTPBasicAuth(options.AdminUsername, options.AdminPassword))
-		}
-
-		// Admin routes
-		admin := adminRouter.Group("/admin")
-		{
-			admin.GET("/ping", ping)
-			admin.GET("/version", version)
-			admin.GET("/uptime", uptime)
-			admin.GET("/stats", showStats)
-			admin.GET("/dashboard", showDashboard)
-			admin.GET("/dashboard/segmentKeys/:segment", showDashboardSegmentKeys)
-		}
-
-		adminRouter.Run(options.AdminPort)
-	}()*/
-
 	// API routes
 	api := router.Group("/api")
 	{
