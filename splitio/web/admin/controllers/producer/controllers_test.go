@@ -74,7 +74,7 @@ func TestHealthCheckEndpointFailure(t *testing.T) {
 	})
 
 	server := &http.Server{
-		Addr:    ":9999",
+		Addr:    ":9998",
 		Handler: router,
 	}
 
@@ -84,7 +84,7 @@ func TestHealthCheckEndpointFailure(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
-	res, _ := http.Get("http://localhost:9999/test")
+	res, _ := http.Get("http://localhost:9998/test")
 	body, _ := ioutil.ReadAll(res.Body)
 
 	gs := globalStatus{}
