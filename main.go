@@ -225,21 +225,21 @@ func loadLogger() {
 func startProducer() {
 
 	splitFetcher := splitFetcherFactory()
-	splitSorage := splitStorageFactory()
+	splitStorage := splitStorageFactory()
 
 	go func() {
 		// WebAdmin configuration
 		waOptions := &admin.WebAdminOptions{
-			Port:          conf.Data.Producer.ProducerAdmin.Port,
-			AdminUsername: conf.Data.Producer.ProducerAdmin.AdminUsername,
-			AdminPassword: conf.Data.Producer.ProducerAdmin.AdminPassword,
+			Port:          conf.Data.Producer.Admin.Port,
+			AdminUsername: conf.Data.Producer.Admin.Username,
+			AdminPassword: conf.Data.Producer.Admin.Password,
 			DebugOn:       conf.Data.Logger.DebugOn,
 		}
 
 		waServer := admin.NewWebAdminServer(waOptions)
 
 		waServer.Router().Use(func(c *gin.Context) {
-			c.Set("SplitStorage", splitSorage)
+			c.Set("SplitStorage", splitStorage)
 		})
 
 		waServer.Router().GET("/admin/healthcheck", producer.HealthCheck)
@@ -247,7 +247,7 @@ func startProducer() {
 		waServer.Run()
 	}()
 
-	go task.FetchSplits(splitFetcher, splitSorage, conf.Data.SplitsFetchRate)
+	go task.FetchSplits(splitFetcher, splitStorage, conf.Data.SplitsFetchRate)
 
 	segmentFetcher := segmentFetcherFactory()
 	segmentStorage := segmentStorageFactory()

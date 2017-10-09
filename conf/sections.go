@@ -73,16 +73,16 @@ func (c ConfigData) MarshalBinary() (data []byte, err error) {
 
 // ProducerSection wrapper for all producer configurations
 type ProducerSection struct {
-	ProducerAdmin ProducerAdmin `json:"admin" split-cli-option-group:"true"`
+	Admin ProducerAdmin `json:"admin" split-cli-option-group:"true"`
 	// TODO migrate Redis into this section.
 	//Redis RedisSection `json:"redis" split-cli-option-group:"true"`
 }
 
 // ProducerAdmin represents configuration for sync admin endpoints
 type ProducerAdmin struct {
-	Port          int    `json:"port" split-default-value:"3010" split-cli-option:"sync-admin-port" split-cli-description:"Sync admin port to listen connections"`
-	AdminUsername string `json:"adminUsername" split-default-value:"" split-cli-option:"sync-admin-username" split-cli-description:"HTTP basic auth username for admin endpoints"`
-	AdminPassword string `json:"adminPassword" split-default-value:"" split-cli-option:"sync-admin-password" split-cli-description:"HTTP basic auth password for admin endpoints"`
+	Port     int    `json:"adminPort" split-default-value:"3010" split-cli-option:"sync-admin-port" split-cli-description:"Sync admin port to listen connections"`
+	Username string `json:"adminUsername" split-default-value:"" split-cli-option:"sync-admin-username" split-cli-description:"HTTP basic auth username for admin endpoints"`
+	Password string `json:"adminPassword" split-default-value:"" split-cli-option:"sync-admin-password" split-cli-description:"HTTP basic auth password for admin endpoints"`
 }
 
 // InMemorySection represents configuration for in memory proxy
@@ -103,6 +103,7 @@ type Auth struct {
 	APIKeys []string `json:"sdkAPIKeys" split-default-value:"SDK_API_KEY" split-cli-option:"proxy-apikeys" split-cli-description:"List of allowed custom API Keys for SDKs"`
 }
 
+// ImpressionListener represents configuration for impression bulk poster
 type ImpressionListener struct {
 	Endpoint string `json:"endpoint" split-default-value:"" split-cli-option:"impression-listener-endpoint" split-cli-description:"HTTP endpoint where impression bulks will be posted"`
 }
