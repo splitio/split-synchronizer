@@ -63,6 +63,9 @@ The container can be run on both modes (producer and proxy). To run it, differen
     - SPLIT_SYNC_REDIS_PREFIX                Redis key prefix
     - SPLIT_SYNC_IMPRESSIONS_PER_POST        Number of impressions to send in a POST request
     - SPLIT_SYNC_IMPRESSIONS_THREADS         Number of impressions recorder threads
+    - SPLIT_SYNC_ADMIN_USER                  HTTP basic auth username for admin endpoints
+    - SPLIT_SYNC_ADMIN_PASS                  HTTP basic auth password for admin endpoints
+
 
 ```
 

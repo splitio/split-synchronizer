@@ -38,6 +38,8 @@
 #    - SPLIT_SYNC_REDIS_PREFIX                 Redis key prefix
 #    - SPLIT_SYNC_IMPRESSIONS_PER_POST         Number of impressions to send in a POST request
 #    - SPLIT_SYNC_IMPRESSIONS_THREADS          Number of impressions recorder threads
+#    - SPLIT_SYNC_ADMIN_USER                   HTTP basic auth username for admin endpoints
+#    - SPLIT_SYNC_ADMIN_PASS                   HTTP basic auth password for admin endpoints
 
 # COMMON PARAMETERS
 PARAMETERS="-api-key=${SPLIT_SYNC_API_KEY}"
@@ -151,6 +153,14 @@ else
 
   if [ ! -z ${SPLIT_SYNC_IMPRESSIONS_THREADS+x} ]; then
     PARAMETERS="${PARAMETERS} -impressions-recorder-threads=${SPLIT_SYNC_IMPRESSIONS_THREADS}"
+  fi
+
+  if [ ! -z ${SPLIT_SYNC_ADMIN_USER+x} ]; then
+    PARAMETERS="${PARAMETERS} -sync-admin-username=${SPLIT_SYNC_ADMIN_USER}"
+  fi
+
+  if [ ! -z ${SPLIT_SYNC_ADMIN_PASS+x} ]; then
+    PARAMETERS="${PARAMETERS} -sync-admin-password=${SPLIT_SYNC_ADMIN_PASS}"
   fi
 
 fi
