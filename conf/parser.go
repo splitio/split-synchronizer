@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -32,13 +33,15 @@ func Initialize() {
 }
 
 func loadFile(path string) {
-	dat, err := ioutil.ReadFile(path)
-	if err != nil {
-		fmt.Println(err.Error())
-	}
-	err = json.Unmarshal(dat, &Data)
-	if err != nil {
-		fmt.Println(err.Error())
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		dat, err := ioutil.ReadFile(path)
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+		err = json.Unmarshal(dat, &Data)
+		if err != nil {
+			fmt.Println(err.Error())
+		}
 	}
 }
 
