@@ -2,13 +2,19 @@ package task
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/api"
 	"github.com/splitio/split-synchronizer/splitio/fetcher"
+	"github.com/splitio/split-synchronizer/splitio/stats/counter"
+	"github.com/splitio/split-synchronizer/splitio/stats/latency"
 	"github.com/splitio/split-synchronizer/splitio/storage"
 )
+
+var splitChangesLatencies = latency.NewLatencyBucket()
+var splitChangesCounters = counter.NewCounter()
 
 func taskFetchSplits(splitFetcherAdapter fetcher.SplitFetcher,
 	splitStorageAdapter storage.SplitStorage) {
@@ -19,10 +25,17 @@ func taskFetchSplits(splitFetcherAdapter fetcher.SplitFetcher,
 		lastChangeNumber = -1
 	}
 
+	startTime := splitChangesLatencies.StartMeasuringLatency()
 	data, err := splitFetcherAdapter.Fetch(lastChangeNumber)
 	if err != nil {
 		log.Error.Println("Error fetching SplitDTO on task ", err.Error())
+
+		if _, ok := err.(*api.HttpError); ok {
+			splitChangesCounters.Increment(fmt.Sprintf("splitChangeFetcher.status.%d", err.(*api.HttpError).Code))
+		}
 	} else {
+		splitChangesLatencies.RegisterLatency("splitChangeFetcher.time", startTime)
+		splitChangesCounters.Increment("splitChangeFetcher.status.200")
 		log.Verbose.Println(data)
 
 		till := data.Till

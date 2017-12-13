@@ -25,6 +25,17 @@ const envEventsURLNamespace = "SPLITIO_EVENTS_URL"
 var sdkClient *Client
 var eventsClient *Client
 
+// HttpError represetns a http error
+type HttpError struct {
+	Code    int
+	Message string
+}
+
+// Error implements golang error interface
+func (h HttpError) Error() string {
+	return h.Message
+}
+
 // Initialize API client
 func Initialize() {
 	envSdkURL := os.Getenv(envSdkURLNamespace)
@@ -118,7 +129,9 @@ func (c *Client) Get(service string) ([]byte, error) {
 		return body, nil
 	}
 
-	return nil, fmt.Errorf("GET method: Status Code: %d - %s", resp.StatusCode, resp.Status)
+	httpError := &HttpError{Code: resp.StatusCode, Message: fmt.Sprintf("GET method: Status Code: %d - %s", resp.StatusCode, resp.Status)}
+
+	return nil, httpError
 }
 
 // Post performs a HTTP POST request
@@ -176,7 +189,9 @@ func (c *Client) Post(service string, body []byte) error {
 		return nil
 	}
 
-	return fmt.Errorf("POST method: Status Code: %d - %s", resp.StatusCode, resp.Status)
+	httpError := &HttpError{Code: resp.StatusCode, Message: fmt.Sprintf("POST method: Status Code: %d - %s", resp.StatusCode, resp.Status)}
+
+	return httpError
 }
 
 // AddHeader adds header value to HTTP client
