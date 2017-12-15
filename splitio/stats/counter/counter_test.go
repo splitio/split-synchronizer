@@ -32,7 +32,7 @@ func TestCounter(t *testing.T) {
 		sdkVersion := r.Header.Get("SplitSDKVersion")
 		sdkMachine := r.Header.Get("SplitSDKMachineIP")
 
-		if sdkVersion != "goproxy-"+splitio.Version {
+		if sdkVersion != "SplitSync-"+splitio.Version {
 			t.Error("SDK Version HEADER not match")
 		}
 

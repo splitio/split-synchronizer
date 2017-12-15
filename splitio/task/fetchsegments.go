@@ -1,13 +1,20 @@
 package task
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/api"
 	"github.com/splitio/split-synchronizer/splitio/fetcher"
+	"github.com/splitio/split-synchronizer/splitio/stats/counter"
+	"github.com/splitio/split-synchronizer/splitio/stats/latency"
 	"github.com/splitio/split-synchronizer/splitio/storage"
 )
+
+var segmentChangeFetcherLatencies = latency.NewLatencyBucket()
+var segmentChangeFetcherCounters = counter.NewCounter()
 
 var blocker chan bool
 var jobs chan job
@@ -35,13 +42,21 @@ func (j job) run() {
 			lastChangeNumber = -1
 		}
 
+		startTime := segmentChangeFetcherLatencies.StartMeasuringLatency()
 		segment, errSegmentFetch := j.segmentFetcher.Fetch(j.segmentName, lastChangeNumber)
 		if errSegmentFetch != nil {
+
+			if _, ok := errSegmentFetch.(*api.HttpError); ok {
+				segmentChangeFetcherCounters.Increment(fmt.Sprintf("segmentChangeFetcher.status.%d", errSegmentFetch.(*api.HttpError).Code))
+			}
+
 			log.Error.Println("Error fetching segment ", j.segmentName, errSegmentFetch.Error())
 			tryNumber--
 			time.Sleep(time.Second * 5)
 			continue
 		}
+		segmentChangeFetcherLatencies.RegisterLatency("segmentChangeFetcher.time", startTime)
+		segmentChangeFetcherCounters.Increment("segmentChangeFetcher.status.200")
 		log.Debug.Println(">>>> Fetched segment:", segment.Name)
 
 		if lastChangeNumber >= segment.Till {

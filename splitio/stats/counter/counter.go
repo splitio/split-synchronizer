@@ -90,7 +90,7 @@ func (c *Counter) PostCounterWorker() {
 		c.cmutex.Unlock()
 
 		if len(countersDataSet) > 0 {
-			sdkVersion := "goproxy-" + splitio.Version
+			sdkVersion := "SplitSync-" + splitio.Version
 			machineIP, err := nethelper.ExternalIP()
 			if err != nil {
 				machineIP = "unknown"
