@@ -96,7 +96,7 @@ func (l *Latency) PostLatenciesWorker(f stats.LatencyStorageAddFunc) {
 		l.latencies = make(map[string][]int64)
 
 		l.lmutex.Unlock()
-		sdkVersion := "goproxy-" + splitio.Version
+		sdkVersion := "SplitSync-" + splitio.Version
 		machineIP, err := nethelper.ExternalIP()
 		if err != nil {
 			machineIP = "unknown"

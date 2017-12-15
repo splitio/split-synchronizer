@@ -2,11 +2,15 @@ package task
 
 import (
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/api"
 	"github.com/splitio/split-synchronizer/splitio/recorder"
+	"github.com/splitio/split-synchronizer/splitio/stats/counter"
+	"github.com/splitio/split-synchronizer/splitio/stats/latency"
 	"github.com/splitio/split-synchronizer/splitio/storage"
 )
 
@@ -17,6 +21,9 @@ type ImpressionBulk struct {
 	MachineName string
 	attempt     int
 }
+
+var testImpressionsLatencies = latency.NewLatencyBucket()
+var testImpressionsCounters = counter.NewCounter()
 
 var mutex = &sync.Mutex{}
 
@@ -44,12 +51,20 @@ func taskPostImpressions(
 			for machineIP, impressions := range impressionsByMachineIP {
 				log.Debug.Println("Posting impressions from ", sdkVersion, machineIP)
 				beforePostServer := time.Now().UnixNano()
+				startTime := testImpressionsLatencies.StartMeasuringLatency()
 				err = impressionsRecorderAdapter.Post(impressions, sdkVersion, machineIP, "")
 				if err != nil {
 					log.Error.Println("Error posting impressions to split backend", err.Error())
+
+					if _, ok := err.(*api.HttpError); ok {
+						testImpressionsCounters.Increment(fmt.Sprintf("testImpressions.status.%d", err.(*api.HttpError).Code))
+					}
+
 				} else {
 					log.Benchmark.Println("POST impressions to Server took", (time.Now().UnixNano() - beforePostServer))
 					log.Debug.Println("Impressions sent")
+					testImpressionsCounters.Increment("testImpressions.status.200")
+					testImpressionsLatencies.RegisterLatency("testImpressions.time", startTime)
 				}
 				if impressionListenerEnabled {
 					rawImpressions, err := json.Marshal(impressions)
