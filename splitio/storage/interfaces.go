@@ -41,3 +41,9 @@ type MetricsStorage interface {
 	//returns [sdkNameAndVersion][machineIP][metricName] = float64
 	RetrieveGauges() (map[string]map[string]map[string]float64, error)
 }
+
+// EventStorage interface defines events storage actions
+type EventStorage interface {
+	//returns the first N elements from events queue
+	PopN(n int64) ([]api.RedisStoredEventDTO, error)
+}
