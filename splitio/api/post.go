@@ -72,3 +72,25 @@ func PostMetricsTime(data []byte, sdkVersion string, machineIP string) error {
 	url := "/metrics/time"
 	return postMetrics(url, data, sdkVersion, machineIP)
 }
+
+// PostEvents send events to Split events service
+func PostEvents(data []byte, sdkVersion string, machineIP string, machineName string) error {
+
+	url := "/events/bulk"
+
+	var _client = *eventsClient
+	_client.ResetHeaders()
+	_client.AddHeader("SplitSDKVersion", sdkVersion)
+	_client.AddHeader("SplitSDKMachineIP", machineIP)
+	if machineName == "" && machineIP != "" {
+		_client.AddHeader("SplitSDKMachineName", fmt.Sprintf("ip-%s", strings.Replace(machineIP, ".", "-", -1)))
+	} else {
+		_client.AddHeader("SplitSDKMachineName", machineName)
+	}
+
+	err := _client.Post(url, data)
+	if err != nil {
+		return err
+	}
+	return nil
+}
