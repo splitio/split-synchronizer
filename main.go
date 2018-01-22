@@ -274,6 +274,12 @@ func startProducer() {
 	metricsStorage := redis.NewMetricsStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 	metricsRecorder := recorder.MetricsHTTPRecorder{}
 	go task.PostMetrics(metricsRecorder, metricsStorage, conf.Data.MetricsPostRate)
+
+	for i := 0; i < conf.Data.EventsConsumerThreads; i++ {
+		eventsStorage := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+		eventsRecorder := recorder.EventsHTTPRecorder{}
+		go task.PostEvents(i, eventsRecorder, eventsStorage, conf.Data.EventsPostRate, conf.Data.EventsConsumerReadSize)
+	}
 }
 
 func splitFetcherFactory() fetcher.SplitFetcher {
