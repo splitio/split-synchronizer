@@ -25,7 +25,7 @@ func postToEventsServer(url string, data []byte, sdkVersion string, machineIP st
 
 func postMetrics(url string, data []byte, sdkVersion string, machineIP string) error {
 
-	return postToEventsServer(url, data, sdkVersion, machineIP, machineIP)
+	return postToEventsServer(url, data, sdkVersion, machineIP, "")
 }
 
 // PostImpressions send impressions to Split events service
