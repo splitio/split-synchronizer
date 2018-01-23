@@ -71,7 +71,7 @@ func TestTaskPostEvents(t *testing.T) {
 			t.Error("Invalid TrafficTypeName")
 		}
 
-		if eventsInPost[0].Value != 2993.4876 {
+		if *eventsInPost[0].Value != 2993.4876 {
 			t.Error("Invalid Value")
 		}
 
