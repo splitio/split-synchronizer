@@ -163,11 +163,11 @@ type MySegmentDTO struct {
 
 // EventDTO struct mapping events json
 type EventDTO struct {
-	Key             string  `json:"key"`
-	TrafficTypeName string  `json:"trafficTypeName"`
-	EventTypeID     string  `json:"eventTypeId"`
-	Value           float64 `json:"value"`
-	Timestamp       int64   `json:"timestamp"`
+	Key             string   `json:"key"`
+	TrafficTypeName string   `json:"trafficTypeName"`
+	EventTypeID     string   `json:"eventTypeId"`
+	Value           *float64 `json:"value"`
+	Timestamp       int64    `json:"timestamp"`
 }
 
 // RedisStoredMachineMetadataDTO maps sdk version, machine IP and machine name

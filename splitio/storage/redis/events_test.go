@@ -25,7 +25,7 @@ func TestEventsPOPN(t *testing.T) {
 	prefixAdapter := &prefixAdapter{prefix: keyPreffix}
 	eventListName := prefixAdapter.eventsListNamespace()
 
-	eventJSON := `{"m":{"s":"php-5.3.23","i":"192.168.232.255","n":"ip-192-168-232-255"},"e":{"key":"6c4829ab-a0d8-4e72-8176-a334f596fb79","trafficTypeName":"user","eventTypeId":"a5213963-5564-43ff-83b2-ac6dbd5af3b1","value":2993.4876,"timestamp":1516310749882}}`
+	eventJSON := `{"m":{"s":"php-5.3.23","i":"192.168.232.255","n":"ip-192-168-232-255"},"e":{"key":"6c4829ab-a0d8-4e72-8176-a334f596fb79","trafficTypeName":"user","eventTypeId":"a5213963-5564-43ff-83b2-ac6dbd5af3b1","value":123.234234,"timestamp":1516310749882}}`
 
 	//Deleting previous test data
 	res := Client.Del(eventListName)
@@ -90,7 +90,7 @@ func TestEventsPOPN(t *testing.T) {
 		return
 	}
 
-	if data[0].Event.Value != 2993.4876 {
+	if *data[0].Event.Value != 123.234234 {
 		t.Error("Error reading event value")
 		return
 	}
