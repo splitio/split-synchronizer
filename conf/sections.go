@@ -62,7 +62,7 @@ type ConfigData struct {
 	ImpressionsPostRate    int                `json:"impressionsRefreshRate" split-default-value:"60" split-cli-option:"impressions-post-rate" split-cli-description:"Post rate of impressions recorder"`
 	ImpressionsPerPost     int64              `json:"impressionsPerPost" split-cli-option:"impressions-per-post" split-default-value:"1000" split-cli-description:"Number of impressions to send in a POST request"`
 	ImpressionsThreads     int                `json:"impressionsThreads" split-default-value:"1" split-cli-option:"impressions-recorder-threads" split-cli-description:"Number of impressions recorder threads"`
-	EventsPostRate         int                `json:"eventsPostRate" split-default-value:"60" split-cli-option:"events-post-rate" split-cli-description:"Post rate of event recorder (seconds)"`
+	EventsPushRate         int                `json:"eventsPushRate" split-default-value:"60" split-cli-option:"events-push-rate" split-cli-description:"Post rate of event recorder (seconds)"`
 	EventsConsumerReadSize int                `json:"eventsConsumerReadSize" split-default-value:"10000" split-cli-option:"events-consumer-read-size" split-cli-description:"Events queue read size"`
 	EventsConsumerThreads  int                `json:"eventsConsumerThreads" split-default-value:"1" split-cli-option:"events-consumer-threads" split-cli-description:"Number of events consumer threads"`
 	MetricsPostRate        int                `json:"metricsRefreshRate" split-default-value:"60" split-cli-option:"metrics-post-rate" split-cli-description:"Post rate of metrics recorder"`
