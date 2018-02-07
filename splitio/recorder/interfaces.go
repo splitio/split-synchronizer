@@ -13,3 +13,8 @@ type MetricsRecorder interface {
 	PostCounters(counters []api.CounterDTO, sdkVersion string, machineIP string) error
 	PostGauge(gauge api.GaugeDTO, sdkVersion string, machineIP string) error
 }
+
+// EventsRecorder interface to be implemented by Events loggers
+type EventsRecorder interface {
+	Post(events []api.EventDTO, sdkVersion string, machineIP string, machineName string) error
+}

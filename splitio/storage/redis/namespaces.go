@@ -28,6 +28,9 @@ const _metricsCounterNamespace = "SPLITIO/%s/%s/count.%s"
 //SPLITIO/{sdk-language-version}/{instance-id}/gauge.{metricName}
 const _metricsGaugesNamespace = "SPLITIO/%s/%s/gauge.%s"
 
+//Events
+const _eventsListNamespace = "SPLITIO.events"
+
 type prefixAdapter struct {
 	prefix string
 }
@@ -73,4 +76,8 @@ func (p prefixAdapter) metricsCounterNamespace(languageAndVersion string, instan
 
 func (p prefixAdapter) metricsGaugeNamespace(languageAndVersion string, instanceID string, metricName string) string {
 	return fmt.Sprintf(p.setPrefixPattern(_metricsGaugesNamespace), languageAndVersion, instanceID, metricName)
+}
+
+func (p prefixAdapter) eventsListNamespace() string {
+	return fmt.Sprint(p.setPrefixPattern(_eventsListNamespace))
 }
