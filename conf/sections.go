@@ -51,23 +51,41 @@ type LogSection struct {
 
 // ConfigData main configuration container
 type ConfigData struct {
-	APIKey              string             `json:"apiKey" split-cli-option:"api-key" split-default-value:"YOUR API KEY" split-cli-description:"Your Split API-KEY"`
-	Proxy               InMemorySection    `json:"proxy" split-cli-option-group:"true"`
-	Redis               RedisSection       `json:"redis" split-cli-option-group:"true"`
-	Logger              LogSection         `json:"log" split-cli-option-group:"true"`
-	ImpressionListener  ImpressionListener `json:"impressionListener" split-cli-option-group:"true"`
-	SplitsFetchRate     int                `json:"splitsRefreshRate" split-cli-option:"split-refresh-rate" split-default-value:"60" split-cli-description:"Refresh rate of splits fetcher"`
-	SegmentFetchRate    int                `json:"segmentsRefreshRate" split-default-value:"60" split-cli-option:"segment-refresh-rate" split-cli-description:"Refresh rate of segments fetcher"`
-	ImpressionsPostRate int                `json:"impressionsRefreshRate" split-default-value:"60" split-cli-option:"impressions-post-rate" split-cli-description:"Post rate of impressions recorder"`
-	ImpressionsPerPost  int64              `json:"impressionsPerPost" split-cli-option:"impressions-per-post" split-default-value:"1000" split-cli-description:"Number of impressions to send in a POST request"`
-	ImpressionsThreads  int                `json:"impressionsThreads" split-default-value:"1" split-cli-option:"impressions-recorder-threads" split-cli-description:"Number of impressions recorder threads"`
-	MetricsPostRate     int                `json:"metricsRefreshRate" split-default-value:"60" split-cli-option:"metrics-post-rate" split-cli-description:"Post rate of metrics recorder"`
-	HTTPTimeout         int64              `json:"httpTimeout" split-default-value:"60" split-cli-option:"http-timeout" split-cli-description:"Timeout specifies a time limit for requests"`
+	APIKey                 string             `json:"apiKey" split-cli-option:"api-key" split-default-value:"YOUR API KEY" split-cli-description:"Your Split API-KEY"`
+	Proxy                  InMemorySection    `json:"proxy" split-cli-option-group:"true"`
+	Redis                  RedisSection       `json:"redis" split-cli-option-group:"true"`
+	Producer               ProducerSection    `json:"sync" split-cli-option-group:"true"`
+	Logger                 LogSection         `json:"log" split-cli-option-group:"true"`
+	ImpressionListener     ImpressionListener `json:"impressionListener" split-cli-option-group:"true"`
+	SplitsFetchRate        int                `json:"splitsRefreshRate" split-cli-option:"split-refresh-rate" split-default-value:"60" split-cli-description:"Refresh rate of splits fetcher"`
+	SegmentFetchRate       int                `json:"segmentsRefreshRate" split-default-value:"60" split-cli-option:"segment-refresh-rate" split-cli-description:"Refresh rate of segments fetcher"`
+	ImpressionsPostRate    int                `json:"impressionsRefreshRate" split-default-value:"60" split-cli-option:"impressions-post-rate" split-cli-description:"Post rate of impressions recorder"`
+	ImpressionsPerPost     int64              `json:"impressionsPerPost" split-cli-option:"impressions-per-post" split-default-value:"1000" split-cli-description:"Number of impressions to send in a POST request"`
+	ImpressionsThreads     int                `json:"impressionsThreads" split-default-value:"1" split-cli-option:"impressions-recorder-threads" split-cli-description:"Number of impressions recorder threads"`
+	EventsPushRate         int                `json:"eventsPushRate" split-default-value:"60" split-cli-option:"events-push-rate" split-cli-description:"Post rate of event recorder (seconds)"`
+	EventsConsumerReadSize int                `json:"eventsConsumerReadSize" split-default-value:"10000" split-cli-option:"events-consumer-read-size" split-cli-description:"Events queue read size"`
+	EventsConsumerThreads  int                `json:"eventsConsumerThreads" split-default-value:"1" split-cli-option:"events-consumer-threads" split-cli-description:"Number of events consumer threads"`
+	MetricsPostRate        int                `json:"metricsRefreshRate" split-default-value:"60" split-cli-option:"metrics-post-rate" split-cli-description:"Post rate of metrics recorder"`
+	HTTPTimeout            int64              `json:"httpTimeout" split-default-value:"60" split-cli-option:"http-timeout" split-cli-description:"Timeout specifies a time limit for requests"`
 }
 
 //MarshalBinary exports ConfigData to JSON string
 func (c ConfigData) MarshalBinary() (data []byte, err error) {
 	return json.MarshalIndent(c, "", "  ")
+}
+
+// ProducerSection wrapper for all producer configurations
+type ProducerSection struct {
+	Admin ProducerAdmin `json:"admin" split-cli-option-group:"true"`
+	// TODO migrate Redis into this section.
+	//Redis RedisSection `json:"redis" split-cli-option-group:"true"`
+}
+
+// ProducerAdmin represents configuration for sync admin endpoints
+type ProducerAdmin struct {
+	Port     int    `json:"adminPort" split-default-value:"3010" split-cli-option:"sync-admin-port" split-cli-description:"Sync admin port to listen connections"`
+	Username string `json:"adminUsername" split-default-value:"" split-cli-option:"sync-admin-username" split-cli-description:"HTTP basic auth username for admin endpoints"`
+	Password string `json:"adminPassword" split-default-value:"" split-cli-option:"sync-admin-password" split-cli-description:"HTTP basic auth password for admin endpoints"`
 }
 
 // InMemorySection represents configuration for in memory proxy
@@ -88,6 +106,7 @@ type Auth struct {
 	APIKeys []string `json:"sdkAPIKeys" split-default-value:"SDK_API_KEY" split-cli-option:"proxy-apikeys" split-cli-description:"List of allowed custom API Keys for SDKs"`
 }
 
+// ImpressionListener represents configuration for impression bulk poster
 type ImpressionListener struct {
 	Endpoint string `json:"endpoint" split-default-value:"" split-cli-option:"impression-listener-endpoint" split-cli-description:"HTTP endpoint where impression bulks will be posted"`
 }

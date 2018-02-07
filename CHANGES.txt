@@ -1,3 +1,10 @@
+1.4.0 (Feb 8, 2018)
+ - Events storage/recorder to support .track method from SDKs
+1.3.1 (Dec 15, 2017)
+ - Adding metrics counter and latencies in split fetcher, segment fetcher and post impressions
+1.3.0 (Oct 9, 2017)
+ - Update entry-point for docker
+ - Add admin healthcheck endpoints for proxy & producer modes
 1.2.1 (Sep 13, 2017)
  - Update configuration file structure for impression listener
 1.2.0 (Sep 6, 2017)
