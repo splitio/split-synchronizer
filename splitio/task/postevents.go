@@ -2,11 +2,11 @@ package task
 
 import (
 	"errors"
-	"math/rand"
 	"time"
 
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/api"
+	"github.com/splitio/split-synchronizer/splitio/nethelper"
 	"github.com/splitio/split-synchronizer/splitio/recorder"
 	"github.com/splitio/split-synchronizer/splitio/storage"
 )
@@ -73,7 +73,7 @@ func taskPostEvents(tid int,
 						log.Error.Println("Error posting events", err)
 					}
 					attemps++
-					time.Sleep(time.Duration(rand.Intn(30)) * time.Second)
+					time.Sleep(nethelper.WaitForNextAttemp() * time.Second)
 				}
 
 			}
