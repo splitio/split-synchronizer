@@ -1,6 +1,8 @@
 package task
 
 import (
+	"errors"
+	"math/rand"
 	"time"
 
 	"github.com/splitio/split-synchronizer/log"
@@ -8,6 +10,8 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/recorder"
 	"github.com/splitio/split-synchronizer/splitio/storage"
 )
+
+const totalPostAttemps = 3
 
 func taskPostEvents(tid int,
 	recorderAdapter recorder.EventsRecorder,
@@ -26,14 +30,17 @@ func taskPostEvents(tid int,
 
 	for _, stored := range storedEvents {
 
-		if stored.Metadata.SDKVersion == "" ||
-			stored.Metadata.MachineIP == "" {
+		if stored.Metadata.SDKVersion == "" {
 			continue
 		}
 
 		sdk := stored.Metadata.SDKVersion
 		ip := stored.Metadata.MachineIP
 		mname := stored.Metadata.MachineName
+
+		if ip == "" {
+			ip = "unknown"
+		}
 
 		if mname == "" {
 			mname = "unknown"
@@ -54,14 +61,21 @@ func taskPostEvents(tid int,
 		toSend[sdk][ip][mname] = append(toSend[sdk][ip][mname], stored.Event)
 	}
 
-	// TODO check to send data and posted to server
 	for s, byIP := range toSend {
 		for i, byName := range byIP {
 			for n, bulk := range byName {
-				err := recorderAdapter.Post(bulk, s, i, n)
-				if err != nil {
-					log.Error.Println("Error posting events", err)
+
+				var err = errors.New("") // forcing error to start "for" attempts
+				attemps := 0
+				for err != nil && attemps < totalPostAttemps {
+					err = recorderAdapter.Post(bulk, s, i, n)
+					if err != nil {
+						log.Error.Println("Error posting events", err)
+					}
+					attemps++
+					time.Sleep(time.Duration(rand.Intn(30)) * time.Second)
 				}
+
 			}
 		}
 	}
