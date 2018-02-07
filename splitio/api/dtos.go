@@ -156,3 +156,29 @@ type GaugeDTO struct {
 type MySegmentDTO struct {
 	Name string `json:"name"`
 }
+
+//
+// Events DTOs
+//
+
+// EventDTO struct mapping events json
+type EventDTO struct {
+	Key             string   `json:"key"`
+	TrafficTypeName string   `json:"trafficTypeName"`
+	EventTypeID     string   `json:"eventTypeId"`
+	Value           *float64 `json:"value"`
+	Timestamp       int64    `json:"timestamp"`
+}
+
+// RedisStoredMachineMetadataDTO maps sdk version, machine IP and machine name
+type RedisStoredMachineMetadataDTO struct {
+	SDKVersion  string `json:"s"`
+	MachineIP   string `json:"i"`
+	MachineName string `json:"n"`
+}
+
+// RedisStoredEventDTO maps the stored JSON object in redis by SDKs
+type RedisStoredEventDTO struct {
+	Metadata RedisStoredMachineMetadataDTO `json:"m"`
+	Event    EventDTO                      `json:"e"`
+}
