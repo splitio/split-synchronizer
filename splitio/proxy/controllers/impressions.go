@@ -12,8 +12,8 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/stats/latency"
 )
 
-var latencyRegister = latency.NewLatencyBucket()
-var counterRegister = counter.NewLocalCounter()
+var impressionLatencyRegister = latency.NewLatencyBucket()
+var impressionCounterRegister = counter.NewLocalCounter()
 
 //-----------------------------------------------------------------
 // IMPRESSIONS
@@ -24,34 +24,34 @@ type sdkVersionBuffer map[string]machineIPBuffer
 
 const impressionChannelCapacity = 5
 
-var poolBuffer = make(sdkVersionBuffer)
+var impressionPoolBuffer = make(sdkVersionBuffer)
 
-var poolBufferSize = poolBufferSizeStruct{size: 0}
-var currentPoolBucket = 0
-var mutexPoolBuffer = sync.Mutex{}
+var impressionPoolBufferSize = impressionPoolBufferSizeStruct{size: 0}
+var impressionCurrentPoolBucket = 0
+var impressionMutexPoolBuffer = sync.Mutex{}
 var impressionChannel = make(chan impressionChanMessage, impressionChannelCapacity)
-var poolBufferReleaseChannel = make(chan bool, 1)
+var impressionPoolBufferReleaseChannel = make(chan bool, 1)
 
 //----------------------------------------------------------------
 //----------------------------------------------------------------
-type poolBufferSizeStruct struct {
+type impressionPoolBufferSizeStruct struct {
 	sync.RWMutex
 	size int64
 }
 
-func (s *poolBufferSizeStruct) Addition(v int64) {
+func (s *impressionPoolBufferSizeStruct) Addition(v int64) {
 	s.Lock()
 	s.size += v
 	s.Unlock()
 }
 
-func (s *poolBufferSizeStruct) Reset() {
+func (s *impressionPoolBufferSizeStruct) Reset() {
 	s.Lock()
 	s.size = 0
 	s.Unlock()
 }
 
-func (s *poolBufferSizeStruct) GreaterThan(v int64) bool {
+func (s *impressionPoolBufferSizeStruct) GreaterThan(v int64) bool {
 	s.RLock()
 	if s.size > v {
 		s.RUnlock()
@@ -73,7 +73,7 @@ type impressionChanMessage struct {
 
 // Initialize workers
 func Initialize(footprint int64, postRate int64) {
-	go conditionsWorker(postRate)
+	go impressionConditionsWorker(postRate)
 	for i := 0; i < impressionChannelCapacity; i++ {
 		go addImpressionsToBufferWorker(footprint)
 	}
@@ -87,11 +87,11 @@ func AddImpressions(data []byte, sdkVersion string, machineIP string, machineNam
 	impressionChannel <- imp
 }
 
-func conditionsWorker(postRate int64) {
+func impressionConditionsWorker(postRate int64) {
 	for {
 		// Blocking conditions to send impressions
 		select {
-		case <-poolBufferReleaseChannel:
+		case <-impressionPoolBufferReleaseChannel:
 			log.Debug.Println("Releasing impressions by Size")
 		case <-time.After(time.Second * time.Duration(postRate)):
 			log.Debug.Println("Releasing impressions by post rate")
@@ -111,38 +111,38 @@ func addImpressionsToBufferWorker(footprint int64) {
 		machineIP := impMessage.MachineIP
 		machineName := impMessage.MachineName
 
-		mutexPoolBuffer.Lock()
+		impressionMutexPoolBuffer.Lock()
 		//Update current buffer size
 		dataSize := len(data)
-		poolBufferSize.Addition(int64(dataSize))
+		impressionPoolBufferSize.Addition(int64(dataSize))
 
-		if poolBuffer[sdkVersion] == nil {
-			poolBuffer[sdkVersion] = make(machineIPBuffer)
+		if impressionPoolBuffer[sdkVersion] == nil {
+			impressionPoolBuffer[sdkVersion] = make(machineIPBuffer)
 		}
 
-		if poolBuffer[sdkVersion][machineIP] == nil {
-			poolBuffer[sdkVersion][machineIP] = make(machineNameBuffer)
+		if impressionPoolBuffer[sdkVersion][machineIP] == nil {
+			impressionPoolBuffer[sdkVersion][machineIP] = make(machineNameBuffer)
 		}
 
-		if poolBuffer[sdkVersion][machineIP][machineName] == nil {
-			poolBuffer[sdkVersion][machineIP][machineName] = make([][]byte, 0)
+		if impressionPoolBuffer[sdkVersion][machineIP][machineName] == nil {
+			impressionPoolBuffer[sdkVersion][machineIP][machineName] = make([][]byte, 0)
 		}
 
-		poolBuffer[sdkVersion][machineIP][machineName] = append(poolBuffer[sdkVersion][machineIP][machineName], data)
+		impressionPoolBuffer[sdkVersion][machineIP][machineName] = append(impressionPoolBuffer[sdkVersion][machineIP][machineName], data)
 
-		mutexPoolBuffer.Unlock()
+		impressionMutexPoolBuffer.Unlock()
 
-		if poolBufferSize.GreaterThan(footprint) {
-			poolBufferReleaseChannel <- true
+		if impressionPoolBufferSize.GreaterThan(footprint) {
+			impressionPoolBufferReleaseChannel <- true
 		}
 	}
 
 }
 
 func sendImpressions() {
-	mutexPoolBuffer.Lock()
-	poolBufferSize.Reset()
-	for sdkVersion, machineIPMap := range poolBuffer {
+	impressionMutexPoolBuffer.Lock()
+	impressionPoolBufferSize.Reset()
+	for sdkVersion, machineIPMap := range impressionPoolBuffer {
 		for machineIP, machineMap := range machineIPMap {
 			for machineName, listImpressions := range machineMap {
 
@@ -167,20 +167,20 @@ func sendImpressions() {
 					log.Error.Println(errl)
 					continue
 				}
-				startCheckpoint := latencyRegister.StartMeasuringLatency()
+				startCheckpoint := impressionLatencyRegister.StartMeasuringLatency()
 				errp := api.PostImpressions(data, sdkVersion, machineIP, machineName)
 				if errp != nil {
 					log.Error.Println(errp)
-					counterRegister.Increment("backend::request.error")
+					impressionCounterRegister.Increment("backend::request.error")
 				} else {
-					latencyRegister.RegisterLatency("backend::/api/testImpressions/bulk", startCheckpoint)
-					counterRegister.Increment("backend::request.ok")
+					impressionLatencyRegister.RegisterLatency("backend::/api/testImpressions/bulk", startCheckpoint)
+					impressionCounterRegister.Increment("backend::request.ok")
 				}
 
 			}
 		}
 	}
-	// Clear the poolBuffer
-	poolBuffer = make(sdkVersionBuffer)
-	mutexPoolBuffer.Unlock()
+	// Clear the impressionPoolBuffer
+	impressionPoolBuffer = make(sdkVersionBuffer)
+	impressionMutexPoolBuffer.Unlock()
 }
