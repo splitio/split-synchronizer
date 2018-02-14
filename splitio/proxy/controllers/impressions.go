@@ -71,8 +71,8 @@ type impressionChanMessage struct {
 	Data        []byte
 }
 
-// Initialize workers
-func Initialize(footprint int64, postRate int64) {
+// InitializeImpressionWorkers initializes impression workers
+func InitializeImpressionWorkers(footprint int64, postRate int64) {
 	go impressionConditionsWorker(postRate)
 	for i := 0; i < impressionChannelCapacity; i++ {
 		go addImpressionsToBufferWorker(footprint)

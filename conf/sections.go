@@ -96,6 +96,7 @@ type InMemorySection struct {
 	AdminPassword      string `json:"adminPassword" split-default-value:"" split-cli-option:"proxy-admin-password" split-cli-description:"HTTP basic auth password for admin endpoints"`
 	PersistMemoryPath  string `json:"persistInFilePath" split-default-value:"" split-cli-option:"proxy-mmap-path" split-cli-description:"File path to persist memory in proxy mode"`
 	ImpressionsMaxSize int64  `json:"impressionsMaxSize" split-default-value:"10485760" split-cli-option:"proxy-impressions-max-size" split-cli-description:"Max size, in bytes, to send impressions in proxy mode"`
+	EventsMaxSize      int64  `json:"eventsMaxSize" split-default-value:"10485760" split-cli-option:"proxy-events-max-size" split-cli-description:"Max size, in bytes, to send events in proxy mode"`
 	Auth               Auth   `json:"auth" split-cli-option-group:"true"`
 }
 
