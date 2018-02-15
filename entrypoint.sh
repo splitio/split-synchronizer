@@ -30,6 +30,7 @@
 #    - SPLIT_SYNC_PROXY_ADMIN_USER             HTTP basic auth username for admin endpoints
 #    - SPLIT_SYNC_PROXY_ADMIN_PASS             HTTP basic auth password for admin endpoints
 #    - SPLIT_SYNC_PROXY_IMPRESSIONS_MAX_SIZE   Max size, in bytes, to send impressions in proxy mode
+#    - SPLIT_SYNC_PROXY_EVENTS_MAX_SIZE        Max size, in bytes, to send events in proxy mode
 #
 #   Producer vars:
 #    - SPLIT_SYNC_REDIS_HOST                   Redis server hostname
@@ -124,6 +125,10 @@ then
 
   if [ ! -z ${SPLIT_SYNC_PROXY_IMPRESSIONS_MAX_SIZE+x} ]; then
     PARAMETERS="${PARAMETERS} -proxy-impressions-max-size=${SPLIT_SYNC_PROXY_IMPRESSIONS_MAX_SIZE}"
+  fi
+
+  if [ ! -z ${SPLIT_SYNC_PROXY_EVENTS_MAX_SIZE+x} ]; then
+    PARAMETERS="${PARAMETERS} -proxy-events-max-size=${SPLIT_SYNC_PROXY_EVENTS_MAX_SIZE}"
   fi
 
 #PRODUCER MODE ON
