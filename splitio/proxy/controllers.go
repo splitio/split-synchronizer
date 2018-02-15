@@ -27,6 +27,7 @@ var controllerCounters = counter.NewCounter()
 var controllerLocalCounters = counter.NewLocalCounter()
 
 const latencyAddImpressionsInBuffer = "goproxyAddImpressionsInBuffer.time"
+const latencyAddEventsInBuffer = "goproxyAddEventsInBuffer.time"
 const latencyPostSDKLatencies = "goproxyPostSDKLatencies.time"
 const latencyPostSDKCounters = "goproxyPostSDKCounters.time"
 const latencyPostSDKLatency = "goproxyPostSDKTime.time"
@@ -296,7 +297,23 @@ func postEvent(c *gin.Context, fn func([]byte, string, string) error) {
 // EVENTS - RESULTS
 //-----------------------------------------------------------------------------
 func postEvents(c *gin.Context) {
+	sdkVersion := c.Request.Header.Get("SplitSDKVersion")
+	machineIP := c.Request.Header.Get("SplitSDKMachineIP")
+	machineName := c.Request.Header.Get("SplitSDKMachineName")
+	data, err := ioutil.ReadAll(c.Request.Body)
+	if err != nil {
+		log.Error.Println(err)
+		controllerLocalCounters.Increment("request.error")
+		c.JSON(http.StatusInternalServerError, nil)
+		return
+	}
 
+	startTime := controllerLatencies.StartMeasuringLatency()
+	controllers.AddEvents(data, sdkVersion, machineIP, machineName)
+	controllerLatencies.RegisterLatency(latencyAddEventsInBuffer, startTime)
+	controllerLocalCounters.Increment("request.ok")
+	controllerLatenciesBkt.RegisterLatency("/api/events/bulk", startTime)
+	c.JSON(http.StatusOK, nil)
 }
 
 //-----------------------------------------------------------------------------

@@ -141,11 +141,12 @@ func addEventsToBufferWorker(footprint int64) {
 
 func sendEvents() {
 	eventMutexPoolBuffer.Lock()
+	defer eventMutexPoolBuffer.Unlock()
+
 	eventPoolBufferSize.Reset()
 	for sdkVersion, machineIPMap := range eventPoolBuffer {
 		for machineIP, machineMap := range machineIPMap {
 			for machineName, listEvents := range machineMap {
-
 				var toSend = make([]json.RawMessage, 0)
 
 				for _, byteEvent := range listEvents {
@@ -185,5 +186,4 @@ func sendEvents() {
 	}
 	// Clear the eventPoolBuffer
 	eventPoolBuffer = make(sdkVersionBuffer)
-	eventMutexPoolBuffer.Unlock()
 }
