@@ -27,6 +27,7 @@ var controllerCounters = counter.NewCounter()
 var controllerLocalCounters = counter.NewLocalCounter()
 
 const latencyAddImpressionsInBuffer = "goproxyAddImpressionsInBuffer.time"
+const latencyAddEventsInBuffer = "goproxyAddEventsInBuffer.time"
 const latencyPostSDKLatencies = "goproxyPostSDKLatencies.time"
 const latencyPostSDKCounters = "goproxyPostSDKCounters.time"
 const latencyPostSDKLatency = "goproxyPostSDKTime.time"
@@ -293,6 +294,29 @@ func postEvent(c *gin.Context, fn func([]byte, string, string) error) {
 }
 
 //-----------------------------------------------------------------------------
+// EVENTS - RESULTS
+//-----------------------------------------------------------------------------
+func postEvents(c *gin.Context) {
+	sdkVersion := c.Request.Header.Get("SplitSDKVersion")
+	machineIP := c.Request.Header.Get("SplitSDKMachineIP")
+	machineName := c.Request.Header.Get("SplitSDKMachineName")
+	data, err := ioutil.ReadAll(c.Request.Body)
+	if err != nil {
+		log.Error.Println(err)
+		controllerLocalCounters.Increment("request.error")
+		c.JSON(http.StatusInternalServerError, nil)
+		return
+	}
+
+	startTime := controllerLatencies.StartMeasuringLatency()
+	controllers.AddEvents(data, sdkVersion, machineIP, machineName)
+	controllerLatencies.RegisterLatency(latencyAddEventsInBuffer, startTime)
+	controllerLocalCounters.Increment("request.ok")
+	controllerLatenciesBkt.RegisterLatency("/api/events/bulk", startTime)
+	c.JSON(http.StatusOK, nil)
+}
+
+//-----------------------------------------------------------------------------
 // ADMIN
 //-----------------------------------------------------------------------------
 
@@ -333,21 +357,6 @@ func showDashboardSegmentKeys(c *gin.Context) {
 func showDashboard(c *gin.Context) {
 	counters := stats.Counters()
 	latencies := stats.Latencies()
-
-	htmlString := dashboard.HTML
-	htmlString = strings.Replace(htmlString, "{{uptime}}", stats.UptimeFormated(), 1)
-	htmlString = strings.Replace(htmlString, "{{proxy_errors}}", strconv.Itoa(int(log.ErrorDashboard.Counts())), 1)
-	htmlString = strings.Replace(htmlString, "{{proxy_version}}", splitio.Version, 1)
-	htmlString = strings.Replace(htmlString, "{{lastErrorsRows}}", dashboard.ParseLastErrors(log.ErrorDashboard.Messages()), 1)
-
-	//---> SDKs stats
-
-	htmlString = strings.Replace(htmlString, "{{request_ok}}", strconv.Itoa(int(counters["request.ok"])), 1)
-	htmlString = strings.Replace(htmlString, "{{request_ok_formated}}", dashboard.FormatNumber(counters["request.ok"]), 1)
-	htmlString = strings.Replace(htmlString, "{{request_error}}", strconv.Itoa(int(counters["request.error"])), 1)
-	htmlString = strings.Replace(htmlString, "{{request_error_formated}}", dashboard.FormatNumber(counters["request.error"]), 1)
-	htmlString = strings.Replace(htmlString, "{{sdks_total_requests}}", dashboard.FormatNumber(counters["request.ok"]+counters["request.error"]), 1)
-
 	//latenciesGroupData
 	var latenciesGroupData string
 	if ldata, ok := latencies["/api/splitChanges"]; ok {
@@ -371,6 +380,14 @@ func showDashboard(c *gin.Context) {
 			"rgba(75, 192, 192, 1)")
 	}
 
+	if ldata, ok := latencies["/api/events/bulk"]; ok {
+		latenciesGroupData += dashboard.ParseLatencyBktDataSerie("/api/events/bulk",
+			ldata,
+			"rgba(255, 205, 86, 0.2)",
+			"rgba(255, 205, 86, 1)",
+		)
+	}
+
 	if ldata, ok := latencies["/api/mySegments/*"]; ok {
 		latenciesGroupData += dashboard.ParseLatencyBktDataSerie("/api/mySegments/*",
 			ldata,
@@ -378,15 +395,7 @@ func showDashboard(c *gin.Context) {
 			"rgba(153, 102, 255, 1)")
 	}
 
-	htmlString = strings.Replace(htmlString, "{{latenciesGroupData}}", latenciesGroupData, 1)
-
 	//---> Backend stats
-
-	htmlString = strings.Replace(htmlString, "{{backend_request_ok}}", strconv.Itoa(int(counters["backend::request.ok"])), 1)
-	htmlString = strings.Replace(htmlString, "{{backend_request_ok_formated}}", dashboard.FormatNumber(counters["backend::request.ok"]), 1)
-	htmlString = strings.Replace(htmlString, "{{backend_request_error}}", strconv.Itoa(int(counters["backend::request.error"])), 1)
-	htmlString = strings.Replace(htmlString, "{{backend_request_error_formated}}", dashboard.FormatNumber(counters["backend::request.error"]), 1)
-
 	var latenciesGroupDataBackend string
 	if ldata, ok := latencies["backend::/api/splitChanges"]; ok {
 		latenciesGroupDataBackend += dashboard.ParseLatencyBktDataSerie("/api/splitChanges",
@@ -409,35 +418,64 @@ func showDashboard(c *gin.Context) {
 			"rgba(75, 192, 192, 1)")
 	}
 
-	htmlString = strings.Replace(htmlString, "{{latenciesGroupDataBackend}}", latenciesGroupDataBackend, 1)
+	if ldata, ok := latencies["backend::/api/events/bulk"]; ok {
+		latenciesGroupDataBackend += dashboard.ParseLatencyBktDataSerie("/api/events/bulk",
+			ldata,
+			"rgba(255, 205, 86, 0.2)",
+			"rgba(255, 205, 86, 1)")
+	}
 
+	// Splits
+	splitNumber := "0"
 	splitRows := ""
 	splitCollection := collections.NewSplitChangesCollection(boltdb.DBB)
 	splits, err := splitCollection.FetchAll()
 	if err != nil {
 		//	log.Warning.Println(err)
-		htmlString = strings.Replace(htmlString, "{{splits_number}}", "0", 1)
 	} else {
-		htmlString = strings.Replace(htmlString, "{{splits_number}}", strconv.Itoa(len(splits)), 1)
+		splitNumber = strconv.Itoa(len(splits))
 		for _, split := range splits {
 			splitRows += dashboard.ParseSplit(split.JSON)
 		}
 	}
-	htmlString = strings.Replace(htmlString, "{{splitRows}}", splitRows, 1)
 
+	// Segments
+	segmentNumber := "0"
 	segmentsRows := ""
 	segmentCollection := collections.NewSegmentChangesCollection(boltdb.DBB)
 	segments, errs := segmentCollection.FetchAll()
 	if errs != nil {
 		log.Warning.Println(errs, "- Maybe segments are not yet synchronized.")
-		htmlString = strings.Replace(htmlString, "{{segments_number}}", "0", 1)
 	} else {
-		htmlString = strings.Replace(htmlString, "{{segments_number}}", strconv.Itoa(len(segments)), 1)
+		segmentNumber = strconv.Itoa(len(segments))
 		for _, segment := range segments {
 			segmentsRows += dashboard.ParseSegment(segment)
 		}
 	}
-	htmlString = strings.Replace(htmlString, "{{segmentRows}}", segmentsRows, 1)
+
+	replacer := strings.NewReplacer(
+		"{{uptime}}", stats.UptimeFormated(),
+		"{{proxy_errors}}", strconv.Itoa(int(log.ErrorDashboard.Counts())),
+		"{{proxy_version}}", splitio.Version,
+		"{{lastErrorsRows}}", dashboard.ParseLastErrors(log.ErrorDashboard.Messages()),
+		"{{request_ok}}", strconv.Itoa(int(counters["request.ok"])),
+		"{{request_ok_formated}}", dashboard.FormatNumber(counters["request.ok"]),
+		"{{request_error}}", strconv.Itoa(int(counters["request.error"])),
+		"{{request_error_formated}}", dashboard.FormatNumber(counters["request.error"]),
+		"{{sdks_total_requests}}", dashboard.FormatNumber(counters["request.ok"]+counters["request.error"]),
+		"{{latenciesGroupData}}", latenciesGroupData,
+		"{{backend_request_ok}}", strconv.Itoa(int(counters["backend::request.ok"])),
+		"{{backend_request_ok_formated}}", dashboard.FormatNumber(counters["backend::request.ok"]),
+		"{{backend_request_error}}", strconv.Itoa(int(counters["backend::request.error"])),
+		"{{backend_request_error_formated}}", dashboard.FormatNumber(counters["backend::request.error"]),
+		"{{latenciesGroupDataBackend}}", latenciesGroupDataBackend,
+		"{{splitRows}}", splitRows,
+		"{{segmentRows}}", segmentsRows,
+		"{{splits_number}}", splitNumber,
+		"{{segments_number}}", segmentNumber,
+	)
+
+	htmlString := replacer.Replace(dashboard.HTML)
 
 	//Write your 200 header status (or other status codes, but only WriteHeader once)
 	c.Writer.WriteHeader(http.StatusOK)
