@@ -90,7 +90,14 @@ func startAsProxy() {
 		})
 	}
 
-	controllers.Initialize(conf.Data.Proxy.ImpressionsMaxSize, int64(conf.Data.ImpressionsPostRate))
+	controllers.InitializeImpressionWorkers(
+		conf.Data.Proxy.ImpressionsMaxSize,
+		int64(conf.Data.ImpressionsPostRate),
+	)
+	controllers.InitializeEventWorkers(
+		conf.Data.Proxy.EventsMaxSize,
+		int64(conf.Data.EventsPushRate),
+	)
 
 	proxyOptions := &proxy.ProxyOptions{
 		Port:                      ":" + strconv.Itoa(conf.Data.Proxy.Port),
