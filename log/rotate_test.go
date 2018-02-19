@@ -43,7 +43,7 @@ func TestRotateFile(t *testing.T) {
 		}
 	}
 
-	toWrite = "String with data to log added the UNIX TIMESTAMP " + time.Now().String()
+	toWrite = "String with data to log added the UNIX TIMESTAMP 2018-02-15 16:07:46.826547 -0300 -03 m=+0.00621131"
 	if fr.shouldRotate(int64(len(toWrite))) {
 		t.Error("The log file should not rotate at this point")
 	}

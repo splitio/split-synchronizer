@@ -14,8 +14,8 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/api"
 )
 
-func TestImpressionsBufferCounter(t *testing.T) {
-	var p = impressionPoolBufferSizeStruct{size: 0}
+func TestEventBufferCounter(t *testing.T) {
+	var p = eventPoolBufferSizeStruct{size: 0}
 
 	p.Addition(1)
 	p.Addition(2)
@@ -30,7 +30,7 @@ func TestImpressionsBufferCounter(t *testing.T) {
 
 }
 
-func TestAddImpressions(t *testing.T) {
+func TestAddEvents(t *testing.T) {
 
 	stdoutWriter := ioutil.Discard //os.Stdout
 	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
@@ -54,18 +54,18 @@ func TestAddImpressions(t *testing.T) {
 		}
 
 		rBody, _ := ioutil.ReadAll(r.Body)
-		//fmt.Println(string(rBody))
-		var impressionsInPost []api.ImpressionsDTO
-		err := json.Unmarshal(rBody, &impressionsInPost)
+
+		var eventsInPost []api.EventDTO
+		err := json.Unmarshal(rBody, &eventsInPost)
 		if err != nil {
 			t.Error(err)
 			return
 		}
 
-		if impressionsInPost[0].TestName != "some_test" ||
-			impressionsInPost[0].KeyImpressions[0].KeyName != "some_key_1" ||
-			impressionsInPost[0].KeyImpressions[1].KeyName != "some_key_2" {
-			t.Error("Posted impressions arrived mal-formed")
+		if eventsInPost[0].Key != "some_key" ||
+			eventsInPost[0].EventTypeID != "some_event" ||
+			eventsInPost[0].TrafficTypeName != "some_traffic_type" {
+			t.Error("Posted events arrived mal-formed")
 		}
 
 		fmt.Fprintln(w, "ok!!")
@@ -77,25 +77,29 @@ func TestAddImpressions(t *testing.T) {
 
 	api.Initialize()
 
-	imp1 := api.ImpressionDTO{KeyName: "some_key_1", Treatment: "on", Time: 1234567890, ChangeNumber: 9876543210, Label: "some_label_1", BucketingKey: "some_bucket_key_1"}
-	imp2 := api.ImpressionDTO{KeyName: "some_key_2", Treatment: "off", Time: 1234567890, ChangeNumber: 9876543210, Label: "some_label_2", BucketingKey: "some_bucket_key_2"}
+	e1 := api.EventDTO{
+		Key:             "some_key",
+		EventTypeID:     "some_event",
+		TrafficTypeName: "some_traffic_type",
+	}
 
-	keyImpressions := make([]api.ImpressionDTO, 0)
-	keyImpressions = append(keyImpressions, imp1, imp2)
-	impressionsTest := api.ImpressionsDTO{TestName: "some_test", KeyImpressions: keyImpressions}
+	e2 := api.EventDTO{
+		Key:             "another_key",
+		EventTypeID:     "some_event",
+		TrafficTypeName: "some_traffic_type",
+	}
 
-	impressions := make([]api.ImpressionsDTO, 0)
-	impressions = append(impressions, impressionsTest)
+	events := []api.EventDTO{e1, e2}
 
-	data, err := json.Marshal(impressions)
+	data, err := json.Marshal(events)
 	if err != nil {
 		t.Error(err)
 		return
 	}
 
 	// Init Impressions controller.
-	InitializeImpressionWorkers(200, 2)
-	AddImpressions(data, "test-1.0.0", "127.0.0.1", "SOME_MACHINE_NAME")
+	InitializeEventWorkers(200, 2)
+	AddEvents(data, "test-1.0.0", "127.0.0.1", "SOME_MACHINE_NAME")
 
 	// Lets async function post impressions
 	time.Sleep(time.Duration(4) * time.Second)
