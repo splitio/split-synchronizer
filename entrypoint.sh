@@ -7,6 +7,7 @@
 #    - SPLIT_SYNC_SPLITS_REFRESH_RATE          Refresh rate of splits fetcher
 #    - SPLIT_SYNC_SEGMENTS_REFRESH_RATE        Refresh rate of segments fetcher
 #    - SPLIT_SYNC_IMPRESSIONS_REFRESH_RATE     Refresh rate of impressions recorder
+#    - SPLIT_SYNC_EVENTS_REFRESH_RATE          Refresh rate of events recorder
 #    - SPLIT_SYNC_METRICS_REFRESH_RATE         Refresh rate of metrics recorder
 #    - SPLIT_SYNC_HTTP_TIMEOUT                 Timeout specifies a time limit for requests
 #    - SPLIT_SYNC_LOG_DEBUG                    Enable debug mode: Set as 'on'
@@ -29,6 +30,7 @@
 #    - SPLIT_SYNC_PROXY_ADMIN_USER             HTTP basic auth username for admin endpoints
 #    - SPLIT_SYNC_PROXY_ADMIN_PASS             HTTP basic auth password for admin endpoints
 #    - SPLIT_SYNC_PROXY_IMPRESSIONS_MAX_SIZE   Max size, in bytes, to send impressions in proxy mode
+#    - SPLIT_SYNC_PROXY_EVENTS_MAX_SIZE        Max size, in bytes, to send events in proxy mode
 #
 #   Producer vars:
 #    - SPLIT_SYNC_REDIS_HOST                   Redis server hostname
@@ -40,6 +42,8 @@
 #    - SPLIT_SYNC_IMPRESSIONS_THREADS          Number of impressions recorder threads
 #    - SPLIT_SYNC_ADMIN_USER                   HTTP basic auth username for admin endpoints
 #    - SPLIT_SYNC_ADMIN_PASS                   HTTP basic auth password for admin endpoints
+#    - SPLIT_SYNC_EVENTS_PER_POST              Number of events to send in a POST request
+#    - SPLIT_SYNC_EVENTS_THREADS               Number of events recorder threads
 
 # COMMON PARAMETERS
 PARAMETERS="-api-key=${SPLIT_SYNC_API_KEY}"
@@ -123,6 +127,10 @@ then
     PARAMETERS="${PARAMETERS} -proxy-impressions-max-size=${SPLIT_SYNC_PROXY_IMPRESSIONS_MAX_SIZE}"
   fi
 
+  if [ ! -z ${SPLIT_SYNC_PROXY_EVENTS_MAX_SIZE+x} ]; then
+    PARAMETERS="${PARAMETERS} -proxy-events-max-size=${SPLIT_SYNC_PROXY_EVENTS_MAX_SIZE}"
+  fi
+
 #PRODUCER MODE ON
 else
   echo "Running in PRODUCER mode"
@@ -161,6 +169,14 @@ else
 
   if [ ! -z ${SPLIT_SYNC_ADMIN_PASS+x} ]; then
     PARAMETERS="${PARAMETERS} -sync-admin-password=${SPLIT_SYNC_ADMIN_PASS}"
+  fi
+
+  if [ ! -z ${SPLIT_SYNC_EVENTS_PER_POST+x} ]; then
+    PARAMETERS="${PARAMETERS} -events-consumer-read-size=${SPLIT_SYNC_EVENTS_PER_POST}"
+  fi
+
+  if [ ! -z ${SPLIT_SYNC_EVENTS_THREADS+x} ]; then
+    PARAMETERS="${PARAMETERS} -events-consumer-threads=${SPLIT_SYNC_EVENTS_THREADS}"
   fi
 
 fi
