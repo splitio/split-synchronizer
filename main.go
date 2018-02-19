@@ -8,8 +8,10 @@ import (
 	"io/ioutil"
 	"net/url"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/splitio/split-synchronizer/splitio/web/admin/controllers/producer"
@@ -115,6 +117,10 @@ func startAsProxy() {
 
 func main() {
 
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	go gracefulShutdown(sigs)
+
 	if *asProxy {
 		// Run as proxy using boltdb as in-memoy database
 		startAsProxy()
@@ -127,6 +133,13 @@ func main() {
 		}
 	}
 
+}
+
+func gracefulShutdown(sigs chan os.Signal) {
+	//sig := <-sigs
+	<-sigs
+	fmt.Println("Starting graceful shutdown")
+	os.Exit(0)
 }
 
 //------------------------------------------------------------------------------
