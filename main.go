@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -39,6 +40,9 @@ var versionInfo *bool
 var configFile *string
 var writeDefaultConfigFile *string
 var cliParametersMap map[string]interface{}
+
+var gracefulShutdownWaitingGroup = &sync.WaitGroup{}
+var sigs = make(chan os.Signal, 1)
 
 //------------------------------------------------------------------------------
 // MAIN PROGRAM
@@ -117,9 +121,8 @@ func startAsProxy() {
 
 func main() {
 
-	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-	go gracefulShutdown(sigs)
+	go gracefulShutdown()
 
 	if *asProxy {
 		// Run as proxy using boltdb as in-memoy database
@@ -135,10 +138,21 @@ func main() {
 
 }
 
-func gracefulShutdown(sigs chan os.Signal) {
-	//sig := <-sigs
+func gracefulShutdown() {
 	<-sigs
 	fmt.Println("Starting graceful shutdown")
+	// Emit task stop signal
+	for i := 0; i < conf.Data.EventsConsumerThreads; i++ {
+		fmt.Println("Sending STOP...")
+		task.StopPostEvents()
+	}
+
+	gracefulShutdownWaitingGroup.Wait()
+	fmt.Println("Terminated stopping tasks!")
+
+	// Run flush tasks
+	flushEvents()
+
 	os.Exit(0)
 }
 
@@ -244,6 +258,8 @@ func loadLogger() {
 
 func startProducer() {
 
+	task.InitializeEvents(conf.Data.EventsConsumerThreads)
+
 	splitFetcher := splitFetcherFactory()
 	splitStorage := splitStorageFactory()
 
@@ -298,8 +314,16 @@ func startProducer() {
 	for i := 0; i < conf.Data.EventsConsumerThreads; i++ {
 		eventsStorage := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 		eventsRecorder := recorder.EventsHTTPRecorder{}
-		go task.PostEvents(i, eventsRecorder, eventsStorage, conf.Data.EventsPushRate, conf.Data.EventsConsumerReadSize)
+		go task.PostEvents(i, eventsRecorder, eventsStorage, conf.Data.EventsPushRate,
+			conf.Data.EventsConsumerReadSize, gracefulShutdownWaitingGroup)
 	}
+}
+
+func flushEvents() {
+	fmt.Println("Starting to flush events")
+	eventsStorage := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+	eventsRecorder := recorder.EventsHTTPRecorder{}
+	go task.EventsFlush(eventsRecorder, eventsStorage, conf.Data.EventsConsumerReadSize)
 }
 
 func splitFetcherFactory() fetcher.SplitFetcher {
