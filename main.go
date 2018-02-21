@@ -99,10 +99,12 @@ func startAsProxy() {
 	controllers.InitializeImpressionWorkers(
 		conf.Data.Proxy.ImpressionsMaxSize,
 		int64(conf.Data.ImpressionsPostRate),
+		gracefulShutdownWaitingGroup,
 	)
 	controllers.InitializeEventWorkers(
 		conf.Data.Proxy.EventsMaxSize,
 		int64(conf.Data.EventsPushRate),
+		gracefulShutdownWaitingGroup,
 	)
 
 	proxyOptions := &proxy.ProxyOptions{
@@ -137,7 +139,7 @@ func main() {
 
 }
 
-func gracefulShutdown() {
+func gracefulShutdownProducer() {
 	<-sigs
 	fmt.Println("\n\n * Starting graceful shutdown")
 	fmt.Println("")
@@ -165,6 +167,30 @@ func gracefulShutdown() {
 		fmt.Println(" -> Sending STOP to post_impressions gorutine")
 		task.StopPostImpressions()
 	}
+
+	fmt.Println(" * Waiting gorutines stop")
+	gracefulShutdownWaitingGroup.Wait()
+	fmt.Println(" * Shutting it down - see you soon!")
+	os.Exit(0)
+}
+
+func gracefulShutdownProxy() {
+	<-sigs
+	fmt.Println("\n\n * Starting graceful shutdown")
+	fmt.Println("")
+
+	fmt.Println(" -> Sending STOP to fetch_splits gorutine")
+	fmt.Println(" -> Sending STOP to fetch_segments gorutine")
+
+	// Metrics - Emit task stop signal
+	fmt.Println(" -> Sending STOP to post_metrics gorutine")
+	// TODO: Stop metrics posting task
+
+	// Events - Emit task stop signal
+	controllers.StopEventsRecording()
+
+	// Impressions - Emit task stop signal
+	controllers.StopImpressionsRecording()
 
 	fmt.Println(" * Waiting gorutines stop")
 	gracefulShutdownWaitingGroup.Wait()
@@ -278,7 +304,7 @@ func startProducer() {
 	task.InitializeImpressions(conf.Data.ImpressionsThreads)
 
 	//Producer mode - graceful shutdown
-	go gracefulShutdown()
+	go gracefulShutdownProducer()
 
 	splitFetcher := splitFetcherFactory()
 	splitStorage := splitStorageFactory()

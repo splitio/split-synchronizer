@@ -30,7 +30,11 @@ var impressionPoolBufferSize = impressionPoolBufferSizeStruct{size: 0}
 var impressionCurrentPoolBucket = 0
 var impressionMutexPoolBuffer = sync.Mutex{}
 var impressionChannel = make(chan impressionChanMessage, impressionChannelCapacity)
-var impressionPoolBufferReleaseChannel = make(chan bool, 1)
+var impressionPoolBufferChannel = make(chan int, 10)
+var impressionWorkersStopChannel = make(chan bool, impressionChannelCapacity)
+
+const impressionChannelMessageRelease = 0
+const impressionChannelMessageStop = 10
 
 //----------------------------------------------------------------
 //----------------------------------------------------------------
@@ -72,10 +76,10 @@ type impressionChanMessage struct {
 }
 
 // InitializeImpressionWorkers initializes impression workers
-func InitializeImpressionWorkers(footprint int64, postRate int64) {
-	go impressionConditionsWorker(postRate)
+func InitializeImpressionWorkers(footprint int64, postRate int64, waitingGroup *sync.WaitGroup) {
+	go impressionConditionsWorker(postRate, waitingGroup)
 	for i := 0; i < impressionChannelCapacity; i++ {
-		go addImpressionsToBufferWorker(footprint)
+		go addImpressionsToBufferWorker(footprint, waitingGroup)
 	}
 }
 
@@ -87,12 +91,21 @@ func AddImpressions(data []byte, sdkVersion string, machineIP string, machineNam
 	impressionChannel <- imp
 }
 
-func impressionConditionsWorker(postRate int64) {
+func impressionConditionsWorker(postRate int64, waitingGroup *sync.WaitGroup) {
+	waitingGroup.Add(1)
+	defer waitingGroup.Done()
 	for {
 		// Blocking conditions to send impressions
 		select {
-		case <-impressionPoolBufferReleaseChannel:
-			log.Debug.Println("Releasing impressions by Size")
+		case msg := <-impressionPoolBufferChannel:
+			switch msg {
+			case impressionChannelMessageRelease:
+				log.Debug.Println("Releasing impressions by Size")
+			case impressionChannelMessageStop:
+				// flush impressions and finish
+				sendImpressions()
+				break
+			}
 		case <-time.After(time.Second * time.Duration(postRate)):
 			log.Debug.Println("Releasing impressions by post rate")
 		}
@@ -101,9 +114,16 @@ func impressionConditionsWorker(postRate int64) {
 	}
 }
 
-func addImpressionsToBufferWorker(footprint int64) {
-
+func addImpressionsToBufferWorker(footprint int64, waitingGroup *sync.WaitGroup) {
+	waitingGroup.Add(1)
+	defer waitingGroup.Done()
 	for {
+		select {
+		case <-impressionWorkersStopChannel:
+			// Stop this worker!
+			break
+		}
+
 		impMessage := <-impressionChannel
 
 		data := impMessage.Data
@@ -133,7 +153,7 @@ func addImpressionsToBufferWorker(footprint int64) {
 		impressionMutexPoolBuffer.Unlock()
 
 		if impressionPoolBufferSize.GreaterThan(footprint) {
-			impressionPoolBufferReleaseChannel <- true
+			impressionPoolBufferChannel <- impressionChannelMessageRelease
 		}
 	}
 
@@ -183,4 +203,12 @@ func sendImpressions() {
 	// Clear the impressionPoolBuffer
 	impressionPoolBuffer = make(sdkVersionBuffer)
 	impressionMutexPoolBuffer.Unlock()
+}
+
+// StopImpressionsRecording stops all tasks related to impression submission.
+func StopImpressionsRecording() {
+	impressionPoolBufferChannel <- impressionChannelMessageStop
+	for i := 0; i < impressionChannelCapacity; i++ {
+		impressionWorkersStopChannel <- true
+	}
 }
