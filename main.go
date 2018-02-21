@@ -141,6 +141,19 @@ func gracefulShutdown() {
 	<-sigs
 	fmt.Println("\n\n * Starting graceful shutdown")
 	fmt.Println("")
+
+	// Splits - Emit task stop signal
+	fmt.Println(" -> Sending STOP to fetch_splits gorutine")
+	task.StopFetchSplits()
+
+	// Segments - Emit task stop signal
+	fmt.Println(" -> Sending STOP to fetch_segments gorutine")
+	task.StopFetchSegments()
+
+	// Metrics - Emit task stop signal
+	fmt.Println(" -> Sending STOP to post_metrics gorutine")
+	task.StopPostMetrics()
+
 	// Events - Emit task stop signal
 	for i := 0; i < conf.Data.EventsConsumerThreads; i++ {
 		fmt.Println(" -> Sending STOP to post_events gorutine")
@@ -290,11 +303,11 @@ func startProducer() {
 		waServer.Run()
 	}()
 
-	go task.FetchSplits(splitFetcher, splitStorage, conf.Data.SplitsFetchRate)
+	go task.FetchSplits(splitFetcher, splitStorage, conf.Data.SplitsFetchRate, gracefulShutdownWaitingGroup)
 
 	segmentFetcher := segmentFetcherFactory()
 	segmentStorage := segmentStorageFactory()
-	go task.FetchSegments(segmentFetcher, segmentStorage, conf.Data.SegmentFetchRate)
+	go task.FetchSegments(segmentFetcher, segmentStorage, conf.Data.SegmentFetchRate, gracefulShutdownWaitingGroup)
 
 	for i := 0; i < conf.Data.ImpressionsThreads; i++ {
 		impressionsStorage := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
@@ -317,7 +330,7 @@ func startProducer() {
 
 	metricsStorage := redis.NewMetricsStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 	metricsRecorder := recorder.MetricsHTTPRecorder{}
-	go task.PostMetrics(metricsRecorder, metricsStorage, conf.Data.MetricsPostRate)
+	go task.PostMetrics(metricsRecorder, metricsStorage, conf.Data.MetricsPostRate, gracefulShutdownWaitingGroup)
 
 	for i := 0; i < conf.Data.EventsConsumerThreads; i++ {
 		eventsStorage := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
