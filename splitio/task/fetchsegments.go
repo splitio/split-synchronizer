@@ -13,6 +13,16 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/storage"
 )
 
+var segmentsIncoming = make(chan string, 1)
+
+// StopFetchSegments stops FetchSplits task sendding signal
+func StopFetchSegments() {
+	select {
+	case segmentsIncoming <- "STOP":
+	default:
+	}
+}
+
 var segmentChangeFetcherLatencies = latency.NewLatencyBucket()
 var segmentChangeFetcherCounters = counter.NewCounter()
 
@@ -97,7 +107,9 @@ func worker() {
 // FetchSegments task to retrieve segments changes from Split servers
 func FetchSegments(segmentFetcherAdapter fetcher.SegmentFetcherFactory,
 	storageAdapterFactory storage.SegmentStorageFactory,
-	fetchRate int) {
+	fetchRate int, wg *sync.WaitGroup) {
+
+	wg.Add(1)
 
 	//TODO Set blocker channel size by configuration
 	blocker = make(chan bool, 10)
@@ -109,11 +121,12 @@ func FetchSegments(segmentFetcherAdapter fetcher.SegmentFetcherFactory,
 	go worker()
 
 	storageAdapter := storageAdapterFactory.NewInstance()
-	for {
+	keepLoop := true
+	for keepLoop {
 		segmentsNames, err := storageAdapter.RegisteredSegmentNames()
 		if err != nil {
 			log.Error.Println("Error fetching segments from storage", err.Error())
-			time.Sleep(time.Second * 30)
+			keepLoop = !stopSignal(time.Second * 30)
 			continue
 		}
 		log.Verbose.Printf("Fetched Segments from storage: %s", segmentsNames)
@@ -121,8 +134,23 @@ func FetchSegments(segmentFetcherAdapter fetcher.SegmentFetcherFactory,
 		taskFetchSegments(jobsPool, segmentsNames, segmentFetcherAdapter, storageAdapterFactory)
 
 		jobsWaitingGroup.Wait()
-		time.Sleep(time.Duration(fetchRate) * time.Second)
+
+		keepLoop = !stopSignal(time.Duration(fetchRate) * time.Second)
 	}
+
+	wg.Done()
+}
+
+func stopSignal(waitFor time.Duration) bool {
+	select {
+	case msg := <-segmentsIncoming:
+		if msg == "STOP" {
+			log.Debug.Println("Stopping task: fetch_segments")
+			return true
+		}
+	case <-time.After(waitFor):
+	}
+	return false
 }
 
 func taskFetchSegments(jobsPool map[string]*job, segmentsNames []string, segmentFetcherAdapter fetcher.SegmentFetcherFactory,
