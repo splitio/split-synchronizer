@@ -14,6 +14,22 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/storage"
 )
 
+var impressionsIncoming chan string
+
+// InitializeImpressions initialiaze events task
+func InitializeImpressions(threads int) {
+	impressionsIncoming = make(chan string, threads)
+}
+
+// StopPostImpressions stops PostImpressions task sendding signal
+func StopPostImpressions() {
+	select {
+	case impressionsIncoming <- "STOP":
+	default:
+	}
+}
+
+// ImpressionBulk struct
 type ImpressionBulk struct {
 	Data        json.RawMessage
 	SdkVersion  string
@@ -94,8 +110,11 @@ func PostImpressions(
 	impressionStorageAdapter storage.ImpressionStorage,
 	impressionsRefreshRate int,
 	impressionListenerEnabled bool,
+	wg *sync.WaitGroup,
 ) {
-	for {
+	wg.Add(1)
+	keepLoop := true
+	for keepLoop {
 		taskPostImpressions(
 			tid,
 			impressionsRecorderAdapter,
@@ -103,7 +122,31 @@ func PostImpressions(
 			impressionListenerEnabled,
 		)
 
-		time.Sleep(time.Duration(impressionsRefreshRate) * time.Second)
+		select {
+		case msg := <-impressionsIncoming:
+			if msg == "STOP" {
+				log.Debug.Println("Stopping task: post_impressions")
+				keepLoop = false
+			}
+		case <-time.After(time.Duration(impressionsRefreshRate) * time.Second):
+		}
 	}
+	wg.Done()
+}
+
+// ImpressionsFlush Task to flush cached impressions.
+func ImpressionsFlush(
+	impressionsRecorderAdapter recorder.ImpressionsRecorder,
+	impressionStorageAdapter storage.ImpressionStorage,
+	impressionListenerEnabled bool,
+) {
+
+	fmt.Println("Flushing impressions list")
+	taskPostImpressions(
+		0,
+		impressionsRecorderAdapter,
+		impressionStorageAdapter,
+		impressionListenerEnabled,
+	)
 
 }
