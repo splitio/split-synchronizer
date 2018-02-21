@@ -115,7 +115,7 @@ func PostEvents(
 		select {
 		case msg := <-eventsIncoming:
 			if msg == "STOP" {
-				log.Info.Println("Stopping task: post_events")
+				log.Debug.Println("Stopping task: post_events")
 				keepLoop = false
 			}
 		case <-time.After(time.Duration(eventsRefreshRate) * time.Second):

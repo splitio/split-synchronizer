@@ -122,7 +122,6 @@ func startAsProxy() {
 func main() {
 
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-	go gracefulShutdown()
 
 	if *asProxy {
 		// Run as proxy using boltdb as in-memoy database
@@ -140,19 +139,23 @@ func main() {
 
 func gracefulShutdown() {
 	<-sigs
-	fmt.Println("Starting graceful shutdown")
-	// Emit task stop signal
+	fmt.Println("\n\n * Starting graceful shutdown")
+	fmt.Println("")
+	// Events - Emit task stop signal
 	for i := 0; i < conf.Data.EventsConsumerThreads; i++ {
-		fmt.Println("Sending STOP...")
+		fmt.Println(" -> Sending STOP to post_events gorutine")
 		task.StopPostEvents()
 	}
 
+	// Impressions - Emit task stop signal
+	for i := 0; i < conf.Data.ImpressionsThreads; i++ {
+		fmt.Println(" -> Sending STOP to post_impressions gorutine")
+		task.StopPostImpressions()
+	}
+
+	fmt.Println(" * Waiting gorutines stop")
 	gracefulShutdownWaitingGroup.Wait()
-	fmt.Println("Terminated stopping tasks!")
-
-	// Run flush tasks
-	flushEvents()
-
+	fmt.Println(" * Shutting it down - see you soon!")
 	os.Exit(0)
 }
 
@@ -259,6 +262,10 @@ func loadLogger() {
 func startProducer() {
 
 	task.InitializeEvents(conf.Data.EventsConsumerThreads)
+	task.InitializeImpressions(conf.Data.ImpressionsThreads)
+
+	//Producer mode - graceful shutdown
+	go gracefulShutdown()
 
 	splitFetcher := splitFetcherFactory()
 	splitStorage := splitStorageFactory()
@@ -303,6 +310,7 @@ func startProducer() {
 			impressionsStorage,
 			conf.Data.ImpressionsPostRate,
 			conf.Data.ImpressionListener.Endpoint != "",
+			gracefulShutdownWaitingGroup,
 		)
 
 	}
