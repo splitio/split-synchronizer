@@ -104,7 +104,7 @@ func impressionConditionsWorker(postRate int64, waitingGroup *sync.WaitGroup) {
 			case impressionChannelMessageStop:
 				// flush impressions and finish
 				sendImpressions()
-				break
+				return
 			}
 		case <-time.After(time.Second * time.Duration(postRate)):
 			log.Debug.Println("Releasing impressions by post rate")
@@ -118,13 +118,12 @@ func addImpressionsToBufferWorker(footprint int64, waitingGroup *sync.WaitGroup)
 	waitingGroup.Add(1)
 	defer waitingGroup.Done()
 	for {
+		var impMessage impressionChanMessage
 		select {
 		case <-impressionWorkersStopChannel:
-			// Stop this worker!
-			break
+			return
+		case impMessage = <-impressionChannel:
 		}
-
-		impMessage := <-impressionChannel
 
 		data := impMessage.Data
 		sdkVersion := impMessage.SdkVersion

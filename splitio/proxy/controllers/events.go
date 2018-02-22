@@ -101,7 +101,7 @@ func eventConditionsWorker(postRate int64, waitingGroup *sync.WaitGroup) {
 			case eventChannelMessageStop:
 				// flush events and finish
 				sendEvents()
-				break
+				return
 			}
 		case <-time.After(time.Second * time.Duration(postRate)):
 			log.Debug.Println("Releasing events by post rate")
@@ -116,12 +116,12 @@ func addEventsToBufferWorker(footprint int64, waitingGroup *sync.WaitGroup) {
 	defer waitingGroup.Done()
 
 	for {
+		var eventMessage eventChanMessage
 		select {
 		case <-eventWorkersStopChannel:
-			// Stop this worker!
-			break
+			return
+		case eventMessage = <-eventChannel:
 		}
-		eventMessage := <-eventChannel
 
 		data := eventMessage.Data
 		sdkVersion := eventMessage.SdkVersion
