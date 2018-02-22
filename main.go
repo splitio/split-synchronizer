@@ -88,6 +88,7 @@ func init() {
 }
 
 func startAsProxy() {
+	go gracefulShutdownProxy()
 	go task.FetchRawSplits(conf.Data.SplitsFetchRate, conf.Data.SegmentFetchRate)
 
 	if conf.Data.ImpressionListener.Endpoint != "" {
@@ -178,9 +179,6 @@ func gracefulShutdownProxy() {
 	<-sigs
 	fmt.Println("\n\n * Starting graceful shutdown")
 	fmt.Println("")
-
-	fmt.Println(" -> Sending STOP to fetch_splits gorutine")
-	fmt.Println(" -> Sending STOP to fetch_segments gorutine")
 
 	// Metrics - Emit task stop signal
 	fmt.Println(" -> Sending STOP to post_metrics gorutine")
