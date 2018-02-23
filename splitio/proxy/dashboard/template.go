@@ -374,14 +374,14 @@ var HTML = `
   function sendSignal(sigType){
     if(confirm("The proccess will be stopped, are you sure?")) {
       console.log("Shutting proccess down as",sigType)
-      var proccessUrl
+      var processUrl
       if(sigType == 'graceful') {
-        proccessUrl = "/admin/stop/graceful"
+        processUrl = "/admin/stop/graceful"
       } else {
-        proccessUrl = "/admin/stop/force"
+        processUrl = "/admin/stop/force"
       }
 
-      $.get( "/admin/stop/force", function(data) {
+      $.get(processUrl, function(data) {
         console.log("Response:", data);
         alert("Stop (" + sigType + ") sign has been sent to process");
       })
