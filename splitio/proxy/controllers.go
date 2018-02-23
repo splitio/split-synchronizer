@@ -320,6 +320,30 @@ func postEvents(c *gin.Context) {
 // ADMIN
 //-----------------------------------------------------------------------------
 
+func stopProccess(c *gin.Context) {
+	stopType := c.Param("stopType")
+	var toReturn string
+
+	switch stopType {
+	case "force":
+		toReturn = stopType
+
+		//TODO: emit the force kill sign
+
+	case "graceful":
+		toReturn = stopType
+
+		//TODO: emit the graceful kill sign
+
+	default:
+		c.String(http.StatusBadRequest, "Invalid sign type: %s", toReturn)
+		return
+	}
+
+	c.String(http.StatusOK, "%s: %s", "Sign has been sent", toReturn)
+
+}
+
 func healthCheck(c *gin.Context) {
 
 	proxyStatus := make(map[string]interface{})
