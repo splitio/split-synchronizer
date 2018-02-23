@@ -146,30 +146,30 @@ func gracefulShutdownProducer() {
 	fmt.Println("")
 
 	// Splits - Emit task stop signal
-	fmt.Println(" -> Sending STOP to fetch_splits gorutine")
+	fmt.Println(" -> Sending STOP to fetch_splits goroutine")
 	task.StopFetchSplits()
 
 	// Segments - Emit task stop signal
-	fmt.Println(" -> Sending STOP to fetch_segments gorutine")
+	fmt.Println(" -> Sending STOP to fetch_segments goroutine")
 	task.StopFetchSegments()
 
 	// Metrics - Emit task stop signal
-	fmt.Println(" -> Sending STOP to post_metrics gorutine")
+	fmt.Println(" -> Sending STOP to post_metrics goroutine")
 	task.StopPostMetrics()
 
 	// Events - Emit task stop signal
 	for i := 0; i < conf.Data.EventsConsumerThreads; i++ {
-		fmt.Println(" -> Sending STOP to post_events gorutine")
+		fmt.Println(" -> Sending STOP to post_events goroutine")
 		task.StopPostEvents()
 	}
 
 	// Impressions - Emit task stop signal
 	for i := 0; i < conf.Data.ImpressionsThreads; i++ {
-		fmt.Println(" -> Sending STOP to post_impressions gorutine")
+		fmt.Println(" -> Sending STOP to post_impressions goroutine")
 		task.StopPostImpressions()
 	}
 
-	fmt.Println(" * Waiting gorutines stop")
+	fmt.Println(" * Waiting goroutines stop")
 	gracefulShutdownWaitingGroup.Wait()
 	fmt.Println(" * Shutting it down - see you soon!")
 	os.Exit(0)
@@ -180,17 +180,15 @@ func gracefulShutdownProxy() {
 	fmt.Println("\n\n * Starting graceful shutdown")
 	fmt.Println("")
 
-	// Metrics - Emit task stop signal
-	fmt.Println(" -> Sending STOP to post_metrics gorutine")
-	// TODO: Stop metrics posting task
-
 	// Events - Emit task stop signal
+	fmt.Println(" -> Sending STOP to impression posting goroutine")
 	controllers.StopEventsRecording()
 
 	// Impressions - Emit task stop signal
+	fmt.Println(" -> Sending STOP to event posting goroutine")
 	controllers.StopImpressionsRecording()
 
-	fmt.Println(" * Waiting gorutines stop")
+	fmt.Println(" * Waiting goroutines stop")
 	gracefulShutdownWaitingGroup.Wait()
 	fmt.Println(" * Shutting it down - see you soon!")
 	os.Exit(0)
