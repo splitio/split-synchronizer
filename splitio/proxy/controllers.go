@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/split-synchronizer/log"
@@ -327,14 +328,10 @@ func stopProccess(c *gin.Context) {
 	switch stopType {
 	case "force":
 		toReturn = stopType
-
-		//TODO: emit the force kill sign
-
+		defer syscall.Kill(syscall.Getpid(), syscall.SIGKILL)
 	case "graceful":
 		toReturn = stopType
-
-		//TODO: emit the graceful kill sign
-
+		defer syscall.Kill(syscall.Getpid(), syscall.SIGINT)
 	default:
 		c.String(http.StatusBadRequest, "Invalid sign type: %s", toReturn)
 		return
