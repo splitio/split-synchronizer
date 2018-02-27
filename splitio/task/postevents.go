@@ -2,6 +2,8 @@ package task
 
 import (
 	"errors"
+	"fmt"
+	"sync"
 	"time"
 
 	"github.com/splitio/split-synchronizer/log"
@@ -11,7 +13,22 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/storage"
 )
 
+var eventsIncoming chan string
+
 const totalPostAttemps = 3
+
+// InitializeEvents initialiaze events task
+func InitializeEvents(threads int) {
+	eventsIncoming = make(chan string, threads)
+}
+
+// StopPostEvents stops PostEvents task sendding signal
+func StopPostEvents() {
+	select {
+	case eventsIncoming <- "STOP":
+	default:
+	}
+}
 
 func taskPostEvents(tid int,
 	recorderAdapter recorder.EventsRecorder,
@@ -88,11 +105,36 @@ func PostEvents(
 	eventsStorageAdapter storage.EventStorage,
 	eventsRefreshRate int,
 	eventsBulkSize int,
+	wg *sync.WaitGroup,
+) {
+	wg.Add(1)
+	keepLoop := true
+	for keepLoop {
+		taskPostEvents(tid, eventsRecorderAdapter, eventsStorageAdapter, int64(eventsBulkSize))
+
+		select {
+		case msg := <-eventsIncoming:
+			if msg == "STOP" {
+				log.Debug.Println("Stopping task: post_events")
+				keepLoop = false
+			}
+		case <-time.After(time.Duration(eventsRefreshRate) * time.Second):
+		}
+	}
+	wg.Done()
+}
+
+// EventsFlush Task to flush cached events.
+func EventsFlush(
+	eventsRecorderAdapter recorder.EventsRecorder,
+	eventsStorageAdapter storage.EventStorage,
+	eventsBulkSize int,
 ) {
 
-	for {
-		taskPostEvents(tid, eventsRecorderAdapter, eventsStorageAdapter, int64(eventsBulkSize))
-		time.Sleep(time.Duration(eventsRefreshRate) * time.Second)
+	for eventsStorageAdapter.Size() > 0 {
+		fmt.Println("Flushing events list")
+		taskPostEvents(0, eventsRecorderAdapter, eventsStorageAdapter, int64(eventsBulkSize))
+		time.Sleep(100 * time.Millisecond)
 	}
 
 }

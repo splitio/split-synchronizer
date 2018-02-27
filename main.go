@@ -8,8 +8,11 @@ import (
 	"io/ioutil"
 	"net/url"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
+	"syscall"
 	"time"
 
 	"github.com/splitio/split-synchronizer/splitio/web/admin/controllers/producer"
@@ -37,6 +40,9 @@ var versionInfo *bool
 var configFile *string
 var writeDefaultConfigFile *string
 var cliParametersMap map[string]interface{}
+
+var gracefulShutdownWaitingGroup = &sync.WaitGroup{}
+var sigs = make(chan os.Signal, 1)
 
 //------------------------------------------------------------------------------
 // MAIN PROGRAM
@@ -82,6 +88,7 @@ func init() {
 }
 
 func startAsProxy() {
+	go gracefulShutdownProxy()
 	go task.FetchRawSplits(conf.Data.SplitsFetchRate, conf.Data.SegmentFetchRate)
 
 	if conf.Data.ImpressionListener.Endpoint != "" {
@@ -93,10 +100,12 @@ func startAsProxy() {
 	controllers.InitializeImpressionWorkers(
 		conf.Data.Proxy.ImpressionsMaxSize,
 		int64(conf.Data.ImpressionsPostRate),
+		gracefulShutdownWaitingGroup,
 	)
 	controllers.InitializeEventWorkers(
 		conf.Data.Proxy.EventsMaxSize,
 		int64(conf.Data.EventsPushRate),
+		gracefulShutdownWaitingGroup,
 	)
 
 	proxyOptions := &proxy.ProxyOptions{
@@ -115,6 +124,8 @@ func startAsProxy() {
 
 func main() {
 
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+
 	if *asProxy {
 		// Run as proxy using boltdb as in-memoy database
 		startAsProxy()
@@ -127,6 +138,60 @@ func main() {
 		}
 	}
 
+}
+
+func gracefulShutdownProducer() {
+	<-sigs
+	fmt.Println("\n\n * Starting graceful shutdown")
+	fmt.Println("")
+
+	// Splits - Emit task stop signal
+	fmt.Println(" -> Sending STOP to fetch_splits goroutine")
+	task.StopFetchSplits()
+
+	// Segments - Emit task stop signal
+	fmt.Println(" -> Sending STOP to fetch_segments goroutine")
+	task.StopFetchSegments()
+
+	// Metrics - Emit task stop signal
+	fmt.Println(" -> Sending STOP to post_metrics goroutine")
+	task.StopPostMetrics()
+
+	// Events - Emit task stop signal
+	for i := 0; i < conf.Data.EventsConsumerThreads; i++ {
+		fmt.Println(" -> Sending STOP to post_events goroutine")
+		task.StopPostEvents()
+	}
+
+	// Impressions - Emit task stop signal
+	for i := 0; i < conf.Data.ImpressionsThreads; i++ {
+		fmt.Println(" -> Sending STOP to post_impressions goroutine")
+		task.StopPostImpressions()
+	}
+
+	fmt.Println(" * Waiting goroutines stop")
+	gracefulShutdownWaitingGroup.Wait()
+	fmt.Println(" * Shutting it down - see you soon!")
+	os.Exit(0)
+}
+
+func gracefulShutdownProxy() {
+	<-sigs
+	fmt.Println("\n\n * Starting graceful shutdown")
+	fmt.Println("")
+
+	// Events - Emit task stop signal
+	fmt.Println(" -> Sending STOP to impression posting goroutine")
+	controllers.StopEventsRecording()
+
+	// Impressions - Emit task stop signal
+	fmt.Println(" -> Sending STOP to event posting goroutine")
+	controllers.StopImpressionsRecording()
+
+	fmt.Println(" * Waiting goroutines stop")
+	gracefulShutdownWaitingGroup.Wait()
+	fmt.Println(" * Shutting it down - see you soon!")
+	os.Exit(0)
 }
 
 //------------------------------------------------------------------------------
@@ -231,6 +296,12 @@ func loadLogger() {
 
 func startProducer() {
 
+	task.InitializeEvents(conf.Data.EventsConsumerThreads)
+	task.InitializeImpressions(conf.Data.ImpressionsThreads)
+
+	//Producer mode - graceful shutdown
+	go gracefulShutdownProducer()
+
 	splitFetcher := splitFetcherFactory()
 	splitStorage := splitStorageFactory()
 
@@ -254,11 +325,11 @@ func startProducer() {
 		waServer.Run()
 	}()
 
-	go task.FetchSplits(splitFetcher, splitStorage, conf.Data.SplitsFetchRate)
+	go task.FetchSplits(splitFetcher, splitStorage, conf.Data.SplitsFetchRate, gracefulShutdownWaitingGroup)
 
 	segmentFetcher := segmentFetcherFactory()
 	segmentStorage := segmentStorageFactory()
-	go task.FetchSegments(segmentFetcher, segmentStorage, conf.Data.SegmentFetchRate)
+	go task.FetchSegments(segmentFetcher, segmentStorage, conf.Data.SegmentFetchRate, gracefulShutdownWaitingGroup)
 
 	for i := 0; i < conf.Data.ImpressionsThreads; i++ {
 		impressionsStorage := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
@@ -274,19 +345,28 @@ func startProducer() {
 			impressionsStorage,
 			conf.Data.ImpressionsPostRate,
 			conf.Data.ImpressionListener.Endpoint != "",
+			gracefulShutdownWaitingGroup,
 		)
 
 	}
 
 	metricsStorage := redis.NewMetricsStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 	metricsRecorder := recorder.MetricsHTTPRecorder{}
-	go task.PostMetrics(metricsRecorder, metricsStorage, conf.Data.MetricsPostRate)
+	go task.PostMetrics(metricsRecorder, metricsStorage, conf.Data.MetricsPostRate, gracefulShutdownWaitingGroup)
 
 	for i := 0; i < conf.Data.EventsConsumerThreads; i++ {
 		eventsStorage := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 		eventsRecorder := recorder.EventsHTTPRecorder{}
-		go task.PostEvents(i, eventsRecorder, eventsStorage, conf.Data.EventsPushRate, conf.Data.EventsConsumerReadSize)
+		go task.PostEvents(i, eventsRecorder, eventsStorage, conf.Data.EventsPushRate,
+			conf.Data.EventsConsumerReadSize, gracefulShutdownWaitingGroup)
 	}
+}
+
+func flushEvents() {
+	fmt.Println("Starting to flush events")
+	eventsStorage := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+	eventsRecorder := recorder.EventsHTTPRecorder{}
+	go task.EventsFlush(eventsRecorder, eventsStorage, conf.Data.EventsConsumerReadSize)
 }
 
 func splitFetcherFactory() fetcher.SplitFetcher {
