@@ -3,6 +3,7 @@ package task
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/splitio/split-synchronizer/log"
@@ -12,6 +13,16 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/stats/latency"
 	"github.com/splitio/split-synchronizer/splitio/storage"
 )
+
+var splitsIncoming = make(chan string, 1)
+
+// StopFetchSplits stops FetchSplits task sendding signal
+func StopFetchSplits() {
+	select {
+	case splitsIncoming <- "STOP":
+	default:
+	}
+}
 
 var splitChangesLatencies = latency.NewLatencyBucket()
 var splitChangesCounters = counter.NewCounter()
@@ -85,9 +96,20 @@ func taskFetchSplits(splitFetcherAdapter fetcher.SplitFetcher,
 // FetchSplits task to retrieve split changes from Split servers
 func FetchSplits(splitFetcherAdapter fetcher.SplitFetcher,
 	splitStorageAdapter storage.SplitStorage,
-	splitsRefreshRate int) {
-	for {
+	splitsRefreshRate int, wg *sync.WaitGroup) {
+	wg.Add(1)
+	keepLoop := true
+	for keepLoop {
 		taskFetchSplits(splitFetcherAdapter, splitStorageAdapter)
-		time.Sleep(time.Duration(splitsRefreshRate) * time.Second)
+
+		select {
+		case msg := <-splitsIncoming:
+			if msg == "STOP" {
+				log.Debug.Println("Stopping task: fetch_splits")
+				keepLoop = false
+			}
+		case <-time.After(time.Duration(splitsRefreshRate) * time.Second):
+		}
 	}
+	wg.Done()
 }
