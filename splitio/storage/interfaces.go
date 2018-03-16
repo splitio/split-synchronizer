@@ -9,6 +9,7 @@ type SplitStorage interface {
 	RegisterSegment(name string) error
 	SetChangeNumber(changeNumber int64) error
 	ChangeNumber() (int64, error)
+	SplitsNames() ([]string, error)
 }
 
 // SegmentStorage interface defines the segments data storage actions

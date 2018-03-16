@@ -114,3 +114,15 @@ func (r SplitStorageAdapter) SetChangeNumber(changeNumber int64) error {
 func (r SplitStorageAdapter) ChangeNumber() (int64, error) {
 	return r.client.Get(r.splitsTillNamespace()).Int64()
 }
+
+// SplitsNames fetchs splits names from redis
+func (r SplitStorageAdapter) SplitsNames() ([]string, error) {
+	splitNames := r.client.Keys(r.splitNamespace("*"))
+	err := splitNames.Err()
+	if err != nil {
+		log.Error.Println("Error fetching split names from Redis", err)
+		return nil, err
+	}
+
+	return splitNames.Val(), nil
+}

@@ -25,6 +25,7 @@ func StopFetchSegments() {
 
 var segmentChangeFetcherLatencies = latency.NewLatencyBucket()
 var segmentChangeFetcherCounters = counter.NewCounter()
+var segmentChangeFetcherLocalCounters = counter.NewLocalCounter()
 
 var blocker chan bool
 var jobs chan job
@@ -57,6 +58,7 @@ func (j job) run() {
 		if errSegmentFetch != nil {
 
 			if _, ok := errSegmentFetch.(*api.HttpError); ok {
+				segmentChangeFetcherLocalCounters.Increment("backend::request.error")
 				segmentChangeFetcherCounters.Increment(fmt.Sprintf("segmentChangeFetcher.status.%d", errSegmentFetch.(*api.HttpError).Code))
 			}
 
@@ -66,7 +68,9 @@ func (j job) run() {
 			continue
 		}
 		segmentChangeFetcherLatencies.RegisterLatency("segmentChangeFetcher.time", startTime)
+		segmentChangeFetcherLatencies.RegisterLatency("backend::/api/segmentChanges", startTime)
 		segmentChangeFetcherCounters.Increment("segmentChangeFetcher.status.200")
+		segmentChangeFetcherLocalCounters.Increment("backend::request.ok")
 		log.Debug.Println(">>>> Fetched segment:", segment.Name)
 
 		if lastChangeNumber >= segment.Till {
