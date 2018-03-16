@@ -73,6 +73,7 @@ func init() {
 	loadConfiguration()
 	loadLogger()
 	api.Initialize()
+	stats.Initialize()
 
 	if *asProxy {
 		var dbpath = boltdb.InMemoryMode
@@ -80,7 +81,6 @@ func init() {
 			dbpath = conf.Data.Proxy.PersistMemoryPath
 		}
 		boltdb.Initialize(dbpath, nil)
-		stats.Initialize()
 	} else {
 		redis.Initialize(conf.Data.Redis)
 	}
@@ -305,6 +305,9 @@ func startProducer() {
 	splitFetcher := splitFetcherFactory()
 	splitStorage := splitStorageFactory()
 
+	segmentFetcher := segmentFetcherFactory()
+	segmentStorage := segmentStorageFactory()
+
 	go func() {
 		// WebAdmin configuration
 		waOptions := &admin.WebAdminOptions{
@@ -318,17 +321,17 @@ func startProducer() {
 
 		waServer.Router().Use(func(c *gin.Context) {
 			c.Set("SplitStorage", splitStorage)
+			c.Set("SegmentStorage", segmentStorage.NewInstance())
 		})
 
 		waServer.Router().GET("/admin/healthcheck", producer.HealthCheck)
+		waServer.Router().GET("/admin/debug", producer.Debug)
 
 		waServer.Run()
 	}()
 
 	go task.FetchSplits(splitFetcher, splitStorage, conf.Data.SplitsFetchRate, gracefulShutdownWaitingGroup)
 
-	segmentFetcher := segmentFetcherFactory()
-	segmentStorage := segmentStorageFactory()
 	go task.FetchSegments(segmentFetcher, segmentStorage, conf.Data.SegmentFetchRate, gracefulShutdownWaitingGroup)
 
 	for i := 0; i < conf.Data.ImpressionsThreads; i++ {

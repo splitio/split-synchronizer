@@ -61,7 +61,6 @@ func Run(options *ProxyOptions) {
 		waServer.Router().GET("/admin/stats", showStats)
 		waServer.Router().GET("/admin/dashboard", showDashboard)
 		waServer.Router().GET("/admin/dashboard/segmentKeys/:segment", showDashboardSegmentKeys)
-		waServer.Router().GET("/admin/stop/:stopType", stopProccess)
 
 		waServer.Run()
 	}()

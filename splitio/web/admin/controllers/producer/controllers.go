@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/split-synchronizer/splitio/storage"
+	"github.com/splitio/split-synchronizer/splitio/web/dashboard"
 )
 
 // HealthCheck returns the service uptime
@@ -36,4 +37,23 @@ func HealthCheck(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"sync": producerStatus, "storage": storageStatus})
 	}
 
+}
+
+// Debug returns a 200 HTTP status code
+func Debug(c *gin.Context) {
+
+	// Storage service
+	splitStorage, _ := c.Get("SplitStorage")
+	segmentStorage, _ := c.Get("SegmentStorage")
+
+	dash := dashboard.NewDashboard(false,
+		splitStorage.(storage.SplitStorage),
+		segmentStorage.(storage.SegmentStorage),
+	)
+
+	//Write your 200 header status (or other status codes, but only WriteHeader once)
+	c.Writer.WriteHeader(http.StatusOK)
+	//Convert your cached html string to byte array
+	c.Writer.Write([]byte(dash.HTML()))
+	return
 }

@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/split-synchronizer/log"
@@ -320,26 +319,6 @@ func postEvents(c *gin.Context) {
 //-----------------------------------------------------------------------------
 // ADMIN
 //-----------------------------------------------------------------------------
-
-func stopProccess(c *gin.Context) {
-	stopType := c.Param("stopType")
-	var toReturn string
-
-	switch stopType {
-	case "force":
-		toReturn = stopType
-		defer syscall.Kill(syscall.Getpid(), syscall.SIGKILL)
-	case "graceful":
-		toReturn = stopType
-		defer syscall.Kill(syscall.Getpid(), syscall.SIGINT)
-	default:
-		c.String(http.StatusBadRequest, "Invalid sign type: %s", toReturn)
-		return
-	}
-
-	c.String(http.StatusOK, "%s: %s", "Sign has been sent", toReturn)
-
-}
 
 func healthCheck(c *gin.Context) {
 
