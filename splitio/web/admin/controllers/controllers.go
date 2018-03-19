@@ -24,6 +24,13 @@ func Ping(c *gin.Context) {
 	c.String(http.StatusOK, "%s", "pong")
 }
 
+// ShowStats returns stats
+func ShowStats(c *gin.Context) {
+	counters := stats.Counters()
+	latencies := stats.Latencies()
+	c.JSON(http.StatusOK, gin.H{"counters": counters, "latencies": latencies})
+}
+
 // StopProccess triggers a kill signal
 func StopProccess(c *gin.Context) {
 	stopType := c.Param("stopType")

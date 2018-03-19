@@ -1,4 +1,4 @@
-package producer
+package proxy
 
 import (
 	"net/http"
@@ -11,32 +11,13 @@ import (
 // HealthCheck returns the service status
 func HealthCheck(c *gin.Context) {
 
-	producerStatus := make(map[string]interface{})
-	storageStatus := make(map[string]interface{})
+	proxyStatus := make(map[string]interface{})
 
 	// Producer service
-	producerStatus["healthy"] = true
-	producerStatus["message"] = "Synchronizer service working as expected"
+	proxyStatus["healthy"] = true
+	proxyStatus["message"] = "Proxy service working as expected"
 
-	// Storage service
-	splitStorage, exists := c.Get("SplitStorage")
-	if exists {
-		_, err := splitStorage.(storage.SplitStorage).ChangeNumber()
-		if err != nil {
-			storageStatus["healthy"] = false
-			storageStatus["message"] = err.Error()
-		} else {
-			storageStatus["healthy"] = true
-			storageStatus["message"] = "Storage service working as expected"
-		}
-	}
-
-	if storageStatus["healthy"].(bool) {
-		c.JSON(http.StatusOK, gin.H{"sync": producerStatus, "storage": storageStatus})
-	} else {
-		c.JSON(http.StatusInternalServerError, gin.H{"sync": producerStatus, "storage": storageStatus})
-	}
-
+	c.JSON(http.StatusOK, gin.H{"proxy": proxyStatus})
 }
 
 // Dashboard returns a dashboard
@@ -46,7 +27,7 @@ func Dashboard(c *gin.Context) {
 	splitStorage, _ := c.Get("SplitStorage")
 	segmentStorage, _ := c.Get("SegmentStorage")
 
-	dash := dashboard.NewDashboard(false,
+	dash := dashboard.NewDashboard(true,
 		splitStorage.(storage.SplitStorage),
 		segmentStorage.(storage.SegmentStorage),
 	)
@@ -67,7 +48,7 @@ func DashboardSegmentKeys(c *gin.Context) {
 	splitStorage, _ := c.Get("SplitStorage")
 	segmentStorage, _ := c.Get("SegmentStorage")
 
-	dash := dashboard.NewDashboard(false,
+	dash := dashboard.NewDashboard(true,
 		splitStorage.(storage.SplitStorage),
 		segmentStorage.(storage.SegmentStorage),
 	)

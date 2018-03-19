@@ -320,25 +320,6 @@ func postEvents(c *gin.Context) {
 // ADMIN
 //-----------------------------------------------------------------------------
 
-func healthCheck(c *gin.Context) {
-
-	proxyStatus := make(map[string]interface{})
-	//cdnStatus := make(map[string]interface{})
-
-	// Producer service
-	proxyStatus["healthy"] = true
-	proxyStatus["message"] = "Proxy service working as expected"
-
-	c.JSON(http.StatusOK, gin.H{"proxy": proxyStatus})
-
-}
-
-func showStats(c *gin.Context) {
-	counters := stats.Counters()
-	latencies := stats.Latencies()
-	c.JSON(http.StatusOK, gin.H{"counters": counters, "latencies": latencies})
-}
-
 func showDashboardSegmentKeys(c *gin.Context) {
 	segmentName := c.Param("segment")
 	var toReturn = ""
