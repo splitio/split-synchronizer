@@ -1,6 +1,9 @@
 package storage
 
-import "github.com/splitio/split-synchronizer/splitio/api"
+import (
+	"github.com/splitio/split-synchronizer/splitio/api"
+	"github.com/splitio/split-synchronizer/splitio/storageDTOs"
+)
 
 // SplitStorage interface defines the split data storage actions
 type SplitStorage interface {
@@ -21,7 +24,8 @@ type SegmentStorage interface {
 	SetChangeNumber(segmentName string, changeNumber int64) error
 	ChangeNumber(segmentName string) (int64, error)
 	CountActiveKeys(segmentName string) (int64, error)
-	ActiveKeys(segmentName string) ([]string, error)
+	CountRemovedKeys(segmentName string) (int64, error)
+	Keys(segmentName string) ([]storageDTOs.SegmentKeyDTO, error)
 }
 
 // SegmentStorageFactory interface defines the segment storage Adapter

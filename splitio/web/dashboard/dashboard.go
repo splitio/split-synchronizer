@@ -128,6 +128,12 @@ func (d *Dashboard) parseCachedSegments() string {
 		if err != nil {
 			log.Error.Printf("Error counting active keys for segment %s\n", segment)
 		}
+
+		removedKeys, err := d.segmentStorage.CountRemovedKeys(segment)
+		if err != nil {
+			log.Error.Printf("Error counting removed keys for segment %s\n", segment)
+		}
+
 		// LAST MODIFIED
 		changeNumber, err := d.segmentStorage.ChangeNumber(segment)
 		if err != nil {
@@ -137,9 +143,12 @@ func (d *Dashboard) parseCachedSegments() string {
 
 		toRender = append(toRender,
 			&HTMLtemplates.CachedSegmentRowTPLVars{
+				ProxyMode:    d.proxy,
 				Name:         segment,
 				ActiveKeys:   strconv.Itoa(int(activeKeys)),
 				LastModified: lastModified.UTC().Format(time.UnixDate),
+				RemovedKeys:  strconv.Itoa(int(removedKeys)),
+				TotalKeys:    strconv.Itoa(int(removedKeys) + int(activeKeys)),
 			})
 	}
 
@@ -205,15 +214,33 @@ func (d *Dashboard) HTML() string {
 // HTMLSegmentKeys return a html representation of segment's keys list
 func (d *Dashboard) HTMLSegmentKeys(segmentName string) string {
 
-	keys, err := d.segmentStorage.ActiveKeys(segmentName)
+	keys, err := d.segmentStorage.Keys(segmentName)
 	if err != nil {
 		log.Error.Println("Error fetching keys for segment:", segmentName)
 		return ""
 	}
 
+	segmentKeys := make([]HTMLtemplates.CachedSegmentKeysRowTPLVars, 0)
+
+	for _, key := range keys {
+		lastModified := time.Unix(0, key.LastModified*int64(time.Millisecond))
+		var removedColor string
+		if key.Removed {
+			removedColor = "danger"
+		} else {
+			removedColor = ""
+		}
+		segmentKeys = append(segmentKeys, HTMLtemplates.CachedSegmentKeysRowTPLVars{
+			Name:         key.Name,
+			LastModified: lastModified.UTC().Format(time.UnixDate),
+			Removed:      strconv.FormatBool(key.Removed),
+			RemovedColor: removedColor,
+		})
+	}
+
 	return d.parse(
 		"SegmentKeys",
 		HTMLtemplates.CachedSegmentKeysTPL,
-		HTMLtemplates.CachedSegmentKeysTPLVars{SegmentKeys: keys},
+		HTMLtemplates.CachedSegmentKeysTPLVars{ProxyMode: d.proxy, SegmentKeys: segmentKeys},
 	)
 }
