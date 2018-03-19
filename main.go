@@ -325,7 +325,8 @@ func startProducer() {
 		})
 
 		waServer.Router().GET("/admin/healthcheck", producer.HealthCheck)
-		waServer.Router().GET("/admin/debug", producer.Debug)
+		waServer.Router().GET("/admin/dashboard", producer.Dashboard)
+		waServer.Router().GET("/admin/dashboard/segmentKeys/:segment", producer.DashboardSegmentKeys)
 
 		waServer.Run()
 	}()

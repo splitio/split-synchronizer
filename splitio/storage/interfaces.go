@@ -10,6 +10,7 @@ type SplitStorage interface {
 	SetChangeNumber(changeNumber int64) error
 	ChangeNumber() (int64, error)
 	SplitsNames() ([]string, error)
+	RawSplits() ([]string, error)
 }
 
 // SegmentStorage interface defines the segments data storage actions
@@ -19,6 +20,8 @@ type SegmentStorage interface {
 	RemoveFromSegment(segmentName string, keys []string) error
 	SetChangeNumber(segmentName string, changeNumber int64) error
 	ChangeNumber(segmentName string) (int64, error)
+	CountActiveKeys(segmentName string) (int64, error)
+	ActiveKeys(segmentName string) ([]string, error)
 }
 
 // SegmentStorageFactory interface defines the segment storage Adapter

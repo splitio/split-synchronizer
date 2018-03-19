@@ -63,3 +63,13 @@ func (r SegmentStorageAdapter) SetChangeNumber(segmentName string, changeNumber 
 func (r SegmentStorageAdapter) ChangeNumber(segmentName string) (int64, error) {
 	return r.client.Get(r.segmentTillNamespace(segmentName)).Int64()
 }
+
+// CountActiveKeys count the numbers of keys in segmentName
+func (r SegmentStorageAdapter) CountActiveKeys(segmentName string) (int64, error) {
+	return r.client.SCard(r.segmentNamespace(segmentName)).Result()
+}
+
+// ActiveKeys count the numbers of keys in segmentName
+func (r SegmentStorageAdapter) ActiveKeys(segmentName string) ([]string, error) {
+	return r.client.SMembers(r.segmentNamespace(segmentName)).Result()
+}

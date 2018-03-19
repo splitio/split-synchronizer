@@ -3,6 +3,7 @@ package redis
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/api"
@@ -124,5 +125,31 @@ func (r SplitStorageAdapter) SplitsNames() ([]string, error) {
 		return nil, err
 	}
 
-	return splitNames.Val(), nil
+	rawNames := splitNames.Val()
+	toReturn := make([]string, 0)
+	for _, rawName := range rawNames {
+		toReturn = append(toReturn, strings.Replace(rawName, r.splitNamespace(""), "", 1))
+	}
+
+	return toReturn, nil
+}
+
+// RawSplits return an slice with Split json representation
+func (r SplitStorageAdapter) RawSplits() ([]string, error) {
+	splitsNames, err := r.SplitsNames()
+	if err != nil {
+		return nil, err
+	}
+
+	toReturn := make([]string, 0)
+	for _, splitName := range splitsNames {
+		splitJSON, err := r.client.Get(r.splitNamespace(splitName)).Result()
+		if err != nil {
+			log.Error.Printf("Error fetching split from redis: %s\n", splitName)
+			continue
+		}
+		toReturn = append(toReturn, splitJSON)
+	}
+
+	return toReturn, nil
 }

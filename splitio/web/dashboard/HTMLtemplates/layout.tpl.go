@@ -372,12 +372,19 @@ var LayoutTPL = `
                       <table class="table table-condensed table-hover">
                         <thead>
                           <tr>
+                          {{if .ProxyMode}}
                             <th>&nbsp;</th>
                             <th>Segment</th>
                             <th>Total Keys</th>
                             <th>Removed Keys</th>
                             <th>Active Keys</th>
                             <th>Last Modified</th>
+                          {{else}}
+                            <th>&nbsp;</th>
+                            <th>Segment</th>
+                            <th>Active Keys</th>
+                            <th>Last Modified</th>
+                          {{end}}
                           </tr>
                         </thead>
                         <tbody>
