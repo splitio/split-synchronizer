@@ -39,8 +39,8 @@ func HealthCheck(c *gin.Context) {
 
 }
 
-// Debug returns a 200 HTTP status code
-func Debug(c *gin.Context) {
+// Dashboard returns a dashboard
+func Dashboard(c *gin.Context) {
 
 	// Storage service
 	splitStorage, _ := c.Get("SplitStorage")
@@ -56,4 +56,23 @@ func Debug(c *gin.Context) {
 	//Convert your cached html string to byte array
 	c.Writer.Write([]byte(dash.HTML()))
 	return
+}
+
+// DashboardSegmentKeys returns a keys for a given segment
+func DashboardSegmentKeys(c *gin.Context) {
+
+	segmentName := c.Param("segment")
+
+	// Storage service
+	splitStorage, _ := c.Get("SplitStorage")
+	segmentStorage, _ := c.Get("SegmentStorage")
+
+	dash := dashboard.NewDashboard(false,
+		splitStorage.(storage.SplitStorage),
+		segmentStorage.(storage.SegmentStorage),
+	)
+
+	var toReturn = dash.HTMLSegmentKeys(segmentName)
+
+	c.String(http.StatusOK, "%s", toReturn)
 }

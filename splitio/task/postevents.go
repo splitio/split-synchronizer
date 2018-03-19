@@ -10,10 +10,16 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/api"
 	"github.com/splitio/split-synchronizer/splitio/nethelper"
 	"github.com/splitio/split-synchronizer/splitio/recorder"
+	"github.com/splitio/split-synchronizer/splitio/stats/counter"
+	"github.com/splitio/split-synchronizer/splitio/stats/latency"
 	"github.com/splitio/split-synchronizer/splitio/storage"
 )
 
 var eventsIncoming chan string
+
+var postEventsLatencies = latency.NewLatencyBucket()
+var postEventsCounters = counter.NewCounter()
+var postEventsLocalCounters = counter.NewCounter()
 
 const totalPostAttemps = 3
 
@@ -85,9 +91,15 @@ func taskPostEvents(tid int,
 				var err = errors.New("") // forcing error to start "for" attempts
 				attemps := 0
 				for err != nil && attemps < totalPostAttemps {
+					startTime := postEventsLatencies.StartMeasuringLatency()
 					err = recorderAdapter.Post(bulk, s, i, n)
 					if err != nil {
 						log.Error.Println("Error posting events", err)
+						postEventsLocalCounters.Increment("backend::request.error")
+					} else {
+						postEventsLatencies.RegisterLatency("backend::/api/events/bulk", startTime)
+						postEventsLatencies.RegisterLatency("events.time", startTime)
+						postEventsLocalCounters.Increment("backend::request.ok")
 					}
 					attemps++
 					time.Sleep(nethelper.WaitForNextAttemp() * time.Second)
