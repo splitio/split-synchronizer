@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/alecthomas/template"
+	"text/template"
 )
 
 func TestMainMenu(t *testing.T) {

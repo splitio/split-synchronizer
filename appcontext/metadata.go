@@ -25,7 +25,7 @@ func ExecutionMode() int {
 
 // VersionHeader returns the version header based on execution mode
 func VersionHeader() string {
-	if mode == ProxyMode {
+	if mode == ProducerMode {
 		return "SplitSyncProducerMode-" + splitio.Version
 	}
 	return "SplitSyncProxyMode-" + splitio.Version
