@@ -41,3 +41,12 @@ func FormatNumber(n int64) string {
 	//}
 
 }
+
+// ToRGBAString returns a string representation of rgba colour
+func ToRGBAString(r int, g int, b int, a float32) string {
+	if a < 1 {
+		return fmt.Sprintf("rgba(%d, %d, %d, %.1f)", r, g, b, a)
+	}
+
+	return fmt.Sprintf("rgba(%d, %d, %d, %d)", r, g, b, int(a))
+}

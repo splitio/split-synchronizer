@@ -424,7 +424,6 @@ var LayoutTPL = `
 
       $.get(processUrl, function(data) {
         console.log("Response:", data);
-        alert("Stop (" + sigType + ") sign has been sent to process");
       })
     }
   }
