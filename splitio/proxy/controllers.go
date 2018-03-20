@@ -5,15 +5,11 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio"
 	"github.com/splitio/split-synchronizer/splitio/api"
 	"github.com/splitio/split-synchronizer/splitio/proxy/controllers"
-	"github.com/splitio/split-synchronizer/splitio/proxy/dashboard"
-	"github.com/splitio/split-synchronizer/splitio/stats"
 	"github.com/splitio/split-synchronizer/splitio/stats/counter"
 	"github.com/splitio/split-synchronizer/splitio/stats/latency"
 	"github.com/splitio/split-synchronizer/splitio/storage/boltdb"
@@ -314,153 +310,4 @@ func postEvents(c *gin.Context) {
 	controllerLocalCounters.Increment("request.ok")
 	controllerLatenciesBkt.RegisterLatency("/api/events/bulk", startTime)
 	c.JSON(http.StatusOK, nil)
-}
-
-//-----------------------------------------------------------------------------
-// ADMIN
-//-----------------------------------------------------------------------------
-
-func showDashboardSegmentKeys(c *gin.Context) {
-	segmentName := c.Param("segment")
-	var toReturn = ""
-	segmentCollection := collections.NewSegmentChangesCollection(boltdb.DBB)
-	segment, errs := segmentCollection.Fetch(segmentName)
-	if errs != nil {
-		log.Warning.Println(errs)
-	} else {
-		for _, key := range segment.Keys {
-			toReturn += dashboard.ParseSegmentKey(key)
-		}
-	}
-	c.String(http.StatusOK, "%s", toReturn)
-}
-
-func showDashboard(c *gin.Context) {
-	counters := stats.Counters()
-	latencies := stats.Latencies()
-	//latenciesGroupData
-	var latenciesGroupData string
-	if ldata, ok := latencies["/api/splitChanges"]; ok {
-		latenciesGroupData += dashboard.ParseLatencyBktDataSerie("/api/splitChanges",
-			ldata,
-			"rgba(255, 159, 64, 0.2)",
-			"rgba(255, 159, 64, 1)")
-	}
-
-	if ldata, ok := latencies["/api/segmentChanges/*"]; ok {
-		latenciesGroupData += dashboard.ParseLatencyBktDataSerie("/api/segmentChanges/*",
-			ldata,
-			"rgba(54, 162, 235, 0.2)",
-			"rgba(54, 162, 235, 1)")
-	}
-
-	if ldata, ok := latencies["/api/testImpressions/bulk"]; ok {
-		latenciesGroupData += dashboard.ParseLatencyBktDataSerie("/api/testImpressions/bulk",
-			ldata,
-			"rgba(75, 192, 192, 0.2)",
-			"rgba(75, 192, 192, 1)")
-	}
-
-	if ldata, ok := latencies["/api/events/bulk"]; ok {
-		latenciesGroupData += dashboard.ParseLatencyBktDataSerie("/api/events/bulk",
-			ldata,
-			"rgba(255, 205, 86, 0.2)",
-			"rgba(255, 205, 86, 1)",
-		)
-	}
-
-	if ldata, ok := latencies["/api/mySegments/*"]; ok {
-		latenciesGroupData += dashboard.ParseLatencyBktDataSerie("/api/mySegments/*",
-			ldata,
-			"rgba(153, 102, 255, 0.2)",
-			"rgba(153, 102, 255, 1)")
-	}
-
-	//---> Backend stats
-	var latenciesGroupDataBackend string
-	if ldata, ok := latencies["backend::/api/splitChanges"]; ok {
-		latenciesGroupDataBackend += dashboard.ParseLatencyBktDataSerie("/api/splitChanges",
-			ldata,
-			"rgba(255, 159, 64, 0.2)",
-			"rgba(255, 159, 64, 1)")
-	}
-
-	if ldata, ok := latencies["backend::/api/segmentChanges"]; ok {
-		latenciesGroupDataBackend += dashboard.ParseLatencyBktDataSerie("/api/segmentChanges/*",
-			ldata,
-			"rgba(54, 162, 235, 0.2)",
-			"rgba(54, 162, 235, 1)")
-	}
-
-	if ldata, ok := latencies["backend::/api/testImpressions/bulk"]; ok {
-		latenciesGroupDataBackend += dashboard.ParseLatencyBktDataSerie("/api/testImpressions/bulk",
-			ldata,
-			"rgba(75, 192, 192, 0.2)",
-			"rgba(75, 192, 192, 1)")
-	}
-
-	if ldata, ok := latencies["backend::/api/events/bulk"]; ok {
-		latenciesGroupDataBackend += dashboard.ParseLatencyBktDataSerie("/api/events/bulk",
-			ldata,
-			"rgba(255, 205, 86, 0.2)",
-			"rgba(255, 205, 86, 1)")
-	}
-
-	// Splits
-	splitNumber := "0"
-	splitRows := ""
-	splitCollection := collections.NewSplitChangesCollection(boltdb.DBB)
-	splits, err := splitCollection.FetchAll()
-	if err != nil {
-		//	log.Warning.Println(err)
-	} else {
-		splitNumber = strconv.Itoa(len(splits))
-		for _, split := range splits {
-			splitRows += dashboard.ParseSplit(split.JSON)
-		}
-	}
-
-	// Segments
-	segmentNumber := "0"
-	segmentsRows := ""
-	segmentCollection := collections.NewSegmentChangesCollection(boltdb.DBB)
-	segments, errs := segmentCollection.FetchAll()
-	if errs != nil {
-		log.Warning.Println(errs, "- Maybe segments are not yet synchronized.")
-	} else {
-		segmentNumber = strconv.Itoa(len(segments))
-		for _, segment := range segments {
-			segmentsRows += dashboard.ParseSegment(segment)
-		}
-	}
-
-	replacer := strings.NewReplacer(
-		"{{uptime}}", stats.UptimeFormated(),
-		"{{proxy_errors}}", strconv.Itoa(int(log.ErrorDashboard.Counts())),
-		"{{proxy_version}}", splitio.Version,
-		"{{lastErrorsRows}}", dashboard.ParseLastErrors(log.ErrorDashboard.Messages()),
-		"{{request_ok}}", strconv.Itoa(int(counters["request.ok"])),
-		"{{request_ok_formated}}", dashboard.FormatNumber(counters["request.ok"]),
-		"{{request_error}}", strconv.Itoa(int(counters["request.error"])),
-		"{{request_error_formated}}", dashboard.FormatNumber(counters["request.error"]),
-		"{{sdks_total_requests}}", dashboard.FormatNumber(counters["request.ok"]+counters["request.error"]),
-		"{{latenciesGroupData}}", latenciesGroupData,
-		"{{backend_request_ok}}", strconv.Itoa(int(counters["backend::request.ok"])),
-		"{{backend_request_ok_formated}}", dashboard.FormatNumber(counters["backend::request.ok"]),
-		"{{backend_request_error}}", strconv.Itoa(int(counters["backend::request.error"])),
-		"{{backend_request_error_formated}}", dashboard.FormatNumber(counters["backend::request.error"]),
-		"{{latenciesGroupDataBackend}}", latenciesGroupDataBackend,
-		"{{splitRows}}", splitRows,
-		"{{segmentRows}}", segmentsRows,
-		"{{splits_number}}", splitNumber,
-		"{{segments_number}}", segmentNumber,
-	)
-
-	htmlString := replacer.Replace(dashboard.HTML)
-
-	//Write your 200 header status (or other status codes, but only WriteHeader once)
-	c.Writer.WriteHeader(http.StatusOK)
-	//Convert your cached html string to byte array
-	c.Writer.Write([]byte(htmlString))
-	return
 }

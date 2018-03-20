@@ -10,7 +10,6 @@ import (
 
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio"
-	"github.com/splitio/split-synchronizer/splitio/proxy/dashboard"
 	"github.com/splitio/split-synchronizer/splitio/stats"
 	"github.com/splitio/split-synchronizer/splitio/storage"
 	"github.com/splitio/split-synchronizer/splitio/web/dashboard/HTMLtemplates"
@@ -37,65 +36,91 @@ func (d *Dashboard) parse(name string, text string, data interface{}) string {
 	return buf.String()
 }
 
-func (d *Dashboard) parseBackendStats() string {
+func (d *Dashboard) parseLatencySerieData(key string, label string, backgroundColor string, borderColor string) string {
+
 	var toReturn string
 
 	latencies := stats.Latencies()
-	if ldata, ok := latencies["backend::/api/splitChanges"]; ok {
+	if ldata, ok := latencies[key]; ok {
 		if serie, err := json.Marshal(ldata); err == nil {
-			toReturn += d.parse(
-				"backend::/api/splitChanges",
+			toReturn = d.parse(
+				key,
 				HTMLtemplates.LatencySerieTPL,
 				HTMLtemplates.LatencySerieTPLVars{
-					Label:           "/api/splitChanges",
-					BackgroundColor: "rgba(255, 159, 64, 0.2)",
-					BorderColor:     "rgba(255, 159, 64, 1)",
+					Label:           label,
+					BackgroundColor: backgroundColor,
+					BorderColor:     borderColor,
 					Data:            string(serie),
 				})
 		}
 	}
 
-	if ldata, ok := latencies["backend::/api/segmentChanges"]; ok {
-		if serie, err := json.Marshal(ldata); err == nil {
-			toReturn += d.parse(
-				"backend::/api/segmentChanges",
-				HTMLtemplates.LatencySerieTPL,
-				HTMLtemplates.LatencySerieTPLVars{
-					Label:           "/api/segmentChanges",
-					BackgroundColor: "rgba(54, 162, 235, 0.2)",
-					BorderColor:     "rgba(54, 162, 235, 1)",
-					Data:            string(serie),
-				})
-		}
-	}
+	return toReturn
 
-	if ldata, ok := latencies["backend::/api/testImpressions/bulk"]; ok {
-		if serie, err := json.Marshal(ldata); err == nil {
-			toReturn += d.parse(
-				"backend::/api/testImpressions/bulk",
-				HTMLtemplates.LatencySerieTPL,
-				HTMLtemplates.LatencySerieTPLVars{
-					Label:           "backend::/api/testImpressions/bulk",
-					BackgroundColor: "rgba(75, 192, 192, 0.2)",
-					BorderColor:     "rgba(75, 192, 192, 1)",
-					Data:            string(serie),
-				})
-		}
-	}
+}
 
-	if ldata, ok := latencies["backend::/api/events/bulk"]; ok {
-		if serie, err := json.Marshal(ldata); err == nil {
-			toReturn += d.parse(
-				"backend::/api/events/bulk",
-				HTMLtemplates.LatencySerieTPL,
-				HTMLtemplates.LatencySerieTPLVars{
-					Label:           "backend::/api/events/bulk",
-					BackgroundColor: "rgba(255, 205, 86, 0.2)",
-					BorderColor:     "rgba(255, 205, 86, 1)",
-					Data:            string(serie),
-				})
-		}
-	}
+func (d *Dashboard) parseSDKStats() string {
+	var toReturn string
+
+	toReturn += d.parseLatencySerieData(
+		"/api/splitChanges",
+		"/api/splitChanges",
+		ToRGBAString(255, 159, 64, 0.2),
+		ToRGBAString(255, 159, 64, 1))
+
+	toReturn += d.parseLatencySerieData(
+		"/api/segmentChanges/*",
+		"/api/segmentChanges/*",
+		ToRGBAString(54, 162, 235, 0.2),
+		ToRGBAString(54, 162, 235, 1))
+
+	toReturn += d.parseLatencySerieData(
+		"/api/testImpressions/bulk",
+		"/api/testImpressions/bulk",
+		ToRGBAString(75, 192, 192, 0.2),
+		ToRGBAString(75, 192, 192, 1))
+
+	toReturn += d.parseLatencySerieData(
+		"/api/events/bulk",
+		"/api/events/bulk",
+		ToRGBAString(255, 205, 86, 0.2),
+		ToRGBAString(255, 205, 86, 1))
+
+	toReturn += d.parseLatencySerieData(
+		"/api/mySegments/*",
+		"/api/mySegments/*",
+		ToRGBAString(153, 102, 255, 0.2),
+		ToRGBAString(153, 102, 255, 1))
+
+	return toReturn
+}
+
+func (d *Dashboard) parseBackendStats() string {
+	var toReturn string
+
+	toReturn += d.parseLatencySerieData(
+		"backend::/api/splitChanges",
+		"/api/splitChanges",
+		ToRGBAString(255, 159, 64, 0.2),
+		ToRGBAString(255, 159, 64, 1))
+
+	toReturn += d.parseLatencySerieData(
+		"backend::/api/segmentChanges",
+		"/api/segmentChanges/*",
+		ToRGBAString(54, 162, 235, 0.2),
+		ToRGBAString(54, 162, 235, 1))
+
+	toReturn += d.parseLatencySerieData(
+		"backend::/api/testImpressions/bulk",
+		"/api/testImpressions/bulk",
+		ToRGBAString(75, 192, 192, 0.2),
+		ToRGBAString(75, 192, 192, 1))
+
+	toReturn += d.parseLatencySerieData(
+		"backend::/api/events/bulk",
+		"/api/events/bulk",
+		ToRGBAString(255, 205, 86, 0.2),
+		ToRGBAString(255, 205, 86, 1))
 
 	return toReturn
 }
@@ -164,13 +189,16 @@ func (d *Dashboard) HTML() string {
 
 	splitNames, err := d.splitStorage.SplitsNames()
 	if err != nil {
-		log.Error.Println(err)
+		log.Error.Println("Error reading splits, maybe storage has not been initialized yet")
 	}
 
 	segmentNames, err := d.segmentStorage.RegisteredSegmentNames()
 	if err != nil {
-		log.Error.Println(err)
+		log.Error.Println("Error reading segments, maybe storage has not been initialized yet")
 	}
+
+	//---> SDKs stats
+	latenciesGroupDataSDK := d.parseSDKStats()
 
 	//---> Backend stats
 	latenciesGroupDataBackend := d.parseBackendStats()
@@ -198,11 +226,17 @@ func (d *Dashboard) HTML() string {
 			LoggedMessages:              log.ErrorDashboard.Messages(),
 			SplitsNumber:                strconv.Itoa(len(splitNames)),
 			SegmentsNumber:              strconv.Itoa(len(segmentNames)),
-			BackendTotalRequests:        dashboard.FormatNumber(counters["backend::request.ok"] + counters["backend::request.error"]),
-			BackendRequestOkFormated:    dashboard.FormatNumber(counters["backend::request.ok"]),
-			BackendRequestErrorFormated: dashboard.FormatNumber(counters["backend::request.error"]),
+			RequestError:                FormatNumber(counters["request.error"]),
+			RequestErrorFormated:        FormatNumber(counters["request.error"]),
+			RequestOk:                   FormatNumber(counters["request.ok"]),
+			RequestOkFormated:           FormatNumber(counters["request.ok"]),
+			SdksTotalRequests:           FormatNumber(counters["request.ok"] + counters["request.error"]),
+			BackendTotalRequests:        FormatNumber(counters["backend::request.ok"] + counters["backend::request.error"]),
+			BackendRequestOkFormated:    FormatNumber(counters["backend::request.ok"]),
+			BackendRequestErrorFormated: FormatNumber(counters["backend::request.error"]),
 			BackendRequestOk:            strconv.Itoa(int(counters["backend::request.ok"])),
 			BackendRequestError:         strconv.Itoa(int(counters["backend::request.error"])),
+			LatenciesGroupData:          latenciesGroupDataSDK,
 			LatenciesGroupDataBackend:   latenciesGroupDataBackend,
 			SplitRows:                   cachedSplits,
 			SegmentRows:                 cachedSegments,
