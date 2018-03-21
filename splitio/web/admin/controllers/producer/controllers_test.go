@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/gin-gonic/gin"
 	"io/ioutil"
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 type itemStatus struct {
@@ -36,6 +37,8 @@ func (m mockStorage) Save(split interface{}) error             { return nil }
 func (m mockStorage) Remove(split interface{}) error           { return nil }
 func (m mockStorage) RegisterSegment(name string) error        { return nil }
 func (m mockStorage) SetChangeNumber(changeNumber int64) error { return nil }
+func (m mockStorage) SplitsNames() ([]string, error)           { return nil, nil }
+func (m mockStorage) RawSplits() ([]string, error)             { return nil, nil }
 
 func TestHealthCheckEndpointSuccessful(t *testing.T) {
 	router := gin.Default()

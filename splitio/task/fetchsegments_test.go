@@ -12,6 +12,7 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/api"
 	"github.com/splitio/split-synchronizer/splitio/fetcher"
 	"github.com/splitio/split-synchronizer/splitio/storage"
+	"github.com/splitio/split-synchronizer/splitio/storageDTOs"
 )
 
 var segmentMock = `
@@ -55,6 +56,11 @@ func (s testSegmentStorage) AddToSegment(segmentName string, keys []string) erro
 func (s testSegmentStorage) RemoveFromSegment(segmentName string, keys []string) error    { return nil }
 func (s testSegmentStorage) SetChangeNumber(segmentName string, changeNumber int64) error { return nil }
 func (s testSegmentStorage) ChangeNumber(segmentName string) (int64, error)               { return -1, nil }
+func (s testSegmentStorage) CountActiveKeys(segmentName string) (int64, error)            { return 0, nil }
+func (s testSegmentStorage) CountRemovedKeys(segmentName string) (int64, error)           { return 0, nil }
+func (s testSegmentStorage) Keys(segmentName string) ([]storageDTOs.SegmentKeyDTO, error) {
+	return nil, nil
+}
 
 type testSegmentStorageFactory struct{}
 

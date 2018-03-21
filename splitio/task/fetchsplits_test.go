@@ -98,7 +98,8 @@ func (h testSplitStorage) Remove(split interface{}) error           { return nil
 func (h testSplitStorage) RegisterSegment(name string) error        { return nil }
 func (h testSplitStorage) SetChangeNumber(changeNumber int64) error { return nil }
 func (h testSplitStorage) ChangeNumber() (int64, error)             { return 1491244291288, nil }
-
+func (h testSplitStorage) SplitsNames() ([]string, error)           { return nil, nil }
+func (h testSplitStorage) RawSplits() ([]string, error)             { return nil, nil }
 func TestFetchSplits(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
 	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
