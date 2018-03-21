@@ -86,6 +86,7 @@ type ProducerAdmin struct {
 	Port     int    `json:"adminPort" split-default-value:"3010" split-cli-option:"sync-admin-port" split-cli-description:"Sync admin port to listen connections"`
 	Username string `json:"adminUsername" split-default-value:"" split-cli-option:"sync-admin-username" split-cli-description:"HTTP basic auth username for admin endpoints"`
 	Password string `json:"adminPassword" split-default-value:"" split-cli-option:"sync-admin-password" split-cli-description:"HTTP basic auth password for admin endpoints"`
+	Title    string `json:"dashboardTitle" split-default-value:"" split-cli-option:"sync-dashboard-title" split-cli-description:"Descriptive title to be shwon in Admin Dashboard"`
 }
 
 // InMemorySection represents configuration for in memory proxy
@@ -94,6 +95,7 @@ type InMemorySection struct {
 	AdminPort          int    `json:"adminPort" split-default-value:"3010" split-cli-option:"proxy-admin-port" split-cli-description:"Proxy port for admin endpoints"`
 	AdminUsername      string `json:"adminUsername" split-default-value:"" split-cli-option:"proxy-admin-username" split-cli-description:"HTTP basic auth username for admin endpoints"`
 	AdminPassword      string `json:"adminPassword" split-default-value:"" split-cli-option:"proxy-admin-password" split-cli-description:"HTTP basic auth password for admin endpoints"`
+	Title              string `json:"dashboardTitle" split-default-value:"" split-cli-option:"proxy-dashboard-title" split-cli-description:"Descriptive title to be shwon in Admin Dashboard"`
 	PersistMemoryPath  string `json:"persistInFilePath" split-default-value:"" split-cli-option:"proxy-mmap-path" split-cli-description:"File path to persist memory in proxy mode"`
 	ImpressionsMaxSize int64  `json:"impressionsMaxSize" split-default-value:"10485760" split-cli-option:"proxy-impressions-max-size" split-cli-description:"Max size, in bytes, to send impressions in proxy mode"`
 	EventsMaxSize      int64  `json:"eventsMaxSize" split-default-value:"10485760" split-cli-option:"proxy-events-max-size" split-cli-description:"Max size, in bytes, to send events in proxy mode"`

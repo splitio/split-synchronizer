@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/splitio/storage"
 	"github.com/splitio/split-synchronizer/splitio/web/dashboard"
 )
@@ -27,7 +28,7 @@ func Dashboard(c *gin.Context) {
 	splitStorage, _ := c.Get("SplitStorage")
 	segmentStorage, _ := c.Get("SegmentStorage")
 
-	dash := dashboard.NewDashboard(true,
+	dash := dashboard.NewDashboard(conf.Data.Proxy.Title, true,
 		splitStorage.(storage.SplitStorage),
 		segmentStorage.(storage.SegmentStorage),
 	)
@@ -48,7 +49,7 @@ func DashboardSegmentKeys(c *gin.Context) {
 	splitStorage, _ := c.Get("SplitStorage")
 	segmentStorage, _ := c.Get("SegmentStorage")
 
-	dash := dashboard.NewDashboard(true,
+	dash := dashboard.NewDashboard(conf.Data.Proxy.Title, true,
 		splitStorage.(storage.SplitStorage),
 		segmentStorage.(storage.SegmentStorage),
 	)
