@@ -2,4 +2,4 @@
 package splitio
 
 // Version is the version of this Agent
-const Version = "1.6.0-rc3"
+const Version = "1.6.0-rc6"

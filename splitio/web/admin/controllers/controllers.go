@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"net/http"
+	"os"
 	"syscall"
 
 	"github.com/gin-gonic/gin"
@@ -31,6 +32,15 @@ func ShowStats(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"counters": counters, "latencies": latencies})
 }
 
+// kill process helper
+func kill(sig syscall.Signal) error {
+	p, err := os.FindProcess(os.Getpid())
+	if err != nil {
+		return err
+	}
+	return p.Signal(sig)
+}
+
 // StopProccess triggers a kill signal
 func StopProccess(c *gin.Context) {
 	stopType := c.Param("stopType")
@@ -39,10 +49,10 @@ func StopProccess(c *gin.Context) {
 	switch stopType {
 	case "force":
 		toReturn = stopType
-		defer syscall.Kill(syscall.Getpid(), syscall.SIGKILL)
+		defer kill(syscall.SIGKILL)
 	case "graceful":
 		toReturn = stopType
-		defer syscall.Kill(syscall.Getpid(), syscall.SIGINT)
+		defer kill(syscall.SIGINT)
 	default:
 		c.String(http.StatusBadRequest, "Invalid sign type: %s", toReturn)
 		return
