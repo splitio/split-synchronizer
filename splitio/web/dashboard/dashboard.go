@@ -152,18 +152,18 @@ func (d *Dashboard) parseCachedSegments() string {
 
 		activeKeys, err := d.segmentStorage.CountActiveKeys(segment)
 		if err != nil {
-			log.Error.Printf("Error counting active keys for segment %s\n", segment)
+			log.Warning.Printf("Error counting active keys for segment %s\n", segment)
 		}
 
 		removedKeys, err := d.segmentStorage.CountRemovedKeys(segment)
 		if err != nil {
-			log.Error.Printf("Error counting removed keys for segment %s\n", segment)
+			log.Warning.Printf("Error counting removed keys for segment %s\n", segment)
 		}
 
 		// LAST MODIFIED
 		changeNumber, err := d.segmentStorage.ChangeNumber(segment)
 		if err != nil {
-			log.Error.Printf("Error fetching last update for segment %s\n", segment)
+			log.Warning.Printf("Error fetching last update for segment %s\n", segment)
 		}
 		lastModified := time.Unix(0, changeNumber*int64(time.Millisecond))
 
@@ -223,7 +223,7 @@ func (d *Dashboard) HTML() string {
 			ProxyMode:                   d.proxy,
 			MainMenu:                    d.mainMenuTpl,
 			Uptime:                      stats.UptimeFormated(),
-			LoggedErrors:                strconv.Itoa(int(log.ErrorDashboard.Counts())),
+			LoggedErrors:                FormatNumber(log.ErrorDashboard.Counts()),
 			Version:                     splitio.Version,
 			LoggedMessages:              log.ErrorDashboard.Messages(),
 			SplitsNumber:                strconv.Itoa(len(splitNames)),
