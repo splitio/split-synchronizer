@@ -17,6 +17,7 @@ import (
 
 // Dashboard represents html dashboard class
 type Dashboard struct {
+	title          string
 	proxy          bool
 	splitStorage   storage.SplitStorage
 	segmentStorage storage.SegmentStorage
@@ -25,8 +26,8 @@ type Dashboard struct {
 }
 
 // NewDashboard returns an instance of Dashboard struct
-func NewDashboard(isProxy bool, splitStorage storage.SplitStorage, segmentStorage storage.SegmentStorage) *Dashboard {
-	return &Dashboard{proxy: isProxy, splitStorage: splitStorage, segmentStorage: segmentStorage}
+func NewDashboard(title string, isProxy bool, splitStorage storage.SplitStorage, segmentStorage storage.SegmentStorage) *Dashboard {
+	return &Dashboard{title: title, proxy: isProxy, splitStorage: splitStorage, segmentStorage: segmentStorage}
 }
 
 func (d *Dashboard) parse(name string, text string, data interface{}) string {
@@ -218,6 +219,7 @@ func (d *Dashboard) HTML() string {
 		"Layout",
 		HTMLtemplates.LayoutTPL,
 		HTMLtemplates.LayoutTPLVars{
+			DashboardTitle:              d.title,
 			ProxyMode:                   d.proxy,
 			MainMenu:                    d.mainMenuTpl,
 			Uptime:                      stats.UptimeFormated(),
