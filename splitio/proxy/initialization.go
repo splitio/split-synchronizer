@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/splitio/split-synchronizer/conf"
+	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/proxy/controllers"
 	"github.com/splitio/split-synchronizer/splitio/recorder"
 	"github.com/splitio/split-synchronizer/splitio/task"
@@ -14,6 +15,25 @@ import (
 
 func gracefulShutdownProxy(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	<-sigs
+
+	if conf.Data.Proxy.Title != "" {
+		fields := make([]log.SlackMessageAttachmentFields, 0)
+		fields = append(fields, log.SlackMessageAttachmentFields{
+			Title: conf.Data.Proxy.Title,
+			Value: "Shutting it down, see you soon!",
+			Short: false,
+		})
+		attach := log.SlackMessageAttachment{
+			Fallback: "Shutting Split-Sync down",
+			Color:    "danger",
+			Fields:   fields,
+		}
+		attachs := append(make([]log.SlackMessageAttachment, 0), attach)
+		log.PostMessageToSlack("[IMPORTANT] Starting Graceful Shutdown", attachs)
+	} else {
+		log.PostMessageToSlack("Shutting Split-Sync down - see you soon!", nil)
+	}
+
 	fmt.Println("\n\n * Starting graceful shutdown")
 	fmt.Println("")
 
