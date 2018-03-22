@@ -21,23 +21,7 @@ import (
 func gracefulShutdownProducer(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	<-sigs
 
-	if conf.Data.Producer.Admin.Title != "" {
-		fields := make([]log.SlackMessageAttachmentFields, 0)
-		fields = append(fields, log.SlackMessageAttachmentFields{
-			Title: conf.Data.Producer.Admin.Title,
-			Value: "Shutting it down, see you soon!",
-			Short: false,
-		})
-		attach := log.SlackMessageAttachment{
-			Fallback: "Shutting Split-Sync down",
-			Color:    "danger",
-			Fields:   fields,
-		}
-		attachs := append(make([]log.SlackMessageAttachment, 0), attach)
-		log.PostMessageToSlack("[IMPORTANT] Starting Graceful Shutdown", attachs)
-	} else {
-		log.PostMessageToSlack("Shutting Split-Sync down - see you soon!", nil)
-	}
+	log.PostShutdownMessageToSlack(false)
 
 	fmt.Println("\n\n * Starting graceful shutdown")
 	fmt.Println("")
