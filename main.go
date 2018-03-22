@@ -46,13 +46,13 @@ func init() {
 
 	//print the version
 	if *versionInfo {
-		fmt.Println("Split Synchronizer - Version: ", splitio.Version)
+		fmt.Printf("\nSplit Synchronizer - Version: %s (%s) \n", splitio.Version, splitio.CommitVersion)
 		os.Exit(0)
 	}
 
 	//Show initial banner
 	fmt.Println(splitio.ASCILogo)
-	fmt.Println("Split Synchronizer - Version: ", splitio.Version)
+	fmt.Printf("\nSplit Synchronizer - Version: %s (%s) \n", splitio.Version, splitio.CommitVersion)
 
 	//writing a default configuration file if it is required by user
 	if *writeDefaultConfigFile != "" {
