@@ -99,6 +99,8 @@ func (f *FileRotate) write(p []byte) (n int, err error) {
 
 // Write writes async the log message
 func (f *FileRotate) Write(p []byte) (n int, err error) {
-	go f.write(p)
+	dst := make([]byte, len(p))
+	copy(dst, p)
+	go f.write(dst)
 	return len(p), nil
 }

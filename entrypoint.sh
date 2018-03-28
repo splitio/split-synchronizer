@@ -29,6 +29,7 @@
 #    - SPLIT_SYNC_PROXY_SDK_APIKEYS            List of custom API-KEYs for your SDKs (Comma separated string)
 #    - SPLIT_SYNC_PROXY_ADMIN_USER             HTTP basic auth username for admin endpoints
 #    - SPLIT_SYNC_PROXY_ADMIN_PASS             HTTP basic auth password for admin endpoints
+#    - SPLIT_SYNC_PROXY_DASHBOARD_TITLE        Title to be shown in admin dashboard
 #    - SPLIT_SYNC_PROXY_IMPRESSIONS_MAX_SIZE   Max size, in bytes, to send impressions in proxy mode
 #    - SPLIT_SYNC_PROXY_EVENTS_MAX_SIZE        Max size, in bytes, to send events in proxy mode
 #
@@ -42,6 +43,7 @@
 #    - SPLIT_SYNC_IMPRESSIONS_THREADS          Number of impressions recorder threads
 #    - SPLIT_SYNC_ADMIN_USER                   HTTP basic auth username for admin endpoints
 #    - SPLIT_SYNC_ADMIN_PASS                   HTTP basic auth password for admin endpoints
+#    - SPLIT_SYNC_DASHBOARD_TITLE              Title to be shown in admin dashboard
 #    - SPLIT_SYNC_EVENTS_PER_POST              Number of events to send in a POST request
 #    - SPLIT_SYNC_EVENTS_THREADS               Number of events recorder threads
 
@@ -127,6 +129,10 @@ then
     PARAMETERS="${PARAMETERS} -proxy-admin-password=${SPLIT_SYNC_PROXY_ADMIN_PASS}"
   fi
 
+  if [ ! -z ${SPLIT_SYNC_PROXY_DASHBOARD_TITLE+x} ]; then
+    PARAMETERS="${PARAMETERS} -proxy-dashboard-title=${SPLIT_SYNC_PROXY_DASHBOARD_TITLE}"
+  fi
+
   if [ ! -z ${SPLIT_SYNC_PROXY_IMPRESSIONS_MAX_SIZE+x} ]; then
     PARAMETERS="${PARAMETERS} -proxy-impressions-max-size=${SPLIT_SYNC_PROXY_IMPRESSIONS_MAX_SIZE}"
   fi
@@ -173,6 +179,10 @@ else
 
   if [ ! -z ${SPLIT_SYNC_ADMIN_PASS+x} ]; then
     PARAMETERS="${PARAMETERS} -sync-admin-password=${SPLIT_SYNC_ADMIN_PASS}"
+  fi
+
+  if [ ! -z ${SPLIT_SYNC_DASHBOARD_TITLE+x} ]; then
+    PARAMETERS="${PARAMETERS} -sync-dashboard-title=${SPLIT_SYNC_DASHBOARD_TITLE}"
   fi
 
   if [ ! -z ${SPLIT_SYNC_EVENTS_PER_POST+x} ]; then
