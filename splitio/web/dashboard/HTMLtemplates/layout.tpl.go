@@ -1,7 +1,34 @@
-package dashboard
+package HTMLtemplates
 
-// HTML template
-var HTML = `
+// LayoutTPLVars template variables
+type LayoutTPLVars struct {
+	DashboardTitle              string
+	ProxyMode                   bool
+	MainMenu                    string
+	Uptime                      string
+	LoggedErrors                string
+	SdksTotalRequests           string
+	BackendTotalRequests        string
+	Version                     string
+	SplitsNumber                string
+	SegmentsNumber              string
+	LoggedMessages              []string
+	RequestOkFormated           string
+	RequestErrorFormated        string
+	BackendRequestOkFormated    string
+	BackendRequestErrorFormated string
+	SplitRows                   string
+	SegmentRows                 string
+	LatenciesGroupData          string
+	RequestOk                   string
+	RequestError                string
+	LatenciesGroupDataBackend   string
+	BackendRequestOk            string
+	BackendRequestError         string
+}
+
+// LayoutTPL template
+var LayoutTPL = `
 <!doctype html>
 <html lang="en">
 
@@ -10,7 +37,7 @@ var HTML = `
   <meta http-equiv="x-ua-compatible" content="ie=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <title>Split Sync - Dashboard</title>
+  <title>Split Sync - Dashboard | {{.DashboardTitle}}</title>
 
   <script>
   /*!
@@ -110,6 +137,7 @@ var HTML = `
   .nav-pills>li>a {color: #fff; border-radius:0px; background-color: rgb(65,77,91);}
   .nav-pills>li>a:hover {color: #fff; border-radius:0px; background-color: rgb(65,77,91);}
 
+  .split-nav-title {color:rgba(107,200,253,1); margin:0;}
   </style>
 </head>
 
@@ -119,6 +147,7 @@ var HTML = `
     <div class="row">
       <div class="col-md-12" style="background-color: #182A3C;">
         <div class="logosvg pull-left">
+        <p class="navbar-brand pull-right split-nav-title" href="#">{{.DashboardTitle}}</p>
         <svg class="icon icon-logo" viewBox="0 0 278 117" width="100" height="50" version="1.1" xmlns="http://www.w3.org/2000/svg"><title>reversed-logo</title><g id="Symbols" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd"><g id="split-logo-copy" transform="translate(-12.453125, -0.484375)"><g id="Best-Practices"><g id="Split-Best-Practices-Copy-4"><g id="logo"><g id="Group"><g id="Quick-Preso"><g id="a-copy-2"><g id="Group"><g id="Logo--Copy-5" transform="translate(126.590802, 18.022484)" fill="#FFFFFF"><path d="M20.3175225,65.414235 C32.8034446,65.414235 39.622679,59.2124082 39.622679,51.1023266 C39.622679,32.7830841 11.577377,38.8894983 11.577377,30.6840042 C11.577377,27.4399716 14.9389714,25.0546536 20.221477,25.0546536 C25.9842102,25.0546536 31.1706701,27.4399716 33.9559913,30.5885915 L38.1819957,23.52805 C33.9559913,19.8069538 28.0011668,17.0399849 20.1254314,17.0399849 C8.40787368,17.0399849 1.87677596,23.52805 1.87677596,31.0656551 C1.87677596,48.7170086 29.922078,42.2289435 29.922078,51.2931524 C29.922078,54.9188358 26.8486202,57.4949792 20.7977503,57.4949792 C14.7468803,57.4949792 8.31182812,54.3463593 5.04627926,51.0069141 L0.43609264,58.258281 C5.23837037,62.9335041 12.441787,65.414235 20.3175225,65.414235 L20.3175225,65.414235 L20.3175225,65.414235 L20.3175225,65.414235 Z M72.2908625,65.414235 C84.2965566,65.414235 92.844611,56.3500266 92.844611,41.1794036 C92.844611,26.0087808 84.2965566,17.0399849 72.2908625,17.0399849 C66.2399926,17.0399849 60.8614415,19.9023666 57.4038014,24.4821772 L57.4038014,18.1849376 L47.3190184,18.1849376 L47.3190184,81.8252232 L57.4038014,81.8252232 L57.4038014,57.8766299 C61.1495783,62.8380912 66.4320838,65.414235 72.2908625,65.414235 L72.2908625,65.414235 L72.2908625,65.414235 L72.2908625,65.414235 Z M70.5558468,56.540852 C65.8496148,56.540852 60.8552457,53.6784704 58.6461983,50.3390247 L58.6461983,32.115195 C60.8552457,28.680337 65.8496148,25.913368 70.5558468,25.913368 C78.5276276,25.913368 83.6180424,32.3060205 83.6180424,41.1794036 C83.6180424,50.1481994 78.5276276,56.540852 70.5558468,56.540852 L70.5558468,56.540852 L70.5558468,56.540852 L70.5558468,56.540852 Z M108.570048,64.2692825 L108.570048,0.628996721 L98.4852642,0.628996721 L98.4852642,64.2692825 L108.570048,64.2692825 L108.570048,64.2692825 L108.570048,64.2692825 Z M124.763321,12.555587 C128.220961,12.555587 131.006282,9.78861808 131.006282,6.35376003 C131.006282,2.91890205 128.220961,0.151933109 124.763321,0.151933109 C121.401726,0.151933109 118.52036,2.91890205 118.52036,6.35376003 C118.52036,9.78861808 121.401726,12.555587 124.763321,12.555587 L124.763321,12.555587 L124.763321,12.555587 L124.763321,12.555587 Z M129.853735,64.2692825 L129.853735,18.1849376 L119.768952,18.1849376 L119.768952,64.2692825 L129.853735,64.2692825 L129.853735,64.2692825 L129.853735,64.2692825 Z M163.866557,62.4564409 L161.465418,54.9188358 C160.697053,55.7775501 158.872187,56.540852 156.951276,56.540852 C154.06991,56.540852 152.533181,54.2509464 152.533181,51.1023266 L152.533181,26.962908 L161.945646,26.962908 L161.945646,18.1849376 L152.533181,18.1849376 L152.533181,5.59045827 L142.448397,5.59045827 L142.448397,18.1849376 L134.764753,18.1849376 L134.764753,26.962908 L142.448397,26.962908 L142.448397,53.5830575 C142.448397,61.2160751 146.578356,65.414235 154.358046,65.414235 C159.064279,65.414235 162.041691,64.1738696 163.866557,62.4564409 L163.866557,62.4564409 L163.866557,62.4564409 Z" id="split"></path></g><g id="New-Mark-Copy-2" transform="translate(60.616215, 59.555514) rotate(-30.000000) translate(-60.616215, -59.555514) translate(15.488942, 17.082786)"><polygon id="Combined-Shape" fill="#67C7FF" points="40.6414493 83.2525092 63.1555675 83.2524261 74.1304124 83.2533241 85.1024071 64.2462616 59.0205466 19.0711541 37.0797234 19.0801135 63.1555675 64.2468686 10.9918465 64.2468686 0.0291940249 83.2526584 40.6414493 83.2525092 29.6688748 64.2474524 51.6148707 64.2474524 40.6418728 83.2532422"></polygon><polygon id="Combined-Shape" fill="#1F8CEB" points="59.0205393 19.079957 77.7022797 19.079957 88.6649321 0.0741670952 25.5385586 0.0743990989 14.5637142 0.0735008917 3.59171904 19.0805636 29.6735796 64.2556715 51.6144026 64.2467117 25.5385586 19.079957 37.0784192 19.079957 48.0494791 0.0775237434"></polygon><polygon id="Polygon-Copy-3" fill="#1B73C0" transform="translate(40.641873, 73.750349) scale(1, -1) translate(-40.641873, -73.750349) " points="40.6418728 64.2474541 51.6148707 83.2532439 29.6688748 83.2532439"></polygon><polygon id="Polygon-Copy-3" fill="#1B73C0" points="48.0494791 0.0775237434 59.0224769 19.0833137 37.0764812 19.0833137"></polygon></g></g></g></g></g></g></g></g></g></g></svg>
         </div>
 
@@ -127,12 +156,7 @@ var HTML = `
         </div>
 
         <div class="pull-right">
-        <ul class="nav nav-tabs split-main-tabs" role="tablist">
-            <li role="presentation" class="active"><a href="#split-dashboard" aria-controls="split-dashboard" role="tab" data-toggle="tab"><span class="glyphicon glyphicon-th" aria-hidden="true"></span>&nbsp;Dashboard</a></li>
-            <li role="presentation"><a href="#sdk-stats" aria-controls="sdk-stats" role="tab" data-toggle="tab"><span class="glyphicon glyphicon-stats" aria-hidden="true"></span>&nbsp;SDK stats</a></li>
-            <li role="presentation"><a href="#backend-stats" aria-controls="backend-stats" role="tab" data-toggle="tab"><span class="glyphicon glyphicon-stats" aria-hidden="true"></span>&nbsp;Split stats</a></li>
-            <li role="presentation"><a href="#data-inspector" aria-controls="data-inspector" role="tab" data-toggle="tab"><span class="glyphicon glyphicon-search" aria-hidden="true"></span>&nbsp;Data inspector</a></li>
-          </ul>
+        {{.MainMenu}}
         </div>
       </div>
     </div>
@@ -144,40 +168,51 @@ var HTML = `
             <div class="col-md-4">
               <div class="gray1Box metricBox">
                 <h4>Uptime</h4>
-                <h1 class="centerText">{{uptime}}</h1>
+                <h1 class="centerText">{{.Uptime}}</h1>
               </div>
             </div>
             <div class="col-md-4">
               <div class="redBox metricBox">
                 <h4>Logged Errors</h4>
-                <h1 class="centerText">{{proxy_errors}}</h1>
+                <h1 class="centerText">{{.LoggedErrors}}</h1>
               </div>
             </div>
-            <div class="col-md-4">
-              <div class="gray2Box metricBox">
-                <h4>SDKs Total Hits</h4>
-                <h1 class="centerText">{{sdks_total_requests}}</h1>
+
+            {{if .ProxyMode}}   
+              <div class="col-md-4">
+                <div class="gray2Box metricBox">
+                  <h4>SDKs Total Hits</h4>
+                  <h1 class="centerText">{{.SdksTotalRequests}}</h1>
+                </div>
               </div>
-            </div>
+            {{else}}
+              <div class="col-md-4">
+                <div class="gray2Box metricBox">
+                  <h4>Backend Total Hits</h4>
+                  <h1 class="centerText">{{.BackendTotalRequests}}</h1>
+                </div>
+              </div>
+            {{end}}
+            
           </div>
 
           <div class="row">
             <div class="col-md-4">
               <div class="gray2Box metricBox">
                 <h4>Split Sync Version</h4>
-                <h1 class="centerText">{{proxy_version}}</h1>
+                <h1 class="centerText">{{.Version}}</h1>
               </div>
             </div>
             <div class="col-md-4">
               <div class="gray2Box metricBox">
                 <h4>Cached Splits</h4>
-                <h1 class="centerText">{{splits_number}}</h1>
+                <h1 class="centerText">{{.SplitsNumber}}</h1>
               </div>
             </div>
             <div class="col-md-4">
               <div class="gray2Box metricBox">
                 <h4>Cached Segments</h4>
-                <h1 class="centerText">{{segments_number}}</h1>
+                <h1 class="centerText">{{.SegmentsNumber}}</h1>
               </div>
             </div>
           </div>
@@ -188,7 +223,7 @@ var HTML = `
                 <h4>Last Errors Log</h4>
                 <table class="table table-condensed table-hover">
                   <tbody class="text-danger">
-                    {{lastErrorsRows}}
+                  {{range .LoggedMessages}}<tr><td>{{.}}</td></tr>{{end}}
                   </tbody>
                 </table>
               </div>
@@ -197,41 +232,43 @@ var HTML = `
 
 
         </div>
-    <!-- SDK STATS -->
-        <div role="tabpanel" class="tab-pane" id="sdk-stats">
 
-        <div class="row">
-          <div class="col-md-6">
-            <div class="greenBox metricBox">
-              <h4>Successful Requests</h4>
-              <h1 class="centerText">{{request_ok_formated}}</h1>
-            </div>
-          </div>
-          <div class="col-md-6">
-            <div class="redBox metricBox">
-              <h4>Error Requests</h4>
-              <h1 class="centerText">{{request_error_formated}}</h1>
-            </div>
-          </div>
-        </div>
+        {{if .ProxyMode}}
+            <!-- SDK STATS -->
+            <div role="tabpanel" class="tab-pane" id="sdk-stats">
 
-        <div class="row">
-          <div class="col-md-8">
-            <div class="bg-primary metricBox">
-              <h4>Latencies group <small>(microseconds)</small></h4>
-              <canvas id="LatencyBucket"></canvas>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="greenBox metricBox">
+                  <h4>Successful Requests</h4>
+                  <h1 class="centerText">{{.RequestOkFormated}}</h1>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="redBox metricBox">
+                  <h4>Error Requests</h4>
+                  <h1 class="centerText">{{.RequestErrorFormated}}</h1>
+                </div>
+              </div>
             </div>
-          </div>
-          <div class="col-md-4">
-            <div class="bg-primary metricBox">
-              <h4>Requests: Ok vs Error</h4>
-              <canvas id="RequestStatus"></canvas>
+
+            <div class="row">
+              <div class="col-md-8">
+                <div class="bg-primary metricBox">
+                  <h4>Latencies group <small>(microseconds)</small></h4>
+                  <canvas id="LatencyBucket"></canvas>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="bg-primary metricBox">
+                  <h4>Requests: Ok vs Error</h4>
+                  <canvas id="RequestStatus"></canvas>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
 
-        </div>
-
+            </div>
+        {{end}}
         <!-- BACKEND STATS -->
         <div role="tabpanel" class="tab-pane" id="backend-stats"">
 
@@ -239,13 +276,13 @@ var HTML = `
           <div class="col-md-6">
             <div class="greenBox metricBox">
               <h4>Successful Requests</h4>
-              <h1 class="centerText">{{backend_request_ok_formated}}</h1>
+              <h1 class="centerText">{{.BackendRequestOkFormated}}</h1>
             </div>
           </div>
           <div class="col-md-6">
             <div class="redBox metricBox">
               <h4>Error Requests</h4>
-              <h1 class="centerText">{{backend_request_error_formated}}</h1>
+              <h1 class="centerText">{{.BackendRequestErrorFormated}}</h1>
             </div>
           </div>
         </div>
@@ -317,7 +354,7 @@ var HTML = `
                               </tr>
                             </thead>
                             <tbody>
-                              {{splitRows}}
+                              {{.SplitRows}}
                             </tbody>
                           </table>
                         </div>
@@ -338,16 +375,23 @@ var HTML = `
                       <table class="table table-condensed table-hover">
                         <thead>
                           <tr>
+                          {{if .ProxyMode}}
                             <th>&nbsp;</th>
                             <th>Segment</th>
                             <th>Total Keys</th>
                             <th>Removed Keys</th>
                             <th>Active Keys</th>
                             <th>Last Modified</th>
+                          {{else}}
+                            <th>&nbsp;</th>
+                            <th>Segment</th>
+                            <th>Active Keys</th>
+                            <th>Last Modified</th>
+                          {{end}}
                           </tr>
                         </thead>
                         <tbody>
-                          {{segmentRows}}
+                          {{.SegmentRows}}
                         </tbody>
                       </table>
                     </div>
@@ -383,7 +427,6 @@ var HTML = `
 
       $.get(processUrl, function(data) {
         console.log("Response:", data);
-        alert("Stop (" + sigType + ") sign has been sent to process");
       })
     }
   }
@@ -453,49 +496,51 @@ var HTML = `
 
 <script>
 
-// SDKs charts
-var ctxL = document.getElementById("LatencyBucket").getContext('2d');
-var myChart = new Chart(ctxL, {
-    type: 'horizontalBar',
-    data: {
-        labels: ["1000", "1000-1500", "1500-2250", "2250-3375", "3375-5063", "5063-7594", "7594-11391", "11391-17086", "17086-25629", "25629-38443", "38443-57665", "57665-86498", "86498-129746", "129746-194620", "194620-291929", "291929-437894", "437894-656841", "656841-985261", "985261-1477892", "1477892-2216838", "2216838-3325257", "3325257-4987885", "4987885-7481828"],
-        datasets: [
-        {{latenciesGroupData}}
-      ]
-    },
-    options: {
-        scales: {
-            yAxes: [{
-                ticks: {
-                    beginAtZero:true
-                }
-            }]
-        }
-    }
-});
+{{if .ProxyMode}}
+  // SDKs charts
+  var ctxL = document.getElementById("LatencyBucket").getContext('2d');
+  var myChart = new Chart(ctxL, {
+      type: 'horizontalBar',
+      data: {
+          labels: ["1000", "1000-1500", "1500-2250", "2250-3375", "3375-5063", "5063-7594", "7594-11391", "11391-17086", "17086-25629", "25629-38443", "38443-57665", "57665-86498", "86498-129746", "129746-194620", "194620-291929", "291929-437894", "437894-656841", "656841-985261", "985261-1477892", "1477892-2216838", "2216838-3325257", "3325257-4987885", "4987885-7481828"],
+          datasets: [
+          {{.LatenciesGroupData}}
+        ]
+      },
+      options: {
+          scales: {
+              yAxes: [{
+                  ticks: {
+                      beginAtZero:true
+                  }
+              }]
+          }
+      }
+  });
 
-//Error & Success - PolarArea
-var ctxR = document.getElementById("RequestStatus").getContext('2d');
-var myChart = new Chart(ctxR, {
-    type: 'pie',
-    data: {
-        labels: ["Ok", "Error"],
-        datasets: [{
-            data: [{{request_ok}}, {{request_error}}],
-            backgroundColor: [
-              'rgba(75, 192, 192, 0.2)',
-              //'#c8e5bc',
-              'rgba(255, 99, 132, 0.2)'
-            ],
-            borderColor: [
-              'rgba(75, 192, 192, 1)',
-              //'#b2dba1',
-              'rgba(255,99,132,1)'
-            ],
-            borderWidth: 1
-        }],
-    }
-});
+  //Error & Success - PolarArea
+  var ctxR = document.getElementById("RequestStatus").getContext('2d');
+  var myChart = new Chart(ctxR, {
+      type: 'pie',
+      data: {
+          labels: ["Ok", "Error"],
+          datasets: [{
+              data: [{{.RequestOk}}, {{.RequestError}}],
+              backgroundColor: [
+                'rgba(75, 192, 192, 0.2)',
+                //'#c8e5bc',
+                'rgba(255, 99, 132, 0.2)'
+              ],
+              borderColor: [
+                'rgba(75, 192, 192, 1)',
+                //'#b2dba1',
+                'rgba(255,99,132,1)'
+              ],
+              borderWidth: 1
+          }],
+      }
+  });
+{{end}}
 
 // BACKEND STATS
 
@@ -505,7 +550,7 @@ var myChartB = new Chart(ctxLB, {
     data: {
         labels: ["1000", "1000-1500", "1500-2250", "2250-3375", "3375-5063", "5063-7594", "7594-11391", "11391-17086", "17086-25629", "25629-38443", "38443-57665", "57665-86498", "86498-129746", "129746-194620", "194620-291929", "291929-437894", "437894-656841", "656841-985261", "985261-1477892", "1477892-2216838", "2216838-3325257", "3325257-4987885", "4987885-7481828"],
         datasets: [
-        {{latenciesGroupDataBackend}}
+        {{.LatenciesGroupDataBackend}}
       ]
     },
     options: {
@@ -526,7 +571,7 @@ var myChart = new Chart(ctxRB, {
     data: {
         labels: ["Ok", "Error"],
         datasets: [{
-            data: [{{backend_request_ok}}, {{backend_request_error}}],
+            data: [{{.BackendRequestOk}}, {{.BackendRequestError}}],
             backgroundColor: [
               'rgba(75, 192, 192, 0.2)',
               //'#c8e5bc',
@@ -545,5 +590,4 @@ var myChart = new Chart(ctxRB, {
 </script>
 </body>
 </html>
-
 `

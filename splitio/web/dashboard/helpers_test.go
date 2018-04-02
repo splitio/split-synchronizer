@@ -44,3 +44,16 @@ func TestFormatNumber(t *testing.T) {
 	}
 
 }
+
+func TestToRGBAString(t *testing.T) {
+
+	rgba1 := ToRGBAString(10, 11, 12, 0.3)
+	if rgba1 != "rgba(10, 11, 12, 0.3)" {
+		t.Error("Not matching string.", "Expected: rgba(10, 11, 12, 0.3) Found:", rgba1)
+	}
+
+	rgba2 := ToRGBAString(10, 11, 12, 1)
+	if rgba2 != "rgba(10, 11, 12, 1)" {
+		t.Error("Not matching string.", "Expected: rgba(10, 11, 12, 1) Found:", rgba2)
+	}
+}

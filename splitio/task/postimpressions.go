@@ -40,6 +40,7 @@ type ImpressionBulk struct {
 
 var testImpressionsLatencies = latency.NewLatencyBucket()
 var testImpressionsCounters = counter.NewCounter()
+var testImpressionsLocalCounters = counter.NewCounter()
 
 var mutex = &sync.Mutex{}
 
@@ -73,6 +74,7 @@ func taskPostImpressions(
 					log.Error.Println("Error posting impressions to split backend", err.Error())
 
 					if _, ok := err.(*api.HttpError); ok {
+						testImpressionsLocalCounters.Increment("backend::request.error")
 						testImpressionsCounters.Increment(fmt.Sprintf("testImpressions.status.%d", err.(*api.HttpError).Code))
 					}
 
@@ -80,7 +82,9 @@ func taskPostImpressions(
 					log.Benchmark.Println("POST impressions to Server took", (time.Now().UnixNano() - beforePostServer))
 					log.Debug.Println("Impressions sent")
 					testImpressionsCounters.Increment("testImpressions.status.200")
+					testImpressionsLatencies.RegisterLatency("backend::/api/testImpressions/bulk", startTime)
 					testImpressionsLatencies.RegisterLatency("testImpressions.time", startTime)
+					testImpressionsLocalCounters.Increment("backend::request.ok")
 				}
 				if impressionListenerEnabled {
 					rawImpressions, err := json.Marshal(impressions)

@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/splitio/split-synchronizer/appcontext"
+
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio"
 	"github.com/splitio/split-synchronizer/splitio/api"
@@ -27,7 +29,7 @@ func TestLatency(t *testing.T) {
 		sdkVersion := r.Header.Get("SplitSDKVersion")
 		sdkMachine := r.Header.Get("SplitSDKMachineIP")
 
-		if sdkVersion != "SplitSync-"+splitio.Version {
+		if sdkVersion != "SplitSyncProxyMode-"+splitio.Version {
 			t.Error("SDK Version HEADER not match")
 		}
 
@@ -63,6 +65,7 @@ func TestLatency(t *testing.T) {
 	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
 
 	api.Initialize()
+	appcontext.Initialize(appcontext.ProxyMode)
 
 	latency := NewLatency()
 	latency.postRate = 2
@@ -104,7 +107,7 @@ func TestLatencyBucket(t *testing.T) {
 		sdkVersion := r.Header.Get("SplitSDKVersion")
 		sdkMachine := r.Header.Get("SplitSDKMachineIP")
 
-		if sdkVersion != "SplitSync-"+splitio.Version {
+		if sdkVersion != "SplitSyncProxyMode-"+splitio.Version {
 			t.Error("SDK Version HEADER not match")
 		}
 
@@ -140,6 +143,7 @@ func TestLatencyBucket(t *testing.T) {
 	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
 
 	api.Initialize()
+	appcontext.Initialize(appcontext.ProxyMode)
 
 	latency := NewLatencyBucket()
 	latency.postRate = 5

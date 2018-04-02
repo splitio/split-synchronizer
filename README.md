@@ -54,6 +54,7 @@ The container can be run on both modes (producer and proxy). To run it, differen
     - SPLIT_SYNC_PROXY_SDK_APIKEYS           List of custom API-KEYs for your SDKs (Comma separated string)
     - SPLIT_SYNC_PROXY_ADMIN_USER            HTTP basic auth username for admin endpoints
     - SPLIT_SYNC_PROXY_ADMIN_PASS            HTTP basic auth password for admin endpoints
+    - SPLIT_SYNC_PROXY_DASHBOARD_TITLE        Title to be shown in admin dashboard
     - SPLIT_SYNC_PROXY_IMPRESSIONS_MAX_SIZE  Max size, in bytes, to send impressions in proxy mode
 
    Producer vars:
@@ -66,6 +67,7 @@ The container can be run on both modes (producer and proxy). To run it, differen
     - SPLIT_SYNC_IMPRESSIONS_THREADS         Number of impressions recorder threads
     - SPLIT_SYNC_ADMIN_USER                  HTTP basic auth username for admin endpoints
     - SPLIT_SYNC_ADMIN_PASS                  HTTP basic auth password for admin endpoints
+    - SPLIT_SYNC_DASHBOARD_TITLE              Title to be shown in admin dashboard
     - SPLIT_SYNC_EVENTS_PER_POST             Number of events to send in a POST request
     - SPLIT_SYNC_EVENTS_THREADS              Number of events recorder threads
 
