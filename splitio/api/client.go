@@ -77,6 +77,10 @@ func (c *Client) Get(service string) ([]byte, error) {
 	log.Debug.Println("[GET] ", serviceURL)
 	req, _ := http.NewRequest("GET", serviceURL, nil)
 
+	//****************
+	req.Close = true // To prevent EOF error when connection is closed
+	//****************
+
 	authorization := conf.Data.APIKey
 	log.Debug.Println("Authorization [ApiKey]: ", log.ObfuscateAPIKey(authorization))
 

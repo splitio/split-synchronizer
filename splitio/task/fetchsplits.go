@@ -26,6 +26,7 @@ func StopFetchSplits() {
 
 var splitChangesLatencies = latency.NewLatencyBucket()
 var splitChangesCounters = counter.NewCounter()
+var splitChangesLocalCounters = counter.NewLocalCounter()
 
 func taskFetchSplits(splitFetcherAdapter fetcher.SplitFetcher,
 	splitStorageAdapter storage.SplitStorage) {
@@ -42,11 +43,14 @@ func taskFetchSplits(splitFetcherAdapter fetcher.SplitFetcher,
 		log.Error.Println("Error fetching SplitDTO on task ", err.Error())
 
 		if _, ok := err.(*api.HttpError); ok {
+			splitChangesLocalCounters.Increment("backend::request.error")
 			splitChangesCounters.Increment(fmt.Sprintf("splitChangeFetcher.status.%d", err.(*api.HttpError).Code))
 		}
 	} else {
 		splitChangesLatencies.RegisterLatency("splitChangeFetcher.time", startTime)
+		splitChangesLatencies.RegisterLatency("backend::/api/splitChanges", startTime)
 		splitChangesCounters.Increment("splitChangeFetcher.status.200")
+		splitChangesLocalCounters.Increment("backend::request.ok")
 		log.Verbose.Println(data)
 
 		till := data.Till

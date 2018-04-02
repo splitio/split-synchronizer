@@ -25,6 +25,7 @@ func StopFetchSegments() {
 
 var segmentChangeFetcherLatencies = latency.NewLatencyBucket()
 var segmentChangeFetcherCounters = counter.NewCounter()
+var segmentChangeFetcherLocalCounters = counter.NewLocalCounter()
 
 var blocker chan bool
 var jobs chan job
@@ -57,6 +58,7 @@ func (j job) run() {
 		if errSegmentFetch != nil {
 
 			if _, ok := errSegmentFetch.(*api.HttpError); ok {
+				segmentChangeFetcherLocalCounters.Increment("backend::request.error")
 				segmentChangeFetcherCounters.Increment(fmt.Sprintf("segmentChangeFetcher.status.%d", errSegmentFetch.(*api.HttpError).Code))
 			}
 
@@ -66,7 +68,9 @@ func (j job) run() {
 			continue
 		}
 		segmentChangeFetcherLatencies.RegisterLatency("segmentChangeFetcher.time", startTime)
+		segmentChangeFetcherLatencies.RegisterLatency("backend::/api/segmentChanges", startTime)
 		segmentChangeFetcherCounters.Increment("segmentChangeFetcher.status.200")
+		segmentChangeFetcherLocalCounters.Increment("backend::request.ok")
 		log.Debug.Println(">>>> Fetched segment:", segment.Name)
 
 		if lastChangeNumber >= segment.Till {
@@ -81,12 +85,12 @@ func (j job) run() {
 
 		//adding new keys to segment
 		if err := j.segmentStorage.AddToSegment(segment.Name, segment.Added); err != nil {
-			log.Error.Printf("Error adding keys to segment %s", segment.Name)
+			log.Error.Printf("Error adding keys to segment %s\n", segment.Name)
 		}
 
 		//removing keys from segment
 		if err := j.segmentStorage.RemoveFromSegment(segment.Name, segment.Removed); err != nil {
-			log.Error.Printf("Error removing keys from segment %s", segment.Name)
+			log.Error.Printf("Error removing keys from segment %s\n", segment.Name)
 		}
 
 		time.Sleep(time.Millisecond * 500)
@@ -129,7 +133,7 @@ func FetchSegments(segmentFetcherAdapter fetcher.SegmentFetcherFactory,
 			keepLoop = !stopSignal(time.Second * 30)
 			continue
 		}
-		log.Verbose.Printf("Fetched Segments from storage: %s", segmentsNames)
+		log.Verbose.Printf("Fetched Segments from storage: %s\n", segmentsNames)
 
 		taskFetchSegments(jobsPool, segmentsNames, segmentFetcherAdapter, storageAdapterFactory)
 
