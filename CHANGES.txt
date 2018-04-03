@@ -1,4 +1,4 @@
-1.6.0
+1.6.0 (Apr 3, 2018)
  - Graceful shutdown producer/proxy
  - Web dashboard in producer mode has been added  
 1.5.0 (Feb 19, 2018)
