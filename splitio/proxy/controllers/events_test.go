@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -31,7 +32,7 @@ func TestEventBufferCounter(t *testing.T) {
 }
 
 func TestAddEvents(t *testing.T) {
-
+	wg := &sync.WaitGroup{}
 	stdoutWriter := ioutil.Discard //os.Stdout
 	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 
@@ -98,7 +99,7 @@ func TestAddEvents(t *testing.T) {
 	}
 
 	// Init Impressions controller.
-	InitializeEventWorkers(200, 2)
+	InitializeEventWorkers(200, 2, wg)
 	AddEvents(data, "test-1.0.0", "127.0.0.1", "SOME_MACHINE_NAME")
 
 	// Lets async function post impressions

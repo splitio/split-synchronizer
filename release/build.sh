@@ -11,14 +11,16 @@ LINUX_BINARY_PATH=splitio-agent-linux-amd64
 WINDOWS_ZIP_FILENAME=split-sync-win_
 WINDOWS_BINARY_PATH=split-sync.exe
 
+#Versionning
+COMMIT_VERSION=`git rev-parse --short HEAD`
+BUILD_VERSION=`tail -n 1 ../splitio/version.go | awk '{print $4}' | tr -d '"'`
+
+cat commitversion.go.template | sed -e "s/COMMIT_VERSION/${COMMIT_VERSION}/" > ../splitio/commitversion.go
+
 #Compile agent
 GOOS=darwin GOARCH=amd64 go build -o ${OSX_BINARY_PATH} ..
 GOOS=linux GOARCH=amd64 go build -o ${LINUX_BINARY_PATH} ..
 GOOS=windows GOARCH=amd64 go build -o ${WINDOWS_BINARY_PATH} ..
-
-#Versionning
-COMMIT_VERSION=`git rev-parse --short HEAD`
-BUILD_VERSION=`tail -n 1 ../splitio/version.go | awk '{print $4}' | tr -d '"'`
 
 #Compress binaries
 zip -9 ${OSX_ZIP_FILENAME}  ${OSX_BINARY_PATH}

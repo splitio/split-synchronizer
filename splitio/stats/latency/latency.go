@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/splitio/split-synchronizer/appcontext"
 	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio"
 	"github.com/splitio/split-synchronizer/splitio/api"
 	"github.com/splitio/split-synchronizer/splitio/nethelper"
 	"github.com/splitio/split-synchronizer/splitio/recorder"
@@ -96,7 +96,7 @@ func (l *Latency) PostLatenciesWorker(f stats.LatencyStorageAddFunc) {
 		l.latencies = make(map[string][]int64)
 
 		l.lmutex.Unlock()
-		sdkVersion := "SplitSync-" + splitio.Version
+		sdkVersion := appcontext.VersionHeader()
 		machineIP, err := nethelper.ExternalIP()
 		if err != nil {
 			machineIP = "unknown"

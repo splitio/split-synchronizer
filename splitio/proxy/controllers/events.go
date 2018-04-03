@@ -23,7 +23,11 @@ var eventPoolBufferSize = eventPoolBufferSizeStruct{size: 0}
 var eventCurrentPoolBucket = 0
 var eventMutexPoolBuffer = sync.Mutex{}
 var eventChannel = make(chan eventChanMessage, eventChannelCapacity)
-var eventPoolBufferReleaseChannel = make(chan bool, 1)
+var eventWorkersStopChannel = make(chan bool, eventChannelCapacity)
+var eventPoolBufferChannel = make(chan int, 10)
+
+const eventChannelMessageRelease = 0
+const eventChannelMessageStop = 10
 
 //----------------------------------------------------------------
 //----------------------------------------------------------------
@@ -65,10 +69,10 @@ type eventChanMessage struct {
 }
 
 // InitializeEventWorkers initializes event workers
-func InitializeEventWorkers(footprint int64, postRate int64) {
-	go eventConditionsWorker(postRate)
+func InitializeEventWorkers(footprint int64, postRate int64, waitingGroup *sync.WaitGroup) {
+	go eventConditionsWorker(postRate, waitingGroup)
 	for i := 0; i < eventChannelCapacity; i++ {
-		go addEventsToBufferWorker(footprint)
+		go addEventsToBufferWorker(footprint, waitingGroup)
 	}
 }
 
@@ -84,12 +88,21 @@ func AddEvents(data []byte, sdkVersion string, machineIP string, machineName str
 	eventChannel <- event
 }
 
-func eventConditionsWorker(postRate int64) {
+func eventConditionsWorker(postRate int64, waitingGroup *sync.WaitGroup) {
+	waitingGroup.Add(1)
+	defer waitingGroup.Done()
 	for {
 		// Blocking conditions to send events
 		select {
-		case <-eventPoolBufferReleaseChannel:
-			log.Debug.Println("Releasing events by Size")
+		case msg := <-eventPoolBufferChannel:
+			switch msg {
+			case eventChannelMessageRelease:
+				log.Debug.Println("Releasing events by Size")
+			case eventChannelMessageStop:
+				// flush events and finish
+				sendEvents()
+				return
+			}
 		case <-time.After(time.Second * time.Duration(postRate)):
 			log.Debug.Println("Releasing events by post rate")
 		}
@@ -98,10 +111,17 @@ func eventConditionsWorker(postRate int64) {
 	}
 }
 
-func addEventsToBufferWorker(footprint int64) {
+func addEventsToBufferWorker(footprint int64, waitingGroup *sync.WaitGroup) {
+	waitingGroup.Add(1)
+	defer waitingGroup.Done()
 
 	for {
-		eventMessage := <-eventChannel
+		var eventMessage eventChanMessage
+		select {
+		case <-eventWorkersStopChannel:
+			return
+		case eventMessage = <-eventChannel:
+		}
 
 		data := eventMessage.Data
 		sdkVersion := eventMessage.SdkVersion
@@ -133,7 +153,7 @@ func addEventsToBufferWorker(footprint int64) {
 		eventMutexPoolBuffer.Unlock()
 
 		if eventPoolBufferSize.GreaterThan(footprint) {
-			eventPoolBufferReleaseChannel <- true
+			eventPoolBufferChannel <- eventChannelMessageRelease
 		}
 	}
 
@@ -186,4 +206,12 @@ func sendEvents() {
 	}
 	// Clear the eventPoolBuffer
 	eventPoolBuffer = make(sdkVersionBuffer)
+}
+
+// StopEventsRecording stops all tasks related to event submission.
+func StopEventsRecording() {
+	eventPoolBufferChannel <- eventChannelMessageStop
+	for i := 0; i < eventChannelCapacity; i++ {
+		eventWorkersStopChannel <- true
+	}
 }

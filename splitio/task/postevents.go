@@ -2,16 +2,39 @@ package task
 
 import (
 	"errors"
+	"fmt"
+	"sync"
 	"time"
 
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/api"
 	"github.com/splitio/split-synchronizer/splitio/nethelper"
 	"github.com/splitio/split-synchronizer/splitio/recorder"
+	"github.com/splitio/split-synchronizer/splitio/stats/counter"
+	"github.com/splitio/split-synchronizer/splitio/stats/latency"
 	"github.com/splitio/split-synchronizer/splitio/storage"
 )
 
+var eventsIncoming chan string
+
+var postEventsLatencies = latency.NewLatencyBucket()
+var postEventsCounters = counter.NewCounter()
+var postEventsLocalCounters = counter.NewCounter()
+
 const totalPostAttemps = 3
+
+// InitializeEvents initialiaze events task
+func InitializeEvents(threads int) {
+	eventsIncoming = make(chan string, threads)
+}
+
+// StopPostEvents stops PostEvents task sendding signal
+func StopPostEvents() {
+	select {
+	case eventsIncoming <- "STOP":
+	default:
+	}
+}
 
 func taskPostEvents(tid int,
 	recorderAdapter recorder.EventsRecorder,
@@ -68,9 +91,15 @@ func taskPostEvents(tid int,
 				var err = errors.New("") // forcing error to start "for" attempts
 				attemps := 0
 				for err != nil && attemps < totalPostAttemps {
+					startTime := postEventsLatencies.StartMeasuringLatency()
 					err = recorderAdapter.Post(bulk, s, i, n)
 					if err != nil {
 						log.Error.Println("Error posting events", err)
+						postEventsLocalCounters.Increment("backend::request.error")
+					} else {
+						postEventsLatencies.RegisterLatency("backend::/api/events/bulk", startTime)
+						postEventsLatencies.RegisterLatency("events.time", startTime)
+						postEventsLocalCounters.Increment("backend::request.ok")
 					}
 					attemps++
 					time.Sleep(nethelper.WaitForNextAttemp() * time.Second)
@@ -88,11 +117,36 @@ func PostEvents(
 	eventsStorageAdapter storage.EventStorage,
 	eventsRefreshRate int,
 	eventsBulkSize int,
+	wg *sync.WaitGroup,
+) {
+	wg.Add(1)
+	keepLoop := true
+	for keepLoop {
+		taskPostEvents(tid, eventsRecorderAdapter, eventsStorageAdapter, int64(eventsBulkSize))
+
+		select {
+		case msg := <-eventsIncoming:
+			if msg == "STOP" {
+				log.Debug.Println("Stopping task: post_events")
+				keepLoop = false
+			}
+		case <-time.After(time.Duration(eventsRefreshRate) * time.Second):
+		}
+	}
+	wg.Done()
+}
+
+// EventsFlush Task to flush cached events.
+func EventsFlush(
+	eventsRecorderAdapter recorder.EventsRecorder,
+	eventsStorageAdapter storage.EventStorage,
+	eventsBulkSize int,
 ) {
 
-	for {
-		taskPostEvents(tid, eventsRecorderAdapter, eventsStorageAdapter, int64(eventsBulkSize))
-		time.Sleep(time.Duration(eventsRefreshRate) * time.Second)
+	for eventsStorageAdapter.Size() > 0 {
+		fmt.Println("Flushing events list")
+		taskPostEvents(0, eventsRecorderAdapter, eventsStorageAdapter, int64(eventsBulkSize))
+		time.Sleep(100 * time.Millisecond)
 	}
 
 }

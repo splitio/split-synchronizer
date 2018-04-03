@@ -2,6 +2,7 @@ package redis
 
 import (
 	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/storageDTOs"
 	redis "gopkg.in/redis.v5"
 )
 
@@ -62,4 +63,29 @@ func (r SegmentStorageAdapter) SetChangeNumber(segmentName string, changeNumber 
 // ChangeNumber gets the till value belong to segmentName
 func (r SegmentStorageAdapter) ChangeNumber(segmentName string) (int64, error) {
 	return r.client.Get(r.segmentTillNamespace(segmentName)).Int64()
+}
+
+// CountActiveKeys count the numbers of keys in segmentName
+func (r SegmentStorageAdapter) CountActiveKeys(segmentName string) (int64, error) {
+	return r.client.SCard(r.segmentNamespace(segmentName)).Result()
+}
+
+// Keys returns the keys in segmentName
+func (r SegmentStorageAdapter) Keys(segmentName string) ([]storageDTOs.SegmentKeyDTO, error) {
+	keys, err := r.client.SMembers(r.segmentNamespace(segmentName)).Result()
+	if err != nil {
+		log.Error.Println("Error fetching keys from redis")
+		return nil, err
+	}
+
+	toReturn := make([]storageDTOs.SegmentKeyDTO, 0)
+	for _, key := range keys {
+		toReturn = append(toReturn, storageDTOs.SegmentKeyDTO{Name: key})
+	}
+	return toReturn, nil
+}
+
+// CountRemovedKeys count the numbers of removed keys in segmentName
+func (r SegmentStorageAdapter) CountRemovedKeys(segmentName string) (int64, error) {
+	return 0, nil //not available on redis
 }

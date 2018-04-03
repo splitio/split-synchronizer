@@ -3,6 +3,7 @@ package task
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/splitio/split-synchronizer/log"
@@ -13,8 +14,19 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/storage"
 )
 
+var splitsIncoming = make(chan string, 1)
+
+// StopFetchSplits stops FetchSplits task sendding signal
+func StopFetchSplits() {
+	select {
+	case splitsIncoming <- "STOP":
+	default:
+	}
+}
+
 var splitChangesLatencies = latency.NewLatencyBucket()
 var splitChangesCounters = counter.NewCounter()
+var splitChangesLocalCounters = counter.NewLocalCounter()
 
 func taskFetchSplits(splitFetcherAdapter fetcher.SplitFetcher,
 	splitStorageAdapter storage.SplitStorage) {
@@ -31,11 +43,14 @@ func taskFetchSplits(splitFetcherAdapter fetcher.SplitFetcher,
 		log.Error.Println("Error fetching SplitDTO on task ", err.Error())
 
 		if _, ok := err.(*api.HttpError); ok {
+			splitChangesLocalCounters.Increment("backend::request.error")
 			splitChangesCounters.Increment(fmt.Sprintf("splitChangeFetcher.status.%d", err.(*api.HttpError).Code))
 		}
 	} else {
 		splitChangesLatencies.RegisterLatency("splitChangeFetcher.time", startTime)
+		splitChangesLatencies.RegisterLatency("backend::/api/splitChanges", startTime)
 		splitChangesCounters.Increment("splitChangeFetcher.status.200")
+		splitChangesLocalCounters.Increment("backend::request.ok")
 		log.Verbose.Println(data)
 
 		till := data.Till
@@ -85,9 +100,20 @@ func taskFetchSplits(splitFetcherAdapter fetcher.SplitFetcher,
 // FetchSplits task to retrieve split changes from Split servers
 func FetchSplits(splitFetcherAdapter fetcher.SplitFetcher,
 	splitStorageAdapter storage.SplitStorage,
-	splitsRefreshRate int) {
-	for {
+	splitsRefreshRate int, wg *sync.WaitGroup) {
+	wg.Add(1)
+	keepLoop := true
+	for keepLoop {
 		taskFetchSplits(splitFetcherAdapter, splitStorageAdapter)
-		time.Sleep(time.Duration(splitsRefreshRate) * time.Second)
+
+		select {
+		case msg := <-splitsIncoming:
+			if msg == "STOP" {
+				log.Debug.Println("Stopping task: fetch_splits")
+				keepLoop = false
+			}
+		case <-time.After(time.Duration(splitsRefreshRate) * time.Second):
+		}
 	}
+	wg.Done()
 }

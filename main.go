@@ -8,27 +8,22 @@ import (
 	"io/ioutil"
 	"net/url"
 	"os"
-	"strconv"
+	"os/signal"
 	"strings"
-	"time"
+	"sync"
+	"syscall"
 
-	"github.com/splitio/split-synchronizer/splitio/web/admin/controllers/producer"
+	"github.com/splitio/split-synchronizer/appcontext"
+	"github.com/splitio/split-synchronizer/splitio/producer"
+	"github.com/splitio/split-synchronizer/splitio/proxy"
 
-	"github.com/gin-gonic/gin"
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio"
 	"github.com/splitio/split-synchronizer/splitio/api"
-	"github.com/splitio/split-synchronizer/splitio/fetcher"
-	"github.com/splitio/split-synchronizer/splitio/proxy"
-	"github.com/splitio/split-synchronizer/splitio/proxy/controllers"
-	"github.com/splitio/split-synchronizer/splitio/recorder"
 	"github.com/splitio/split-synchronizer/splitio/stats"
-	"github.com/splitio/split-synchronizer/splitio/storage"
 	"github.com/splitio/split-synchronizer/splitio/storage/boltdb"
 	"github.com/splitio/split-synchronizer/splitio/storage/redis"
-	"github.com/splitio/split-synchronizer/splitio/task"
-	"github.com/splitio/split-synchronizer/splitio/web/admin"
 )
 
 var asProxy *bool
@@ -38,8 +33,11 @@ var configFile *string
 var writeDefaultConfigFile *string
 var cliParametersMap map[string]interface{}
 
+var gracefulShutdownWaitingGroup = &sync.WaitGroup{}
+var sigs = make(chan os.Signal, 1)
+
 //------------------------------------------------------------------------------
-// MAIN PROGRAM
+// Go Initialization
 //------------------------------------------------------------------------------
 
 func init() {
@@ -48,13 +46,13 @@ func init() {
 
 	//print the version
 	if *versionInfo {
-		fmt.Println("Split Synchronizer - Version: ", splitio.Version)
+		fmt.Printf("\nSplit Synchronizer - Version: %s (%s) \n", splitio.Version, splitio.CommitVersion)
 		os.Exit(0)
 	}
 
 	//Show initial banner
 	fmt.Println(splitio.ASCILogo)
-	fmt.Println("Split Synchronizer - Version: ", splitio.Version)
+	fmt.Printf("\nSplit Synchronizer - Version: %s (%s) \n", splitio.Version, splitio.CommitVersion)
 
 	//writing a default configuration file if it is required by user
 	if *writeDefaultConfigFile != "" {
@@ -67,64 +65,19 @@ func init() {
 	loadConfiguration()
 	loadLogger()
 	api.Initialize()
+	stats.Initialize()
 
 	if *asProxy {
+		appcontext.Initialize(appcontext.ProxyMode)
+
 		var dbpath = boltdb.InMemoryMode
 		if conf.Data.Proxy.PersistMemoryPath != "" {
 			dbpath = conf.Data.Proxy.PersistMemoryPath
 		}
 		boltdb.Initialize(dbpath, nil)
-		stats.Initialize()
 	} else {
+		appcontext.Initialize(appcontext.ProducerMode)
 		redis.Initialize(conf.Data.Redis)
-	}
-
-}
-
-func startAsProxy() {
-	go task.FetchRawSplits(conf.Data.SplitsFetchRate, conf.Data.SegmentFetchRate)
-
-	if conf.Data.ImpressionListener.Endpoint != "" {
-		go task.PostImpressionsToListener(recorder.ImpressionListenerSubmitter{
-			Endpoint: conf.Data.ImpressionListener.Endpoint,
-		})
-	}
-
-	controllers.InitializeImpressionWorkers(
-		conf.Data.Proxy.ImpressionsMaxSize,
-		int64(conf.Data.ImpressionsPostRate),
-	)
-	controllers.InitializeEventWorkers(
-		conf.Data.Proxy.EventsMaxSize,
-		int64(conf.Data.EventsPushRate),
-	)
-
-	proxyOptions := &proxy.ProxyOptions{
-		Port:                      ":" + strconv.Itoa(conf.Data.Proxy.Port),
-		APIKeys:                   conf.Data.Proxy.Auth.APIKeys,
-		AdminPort:                 conf.Data.Proxy.AdminPort,
-		AdminUsername:             conf.Data.Proxy.AdminUsername,
-		AdminPassword:             conf.Data.Proxy.AdminPassword,
-		DebugOn:                   conf.Data.Logger.DebugOn,
-		ImpressionListenerEnabled: conf.Data.ImpressionListener.Endpoint != "",
-	}
-
-	//Run webserver loop
-	proxy.Run(proxyOptions)
-}
-
-func main() {
-
-	if *asProxy {
-		// Run as proxy using boltdb as in-memoy database
-		startAsProxy()
-	} else {
-		// Run as synchronizer using Redis as cache
-		startProducer()
-		//Keeping service alive
-		for {
-			time.Sleep(500 * time.Millisecond)
-		}
 	}
 
 }
@@ -229,78 +182,20 @@ func loadLogger() {
 	log.Initialize(benchmarkWriter, verboseWriter, debugWriter, commonWriter, commonWriter, fullWriter)
 }
 
-func startProducer() {
+//------------------------------------------------------------------------------
+// MAIN PROGRAM
+//------------------------------------------------------------------------------
 
-	splitFetcher := splitFetcherFactory()
-	splitStorage := splitStorageFactory()
+func main() {
 
-	go func() {
-		// WebAdmin configuration
-		waOptions := &admin.WebAdminOptions{
-			Port:          conf.Data.Producer.Admin.Port,
-			AdminUsername: conf.Data.Producer.Admin.Username,
-			AdminPassword: conf.Data.Producer.Admin.Password,
-			DebugOn:       conf.Data.Logger.DebugOn,
-		}
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
-		waServer := admin.NewWebAdminServer(waOptions)
-
-		waServer.Router().Use(func(c *gin.Context) {
-			c.Set("SplitStorage", splitStorage)
-		})
-
-		waServer.Router().GET("/admin/healthcheck", producer.HealthCheck)
-
-		waServer.Run()
-	}()
-
-	go task.FetchSplits(splitFetcher, splitStorage, conf.Data.SplitsFetchRate)
-
-	segmentFetcher := segmentFetcherFactory()
-	segmentStorage := segmentStorageFactory()
-	go task.FetchSegments(segmentFetcher, segmentStorage, conf.Data.SegmentFetchRate)
-
-	for i := 0; i < conf.Data.ImpressionsThreads; i++ {
-		impressionsStorage := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-		impressionsRecorder := recorder.ImpressionsHTTPRecorder{}
-		if conf.Data.ImpressionListener.Endpoint != "" {
-			go task.PostImpressionsToListener(recorder.ImpressionListenerSubmitter{
-				Endpoint: conf.Data.ImpressionListener.Endpoint,
-			})
-		}
-		go task.PostImpressions(
-			i,
-			impressionsRecorder,
-			impressionsStorage,
-			conf.Data.ImpressionsPostRate,
-			conf.Data.ImpressionListener.Endpoint != "",
-		)
-
+	if *asProxy {
+		// Run as proxy using boltdb as in-memoy database
+		proxy.Start(sigs, gracefulShutdownWaitingGroup)
+	} else {
+		// Run as synchronizer using Redis as cache
+		producer.Start(sigs, gracefulShutdownWaitingGroup)
 	}
 
-	metricsStorage := redis.NewMetricsStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-	metricsRecorder := recorder.MetricsHTTPRecorder{}
-	go task.PostMetrics(metricsRecorder, metricsStorage, conf.Data.MetricsPostRate)
-
-	for i := 0; i < conf.Data.EventsConsumerThreads; i++ {
-		eventsStorage := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-		eventsRecorder := recorder.EventsHTTPRecorder{}
-		go task.PostEvents(i, eventsRecorder, eventsStorage, conf.Data.EventsPushRate, conf.Data.EventsConsumerReadSize)
-	}
-}
-
-func splitFetcherFactory() fetcher.SplitFetcher {
-	return fetcher.NewHTTPSplitFetcher()
-}
-
-func splitStorageFactory() storage.SplitStorage {
-	return redis.NewSplitStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-}
-
-func segmentFetcherFactory() fetcher.SegmentFetcherFactory {
-	return fetcher.SegmentFetcherMainFactory{}
-}
-
-func segmentStorageFactory() storage.SegmentStorageFactory {
-	return storage.SegmentStorageMainFactory{}
 }

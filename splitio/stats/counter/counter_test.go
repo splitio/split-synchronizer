@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/splitio/split-synchronizer/appcontext"
+
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio"
 	"github.com/splitio/split-synchronizer/splitio/api"
@@ -32,7 +34,7 @@ func TestCounter(t *testing.T) {
 		sdkVersion := r.Header.Get("SplitSDKVersion")
 		sdkMachine := r.Header.Get("SplitSDKMachineIP")
 
-		if sdkVersion != "SplitSync-"+splitio.Version {
+		if sdkVersion != "SplitSyncProducerMode-"+splitio.Version {
 			t.Error("SDK Version HEADER not match")
 		}
 
@@ -70,6 +72,7 @@ func TestCounter(t *testing.T) {
 
 	api.Initialize()
 	stats.Initialize()
+	appcontext.Initialize(appcontext.ProducerMode)
 	// Counter Code
 	counter := NewCounter()
 	counter.postRate = 5
