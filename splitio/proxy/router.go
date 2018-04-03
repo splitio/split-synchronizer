@@ -4,7 +4,9 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
+	"github.com/splitio/split-synchronizer/splitio/storage/boltdb/wrappers"
 	"github.com/splitio/split-synchronizer/splitio/web/admin"
+	proxyAdminControllers "github.com/splitio/split-synchronizer/splitio/web/admin/controllers/proxy"
 	"github.com/splitio/split-synchronizer/splitio/web/middleware"
 )
 
@@ -57,10 +59,14 @@ func Run(options *ProxyOptions) {
 
 		waServer := admin.NewWebAdminServer(waOptions)
 
-		waServer.Router().GET("/admin/healthcheck", healthCheck)
-		waServer.Router().GET("/admin/stats", showStats)
-		waServer.Router().GET("/admin/dashboard", showDashboard)
-		waServer.Router().GET("/admin/dashboard/segmentKeys/:segment", showDashboardSegmentKeys)
+		waServer.Router().Use(func(c *gin.Context) {
+			c.Set("SplitStorage", wrappers.NewSplitChangesWrapper())
+			c.Set("SegmentStorage", wrappers.NewSegmentChangesWrapper())
+		})
+
+		waServer.Router().GET("/admin/healthcheck", proxyAdminControllers.HealthCheck)
+		waServer.Router().GET("/admin/dashboard", proxyAdminControllers.Dashboard)
+		waServer.Router().GET("/admin/dashboard/segmentKeys/:segment", proxyAdminControllers.DashboardSegmentKeys)
 
 		waServer.Run()
 	}()

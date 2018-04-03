@@ -2,6 +2,7 @@ package log
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -62,6 +63,22 @@ func (c *DashboardWriter) Messages() []string {
 	return c.messages
 }
 
+// SlackMessageAttachmentFields attachment field struct
+type SlackMessageAttachmentFields struct {
+	Title string `json:"title"`
+	Value string `json:"value"`
+	Short bool   `json:"short"`
+}
+
+// SlackMessageAttachment attach message struct
+type SlackMessageAttachment struct {
+	Fallback string                         `json:"fallback"`
+	Text     string                         `json:"text,omitempty"`
+	Pretext  string                         `json:"pretext,omitempty"`
+	Color    string                         `json:"color"` // Can either be one of 'good', 'warning', 'danger', or any hex color code
+	Fields   []SlackMessageAttachmentFields `json:"fields"`
+}
+
 // SlackWriter writes messages to Slack user or channel. Implements io.Writer interface
 type SlackWriter struct {
 	WebHookURL  string
@@ -77,7 +94,7 @@ func (w *SlackWriter) Write(p []byte) (n int, err error) {
 	currentTime := time.Now().Unix()
 	gapTime := int(currentTime - w.lastSent)
 	if gapTime >= w.RefreshRate {
-		err := w.postMessage()
+		err := w.postMessage(w.message, nil)
 		if err != nil {
 			fmt.Println("[Slack]", err.Error())
 		}
@@ -89,9 +106,19 @@ func (w *SlackWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func (w *SlackWriter) postMessage() (err error) {
+func (w *SlackWriter) postMessage(msg []byte, attachements []SlackMessageAttachment) (err error) {
 	urlStr := w.WebHookURL
-	var jsonStr = fmt.Sprintf(`{"channel": "%s", "username": "splitio-go-agent", "text": "%s", "icon_emoji": ":robot_face:"}`, w.Channel, w.message)
+	//Simple message by default
+	jsonStr := fmt.Sprintf(`{"channel": "%s", "username": "Split-Sync", "text": "%s", "icon_emoji": ":robot_face:"}`, w.Channel, msg)
+	if attachements != nil {
+		attachs, err := json.Marshal(attachements)
+		if err != nil {
+			fmt.Println("Error posting message to Slack with attachment fields")
+		} else {
+			jsonStr = fmt.Sprintf(`{"channel": "%s", "username": "Split-Sync", "text": "%s", "icon_emoji": ":robot_face:", "attachments":%s}`, w.Channel, msg, string(attachs))
+		}
+	}
+
 	req, _ := http.NewRequest("POST", urlStr, bytes.NewBuffer([]byte(jsonStr)))
 
 	client := &http.Client{}
@@ -107,6 +134,11 @@ func (w *SlackWriter) postMessage() (err error) {
 	}
 	body, _ := ioutil.ReadAll(resp.Body)
 	return fmt.Errorf("Error posting log message to Slack %s, with message %s", resp.Status, body)
+}
+
+// PostNow post a message directly to slack channel
+func (w *SlackWriter) PostNow(msg []byte, attachements []SlackMessageAttachment) (err error) {
+	return w.postMessage(msg, attachements)
 }
 
 // Initialize log module

@@ -20,9 +20,9 @@ func TestSlackWriter(t *testing.T) {
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		expectedJSON := `{"channel": "some-channel", "username": "splitio-go-agent", "text": "Some error message", "icon_emoji": ":robot_face:"}`
+		expectedJSON := `{"channel": "some-channel", "username": "Split-Sync", "text": "Some error message", "icon_emoji": ":robot_face:"}`
 		rBody, _ := ioutil.ReadAll(r.Body)
-		//fmt.Println(string(rBody))
+		fmt.Println(string(rBody))
 
 		if string(rBody) != expectedJSON {
 			t.Error("malformed JSON at SLACK message")

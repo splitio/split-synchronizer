@@ -274,7 +274,7 @@ func retrieveSegments(segmentsRefreshRate int) {
 	for {
 		time.Sleep(time.Duration(segmentsRefreshRate) * time.Second)
 		mutexSegmentsTill.Lock()
-		for segmentName, _ := range proxySegmentsTill {
+		for segmentName := range proxySegmentsTill {
 			// Adding segment to channel to be processed by worker
 			proxySegmentToProcess <- segmentName
 		}

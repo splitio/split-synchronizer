@@ -33,6 +33,7 @@ The container can be run on both modes (producer and proxy). To run it, differen
     - SPLIT_SYNC_SPLITS_REFRESH_RATE         Refresh rate of splits fetcher
     - SPLIT_SYNC_SEGMENTS_REFRESH_RATE       Refresh rate of segments fetcher
     - SPLIT_SYNC_IMPRESSIONS_REFRESH_RATE    Refresh rate of impressions recorder
+    - SPLIT_SYNC_EVENTS_REFRESH_RATE         Refresh rate of events recorder
     - SPLIT_SYNC_METRICS_REFRESH_RATE        Refresh rate of metrics recorder
     - SPLIT_SYNC_HTTP_TIMEOUT                Timeout specifies a time limit for requests
     - SPLIT_SYNC_LOG_DEBUG                   Enable debug mode: Set as 'on'
@@ -53,6 +54,7 @@ The container can be run on both modes (producer and proxy). To run it, differen
     - SPLIT_SYNC_PROXY_SDK_APIKEYS           List of custom API-KEYs for your SDKs (Comma separated string)
     - SPLIT_SYNC_PROXY_ADMIN_USER            HTTP basic auth username for admin endpoints
     - SPLIT_SYNC_PROXY_ADMIN_PASS            HTTP basic auth password for admin endpoints
+    - SPLIT_SYNC_PROXY_DASHBOARD_TITLE        Title to be shown in admin dashboard
     - SPLIT_SYNC_PROXY_IMPRESSIONS_MAX_SIZE  Max size, in bytes, to send impressions in proxy mode
 
    Producer vars:
@@ -65,6 +67,9 @@ The container can be run on both modes (producer and proxy). To run it, differen
     - SPLIT_SYNC_IMPRESSIONS_THREADS         Number of impressions recorder threads
     - SPLIT_SYNC_ADMIN_USER                  HTTP basic auth username for admin endpoints
     - SPLIT_SYNC_ADMIN_PASS                  HTTP basic auth password for admin endpoints
+    - SPLIT_SYNC_DASHBOARD_TITLE              Title to be shown in admin dashboard
+    - SPLIT_SYNC_EVENTS_PER_POST             Number of events to send in a POST request
+    - SPLIT_SYNC_EVENTS_THREADS              Number of events recorder threads
 
 
 ```

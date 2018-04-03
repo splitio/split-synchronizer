@@ -10,14 +10,26 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/storage"
 )
 
+var metricsIncoming = make(chan string, 1)
+
+// StopPostMetrics stops PostMetrics task sendding signal
+func StopPostMetrics() {
+	select {
+	case metricsIncoming <- "STOP":
+	default:
+	}
+}
+
 var metricsJobsWaitingGroup sync.WaitGroup
 
 //PostMetrics post metrics to Split Events server
 func PostMetrics(metricsRecorderAdapter recorder.MetricsRecorder,
 	metricsStorageAdapter storage.MetricsStorage,
-	metricsRefreshRate int) {
+	metricsRefreshRate int, wg *sync.WaitGroup) {
 
-	for {
+	wg.Add(1)
+	keepLoop := true
+	for keepLoop {
 		// Increment the WaitGroup counter.
 		metricsJobsWaitingGroup.Add(3)
 		go sendLatencies(metricsRecorderAdapter, metricsStorageAdapter)
@@ -25,8 +37,18 @@ func PostMetrics(metricsRecorderAdapter recorder.MetricsRecorder,
 		go sendGauges(metricsRecorderAdapter, metricsStorageAdapter)
 
 		metricsJobsWaitingGroup.Wait()
-		time.Sleep(time.Duration(metricsRefreshRate) * time.Second)
+
+		select {
+		case msg := <-metricsIncoming:
+			if msg == "STOP" {
+				log.Debug.Println("Stopping task: post_metrics")
+				keepLoop = false
+			}
+		case <-time.After(time.Duration(metricsRefreshRate) * time.Second):
+		}
+
 	}
+	wg.Done()
 }
 
 func sendLatencies(metricsRecorderAdapter recorder.MetricsRecorder,
