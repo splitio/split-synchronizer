@@ -39,3 +39,4 @@ _testmain.go
 # Release files
 release/*.bin
 release/*.zip
+release/versions.html
