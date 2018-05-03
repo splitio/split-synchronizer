@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio/api"
+	//	"github.com/splitio/split-synchronizer/splitio/api"
 
 	redis "gopkg.in/redis.v5"
 )
@@ -24,6 +24,8 @@ func NewSplitStorageAdapter(clientInstance *redis.Client, prefix string) *SplitS
 	return &client
 }
 
+// TODO: Remove this if unnecessary
+/*
 func (r SplitStorageAdapter) save(key string, split api.SplitDTO) error {
 	err := r.client.Set(r.splitNamespace(key), split, 0).Err()
 	if err != nil {
@@ -34,9 +36,10 @@ func (r SplitStorageAdapter) save(key string, split api.SplitDTO) error {
 
 	return err
 }
-
+*/
 func (r SplitStorageAdapter) remove(key string) error {
 	err := r.client.Del(r.splitNamespace(key)).Err()
+	r.client.SRem(r.splitKeysNamespace(), key)
 	if err != nil {
 		log.Error.Println("Error removing item", key, "in Redis:", err)
 	} else {
@@ -71,6 +74,8 @@ func (r SplitStorageAdapter) Save(split interface{}) error {
 	}
 
 	err = r.client.Set(r.splitNamespace(key), string(split.([]byte)), 0).Err()
+	r.client.SAdd(r.splitKeysNamespace(), key)
+
 	if err != nil {
 		log.Error.Println("Error saving item", key, "in Redis:", err)
 	} else {

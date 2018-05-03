@@ -5,6 +5,9 @@ import (
 	"strings"
 )
 
+//SplitNames
+const _splitKeysNamespace = "SPLITIO.splitNames"
+
 //Splits
 const _splitNamespace = "SPLITIO.split.%s"
 const _splitsTillNamespace = "SPLITIO.splits.till"
@@ -15,6 +18,9 @@ const _segmentTillNamespace = "SPLITIO.segment.%s.till"
 const _segmentNamespace = "SPLITIO.segment.%s"
 
 //Impressions
+
+const _impressionKeysNamespace = "SPLITIO.impressionKeys"
+
 //SPLITIO/{sdk-language-version}/{instance-id}/impressions.{featureName}
 const _impressionsNamespace = "SPLITIO/%s/%s/impressions.%s"
 
@@ -42,6 +48,10 @@ func (p prefixAdapter) setPrefixPattern(pattern string) string {
 	return pattern
 }
 
+func (p prefixAdapter) splitKeysNamespace() string {
+	return p.setPrefixPattern(_splitKeysNamespace)
+}
+
 func (p prefixAdapter) splitNamespace(name string) string {
 	return fmt.Sprintf(p.setPrefixPattern(_splitNamespace), name)
 }
@@ -60,6 +70,14 @@ func (p prefixAdapter) segmentTillNamespace(name string) string {
 
 func (p prefixAdapter) segmentNamespace(name string) string {
 	return fmt.Sprintf(p.setPrefixPattern(_segmentNamespace), name)
+}
+
+func (p prefixAdapter) impressionKeysNamespace() string {
+	return p.setPrefixPattern(_impressionKeysNamespace)
+}
+
+func (p prefixAdapter) restoreImpressionKey(partial string) string {
+	return p.setPrefixPattern("SPLITIO/" + partial)
 }
 
 func (p prefixAdapter) impressionsNamespace(languageAndVersion string, instanceID string, featureName string) string {

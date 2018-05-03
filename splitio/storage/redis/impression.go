@@ -24,10 +24,24 @@ func NewImpressionStorageAdapter(clientInstance *redis.Client, prefix string) *I
 	return &client
 }
 
+func (r ImpressionStorageAdapter) fetchImpressionsKeys() ([]string, error) {
+	if !r.client.Exists(r.impressionKeysNamespace()).Val() {
+		// Fallback to legacy method
+		return r.client.Keys(r.impressionsNamespace("*", "*", "*")).Result()
+	}
+
+	partialKeys := r.client.SMembers(r.impressionKeysNamespace()).Val()
+	impressionKeys := make([]string, len(partialKeys))
+	for index, partialKey := range partialKeys {
+		impressionKeys[index] = r.restoreImpressionKey(partialKey)
+	}
+
+	return impressionKeys, nil
+}
+
 // RetrieveImpressions returns cached impressions
 func (r ImpressionStorageAdapter) RetrieveImpressions() (map[string]map[string][]api.ImpressionsDTO, error) {
-
-	_keys, err := r.client.Keys(r.impressionsNamespace("*", "*", "*")).Result()
+	_keys, err := r.fetchImpressionsKeys()
 	if err == redis.Nil {
 		log.Debug.Println("Fetching impression Keys", err.Error())
 		return nil, nil

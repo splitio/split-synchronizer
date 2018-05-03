@@ -81,11 +81,15 @@ func TestSplitStorageAdapter(t *testing.T) {
 
 	redisStorageAdapter := NewSplitStorageAdapter(Client, "")
 
-	//err = redisStorageAdapter.Save(splitChangesDtoFromMock.Splits[0])
 	err = redisStorageAdapter.Save([]byte(splitMock))
 	if err != nil {
 		t.Error(err)
 		return
+	}
+
+	splitSet := redisStorageAdapter.client.SMembers(_splitKeysNamespace).Val()
+	if len(splitSet) < 1 || splitSet[0] != "DEMO_MURMUR2" {
+		t.Error("Incorrect split name stored")
 	}
 
 	//err = redisStorageAdapter.Remove(splitChangesDtoFromMock.Splits[0])
@@ -93,6 +97,11 @@ func TestSplitStorageAdapter(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 		return
+	}
+
+	splitSet = redisStorageAdapter.client.SMembers(_splitKeysNamespace).Val()
+	if len(splitSet) != 0 {
+		t.Error("Split names should be empty")
 	}
 
 	err = redisStorageAdapter.Save("invalid split")
