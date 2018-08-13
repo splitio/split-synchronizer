@@ -25,6 +25,10 @@ const _impressionKeysNamespace = "SPLITIO.impressionKeys"
 const _impressionsNamespace = "SPLITIO/%s/%s/impressions.%s"
 
 //Metrics
+const _metricsLatencyKeysNamespace = "SPLITIO.latencyNames"
+const _metricsCountKeysNamespace = "SPLITIO.countNames"
+const _metricsGaugeKeysNamespace = "SPLITIO.gaugeNames"
+
 //SPLITIO/{sdk-language-version}/{instance-id}/latency.{metricName}.bucket.{bucketNumber}
 const _metricsLatencyNamespace = "SPLITIO/%s/%s/latency.%s.bucket.%s"
 
@@ -77,6 +81,22 @@ func (p prefixAdapter) impressionKeysNamespace() string {
 }
 
 func (p prefixAdapter) restoreImpressionKey(partial string) string {
+	return p.setPrefixPattern("SPLITIO/" + partial)
+}
+
+func (p prefixAdapter) metricsLatencyKeys() string {
+	return p.setPrefixPattern(_metricsLatencyKeysNamespace)
+}
+
+func (p prefixAdapter) metricsCounterKeys() string {
+	return p.setPrefixPattern(_metricsCountKeysNamespace)
+}
+
+func (p prefixAdapter) metricsGaugeKeys() string {
+	return p.setPrefixPattern(_metricsGaugeKeysNamespace)
+}
+
+func (p prefixAdapter) restoreMetricKey(partial string) string {
 	return p.setPrefixPattern("SPLITIO/" + partial)
 }
 
