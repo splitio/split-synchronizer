@@ -47,11 +47,11 @@ func NewInstance(opt conf.RedisSection) (*redis.Client, error) {
 		return nil, errors.New("Missing redis sentinel master name")
 	}
 
-	if opt.SentinelUrls == "" {
-		return nil, errors.New("Missing redis sentinels urls")
+	if opt.SentinelAddresses == "" {
+		return nil, errors.New("Missing redis sentinels addresses")
 	}
 
-	addresses := strings.Split(opt.SentinelUrls, ",")
+	addresses := strings.Split(opt.SentinelAddresses, ",")
 
 	return redis.NewFailoverClient(&redis.FailoverOptions{
 		MasterName:    opt.SentinelMaster,
