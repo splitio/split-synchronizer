@@ -38,7 +38,7 @@ type RedisSection struct {
 
 	// Redis sentinel replication support
 	SentinelReplication bool   `json:"sentinelReplication" split-default-value:"false" split-cli-option:"redis-sentinel-replication" split-cli-description:"Redis sentinel replication enabled."`
-	SentinelUrls        string `json:"sentinelURLs" split-default-value:"" split-cli-option:"redis-sentinel-urls" split-cli-description:"List of redis sentinels"`
+	SentinelAddresses   string `json:"sentinelAddresses" split-default-value:"" split-cli-option:"redis-sentinel-addresses" split-cli-description:"List of redis sentinels"`
 	SentinelMaster      string `json:"sentinelMaster" split-default-value:"" split-cli-option:"redis-sentinel-master" split-cli-description:"Name of master"`
 }
 
