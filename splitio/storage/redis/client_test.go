@@ -41,7 +41,19 @@ func TestInitializeRedisSentinelWithoutAddresses(t *testing.T) {
 		t.Error("Client should have been nil")
 	}
 
-	if err == nil || err.Error() != "Missing redis sentinels urls" {
+	if err == nil || err.Error() != "Missing redis sentinels addresses" {
 		t.Error("An error with message \"Missing redis sentinels urls\" should have been returned")
+	}
+}
+
+func TestInitializeRedisSentinelProperly(t *testing.T) {
+	config := conf.NewInitializedConfigData()
+	config.Redis.SentinelReplication = true
+	config.Redis.SentinelMaster = "someMaster"
+	config.Redis.SentinelAddresses = "somehost:1234"
+	err := Initialize(config.Redis)
+
+	if err != nil {
+		t.Error("No error should have been returned for valid sentinel parameters")
 	}
 }
