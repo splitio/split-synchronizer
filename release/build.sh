@@ -17,6 +17,25 @@ BUILD_VERSION=`tail -n 1 ../splitio/version.go | awk '{print $4}' | tr -d '"'`
 
 cat commitversion.go.template | sed -e "s/COMMIT_VERSION/${COMMIT_VERSION}/" > ../splitio/commitversion.go
 
+#--- Creating versions.html
+TAG_VERSIONS=`git tag -l | sort -r`
+
+ROWS=""
+for version in ${TAG_VERSIONS}; 
+do 
+    if [ ! -z "$version" -a "$version" != " " -a "$version" != "1.0.0" -a "$version" != "1.0.1" ]; then
+        #echo $version;
+        ROW=$(cat versions.download-row.html | sed -e "s/{{VERSION}}/$version/g") 
+        ROWS=$ROWS$ROW
+    fi
+done
+
+VERSIONS_PRE_HTML=$(<versions.pre.html)
+VERSIONS_POS_HTML=$(<versions.pos.html)
+
+echo "$VERSIONS_PRE_HTML""$ROWS""$VERSIONS_POS_HTML" > versions.html
+#--- End
+
 #Compile agent
 GOOS=darwin GOARCH=amd64 go build -o ${OSX_BINARY_PATH} ..
 GOOS=linux GOARCH=amd64 go build -o ${LINUX_BINARY_PATH} ..
