@@ -77,7 +77,11 @@ func init() {
 		boltdb.Initialize(dbpath, nil)
 	} else {
 		appcontext.Initialize(appcontext.ProducerMode)
-		redis.Initialize(conf.Data.Redis)
+		err := redis.Initialize(conf.Data.Redis)
+		if err != nil {
+			log.Error.Println(err.Error())
+			os.Exit(1)
+		}
 	}
 
 }
