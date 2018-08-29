@@ -46,6 +46,9 @@
 #    - SPLIT_SYNC_DASHBOARD_TITLE              Title to be shown in admin dashboard
 #    - SPLIT_SYNC_EVENTS_PER_POST              Number of events to send in a POST request
 #    - SPLIT_SYNC_EVENTS_THREADS               Number of events recorder threads
+#    - SPLIT_SYNC_REDIS_SENTINEL_REPLICATION   Flag to signal that redis sentinel replication will be used
+#    - SPLIT_SYNC_REDIS_SENTINEL_MASTER        Name of the master node of sentinel cluster
+#    - SPLIT_SYNC_REDIS_SENTINEL_ADDRESSES     Comma-separated list of <HOST:PORT> addresses of redis sentinels
 
 # COMMON PARAMETERS
 PARAMETERS="-api-key=${SPLIT_SYNC_API_KEY}"
@@ -163,6 +166,17 @@ else
 
   if [ ! -z ${SPLIT_SYNC_REDIS_PREFIX+x} ]; then
     PARAMETERS="${PARAMETERS} -redis-prefix=${SPLIT_SYNC_REDIS_PREFIX}"
+  fi
+
+  # redis sentinel config
+  if [ $SPLIT_SYNC_REDIS_SENTINEL_REPLICATION = "on" ]; then
+    PARAMETERS="${PARAMETERS} -redis-sentinel-replication"
+    if [ ! -z ${SPLIT_SYNC_REDIS_SENTINEL_MASTER+x} ]; then
+      PARAMETERS="${PARAMETERS} -redis-sentinel-master=${SPLIT_SYNC_REDIS_SENTINEL_MASTER}"
+    fi
+    if [ ! -z ${SPLIT_SYNC_REDIS_SENTINEL_ADDRESSES+x} ]; then
+      PARAMETERS="${PARAMETERS} -redis-sentinel-addresses=${SPLIT_SYNC_REDIS_SENTINEL_ADDRESSES}"
+    fi
   fi
 
   if [ ! -z ${SPLIT_SYNC_IMPRESSIONS_PER_POST+x} ]; then
