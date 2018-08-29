@@ -1,3 +1,5 @@
+1.7.0 (Aug, 29, 2018)
+ - Add support for redis sentinel
 1.6.0 (Apr 3, 2018)
  - Graceful shutdown producer/proxy
  - Web dashboard in producer mode has been added  
