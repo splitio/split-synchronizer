@@ -169,7 +169,7 @@ else
   fi
 
   # redis sentinel config
-  if [ $SPLIT_SYNC_REDIS_SENTINEL_REPLICATION = "on" ]; then
+  if [ "$SPLIT_SYNC_REDIS_SENTINEL_REPLICATION" = "on" ]; then
     PARAMETERS="${PARAMETERS} -redis-sentinel-replication"
     if [ ! -z ${SPLIT_SYNC_REDIS_SENTINEL_MASTER+x} ]; then
       PARAMETERS="${PARAMETERS} -redis-sentinel-master=${SPLIT_SYNC_REDIS_SENTINEL_MASTER}"
