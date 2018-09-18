@@ -4,12 +4,21 @@ import (
 	"regexp"
 	"strconv"
 
-	redis "gopkg.in/redis.v5"
-
 	"github.com/splitio/split-synchronizer/log"
+	redis "gopkg.in/redis.v5"
 )
 
 const maxBuckets = 23
+
+const (
+	_ = iota
+	// MetricTypeLatency constant.
+	MetricTypeLatency
+	// MetricTypeGauge constant.
+	MetricTypeGauge
+	// MetricTypeCounter constant.
+	MetricTypeCounter
+)
 
 // MetricsRedisStorageAdapter implements MetricsStorage interface
 type MetricsRedisStorageAdapter struct {
@@ -26,7 +35,19 @@ func NewMetricsStorageAdapter(clientInstance *redis.Client, prefix string) *Metr
 
 // RetrieveGauges returns gauges values saved in Redis by SDKs
 func (s MetricsRedisStorageAdapter) RetrieveGauges() (map[string]map[string]map[string]float64, error) {
-	_keys, err := s.client.Keys(s.metricsGaugeNamespace("*", "*", "*")).Result()
+	var _keys []string
+	var err error
+	if !s.client.Exists(s.metricsGaugeKeys()).Val() {
+		_keys, err = s.client.Keys(s.metricsGaugeNamespace("*", "*", "*")).Result()
+	} else {
+		var partialKeys []string
+		partialKeys, err = s.client.SMembers(s.metricsGaugeKeys()).Result()
+		_keys := make([]string, len(partialKeys))
+		for index, partialKey := range partialKeys {
+			_keys[index] = s.restoreMetricKey(partialKey)
+		}
+	}
+
 	if err != nil {
 		log.Error.Println(err.Error())
 		return nil, err
@@ -65,7 +86,19 @@ func (s MetricsRedisStorageAdapter) RetrieveGauges() (map[string]map[string]map[
 
 // RetrieveCounters returns counter values saved in Redis by SDKs
 func (s MetricsRedisStorageAdapter) RetrieveCounters() (map[string]map[string]map[string]int64, error) {
-	_keys, err := s.client.Keys(s.metricsCounterNamespace("*", "*", "*")).Result()
+	var _keys []string
+	var err error
+	if !s.client.Exists(s.metricsCounterKeys()).Val() {
+		_keys, err = s.client.Keys(s.metricsCounterNamespace("*", "*", "*")).Result()
+	} else {
+		var partialKeys []string
+		partialKeys, err = s.client.SMembers(s.metricsCounterKeys()).Result()
+		_keys := make([]string, len(partialKeys))
+		for index, partialKey := range partialKeys {
+			_keys[index] = s.restoreMetricKey(partialKey)
+		}
+	}
+
 	if err != nil {
 		log.Error.Println(err.Error())
 		return nil, err
@@ -106,7 +139,19 @@ func (s MetricsRedisStorageAdapter) RetrieveCounters() (map[string]map[string]ma
 func (s MetricsRedisStorageAdapter) RetrieveLatencies() (map[string]map[string]map[string][]int64, error) {
 	//(\w+.)?SPLITIO\/([^\/]+)\/([^\/]+)\/latency.([^\/]+).bucket.([0-9]*)
 
-	_keys, err := s.client.Keys(s.metricsLatencyNamespace("*", "*", "*", "*")).Result()
+	var _keys []string
+	var err error
+	if !s.client.Exists(s.metricsLatencyKeys()).Val() {
+		_keys, err = s.client.Keys(s.metricsLatencyNamespace("*", "*", "*", "*")).Result()
+	} else {
+		var partialKeys []string
+		partialKeys, err = s.client.SMembers(s.metricsLatencyKeys()).Result()
+		_keys := make([]string, len(partialKeys))
+		for index, partialKey := range partialKeys {
+			_keys[index] = s.restoreMetricKey(partialKey)
+		}
+	}
+
 	if err != nil {
 		log.Error.Println(err.Error())
 		return nil, err
