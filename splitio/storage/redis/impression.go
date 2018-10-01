@@ -53,17 +53,21 @@ func (r ImpressionStorageAdapter) RetrieveImpressions() (map[string]map[string][
 	log.Benchmark.Println("Number of Keys", len(_keys))
 	log.Benchmark.Println("Impressions per key", impressionsPerKey)
 
+	// To optimize the impressions retrieval process, we track the extra slots from features
+	// that have less impressions than `impressionsPerKey`. In order to use those slots
+	// for other features.
+	var extraQuota int64
 	for _, key := range _keys {
 		log.Benchmark.Println("---", key)
 		beforeSRandMemberN := time.Now().UnixNano()
-		impressions, err := r.client.SRandMemberN(key, impressionsPerKey).Result()
+		impressions, err := r.client.SRandMemberN(key, impressionsPerKey+extraQuota).Result()
 		log.Benchmark.Println("SRandMemberN took", (time.Now().UnixNano() - beforeSRandMemberN))
 		log.Verbose.Println(impressions)
 		if err != nil {
 			log.Debug.Println("Fetching impressions", err.Error())
 			continue
 		}
-
+		extraQuota = (impressionsPerKey + extraQuota) - int64(len(impressions))
 		if len(impressions) == 0 {
 			log.Debug.Println("Not found impressions for this key", key)
 			continue
