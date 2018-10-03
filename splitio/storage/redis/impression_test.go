@@ -263,7 +263,7 @@ func TestLuaScriptFailure(t *testing.T) {
 
 	if !strings.Contains(
 		err.Error(),
-		"Failed to execute LUA script: ERR Error compiling script (new function): user_script:1: unfinished string near ''{KEY_NAME'",
+		"Failed to execute LUA script: ERR Error compiling script ",
 	) {
 		t.Error("Incorrect error cause")
 		t.Error(err.Error())
