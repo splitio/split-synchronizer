@@ -121,17 +121,17 @@ func TestThatMalformedLatencyKeysDoNotPanic(t *testing.T) {
 		if err == nil {
 			t.Error("An error should have been returned.")
 		}
-		if sdk != nil {
-			t.Errorf("Sdk should be nil. Is %s", *sdk)
+		if sdk != "" {
+			t.Errorf("Sdk should be nil. Is %s", sdk)
 		}
-		if ip != nil {
-			t.Errorf("Ip should be nil. Is %s", *ip)
+		if ip != "" {
+			t.Errorf("Ip should be nil. Is %s", ip)
 		}
-		if feature != nil {
-			t.Errorf("Feature should be nil. Is %s", *feature)
+		if feature != "" {
+			t.Errorf("Feature should be nil. Is %s", feature)
 		}
-		if bucket != nil {
-			t.Errorf("Bucket should be nil. Is %d", *bucket)
+		if bucket != 0 {
+			t.Errorf("Bucket should be nil. Is %d", bucket)
 		}
 	}
 }
@@ -150,17 +150,17 @@ func TestThatMalformedCounterKeysDoNotPanic(t *testing.T) {
 		if err == nil {
 			t.Error("An error should have been returned.")
 		}
-		if sdk != nil {
-			t.Errorf("Sdk should be nil. Is %s", *sdk)
+		if sdk != "" {
+			t.Errorf("Sdk should be nil. Is %s", sdk)
 		}
-		if ip != nil {
-			t.Errorf("Ip should be nil. Is %s", *ip)
+		if ip != "" {
+			t.Errorf("Ip should be nil. Is %s", ip)
 		}
-		if feature != nil {
-			t.Errorf("Feature should be nil. Is %s", *feature)
+		if feature != "" {
+			t.Errorf("Feature should be nil. Is %s", feature)
 		}
-		if bucket != nil {
-			t.Errorf("Bucket should be nil. Is %d", *bucket)
+		if bucket != 0 {
+			t.Errorf("Bucket should be nil. Is %d", bucket)
 		}
 	}
 }
@@ -179,17 +179,17 @@ func TestThatMalformedGaugeKeysDoNotPanic(t *testing.T) {
 		if err == nil {
 			t.Error("An error should have been returned.")
 		}
-		if sdk != nil {
-			t.Errorf("Sdk should be nil. Is %s", *sdk)
+		if sdk != "" {
+			t.Errorf("Sdk should be nil. Is %s", sdk)
 		}
-		if ip != nil {
-			t.Errorf("Ip should be nil. Is %s", *ip)
+		if ip != "" {
+			t.Errorf("Ip should be nil. Is %s", ip)
 		}
-		if feature != nil {
-			t.Errorf("Feature should be nil. Is %s", *feature)
+		if feature != "" {
+			t.Errorf("Feature should be nil. Is %s", feature)
 		}
-		if bucket != nil {
-			t.Errorf("Bucket should be nil. Is %d", *bucket)
+		if bucket != 0 {
+			t.Errorf("Bucket should be nil. Is %d", bucket)
 		}
 	}
 }
