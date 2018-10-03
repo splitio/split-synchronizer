@@ -116,32 +116,32 @@ func (r ImpressionStorageAdapter) getImpressionsWithoutCardinality() ([]string, 
 	return _keys, nil
 }
 
-func parseImpressionKey(key string) (*string, *string, *string, error) {
+func parseImpressionKey(key string) (string, string, string, error) {
 	var re = regexp.MustCompile(`(\w+.)?SPLITIO\/([^\/]+)\/([^\/]+)\/impressions.([\s\S]*)`)
 	match := re.FindStringSubmatch(key)
 
 	if len(match) < 5 {
-		return nil, nil, nil, fmt.Errorf("Error parsing key %s", key)
+		return "", "", "", fmt.Errorf("Error parsing key %s", key)
 	}
 
 	sdkNameAndVersion := match[2]
 	if sdkNameAndVersion == "" {
-		return nil, nil, nil, fmt.Errorf("Invalid sdk name/version")
+		return "", "", "", fmt.Errorf("Invalid sdk name/version")
 	}
 
 	machineIP := match[3]
 	if machineIP == "" {
-		return nil, nil, nil, fmt.Errorf("Invalid machine IP")
+		return "", "", "", fmt.Errorf("Invalid machine IP")
 	}
 
 	featureName := match[4]
 	if featureName == "" {
-		return nil, nil, nil, fmt.Errorf("Invalid feature name")
+		return "", "", "", fmt.Errorf("Invalid feature name")
 	}
 
 	log.Verbose.Println("Impression parsed key", match)
 
-	return &sdkNameAndVersion, &machineIP, &featureName, nil
+	return sdkNameAndVersion, machineIP, featureName, nil
 }
 
 func parseRawImpressions(impressions []string) []api.ImpressionDTO {
@@ -235,13 +235,13 @@ func (r ImpressionStorageAdapter) RetrieveImpressions() (map[string]map[string][
 			continue
 		}
 
-		if _, ok := impressionsToReturn[*sdkNameAndVersion][*machineIP]; !ok {
-			impressionsToReturn[*sdkNameAndVersion] = make(map[string][]api.ImpressionsDTO)
+		if _, ok := impressionsToReturn[sdkNameAndVersion][machineIP]; !ok {
+			impressionsToReturn[sdkNameAndVersion] = make(map[string][]api.ImpressionsDTO)
 		}
 
-		impressionsToReturn[*sdkNameAndVersion][*machineIP] = append(
-			impressionsToReturn[*sdkNameAndVersion][*machineIP],
-			api.ImpressionsDTO{TestName: *featureName, KeyImpressions: _keyImpressions},
+		impressionsToReturn[sdkNameAndVersion][machineIP] = append(
+			impressionsToReturn[sdkNameAndVersion][machineIP],
+			api.ImpressionsDTO{TestName: featureName, KeyImpressions: _keyImpressions},
 		)
 
 		err = r.removeImpressions(impressions, feature)
