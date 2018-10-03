@@ -25,7 +25,7 @@ func NewMetricsStorageAdapter(clientInstance *redis.Client, prefix string) *Metr
 	return &client
 }
 
-func parseMetricKey(metricType string, key string) (*string, *string, *string, error) {
+func parseMetricKey(metricType string, key string) (string, string, string, error) {
 	var re = regexp.MustCompile(strings.Replace(
 		`(\w+.)?SPLITIO\/([^\/]+)\/([^\/]+)\/{metricType}.([\s\S]*)`,
 		"{metricType}",
@@ -35,59 +35,59 @@ func parseMetricKey(metricType string, key string) (*string, *string, *string, e
 	match := re.FindStringSubmatch(key)
 
 	if len(match) < 5 {
-		return nil, nil, nil, fmt.Errorf("Error parsing key %s", key)
+		return "", "", "", fmt.Errorf("Error parsing key %s", key)
 	}
 
 	sdkNameAndVersion := match[2]
 	if sdkNameAndVersion == "" {
-		return nil, nil, nil, fmt.Errorf("Invalid sdk name/version")
+		return "", "", "", fmt.Errorf("Invalid sdk name/version")
 	}
 
 	machineIP := match[3]
 	if machineIP == "" {
-		return nil, nil, nil, fmt.Errorf("Invalid machine IP")
+		return "", "", "", fmt.Errorf("Invalid machine IP")
 	}
 
 	metricName := match[4]
 	if metricName == "" {
-		return nil, nil, nil, fmt.Errorf("Invalid feature name")
+		return "", "", "", fmt.Errorf("Invalid feature name")
 	}
 
 	log.Verbose.Println("Impression parsed key", match)
 
-	return &sdkNameAndVersion, &machineIP, &metricName, nil
+	return sdkNameAndVersion, machineIP, metricName, nil
 }
 
-func parseLatencyKey(key string) (*string, *string, *string, *int, error) {
+func parseLatencyKey(key string) (string, string, string, int, error) {
 	re := regexp.MustCompile(`(\w+.)?SPLITIO\/([^\/]+)\/([^\/]+)\/latency.([^\/]+).bucket.([0-9]*)`)
 	match := re.FindStringSubmatch(key)
 
 	if len(match) < 6 {
-		return nil, nil, nil, nil, fmt.Errorf("Error parsing key %s", key)
+		return "", "", "", 0, fmt.Errorf("Error parsing key %s", key)
 	}
 
 	sdkNameAndVersion := match[2]
 	if sdkNameAndVersion == "" {
-		return nil, nil, nil, nil, fmt.Errorf("Invalid sdk name/version")
+		return "", "", "", 0, fmt.Errorf("Invalid sdk name/version")
 	}
 
 	machineIP := match[3]
 	if machineIP == "" {
-		return nil, nil, nil, nil, fmt.Errorf("Invalid machine IP")
+		return "", "", "", 0, fmt.Errorf("Invalid machine IP")
 	}
 
 	metricName := match[4]
 	if metricName == "" {
-		return nil, nil, nil, nil, fmt.Errorf("Invalid feature name")
+		return "", "", "", 0, fmt.Errorf("Invalid feature name")
 	}
 
 	bucketNumber, err := strconv.Atoi(match[5])
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("Error parsing bucket number: %s", err.Error())
+		return "", "", "", 0, fmt.Errorf("Error parsing bucket number: %s", err.Error())
 	}
 	log.Verbose.Println("Impression parsed key", match)
 
-	return &sdkNameAndVersion, &machineIP, &metricName, &bucketNumber, nil
+	return sdkNameAndVersion, machineIP, metricName, bucketNumber, nil
 }
 
 // RetrieveGauges returns gauges values saved in Redis by SDKs
@@ -113,15 +113,15 @@ func (s MetricsRedisStorageAdapter) RetrieveGauges() (map[string]map[string]map[
 			continue
 		}
 
-		if _, ok := gaugesToReturn[*sdkNameAndVersion]; !ok {
-			gaugesToReturn[*sdkNameAndVersion] = make(map[string]map[string]float64)
+		if _, ok := gaugesToReturn[sdkNameAndVersion]; !ok {
+			gaugesToReturn[sdkNameAndVersion] = make(map[string]map[string]float64)
 		}
 
-		if _, ok := gaugesToReturn[*sdkNameAndVersion][*machineIP]; !ok {
-			gaugesToReturn[*sdkNameAndVersion][*machineIP] = make(map[string]float64)
+		if _, ok := gaugesToReturn[sdkNameAndVersion][machineIP]; !ok {
+			gaugesToReturn[sdkNameAndVersion][machineIP] = make(map[string]float64)
 		}
 
-		gaugesToReturn[*sdkNameAndVersion][*machineIP][*metricName] = value
+		gaugesToReturn[sdkNameAndVersion][machineIP][metricName] = value
 
 	}
 
@@ -151,15 +151,15 @@ func (s MetricsRedisStorageAdapter) RetrieveCounters() (map[string]map[string]ma
 			continue
 		}
 
-		if _, ok := countersToReturn[*sdkNameAndVersion]; !ok {
-			countersToReturn[*sdkNameAndVersion] = make(map[string]map[string]int64)
+		if _, ok := countersToReturn[sdkNameAndVersion]; !ok {
+			countersToReturn[sdkNameAndVersion] = make(map[string]map[string]int64)
 		}
 
-		if _, ok := countersToReturn[*sdkNameAndVersion][*machineIP]; !ok {
-			countersToReturn[*sdkNameAndVersion][*machineIP] = make(map[string]int64)
+		if _, ok := countersToReturn[sdkNameAndVersion][machineIP]; !ok {
+			countersToReturn[sdkNameAndVersion][machineIP] = make(map[string]int64)
 		}
 
-		countersToReturn[*sdkNameAndVersion][*machineIP][*metricName] = value
+		countersToReturn[sdkNameAndVersion][machineIP][metricName] = value
 
 	}
 
@@ -194,19 +194,19 @@ func (s MetricsRedisStorageAdapter) RetrieveLatencies() (map[string]map[string]m
 			continue
 		}
 
-		if _, ok := latenciesToReturn[*sdkNameAndVersion]; !ok {
-			latenciesToReturn[*sdkNameAndVersion] = make(map[string]map[string][]int64)
+		if _, ok := latenciesToReturn[sdkNameAndVersion]; !ok {
+			latenciesToReturn[sdkNameAndVersion] = make(map[string]map[string][]int64)
 		}
 
-		if _, ok := latenciesToReturn[*sdkNameAndVersion][*machineIP]; !ok {
-			latenciesToReturn[*sdkNameAndVersion][*machineIP] = make(map[string][]int64)
+		if _, ok := latenciesToReturn[sdkNameAndVersion][machineIP]; !ok {
+			latenciesToReturn[sdkNameAndVersion][machineIP] = make(map[string][]int64)
 		}
 
-		if _, ok := latenciesToReturn[*sdkNameAndVersion][*machineIP][*metricName]; !ok {
-			latenciesToReturn[*sdkNameAndVersion][*machineIP][*metricName] = make([]int64, maxBuckets)
+		if _, ok := latenciesToReturn[sdkNameAndVersion][machineIP][metricName]; !ok {
+			latenciesToReturn[sdkNameAndVersion][machineIP][metricName] = make([]int64, maxBuckets)
 		}
 
-		latenciesToReturn[*sdkNameAndVersion][*machineIP][*metricName][*bucketNumber] = value
+		latenciesToReturn[sdkNameAndVersion][machineIP][metricName][bucketNumber] = value
 	}
 	log.Verbose.Println(latenciesToReturn)
 	return latenciesToReturn, nil
