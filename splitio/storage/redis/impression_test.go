@@ -382,14 +382,14 @@ func TestThatMalformedImpressionKeysDoNotPanic(t *testing.T) {
 		if err == nil {
 			t.Error("An error should have been returned.")
 		}
-		if sdk != nil {
-			t.Errorf("Sdk should be nil. Is %s", *sdk)
+		if sdk != "" {
+			t.Errorf("Sdk should be empty. Is %s", sdk)
 		}
-		if ip != nil {
-			t.Errorf("Ip should be nil. Is %s", *ip)
+		if ip != "" {
+			t.Errorf("Ip should be empty. Is %s", ip)
 		}
-		if feature != nil {
-			t.Errorf("Feature should be nil. Is %s", *feature)
+		if feature != "" {
+			t.Errorf("Feature should be empty. Is %s", feature)
 		}
 	}
 }
