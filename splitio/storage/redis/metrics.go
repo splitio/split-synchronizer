@@ -1,10 +1,11 @@
 package redis
 
 import (
+	"fmt"
+	redis "gopkg.in/redis.v5"
 	"regexp"
 	"strconv"
-
-	redis "gopkg.in/redis.v5"
+	"strings"
 
 	"github.com/splitio/split-synchronizer/log"
 )
@@ -24,6 +25,71 @@ func NewMetricsStorageAdapter(clientInstance *redis.Client, prefix string) *Metr
 	return &client
 }
 
+func parseMetricKey(metricType string, key string) (string, string, string, error) {
+	var re = regexp.MustCompile(strings.Replace(
+		`(\w+.)?SPLITIO\/([^\/]+)\/([^\/]+)\/{metricType}.([\s\S]*)`,
+		"{metricType}",
+		metricType,
+		1,
+	))
+	match := re.FindStringSubmatch(key)
+
+	if len(match) < 5 {
+		return "", "", "", fmt.Errorf("Error parsing key %s", key)
+	}
+
+	sdkNameAndVersion := match[2]
+	if sdkNameAndVersion == "" {
+		return "", "", "", fmt.Errorf("Invalid sdk name/version")
+	}
+
+	machineIP := match[3]
+	if machineIP == "" {
+		return "", "", "", fmt.Errorf("Invalid machine IP")
+	}
+
+	metricName := match[4]
+	if metricName == "" {
+		return "", "", "", fmt.Errorf("Invalid feature name")
+	}
+
+	log.Verbose.Println("Impression parsed key", match)
+
+	return sdkNameAndVersion, machineIP, metricName, nil
+}
+
+func parseLatencyKey(key string) (string, string, string, int, error) {
+	re := regexp.MustCompile(`(\w+.)?SPLITIO\/([^\/]+)\/([^\/]+)\/latency.([^\/]+).bucket.([0-9]*)`)
+	match := re.FindStringSubmatch(key)
+
+	if len(match) < 6 {
+		return "", "", "", 0, fmt.Errorf("Error parsing key %s", key)
+	}
+
+	sdkNameAndVersion := match[2]
+	if sdkNameAndVersion == "" {
+		return "", "", "", 0, fmt.Errorf("Invalid sdk name/version")
+	}
+
+	machineIP := match[3]
+	if machineIP == "" {
+		return "", "", "", 0, fmt.Errorf("Invalid machine IP")
+	}
+
+	metricName := match[4]
+	if metricName == "" {
+		return "", "", "", 0, fmt.Errorf("Invalid feature name")
+	}
+
+	bucketNumber, err := strconv.Atoi(match[5])
+	if err != nil {
+		return "", "", "", 0, fmt.Errorf("Error parsing bucket number: %s", err.Error())
+	}
+	log.Verbose.Println("Impression parsed key", match)
+
+	return sdkNameAndVersion, machineIP, metricName, bucketNumber, nil
+}
+
 // RetrieveGauges returns gauges values saved in Redis by SDKs
 func (s MetricsRedisStorageAdapter) RetrieveGauges() (map[string]map[string]map[string]float64, error) {
 	_keys, err := s.client.Keys(s.metricsGaugeNamespace("*", "*", "*")).Result()
@@ -34,13 +100,12 @@ func (s MetricsRedisStorageAdapter) RetrieveGauges() (map[string]map[string]map[
 
 	gaugesToReturn := make(map[string]map[string]map[string]float64)
 	for _, key := range _keys {
-		var re = regexp.MustCompile(`(\w+.)?SPLITIO\/([^\/]+)\/([^\/]+)\/gauge.([^\/]+)`)
-		match := re.FindStringSubmatch(key)
-
-		sdkNameAndVersion := match[2]
-		machineIP := match[3]
-		metricName := match[4]
-
+		sdkNameAndVersion, machineIP, metricName, err := parseMetricKey("gauge", key)
+		if err != nil {
+			log.Error.Printf("Unable to parse key %s. Skipping", key)
+			s.client.Del(key)
+			continue
+		}
 		value, err := s.client.GetSet(key, 0).Float64()
 		if err != nil {
 			log.Error.Println(err.Error())
@@ -73,13 +138,12 @@ func (s MetricsRedisStorageAdapter) RetrieveCounters() (map[string]map[string]ma
 
 	countersToReturn := make(map[string]map[string]map[string]int64)
 	for _, key := range _keys {
-		var re = regexp.MustCompile(`(\w+.)?SPLITIO\/([^\/]+)\/([^\/]+)\/count.([^\/]+)`)
-		match := re.FindStringSubmatch(key)
-
-		sdkNameAndVersion := match[2]
-		machineIP := match[3]
-		metricName := match[4]
-
+		sdkNameAndVersion, machineIP, metricName, err := parseMetricKey("count", key)
+		if err != nil {
+			log.Error.Printf("Unable to parse key %s. Skipping", key)
+			s.client.Del(key)
+			continue
+		}
 		value, err := s.client.GetSet(key, 0).Int64()
 		if err != nil {
 			log.Error.Println(err.Error())
@@ -116,13 +180,12 @@ func (s MetricsRedisStorageAdapter) RetrieveLatencies() (map[string]map[string]m
 	latenciesToReturn := make(map[string]map[string]map[string][]int64)
 
 	for _, key := range _keys {
-		var re = regexp.MustCompile(`(\w+.)?SPLITIO\/([^\/]+)\/([^\/]+)\/latency.([^\/]+).bucket.([0-9]*)`)
-		match := re.FindStringSubmatch(key)
-
-		sdkNameAndVersion := match[2]
-		machineIP := match[3]
-		metricName := match[4]
-		bucketNumber, _ := strconv.Atoi(match[5])
+		sdkNameAndVersion, machineIP, metricName, bucketNumber, err := parseLatencyKey(key)
+		if err != nil {
+			log.Warning.Printf("Unable to parse key %s. Removing it", key)
+			s.client.Del(key)
+			continue
+		}
 
 		value, err := s.client.GetSet(key, 0).Int64()
 		if err != nil {
