@@ -106,3 +106,90 @@ func TestMetricsRedisStorageAdapter(t *testing.T) {
 	}
 
 }
+
+func TestThatMalformedLatencyKeysDoNotPanic(t *testing.T) {
+	wrongKeys := []string{
+		"SPLITIO/php-5.3.1//latency.sdk.get_treatment.bucket.15",
+		"SPLITIO//123.123.123.123/latency.sdk.get_treatment.bucket.15",
+		"SPLITIO///latency.sdk.get_treatment.bucket.s15",
+		"SPLITIO//////.sdk.get_treatment.bucket.15",
+		"/php-5.3.1/123.123.123.123/latency.sdk.get_treatment.bucket.15",
+	}
+
+	for _, key := range wrongKeys {
+		sdk, ip, feature, bucket, err := parseLatencyKey(key)
+		if err == nil {
+			t.Error("An error should have been returned.")
+		}
+		if sdk != "" {
+			t.Errorf("Sdk should be nil. Is %s", sdk)
+		}
+		if ip != "" {
+			t.Errorf("Ip should be nil. Is %s", ip)
+		}
+		if feature != "" {
+			t.Errorf("Feature should be nil. Is %s", feature)
+		}
+		if bucket != 0 {
+			t.Errorf("Bucket should be nil. Is %d", bucket)
+		}
+	}
+}
+
+func TestThatMalformedCounterKeysDoNotPanic(t *testing.T) {
+	wrongKeys := []string{
+		"SPLITIO/php-5.3.1//count.http_errors",
+		"SPLITIO//123.123.123.123/count.http_errors",
+		"SPLITIO///count.http_errors",
+		"SPLITIO//////count.http_errors",
+		"/php-5.3.1/123.123.123.123/count.http_errors",
+	}
+
+	for _, key := range wrongKeys {
+		sdk, ip, feature, bucket, err := parseLatencyKey(key)
+		if err == nil {
+			t.Error("An error should have been returned.")
+		}
+		if sdk != "" {
+			t.Errorf("Sdk should be nil. Is %s", sdk)
+		}
+		if ip != "" {
+			t.Errorf("Ip should be nil. Is %s", ip)
+		}
+		if feature != "" {
+			t.Errorf("Feature should be nil. Is %s", feature)
+		}
+		if bucket != 0 {
+			t.Errorf("Bucket should be nil. Is %d", bucket)
+		}
+	}
+}
+
+func TestThatMalformedGaugeKeysDoNotPanic(t *testing.T) {
+	wrongKeys := []string{
+		"SPLITIO/php-5.3.1//gauge.storage_fill_percentage",
+		"SPLITIO//123.123.123.123/gauge.storage_fill_percentage",
+		"SPLITIO///gauge.storage_fill_percentage",
+		"SPLITIO//////gauge.storage_fill_percentage",
+		"/php-5.3.1/123.123.123.123/gauge.storage_fill_percentage",
+	}
+
+	for _, key := range wrongKeys {
+		sdk, ip, feature, bucket, err := parseLatencyKey(key)
+		if err == nil {
+			t.Error("An error should have been returned.")
+		}
+		if sdk != "" {
+			t.Errorf("Sdk should be nil. Is %s", sdk)
+		}
+		if ip != "" {
+			t.Errorf("Ip should be nil. Is %s", ip)
+		}
+		if feature != "" {
+			t.Errorf("Feature should be nil. Is %s", feature)
+		}
+		if bucket != 0 {
+			t.Errorf("Bucket should be nil. Is %d", bucket)
+		}
+	}
+}

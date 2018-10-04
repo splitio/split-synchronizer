@@ -1,4 +1,10 @@
-1.7.0 (Aug, 29, 2018)
+1.7.2 (Oct 4, 2018)
+ - Fix bug that cased synchronizer to crash with malformed impressions & metrics keys.
+ - Improved impressions posting strategy to maximize throughput.
+ - Updated defaults to send more impressions per unit of time.
+1.7.1 (Sep 7, 2018)
+ - Fix variable in dockerfile entrypoint
+1.7.0 (Aug 29, 2018)
  - Add support for redis sentinel
 1.6.0 (Apr 3, 2018)
  - Graceful shutdown producer/proxy
