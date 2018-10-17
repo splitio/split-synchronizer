@@ -1,9 +1,9 @@
 package redis
 
 import (
+	"github.com/go-redis/redis"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/storageDTOs"
-	redis "gopkg.in/redis.v5"
 )
 
 //RegisteredSegments() ([]interface{}, error)
@@ -14,7 +14,7 @@ type SegmentStorageAdapter struct {
 }
 
 // NewSegmentStorageAdapter returns an instance of Redis Segment adapter
-func NewSegmentStorageAdapter(clientInstance *redis.Client, prefix string) *SegmentStorageAdapter {
+func NewSegmentStorageAdapter(clientInstance redis.UniversalClient, prefix string) *SegmentStorageAdapter {
 	prefixAdapter := &prefixAdapter{prefix: prefix}
 	adapter := &BaseStorageAdapter{prefixAdapter, clientInstance}
 	client := SegmentStorageAdapter{adapter}

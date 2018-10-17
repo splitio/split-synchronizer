@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"sync"
 
+	"github.com/go-redis/redis"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/api"
-	redis "gopkg.in/redis.v5"
 )
 
 var elMutex = &sync.Mutex{}
@@ -17,7 +17,7 @@ type EventStorageAdapter struct {
 }
 
 // NewEventStorageAdapter returns an instance of EventStorageAdapter
-func NewEventStorageAdapter(clientInstance *redis.Client, prefix string) *EventStorageAdapter {
+func NewEventStorageAdapter(clientInstance redis.UniversalClient, prefix string) *EventStorageAdapter {
 	prefixAdapter := &prefixAdapter{prefix: prefix}
 	adapter := &BaseStorageAdapter{prefixAdapter, clientInstance}
 	client := EventStorageAdapter{BaseStorageAdapter: adapter}
