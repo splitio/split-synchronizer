@@ -40,3 +40,7 @@ _testmain.go
 release/*.bin
 release/*.zip
 release/versions.html
+
+Gopkg.lock
+
+.vscode/*
