@@ -17,3 +17,4 @@
 [[constraint]]
   name = "github.com/gin-contrib/gzip"
   branch = "master"
+  
