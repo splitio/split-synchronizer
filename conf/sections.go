@@ -42,8 +42,8 @@ type RedisSection struct {
 	SentinelMaster      string `json:"sentinelMaster" split-default-value:"" split-cli-option:"redis-sentinel-master" split-cli-description:"Name of master"`
 
 	// Redis cluster replication support
-	ClusterReplication bool   `json:"clusterReplication" split-default-value:"false" split-cli-option:"redis-cluster-replication" split-cli-description:"Redis cluster replication enabled."`
-	ClusterAddresses   string `json:"clusterAddresses" split-default-value:"" split-cli-option:"redis-cluster-addresses" split-cli-description:"List of redis clusters"`
+	ClusterStrategy bool   `json:"clusterStrategy" split-default-value:"false" split-cli-option:"redis-cluster-strategy" split-cli-description:"Redis cluster enabled."`
+	ClusterNodes    string `json:"clusterNodes" split-default-value:"" split-cli-option:"redis-cluster-nodes" split-cli-description:"List of redis cluster nodes"`
 }
 
 // LogSection log instance configuration

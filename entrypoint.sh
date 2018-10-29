@@ -49,8 +49,8 @@
 #    - SPLIT_SYNC_REDIS_SENTINEL_REPLICATION   Flag to signal that redis sentinel replication will be used
 #    - SPLIT_SYNC_REDIS_SENTINEL_MASTER        Name of the master node of sentinel cluster
 #    - SPLIT_SYNC_REDIS_SENTINEL_ADDRESSES     Comma-separated list of <HOST:PORT> addresses of redis sentinels
-#    - SPLIT_SYNC_REDIS_CLUSTER_REPLICATION    Flag to signal that redis cluster replication will be used
-#    - SPLIT_SYNC_REDIS_CLUSTER_ADDRESSES      Comma-separated list of <HOST:PORT> addresses of redis clusters
+#    - SPLIT_SYNC_REDIS_CLUSTER_STRATEGY       Flag to signal that redis cluster strategy will be used
+#    - SPLIT_SYNC_REDIS_CLUSTER_NODES          Comma-separated list of <HOST:PORT> nodes of redis cluster
 
 # COMMON PARAMETERS
 PARAMETERS="-api-key=${SPLIT_SYNC_API_KEY}"
@@ -182,10 +182,10 @@ else
   fi
 
   # redis cluster config
-  if [ "$SPLIT_SYNC_REDIS_CLUSTER_REPLICATION" = "on" ]; then
-    PARAMETERS="${PARAMETERS} -redis-cluster-replication"
-    if [ ! -z ${SPLIT_SYNC_REDIS_CLUSTER_ADDRESSES+x} ]; then
-      PARAMETERS="${PARAMETERS} -redis-cluster-addresses=${SPLIT_SYNC_REDIS_CLUSTER_ADDRESSES}"
+  if [ "$SPLIT_SYNC_REDIS_CLUSTER_STRATEGY" = "on" ]; then
+    PARAMETERS="${PARAMETERS} -redis-cluster-strategy"
+    if [ ! -z ${SPLIT_SYNC_REDIS_CLUSTER_NODES+x} ]; then
+      PARAMETERS="${PARAMETERS} -redis-cluster-nodes=${SPLIT_SYNC_REDIS_CLUSTER_NODES}"
     fi
   fi
 

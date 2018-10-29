@@ -53,12 +53,12 @@ func NewInstance(opt conf.RedisSection) (redis.UniversalClient, error) {
 			}), nil
 	}
 
-	if opt.ClusterReplication {
-		if opt.ClusterAddresses == "" {
+	if opt.ClusterStrategy {
+		if opt.ClusterNodes == "" {
 			return nil, errors.New("Missing redis cluster addresses")
 		}
 
-		addresses := strings.Split(opt.ClusterAddresses, ",")
+		addresses := strings.Split(opt.ClusterNodes, ",")
 
 		return redis.NewUniversalClient(
 			&redis.UniversalOptions{
