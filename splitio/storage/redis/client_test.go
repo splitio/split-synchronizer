@@ -60,7 +60,7 @@ func TestInitializeRedisSentinelProperly(t *testing.T) {
 
 func TestInitializeRedisClusterWithoutAddresses(t *testing.T) {
 	config := conf.NewInitializedConfigData()
-	config.Redis.ClusterReplication = true
+	config.Redis.ClusterStrategy = true
 	err := Initialize(config.Redis)
 
 	if Client != nil {
@@ -74,8 +74,8 @@ func TestInitializeRedisClusterWithoutAddresses(t *testing.T) {
 
 func TestInitializeRedisClusterProperly(t *testing.T) {
 	config := conf.NewInitializedConfigData()
-	config.Redis.ClusterReplication = true
-	config.Redis.ClusterAddresses = "somehost:1234"
+	config.Redis.ClusterStrategy = true
+	config.Redis.ClusterNodes = "somehost:1234"
 	err := Initialize(config.Redis)
 
 	if err != nil {
