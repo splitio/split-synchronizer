@@ -2,7 +2,7 @@ package redis
 
 import (
 	"errors"
-	"strconv"
+	"fmt"
 	"strings"
 	"time"
 
@@ -28,6 +28,10 @@ func Initialize(redisOptions conf.RedisSection) error {
 
 // NewInstance returns an instance of Redis Client
 func NewInstance(opt conf.RedisSection) (redis.UniversalClient, error) {
+	if opt.SentinelReplication && opt.ClusterMode {
+		return nil, errors.New("Incompatible configuration of redis, Sentinel and Cluster cannot be enabled at the same time")
+	}
+
 	if opt.SentinelReplication {
 		if opt.SentinelMaster == "" {
 			return nil, errors.New("Missing redis sentinel master name")
@@ -53,7 +57,7 @@ func NewInstance(opt conf.RedisSection) (redis.UniversalClient, error) {
 			}), nil
 	}
 
-	if opt.ClusterStrategy {
+	if opt.ClusterMode {
 		if opt.ClusterNodes == "" {
 			return nil, errors.New("Missing redis cluster addresses")
 		}
@@ -71,13 +75,10 @@ func NewInstance(opt conf.RedisSection) (redis.UniversalClient, error) {
 			}), nil
 	}
 
-	var addresses []string
-	addresses = append(addresses, strings.Join([]string{opt.Host, strconv.FormatInt(int64(opt.Port), 10)}, ":"))
-
 	return redis.NewUniversalClient(
 		&redis.UniversalOptions{
 			// Network:      opt.Network,
-			Addrs:        addresses,
+			Addrs:        []string{fmt.Sprintf("%s:%d", opt.Host, opt.Port)},
 			Password:     opt.Pass,
 			DB:           opt.Db,
 			MaxRetries:   opt.MaxRetries,
