@@ -2,11 +2,11 @@ package redis
 
 import (
 	"fmt"
-	redis "gopkg.in/redis.v5"
 	"regexp"
 	"strconv"
 	"strings"
 
+	"github.com/go-redis/redis"
 	"github.com/splitio/split-synchronizer/log"
 )
 
@@ -18,7 +18,7 @@ type MetricsRedisStorageAdapter struct {
 }
 
 // NewMetricsStorageAdapter returns an instance of ImpressionStorageAdapter
-func NewMetricsStorageAdapter(clientInstance *redis.Client, prefix string) *MetricsRedisStorageAdapter {
+func NewMetricsStorageAdapter(clientInstance redis.UniversalClient, prefix string) *MetricsRedisStorageAdapter {
 	prefixAdapter := &prefixAdapter{prefix: prefix}
 	adapter := &BaseStorageAdapter{prefixAdapter, clientInstance}
 	client := MetricsRedisStorageAdapter{adapter}
