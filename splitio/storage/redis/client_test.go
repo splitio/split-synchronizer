@@ -17,6 +17,21 @@ func TestInitializeClient(t *testing.T) {
 	}
 }
 
+func TestClusterAndSentinelEnabled(t *testing.T) {
+	config := conf.NewInitializedConfigData()
+	config.Redis.SentinelReplication = true
+	config.Redis.ClusterMode = true
+	err := Initialize(config.Redis)
+
+	if Client != nil {
+		t.Error("Client should have been nil")
+	}
+
+	if err == nil || err.Error() != "Incompatible configuration of redis, Sentinel and Cluster cannot be enabled at the same time" {
+		t.Error("An error with message \"Missing redis sentinel master name\" should have been returned")
+	}
+}
+
 func TestInitializeRedisSentinelWithoutMaster(t *testing.T) {
 	config := conf.NewInitializedConfigData()
 	config.Redis.SentinelReplication = true
@@ -55,5 +70,30 @@ func TestInitializeRedisSentinelProperly(t *testing.T) {
 
 	if err != nil {
 		t.Error("No error should have been returned for valid sentinel parameters")
+	}
+}
+
+func TestInitializeRedisClusterWithoutAddresses(t *testing.T) {
+	config := conf.NewInitializedConfigData()
+	config.Redis.ClusterMode = true
+	err := Initialize(config.Redis)
+
+	if Client != nil {
+		t.Error("Client should have been nil")
+	}
+
+	if err == nil || err.Error() != "Missing redis cluster addresses" {
+		t.Error("An error with message \"Missing redis cluster urls\" should have been returned")
+	}
+}
+
+func TestInitializeRedisClusterProperly(t *testing.T) {
+	config := conf.NewInitializedConfigData()
+	config.Redis.ClusterMode = true
+	config.Redis.ClusterNodes = "somehost:1234"
+	err := Initialize(config.Redis)
+
+	if err != nil {
+		t.Error("No error should have been returned for valid cluster parameters")
 	}
 }
