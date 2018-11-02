@@ -2,6 +2,7 @@ package redis
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"regexp"
 	"sort"
@@ -9,10 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"fmt"
+	"github.com/go-redis/redis"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/api"
-	redis "gopkg.in/redis.v5"
 )
 
 var impressionMutex sync.Mutex
@@ -107,7 +107,7 @@ type ImpressionStorageAdapter struct {
 }
 
 // NewImpressionStorageAdapter returns an instance of ImpressionStorageAdapter
-func NewImpressionStorageAdapter(clientInstance *redis.Client, prefix string) *ImpressionStorageAdapter {
+func NewImpressionStorageAdapter(clientInstance redis.UniversalClient, prefix string) *ImpressionStorageAdapter {
 	prefixAdapter := &prefixAdapter{prefix: prefix}
 	adapter := &BaseStorageAdapter{prefixAdapter, clientInstance}
 	client := ImpressionStorageAdapter{adapter}
