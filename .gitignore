@@ -3,6 +3,7 @@ split-synchronizer
 run.sh
 bin/*
 *.yaml
+/vendor
 
 # Compiled Object files, Static and Dynamic libs (Shared Objects)
 *.o
@@ -40,3 +41,7 @@ _testmain.go
 release/*.bin
 release/*.zip
 release/versions.html
+
+Gopkg.lock
+
+.vscode/*
