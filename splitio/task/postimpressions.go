@@ -48,12 +48,14 @@ func taskPostImpressions(
 	tid int,
 	impressionsRecorderAdapter recorder.ImpressionsRecorder,
 	impressionStorageAdapter storage.ImpressionStorage,
+	impressionsPerPost int64,
+	legacyEnabled bool,
 	impressionListenerEnabled bool,
 ) {
 
 	mutex.Lock()
 	beforeHitRedis := time.Now().UnixNano()
-	impressionsToSend, err := impressionStorageAdapter.RetrieveImpressions()
+	impressionsToSend, err := impressionStorageAdapter.RetrieveImpressions(impressionsPerPost, legacyEnabled)
 	afterHitRedis := time.Now().UnixNano()
 	tookHitRedis := afterHitRedis - beforeHitRedis
 	log.Benchmark.Println("Redis Request took", tookHitRedis)
@@ -63,44 +65,41 @@ func taskPostImpressions(
 		log.Error.Println("Error Retrieving ")
 	} else {
 		log.Verbose.Println(impressionsToSend)
+		for metadata, impressions := range impressionsToSend {
+			log.Debug.Printf("Posting impressions for metadata: %+v ", metadata)
+			beforePostServer := time.Now().UnixNano()
+			startTime := testImpressionsLatencies.StartMeasuringLatency()
+			err = impressionsRecorderAdapter.Post(impressions, metadata)
+			if err != nil {
+				log.Error.Println("Error posting impressions to split backend", err.Error())
 
-		for sdkVersion, impressionsByMachineIP := range impressionsToSend {
-			for machineIP, impressions := range impressionsByMachineIP {
-				log.Debug.Println("Posting impressions from ", sdkVersion, machineIP)
-				beforePostServer := time.Now().UnixNano()
-				startTime := testImpressionsLatencies.StartMeasuringLatency()
-				err = impressionsRecorderAdapter.Post(impressions, sdkVersion, machineIP, "")
-				if err != nil {
-					log.Error.Println("Error posting impressions to split backend", err.Error())
-
-					if _, ok := err.(*api.HttpError); ok {
-						testImpressionsLocalCounters.Increment("backend::request.error")
-						testImpressionsCounters.Increment(fmt.Sprintf("testImpressions.status.%d", err.(*api.HttpError).Code))
-					}
-
-				} else {
-					log.Benchmark.Println("POST impressions to Server took", (time.Now().UnixNano() - beforePostServer))
-					log.Debug.Println("Impressions sent")
-					testImpressionsCounters.Increment("testImpressions.status.200")
-					testImpressionsLatencies.RegisterLatency("backend::/api/testImpressions/bulk", startTime)
-					testImpressionsLatencies.RegisterLatency("testImpressions.time", startTime)
-					testImpressionsLocalCounters.Increment("backend::request.ok")
+				if _, ok := err.(*api.HttpError); ok {
+					testImpressionsLocalCounters.Increment("backend::request.error")
+					testImpressionsCounters.Increment(fmt.Sprintf("testImpressions.status.%d", err.(*api.HttpError).Code))
 				}
-				if impressionListenerEnabled {
-					rawImpressions, err := json.Marshal(impressions)
-					if err != nil {
-						log.Error.Println("JSON encoding failed for the following impressions", impressions)
-						continue
-					}
-					err = QueueImpressionsForListener(&ImpressionBulk{
-						Data:        json.RawMessage(rawImpressions),
-						SdkVersion:  sdkVersion,
-						MachineIP:   machineIP,
-						MachineName: "",
-					})
-					if err != nil {
-						log.Error.Println(err)
-					}
+
+			} else {
+				log.Benchmark.Println("POST impressions to Server took", (time.Now().UnixNano() - beforePostServer))
+				log.Debug.Println("Impressions sent")
+				testImpressionsCounters.Increment("testImpressions.status.200")
+				testImpressionsLatencies.RegisterLatency("backend::/api/testImpressions/bulk", startTime)
+				testImpressionsLatencies.RegisterLatency("testImpressions.time", startTime)
+				testImpressionsLocalCounters.Increment("backend::request.ok")
+			}
+			if impressionListenerEnabled {
+				rawImpressions, err := json.Marshal(impressions)
+				if err != nil {
+					log.Error.Println("JSON encoding failed for the following impressions", impressions)
+					continue
+				}
+				err = QueueImpressionsForListener(&ImpressionBulk{
+					Data:        json.RawMessage(rawImpressions),
+					SdkVersion:  metadata.SdkVersion,
+					MachineIP:   metadata.MachineIP,
+					MachineName: metadata.MachineName,
+				})
+				if err != nil {
+					log.Error.Println(err)
 				}
 			}
 		}
@@ -113,7 +112,9 @@ func PostImpressions(
 	impressionsRecorderAdapter recorder.ImpressionsRecorder,
 	impressionStorageAdapter storage.ImpressionStorage,
 	impressionsRefreshRate int,
+	legacyEnabled bool,
 	impressionListenerEnabled bool,
+	impressionsPerPost int64,
 	wg *sync.WaitGroup,
 ) {
 	wg.Add(1)
@@ -123,6 +124,8 @@ func PostImpressions(
 			tid,
 			impressionsRecorderAdapter,
 			impressionStorageAdapter,
+			impressionsPerPost,
+			legacyEnabled,
 			impressionListenerEnabled,
 		)
 
@@ -142,6 +145,8 @@ func PostImpressions(
 func ImpressionsFlush(
 	impressionsRecorderAdapter recorder.ImpressionsRecorder,
 	impressionStorageAdapter storage.ImpressionStorage,
+	impressionsPerPost int64,
+	legacyEnabled,
 	impressionListenerEnabled bool,
 ) {
 
@@ -150,7 +155,8 @@ func ImpressionsFlush(
 		0,
 		impressionsRecorderAdapter,
 		impressionStorageAdapter,
+		impressionsPerPost,
+		legacyEnabled,
 		impressionListenerEnabled,
 	)
-
 }

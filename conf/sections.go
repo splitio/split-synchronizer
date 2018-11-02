@@ -37,9 +37,10 @@ type RedisSection struct {
 	PoolSize int `json:"poolSize" split-default-value:"10" split-cli-option:"redis-pool" split-cli-description:"Redis connection pool size"`
 
 	// Redis sentinel replication support
-	SentinelReplication bool   `json:"sentinelReplication" split-default-value:"false" split-cli-option:"redis-sentinel-replication" split-cli-description:"Redis sentinel replication enabled."`
-	SentinelAddresses   string `json:"sentinelAddresses" split-default-value:"" split-cli-option:"redis-sentinel-addresses" split-cli-description:"List of redis sentinels"`
-	SentinelMaster      string `json:"sentinelMaster" split-default-value:"" split-cli-option:"redis-sentinel-master" split-cli-description:"Name of master"`
+	SentinelReplication       bool   `json:"sentinelReplication" split-default-value:"false" split-cli-option:"redis-sentinel-replication" split-cli-description:"Redis sentinel replication enabled."`
+	SentinelAddresses         string `json:"sentinelAddresses" split-default-value:"" split-cli-option:"redis-sentinel-addresses" split-cli-description:"List of redis sentinels"`
+	SentinelMaster            string `json:"sentinelMaster" split-default-value:"" split-cli-option:"redis-sentinel-master" split-cli-description:"Name of master"`
+	LegacyImpressionsFetching bool   `json:"legacyImpressions" split-default-value="true" split-cli-option:"redis-legacy-impressions" split-cli-description="Also lookup impressions using legacy keys"`
 }
 
 // LogSection log instance configuration

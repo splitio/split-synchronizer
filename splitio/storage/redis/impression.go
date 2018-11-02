@@ -6,14 +6,50 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"fmt"
-	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/api"
 	redis "gopkg.in/redis.v5"
 )
+
+var impressionMutex sync.Mutex
+
+const minImpressionsPerFeature = 50
+
+// ImpressionObject obect
+type ImpressionObject struct {
+	KeyName           string `json:"k"`
+	BucketingKey      string `json:"b"`
+	FeatureName       string `json:"f"`
+	Treatment         string `json:"t"`
+	SplitChangeNumber int64  `json:"t"`
+	Rule              string `json:"r"`
+	Timestamp         int64  `json:"m"`
+}
+
+// ImpressionMetadata object
+type ImpressionMetadata struct {
+	SdkVersion   string `json:"s"`
+	InstanceIP   string `json:"i"`
+	InstanceName string `json:"n"`
+}
+
+func (m *ImpressionMetadata) toSdkMetadata() api.SdkMetadata {
+	return api.SdkMetadata{
+		MachineIP:   m.InstanceIP,
+		MachineName: m.InstanceName,
+		SdkVersion:  m.SdkVersion,
+	}
+}
+
+// ImpressionDTO object
+type ImpressionDTO struct {
+	Data     ImpressionObject   `json:"i"`
+	Metadata ImpressionMetadata `json:"m"`
+}
 
 var impressionKeysWithCardinalityScriptTemplate = `
 	local impkeys = redis.call('KEYS', '{KEY_NAMESPACE}')
@@ -173,10 +209,101 @@ func (r ImpressionStorageAdapter) removeImpressions(impressions []string, featur
 	return nil
 }
 
+func (r ImpressionStorageAdapter) fetchImpressionsFromQueueWithLock(count int64) ([]string, error) {
+	impressionMutex.Lock()
+	defer impressionMutex.Unlock()
+
+	lrangeResult := r.client.LRange(r.impressionsQueueNamespace(), 0, int64(count-1))
+	if lrangeResult.Err() != nil {
+		log.Error.Println("Fetching impressions", lrangeResult.Err().Error())
+		return nil, lrangeResult.Err()
+	}
+
+	fetchedCount := int64(len(lrangeResult.Val()))
+	lTrimResult := r.client.LTrim(r.impressionsQueueNamespace(), fetchedCount, int64(-1))
+	if lTrimResult.Err() != nil {
+		log.Error.Println("Trim events", lTrimResult.Err().Error())
+		return nil, lTrimResult.Err()
+	}
+
+	return lrangeResult.Val(), nil
+}
+
+func toImpressionsDTO(impressionsMap map[string][]api.ImpressionDTO) ([]api.ImpressionsDTO, error) {
+	if impressionsMap == nil {
+		return nil, fmt.Errorf("Impressions map cannot be null")
+	}
+
+	toReturn := make([]api.ImpressionsDTO, 0)
+	for feature, impressions := range impressionsMap {
+		toReturn = append(toReturn, api.ImpressionsDTO{
+			TestName:       feature,
+			KeyImpressions: impressions,
+		})
+	}
+	return toReturn, nil
+}
+
+// FetchImpressionsFromQueue retrieves impression from a redis list acting as a queue.
+func (r ImpressionStorageAdapter) fetchImpressionsFromQueue(count int64) (map[api.SdkMetadata][]api.ImpressionsDTO, error) {
+
+	impressionsRawList, err := r.fetchImpressionsFromQueueWithLock(count)
+	if err != nil {
+		return nil, err
+	}
+
+	// grouping the information by instanceID/instanceIP, and then by feature name
+	collectedData := make(map[ImpressionMetadata]map[string][]api.ImpressionDTO)
+
+	for _, rawImpression := range impressionsRawList {
+		var impression ImpressionDTO
+		err := json.Unmarshal([]byte(rawImpression), &impression)
+		if err != nil {
+			log.Error.Println("Error decoding impression JSON", err.Error())
+			continue
+		}
+
+		_, instanceExists := collectedData[impression.Metadata]
+		if !instanceExists {
+			collectedData[impression.Metadata] = make(map[string][]api.ImpressionDTO)
+		}
+
+		_, featureExists := collectedData[impression.Metadata][impression.Data.FeatureName]
+		if !featureExists {
+			collectedData[impression.Metadata][impression.Data.FeatureName] = make([]api.ImpressionDTO, 0)
+		}
+
+		collectedData[impression.Metadata][impression.Data.FeatureName] = append(
+			collectedData[impression.Metadata][impression.Data.FeatureName],
+			api.ImpressionDTO{
+				BucketingKey: impression.Data.BucketingKey,
+				ChangeNumber: impression.Data.SplitChangeNumber,
+				KeyName:      impression.Data.KeyName,
+				Label:        impression.Data.Rule,
+				Time:         impression.Data.Timestamp,
+				Treatment:    impression.Data.Treatment,
+			},
+		)
+	}
+
+	toReturn := make(map[api.SdkMetadata][]api.ImpressionsDTO)
+	for metadata, impsForMetadata := range collectedData {
+		toReturn[metadata.toSdkMetadata()], err = toImpressionsDTO(impsForMetadata)
+		if err != nil {
+			log.Error.Printf("Unable to write impressions for metadata %v", metadata)
+			continue
+		}
+	}
+
+	return toReturn, nil
+}
+
 // RetrieveImpressions returns cached impressions
-func (r ImpressionStorageAdapter) RetrieveImpressions() (map[string]map[string][]api.ImpressionsDTO, error) {
+func (r ImpressionStorageAdapter) fetchImpressionsLegacy(count int64) (map[api.SdkMetadata][]api.ImpressionsDTO, error) {
 
 	var _keys []string
+	log.Benchmark.Println("Impressions per post", count)
+
 	// Attempt to fetch imressione keys using a LUA script to get both keys and number.
 	// This will enable to sort features by # of impressions and use a greedy approach to
 	// fetch as much impressions as possible.
@@ -192,16 +319,12 @@ func (r ImpressionStorageAdapter) RetrieveImpressions() (map[string]map[string][
 		}
 	}
 
-	impressionsToReturn := make(map[string]map[string][]api.ImpressionsDTO)
-
-	log.Benchmark.Println("Impressions per post", conf.Data.ImpressionsPerPost)
-	var impressionsPerKey = conf.Data.ImpressionsPerPost
-
-	// At least one impression per feature
-	if len(_keys) > 0 && impressionsPerKey >= int64(len(_keys)) {
-		impressionsPerKey = int64(math.Max(float64(conf.Data.ImpressionsPerPost/int64(len(_keys))), float64(1)))
+	impressionsToReturn := make(map[api.SdkMetadata][]api.ImpressionsDTO)
+	if len(_keys) == 0 {
+		return impressionsToReturn, nil
 	}
 
+	impressionsPerKey := int64(math.Max(float64(count/int64(len(_keys))), float64(minImpressionsPerFeature)))
 	log.Benchmark.Println("Number of Keys", len(_keys))
 	log.Benchmark.Println("Impressions per key", impressionsPerKey)
 
@@ -235,12 +358,18 @@ func (r ImpressionStorageAdapter) RetrieveImpressions() (map[string]map[string][
 			continue
 		}
 
-		if _, ok := impressionsToReturn[sdkNameAndVersion][machineIP]; !ok {
-			impressionsToReturn[sdkNameAndVersion] = make(map[string][]api.ImpressionsDTO)
+		meta := api.SdkMetadata{
+			MachineIP:   machineIP,
+			SdkVersion:  sdkNameAndVersion,
+			MachineName: "", // Unfortunately this redis scheme doesn't support machine name.
 		}
 
-		impressionsToReturn[sdkNameAndVersion][machineIP] = append(
-			impressionsToReturn[sdkNameAndVersion][machineIP],
+		if _, ok := impressionsToReturn[meta]; !ok {
+			impressionsToReturn[meta] = make([]api.ImpressionsDTO, 0)
+		}
+
+		impressionsToReturn[meta] = append(
+			impressionsToReturn[meta],
 			api.ImpressionsDTO{TestName: featureName, KeyImpressions: _keyImpressions},
 		)
 
@@ -251,4 +380,97 @@ func (r ImpressionStorageAdapter) RetrieveImpressions() (map[string]map[string][
 		}
 	}
 	return impressionsToReturn, nil
+}
+
+func mergeImpressionsDTOSlices(slice1 []api.ImpressionsDTO, slice2 []api.ImpressionsDTO) ([]api.ImpressionsDTO, error) {
+
+	// Edge cases
+	if slice1 == nil && slice2 == nil {
+		return nil, fmt.Errorf("Both slices cannot be nil")
+	}
+
+	if slice1 == nil {
+		tmp := make([]api.ImpressionsDTO, len(slice2))
+		copy(tmp, slice2)
+		return tmp, nil
+	}
+
+	if slice2 == nil {
+		tmp := make([]api.ImpressionsDTO, len(slice1))
+		copy(tmp, slice1)
+		return tmp, nil
+	}
+
+	// Main algorithm
+	sort.Slice(slice1, func(i, j int) bool { return slice1[i].TestName < slice1[j].TestName })
+	sort.Slice(slice2, func(i, j int) bool { return slice2[i].TestName < slice2[j].TestName })
+	index1 := 0
+	index2 := 0
+	length1 := len(slice1)
+	length2 := len(slice2)
+	output := make([]api.ImpressionsDTO, 0)
+	for index1 < length1 && index2 < length2 {
+		if slice1[index1].TestName < slice2[index2].TestName {
+			output = append(output, slice1[index1])
+			index1++
+		} else if slice2[index2].TestName < slice1[index1].TestName {
+			output = append(output, slice2[index2])
+			index2++
+		} else {
+			// The name is equal -> we need to merge
+			merge := append(slice1[index1].KeyImpressions, slice2[index2].KeyImpressions...)
+			output = append(output, api.ImpressionsDTO{
+				KeyImpressions: merge,
+				TestName:       slice1[index1].TestName,
+			})
+			index1++
+			index2++
+		}
+	}
+
+	// Carryover
+	if index1 < length1 {
+		for remainingIndex := index1; remainingIndex < length1; remainingIndex++ {
+			output = append(output, slice1[remainingIndex])
+		}
+	} else if index2 < length2 {
+		for remainingIndex := index2; remainingIndex < length2; remainingIndex++ {
+			output = append(output, slice2[remainingIndex])
+		}
+	}
+
+	return output, nil
+}
+
+// RetrieveImpressions returns impressions stored in redis
+func (r ImpressionStorageAdapter) RetrieveImpressions(count int64, legacyEnabled bool) (map[api.SdkMetadata][]api.ImpressionsDTO, error) {
+	impressions, err := r.fetchImpressionsFromQueue(count)
+	if err != nil {
+		return nil, err
+	}
+
+	if legacyEnabled {
+		legacyImpressions, err := r.fetchImpressionsLegacy(count)
+		if err != nil {
+			log.Error.Println("Legacy impressions fetching is enabled, but failed to execute:")
+			log.Error.Println(err.Error())
+			return impressions, nil
+		}
+		for key := range legacyImpressions {
+			if _, exists := impressions[key]; !exists {
+				impressions[key] = legacyImpressions[key]
+			} else {
+				merged, err := mergeImpressionsDTOSlices(impressions[key], legacyImpressions[key])
+				if err != nil {
+					log.Error.Printf(
+						"Queue and legacy impressions found for metadata %+v, but merging failed. Keeping only queued ones.",
+						key,
+					)
+					continue
+				}
+				impressions[key] = merged
+			}
+		}
+	}
+	return impressions, nil
 }
