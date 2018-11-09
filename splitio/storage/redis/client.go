@@ -62,6 +62,21 @@ func NewInstance(opt conf.RedisSection) (redis.UniversalClient, error) {
 			return nil, errors.New("Missing redis cluster addresses")
 		}
 
+		var keyHashTag = "{SPLITIO}"
+
+		if opt.ClusterKeyHashTag != "" {
+			keyHashTag = opt.ClusterKeyHashTag
+			if len(keyHashTag) < 3 ||
+				string(keyHashTag[0]) != "{" ||
+				string(keyHashTag[len(keyHashTag)-1]) != "}" ||
+				strings.Count(keyHashTag, "{") != 1 ||
+				strings.Count(keyHashTag, "}") != 1 {
+				return nil, errors.New("keyHashTag is not valid")
+			}
+		}
+
+		conf.Data.Redis.Prefix = keyHashTag + opt.Prefix
+
 		addresses := strings.Split(opt.ClusterNodes, ",")
 
 		return redis.NewUniversalClient(
