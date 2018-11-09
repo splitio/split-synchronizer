@@ -75,7 +75,7 @@ func NewInstance(opt conf.RedisSection) (redis.UniversalClient, error) {
 			}
 		}
 
-		conf.Data.Redis.Prefix = strings.Join([]string{keyHashTag, opt.Prefix}, "")
+		conf.Data.Redis.Prefix = keyHashTag + opt.Prefix
 
 		addresses := strings.Split(opt.ClusterNodes, ",")
 
