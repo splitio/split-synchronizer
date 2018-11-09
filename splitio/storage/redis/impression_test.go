@@ -37,7 +37,7 @@ func findImpressionsForFeature(bulk []api.ImpressionsDTO, featureName string) (*
 	return nil, fmt.Errorf("Feature %s not found", featureName)
 }
 
-func TestImpressionStorageAdapter(t *testing.T) {
+func TestImpressionStorageAdapterNoQueueKey(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
 	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 
@@ -53,8 +53,22 @@ func TestImpressionStorageAdapter(t *testing.T) {
 	}
 	featureName := "some_feature"
 
-	i1TXT := `{"keyName":"some_key1","treatment":"off","time":1234567890,"changeNumber":55555555,"label":"some label","bucketingKey":"some_bucket_key"}`
-	i2TXT := `{"keyName":"some_key2","treatment":"on","time":1234567999,"changeNumber":577775,"label":"some label no match","bucketingKey":"some_bucket_key_2"}`
+	i1TXT := `{
+	    "keyName":"some_key1",
+	    "treatment":"off",
+	    "time":1234567890,
+	    "changeNumber":55555555,
+	    "label":"some label",
+	    "bucketingKey":"some_bucket_key"
+	}`
+	i2TXT := `{
+	    "keyName":"some_key2",
+	    "treatment":"on",
+	    "time":1234567999,
+	    "changeNumber":577775,
+	    "label":"some label no match",
+	    "bucketingKey":"some_bucket_key_2"
+	}`
 	impressionsKey := prefixAdapter.impressionsNamespace(metadata.SdkVersion, metadata.MachineIP, featureName)
 	//Adding impressions to retrieve.
 	Client.SAdd(impressionsKey, i1TXT, i2TXT)
@@ -81,7 +95,7 @@ func TestImpressionStorageAdapter(t *testing.T) {
 	}
 }
 
-func TestThatQuotaiIsApplied(t *testing.T) {
+func TestThatQuotaiIsAppliedNoQueueKey(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
 	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 
