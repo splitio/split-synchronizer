@@ -87,10 +87,86 @@ func TestInitializeRedisClusterWithoutAddresses(t *testing.T) {
 	}
 }
 
+func TestInitializeRedisClusterWithoutKeyHashTag(t *testing.T) {
+	config := conf.NewInitializedConfigData()
+	config.Redis.ClusterMode = true
+	config.Redis.ClusterNodes = "somehost:1234"
+	err := Initialize(config.Redis)
+
+	if err != nil {
+		t.Error("No error should have been returned for valid cluster parameters")
+	}
+}
+
+func TestInitializeRedisClusterWithInvalidBeginingKeyHashTag(t *testing.T) {
+	config := conf.NewInitializedConfigData()
+	config.Redis.ClusterMode = true
+	config.Redis.ClusterNodes = "somehost:1234"
+	config.Redis.ClusterKeyHashTag = "{TEST"
+	err := Initialize(config.Redis)
+
+	if Client != nil {
+		t.Error("Client should have been nil")
+	}
+
+	if err == nil || err.Error() != "keyHashTag is not valid" {
+		t.Error("An error with message \"keyHashTag is not valid\" should have been returned")
+	}
+}
+
+func TestInitializeRedisClusterWithInvalidEndingKeyHashTag(t *testing.T) {
+	config := conf.NewInitializedConfigData()
+	config.Redis.ClusterMode = true
+	config.Redis.ClusterNodes = "somehost:1234"
+	config.Redis.ClusterKeyHashTag = "TEST}"
+	err := Initialize(config.Redis)
+
+	if Client != nil {
+		t.Error("Client should have been nil")
+	}
+
+	if err == nil || err.Error() != "keyHashTag is not valid" {
+		t.Error("An error with message \"keyHashTag is not valid\" should have been returned")
+	}
+}
+
+func TestInitializeRedisClusterWithInvalidLengthKeyHashTag(t *testing.T) {
+	config := conf.NewInitializedConfigData()
+	config.Redis.ClusterMode = true
+	config.Redis.ClusterNodes = "somehost:1234"
+	config.Redis.ClusterKeyHashTag = "{}"
+	err := Initialize(config.Redis)
+
+	if Client != nil {
+		t.Error("Client should have been nil")
+	}
+
+	if err == nil || err.Error() != "keyHashTag is not valid" {
+		t.Error("An error with message \"keyHashTag is not valid\" should have been returned")
+	}
+}
+
+func TestInitializeRedisClusterWithInvalidKeyHashTag(t *testing.T) {
+	config := conf.NewInitializedConfigData()
+	config.Redis.ClusterMode = true
+	config.Redis.ClusterNodes = "somehost:1234"
+	config.Redis.ClusterKeyHashTag = "{TEST}}"
+	err := Initialize(config.Redis)
+
+	if Client != nil {
+		t.Error("Client should have been nil")
+	}
+
+	if err == nil || err.Error() != "keyHashTag is not valid" {
+		t.Error("An error with message \"keyHashTag is not valid\" should have been returned")
+	}
+}
+
 func TestInitializeRedisClusterProperly(t *testing.T) {
 	config := conf.NewInitializedConfigData()
 	config.Redis.ClusterMode = true
 	config.Redis.ClusterNodes = "somehost:1234"
+	config.Redis.ClusterKeyHashTag = "{TEST}"
 	err := Initialize(config.Redis)
 
 	if err != nil {
