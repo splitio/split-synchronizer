@@ -93,12 +93,8 @@ func TestInitializeRedisClusterWithoutKeyHashTag(t *testing.T) {
 	config.Redis.ClusterNodes = "somehost:1234"
 	err := Initialize(config.Redis)
 
-	if Client != nil {
-		t.Error("Client should have been nil")
-	}
-
-	if err == nil || err.Error() != "Missing redis cluster keyHashTag" {
-		t.Error("An error with message \"Missing redis cluster keyHashTag\" should have been returned")
+	if err != nil {
+		t.Error("No error should have been returned for valid cluster parameters")
 	}
 }
 
