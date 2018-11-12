@@ -25,7 +25,7 @@ type ImpressionObject struct {
 	BucketingKey      string `json:"b"`
 	FeatureName       string `json:"f"`
 	Treatment         string `json:"t"`
-	SplitChangeNumber int64  `json:"t"`
+	SplitChangeNumber int64  `json:"c"`
 	Rule              string `json:"r"`
 	Timestamp         int64  `json:"m"`
 }
@@ -244,7 +244,7 @@ func toImpressionsDTO(impressionsMap map[string][]api.ImpressionDTO) ([]api.Impr
 	return toReturn, nil
 }
 
-// FetchImpressionsFromQueue retrieves impression from a redis list acting as a queue.
+// FetchImpressionsFromQueue retrieves impressions from a redis list acting as a queue.
 func (r ImpressionStorageAdapter) fetchImpressionsFromQueue(count int64) (map[api.SdkMetadata][]api.ImpressionsDTO, error) {
 
 	impressionsRawList, err := r.fetchImpressionsFromQueueWithLock(count)
