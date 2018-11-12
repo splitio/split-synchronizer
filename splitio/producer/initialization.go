@@ -133,8 +133,8 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 			impressionsRecorder,
 			impressionsStorage,
 			conf.Data.ImpressionsPostRate,
-			conf.Data.ImpressionListener.Endpoint != "",
 			conf.Data.Redis.LegacyImpressionsFetching,
+			conf.Data.ImpressionListener.Endpoint != "",
 			conf.Data.ImpressionsPerPost,
 			gracefulShutdownWaitingGroup,
 		)
