@@ -1,4 +1,4 @@
-1.8.0 (Nov 2, 2018)
+1.8.0 (Nov 13, 2018)
  - Add support for redis cluster
 1.7.2 (Oct 4, 2018)
  - Fix bug that cased synchronizer to crash with malformed impressions & metrics keys.
