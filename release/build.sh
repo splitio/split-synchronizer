@@ -21,13 +21,12 @@ cat commitversion.go.template | sed -e "s/COMMIT_VERSION/${COMMIT_VERSION}/" > .
 TAG_VERSIONS=`git tag -l | sort -r`
 
 ROWS=""
-for version in ${TAG_VERSIONS}; 
-do 
-    if [ ! -z "$version" -a "$version" != " " -a "$version" != "1.0.0" -a "$version" != "1.0.1" ]; then
-        #echo $version;
-        ROW=$(cat versions.download-row.html | sed -e "s/{{VERSION}}/$version/g") 
-        ROWS=$ROWS$ROW
-    fi
+for version in ${TAG_VERSIONS};
+do
+  if [ ! -z "$version" -a "$version" != " " -a "$version" != "1.0.0" -a "$version" != "1.0.1" -a "$version" != "${BUILD_VERSION}" ]; then
+    ROW=$(cat versions.download-row.html | sed -e "s/{{VERSION}}/$version/g")
+    ROWS=$ROWS$ROW
+  fi
 done
 
 VERSIONS_PRE_HTML=$(<versions.pre.html)
