@@ -8,7 +8,7 @@ import (
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/api"
 
-	redis "gopkg.in/redis.v5"
+	"github.com/go-redis/redis"
 )
 
 // SplitStorageAdapter implements SplitStorage interface
@@ -17,7 +17,7 @@ type SplitStorageAdapter struct {
 }
 
 // NewSplitStorageAdapter returns an instance of SplitStorageAdapter
-func NewSplitStorageAdapter(clientInstance *redis.Client, prefix string) *SplitStorageAdapter {
+func NewSplitStorageAdapter(clientInstance redis.UniversalClient, prefix string) *SplitStorageAdapter {
 	prefixAdapter := &prefixAdapter{prefix: prefix}
 	adapter := &BaseStorageAdapter{prefixAdapter, clientInstance}
 	client := SplitStorageAdapter{adapter}
