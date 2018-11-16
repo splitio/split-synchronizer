@@ -19,6 +19,8 @@ var impressionMutex sync.Mutex
 
 const minImpressionsPerFeature = 50
 
+const impressionsTTLRefresh = time.Duration(3600) * time.Second
+
 // ImpressionObject obect
 type ImpressionObject struct {
 	KeyName           string `json:"k"`
@@ -226,6 +228,11 @@ func (r ImpressionStorageAdapter) fetchImpressionsFromQueueWithLock(count int64)
 		return nil, lTrimResult.Err()
 	}
 
+	// This operation will simply do nothing if the key no longer exists (queue is empty)
+	// It's only done in the "successful" exit path so that the TTL is not overriden if impressons weren't
+	// popped correctly. This will result in impressions getting lost but will prevent the queue from taking
+	// a huge amount of memory.
+	Client.Expire(r.impressionsQueueNamespace(), impressionsTTLRefresh)
 	return lrangeResult.Val(), nil
 }
 
