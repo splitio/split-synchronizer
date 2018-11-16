@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
@@ -595,4 +596,64 @@ func TestImpressionsFromSingleQueueAreRemovedAfterFetched(t *testing.T) {
 		t.Errorf("%+v", retrievedImpressions)
 		return
 	}
+}
+
+func TestTTLIsSet(t *testing.T) {
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	conf.Initialize()
+	Initialize(conf.Data.Redis)
+	prefixAdapter := &prefixAdapter{prefix: ""}
+	Client.Del(prefixAdapter.impressionsQueueNamespace())
+
+	metadata := api.SdkMetadata{
+		SdkVersion: "test-2.0",
+		MachineIP:  "127.0.0.1",
+	}
+
+	imps := makeImpressions("key", "on", 123456, "some_label", "key", 500)
+
+	//Adding impressions to retrieve.
+	for _, impression := range imps {
+		toStore, err := json.Marshal(ImpressionDTO{
+			Data: ImpressionObject{
+				BucketingKey:      impression.BucketingKey,
+				FeatureName:       "some_feature",
+				KeyName:           impression.KeyName,
+				Rule:              impression.Label,
+				SplitChangeNumber: impression.ChangeNumber,
+				Timestamp:         impression.Time,
+				Treatment:         impression.Treatment,
+			},
+			Metadata: ImpressionMetadata{
+				InstanceIP:   metadata.MachineIP,
+				InstanceName: metadata.MachineName,
+				SdkVersion:   metadata.SdkVersion,
+			},
+		})
+		if err != nil {
+			t.Error(err.Error())
+			return
+		}
+
+		Client.LPush(
+			prefixAdapter.impressionsQueueNamespace(),
+			toStore,
+		)
+	}
+	impressionsStorageAdapter := NewImpressionStorageAdapter(Client, "")
+
+	// We have 200 impressions in storage (30 + 70 + 100). And try to retrieve 150 in total,
+	_, err := impressionsStorageAdapter.RetrieveImpressions(200, false)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	ttl, _ := Client.TTL(prefixAdapter.impressionsQueueNamespace()).Result()
+
+	if ttl > time.Duration(3600)*time.Second || ttl < time.Duration(3590)*time.Second {
+		t.Error("TTL should have been set and be near 3600 seconds")
+	}
+
 }
