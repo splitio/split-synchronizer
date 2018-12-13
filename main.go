@@ -62,7 +62,10 @@ func init() {
 	}
 
 	//Initialize modules
-	loadConfiguration()
+	err := loadConfiguration()
+	if err != nil {
+		os.Exit(1)
+	}
 	loadLogger()
 	api.Initialize()
 	stats.Initialize()
@@ -123,13 +126,18 @@ func parseFlags() {
 	flag.Parse()
 }
 
-func loadConfiguration() {
+func loadConfiguration() error {
 	//load default values
 	conf.Initialize()
 	//overwrite default values from configuration file
-	conf.LoadFromFile(*configFile)
+	err := conf.LoadFromFile(*configFile)
+	if err != nil {
+		return err
+	}
 	//overwrite with cli values
 	conf.LoadFromArgs(cliParametersMap)
+
+	return nil
 }
 
 func loadLogger() {
