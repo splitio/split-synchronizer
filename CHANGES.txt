@@ -1,3 +1,5 @@
+1.8.1 ()
+ - Added validator to inform error when some property is wrong in json config.
 1.8.0 (Nov 14, 2018)
  - Added support for redis cluster.
  - Migrated to dep.
