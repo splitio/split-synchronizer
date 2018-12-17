@@ -481,3 +481,17 @@ func (r ImpressionStorageAdapter) RetrieveImpressions(count int64, legacyEnabled
 	}
 	return impressions, nil
 }
+
+// Size return the value of LLEN
+func (r ImpressionStorageAdapter) Size() int64 {
+	elMutex.Lock()
+	llen := r.client.LLen(r.impressionsQueueNamespace()) //LRange(r.eventsListNamespace(), 0, n-1)
+	elMutex.Unlock()
+
+	if llen.Err() != nil {
+		log.Error.Println(llen.Err())
+		return 0
+	}
+
+	return llen.Val()
+}

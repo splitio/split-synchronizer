@@ -5,10 +5,13 @@ import (
 	"os"
 	"syscall"
 
+	"github.com/splitio/split-synchronizer/conf"
+
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio"
 	"github.com/splitio/split-synchronizer/splitio/stats"
+	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 )
 
 // Uptime returns the service uptime
@@ -62,4 +65,18 @@ func StopProccess(c *gin.Context) {
 
 	c.String(http.StatusOK, "%s: %s", "Sign has been sent", toReturn)
 
+}
+
+// GetEventsQueueSize returns events queue size
+func GetEventsQueueSize(c *gin.Context) {
+	eventsStorageAdapter := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+	queueSize := eventsStorageAdapter.Size()
+	c.JSON(http.StatusOK, gin.H{"queueSize": queueSize})
+}
+
+// GetImpressionsQueueSize returns impressions queue size
+func GetImpressionsQueueSize(c *gin.Context) {
+	impressionsStorage := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+	queueSize := impressionsStorage.Size()
+	c.JSON(http.StatusOK, gin.H{"queueSize": queueSize})
 }
