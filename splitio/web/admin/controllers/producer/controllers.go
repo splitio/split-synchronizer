@@ -1,11 +1,14 @@
 package producer
 
 import (
+	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/splitio/storage"
+	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 	"github.com/splitio/split-synchronizer/splitio/web/dashboard"
 )
 
@@ -76,4 +79,48 @@ func DashboardSegmentKeys(c *gin.Context) {
 	var toReturn = dash.HTMLSegmentKeys(segmentName)
 
 	c.String(http.StatusOK, "%s", toReturn)
+}
+
+func getIntegerParameterFromQuery(c *gin.Context, key string) (int64, error) {
+	value := c.Query(key)
+	if value != "" {
+		field, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			return 0, errors.New("Wrong type passed as parameter")
+		}
+		return field, nil
+	}
+	return -1, nil
+}
+
+// DropEvents drops Events from queue
+func DropEvents(c *gin.Context) {
+	eventsStorageAdapter := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+	bulkSize, err := getIntegerParameterFromQuery(c, "size")
+	if err != nil {
+		c.String(http.StatusBadRequest, "%s", err.Error())
+	} else {
+		err = eventsStorageAdapter.Drop(eventsStorageAdapter.GetQueueNamespace(), &bulkSize)
+		if err == nil {
+			c.String(http.StatusOK, "%s", "Events dropped")
+		} else {
+			c.String(http.StatusInternalServerError, "%s", err.Error())
+		}
+	}
+}
+
+// DropImpressions drops Impressions from queue
+func DropImpressions(c *gin.Context) {
+	impressionsStorageAdapter := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+	bulkSize, err := getIntegerParameterFromQuery(c, "size")
+	if err != nil {
+		c.String(http.StatusBadRequest, "%s", err.Error())
+	} else {
+		err = impressionsStorageAdapter.Drop(impressionsStorageAdapter.GetQueueNamespace(), &bulkSize)
+		if err == nil {
+			c.String(http.StatusOK, "%s", "Impressions dropped")
+		} else {
+			c.String(http.StatusInternalServerError, "%s", err.Error())
+		}
+	}
 }

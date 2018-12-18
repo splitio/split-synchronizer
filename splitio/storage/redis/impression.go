@@ -481,3 +481,8 @@ func (r ImpressionStorageAdapter) RetrieveImpressions(count int64, legacyEnabled
 	}
 	return impressions, nil
 }
+
+// GetQueueNamespace returns the key of impressions queue
+func (r ImpressionStorageAdapter) GetQueueNamespace() string {
+	return r.impressionsQueueNamespace()
+}

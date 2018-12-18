@@ -2,9 +2,13 @@
 package redis
 
 import (
+	"encoding/json"
+	"io/ioutil"
 	"testing"
 
 	"github.com/splitio/split-synchronizer/conf"
+	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/api"
 )
 
 func TestInitializeClient(t *testing.T) {
@@ -172,4 +176,62 @@ func TestInitializeRedisClusterProperly(t *testing.T) {
 	if err != nil {
 		t.Error("No error should have been returned for valid cluster parameters")
 	}
+}
+
+func TestImpressionsDrop(t *testing.T) {
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	conf.Initialize()
+	Initialize(conf.Data.Redis)
+	prefixAdapter := &prefixAdapter{prefix: ""}
+	Client.Del(prefixAdapter.impressionsQueueNamespace())
+
+	metadata := api.SdkMetadata{
+		SdkVersion: "test-2.0",
+		MachineIP:  "127.0.0.1",
+	}
+
+	impressionsRaw := map[string][]api.ImpressionDTO{
+		"feature1": makeImpressions("key", "on", 123456, "some_label", "key", 30),
+		"feature2": makeImpressions("key", "on", 123456, "some_label", "key", 70),
+		"feature3": makeImpressions("key", "on", 123456, "some_label", "key", 100),
+	}
+
+	//Adding impressions to retrieve.
+	for feature, impressions := range impressionsRaw {
+		for _, impression := range impressions {
+			toStore, err := json.Marshal(ImpressionDTO{
+				Data: ImpressionObject{
+					BucketingKey:      impression.BucketingKey,
+					FeatureName:       feature,
+					KeyName:           impression.KeyName,
+					Rule:              impression.Label,
+					SplitChangeNumber: impression.ChangeNumber,
+					Timestamp:         impression.Time,
+					Treatment:         impression.Treatment,
+				},
+				Metadata: ImpressionMetadata{
+					InstanceIP:   metadata.MachineIP,
+					InstanceName: metadata.MachineName,
+					SdkVersion:   metadata.SdkVersion,
+				},
+			})
+			if err != nil {
+				t.Error(err.Error())
+				return
+			}
+
+			Client.LPush(
+				prefixAdapter.impressionsQueueNamespace(),
+				toStore,
+			)
+		}
+	}
+	impressionsStorageAdapter := NewImpressionStorageAdapter(Client, "")
+	var size int64 = 100
+	err := impressionsStorageAdapter.Drop(impressionsStorageAdapter.GetQueueNamespace(), &size)
+	if err != nil {
+		t.Error("It should not return error")
+	}
+	Client.Del(prefixAdapter.impressionsQueueNamespace())
 }

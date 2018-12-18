@@ -66,6 +66,11 @@ func (r EventStorageAdapter) PopN(n int64) ([]api.RedisStoredEventDTO, error) {
 	return toReturn, nil
 }
 
+// GetQueueNamespace returns the key of events queue
+func (r EventStorageAdapter) GetQueueNamespace() string {
+	return r.eventsListNamespace()
+}
+
 // Size return the value of LLEN
 func (r EventStorageAdapter) Size() int64 {
 	elMutex.Lock()
