@@ -105,21 +105,28 @@ func NewInstance(opt conf.RedisSection) (redis.UniversalClient, error) {
 		}), nil
 }
 
-// Drop removes elements from queue
-func (b BaseStorageAdapter) Drop(nameSpace string, bulkSize *int64) error {
-	var size int64
-	if bulkSize == nil {
-		size = -1
-	} else {
-		size = *bulkSize
-	}
+// Size return the value of LLEN
+func (b BaseStorageAdapter) Size(nameSpace string) int64 {
 	elMutex.Lock()
 	defer elMutex.Unlock()
-	res := b.client.LTrim(nameSpace, 0, size)
-	if res.Err() != nil {
-		log.Error.Println("Dropped elements", res.Err().Error())
-		return res.Err()
+	llen := b.client.LLen(nameSpace) //LRange(r.eventsListNamespace(), 0, n-1)
+
+	if llen.Err() != nil {
+		log.Error.Println(llen.Err())
+		return 0
 	}
-	log.Debug.Println(res)
+
+	return llen.Val()
+}
+
+// Drop removes elements from queue
+func (b BaseStorageAdapter) Drop(nameSpace string, bulkSize *int64) error {
+	elMutex.Lock()
+	defer elMutex.Unlock()
+	if bulkSize == nil {
+		b.client.Del(nameSpace)
+	} else {
+		b.client.LTrim(nameSpace, 0, *bulkSize)
+	}
 	return nil
 }

@@ -187,8 +187,9 @@ func TestImpressionsDrop(t *testing.T) {
 	Client.Del(prefixAdapter.impressionsQueueNamespace())
 
 	metadata := api.SdkMetadata{
-		SdkVersion: "test-2.0",
-		MachineIP:  "127.0.0.1",
+		SdkVersion:  "test-2.0",
+		MachineIP:   "127.0.0.1",
+		MachineName: "ip-127-0-0-1",
 	}
 
 	impressionsRaw := map[string][]api.ImpressionDTO{
@@ -228,10 +229,25 @@ func TestImpressionsDrop(t *testing.T) {
 		}
 	}
 	impressionsStorageAdapter := NewImpressionStorageAdapter(Client, "")
-	var size int64 = 100
+	var size int64 = 99
 	err := impressionsStorageAdapter.Drop(impressionsStorageAdapter.GetQueueNamespace(), &size)
 	if err != nil {
 		t.Error("It should not return error")
 	}
+
+	count := impressionsStorageAdapter.Size(impressionsStorageAdapter.GetQueueNamespace())
+	if count != 100 {
+		t.Error("It should kept 100 elements")
+	}
+
+	err = impressionsStorageAdapter.Drop(impressionsStorageAdapter.GetQueueNamespace(), nil)
+	if err != nil {
+		t.Error("It should not return error")
+	}
+	count = impressionsStorageAdapter.Size(impressionsStorageAdapter.GetQueueNamespace())
+	if count != 0 {
+		t.Error("It should not be elements left")
+	}
+
 	Client.Del(prefixAdapter.impressionsQueueNamespace())
 }

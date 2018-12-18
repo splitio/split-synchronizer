@@ -82,6 +82,9 @@ func init() {
 			log.Error.Println(err.Error())
 			os.Exit(1)
 		}
+		if conf.Data.Redis.LegacyImpressionsFetching {
+			log.Warning.Println("LegacyImpressionsFetching is true: The size of impressions will only consider the impressions from the queue.")
+		}
 	}
 
 }

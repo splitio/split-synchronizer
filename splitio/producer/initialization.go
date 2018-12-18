@@ -112,6 +112,8 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		waServer.Router().GET("/admin/healthcheck", producerControllers.HealthCheck)
 		waServer.Router().GET("/admin/dashboard", producerControllers.Dashboard)
 		waServer.Router().GET("/admin/dashboard/segmentKeys/:segment", producerControllers.DashboardSegmentKeys)
+		waServer.Router().GET("/admin/events/queueSize", producerControllers.GetEventsQueueSize)
+		waServer.Router().GET("/admin/impressions/queueSize", producerControllers.GetImpressionsQueueSize)
 		waServer.Router().POST("/admin/events/drop/*size", producerControllers.DropEvents)
 		waServer.Router().POST("/admin/impressions/drop/*size", producerControllers.DropImpressions)
 

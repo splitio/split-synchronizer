@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/api"
 	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 )
 
@@ -98,6 +99,146 @@ func TestHealthCheckEndpointFailure(t *testing.T) {
 	if gs.Storage.Healthy {
 		t.Error("Storage should NOT be healthy")
 	}
+	server.Shutdown(ctx)
+}
+
+func TestSizeEvents(t *testing.T) {
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+
+	conf.Initialize()
+	redis.Initialize(conf.Data.Redis)
+	eventsStorageAdapter := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+	redis.Client.Del(eventsStorageAdapter.GetQueueNamespace())
+
+	metadata := api.SdkMetadata{
+		SdkVersion:  "test-2.0",
+		MachineIP:   "127.0.0.1",
+		MachineName: "ip-127-0-0-1",
+	}
+
+	toStore, err := json.Marshal(api.RedisStoredEventDTO{
+		Event: api.EventDTO{
+			Key:             "test",
+			EventTypeID:     "test",
+			Timestamp:       1234,
+			TrafficTypeName: "test",
+			Value:           nil,
+		},
+		Metadata: api.RedisStoredMachineMetadataDTO{
+			MachineIP:   metadata.MachineIP,
+			MachineName: metadata.MachineName,
+			SDKVersion:  metadata.SdkVersion,
+		},
+	})
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	redis.Client.LPush(
+		eventsStorageAdapter.GetQueueNamespace(),
+		toStore,
+	)
+
+	router := gin.Default()
+	router.GET("/test", func(c *gin.Context) {
+		GetEventsQueueSize(c)
+	})
+
+	server := &http.Server{
+		Addr:    ":9999",
+		Handler: router,
+	}
+
+	go server.ListenAndServe()
+	time.Sleep(3 * time.Second)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	res, _ := http.Get("http://localhost:9999/test")
+	responseBody, _ := ioutil.ReadAll(res.Body)
+
+	var data map[string]interface{}
+	_ = json.Unmarshal([]byte(responseBody), &data)
+	var expected float64 = 1
+	if data["queueSize"] != expected {
+		t.Error("It should return 1")
+	}
+
+	redis.Client.Del(eventsStorageAdapter.GetQueueNamespace())
+	server.Shutdown(ctx)
+}
+
+func TestSizeImpressions(t *testing.T) {
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+
+	conf.Initialize()
+	redis.Initialize(conf.Data.Redis)
+	impressionsStorageAdapter := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+	redis.Client.Del(impressionsStorageAdapter.GetQueueNamespace())
+
+	metadata := api.SdkMetadata{
+		SdkVersion:  "test-2.0",
+		MachineIP:   "127.0.0.1",
+		MachineName: "ip-127-0-0-1",
+	}
+
+	toStore, err := json.Marshal(redis.ImpressionDTO{
+		Data: redis.ImpressionObject{
+			BucketingKey:      "1",
+			FeatureName:       "1",
+			KeyName:           "test",
+			Rule:              "test",
+			SplitChangeNumber: 1234,
+			Timestamp:         1234,
+			Treatment:         "on",
+		},
+		Metadata: redis.ImpressionMetadata{
+			InstanceIP:   metadata.MachineIP,
+			InstanceName: metadata.MachineName,
+			SdkVersion:   metadata.SdkVersion,
+		},
+	})
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	redis.Client.LPush(
+		impressionsStorageAdapter.GetQueueNamespace(),
+		toStore,
+	)
+
+	router := gin.Default()
+	router.GET("/test", func(c *gin.Context) {
+		GetImpressionsQueueSize(c)
+	})
+
+	server := &http.Server{
+		Addr:    ":9999",
+		Handler: router,
+	}
+
+	go server.ListenAndServe()
+	time.Sleep(3 * time.Second)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	res, _ := http.Get("http://localhost:9999/test")
+	responseBody, _ := ioutil.ReadAll(res.Body)
+
+	var data map[string]interface{}
+	_ = json.Unmarshal([]byte(responseBody), &data)
+	var expected float64 = 1
+	if data["queueSize"] != expected {
+		t.Error("It should return 1")
+	}
+
+	redis.Client.Del(impressionsStorageAdapter.GetQueueNamespace())
 	server.Shutdown(ctx)
 }
 

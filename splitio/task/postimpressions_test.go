@@ -28,6 +28,10 @@ func (r testImpressionStorage) RetrieveImpressions(count int64, legacyEnabled bo
 	return map[api.SdkMetadata][]api.ImpressionsDTO{metadata: {impressionsTest}}, nil
 }
 
+func (r testImpressionStorage) Size() int64 {
+	return 0
+}
+
 /* ImpressionsRecorder for testing */
 type testImpressionsRecorder struct{}
 
