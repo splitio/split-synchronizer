@@ -81,16 +81,30 @@ func DashboardSegmentKeys(c *gin.Context) {
 	c.String(http.StatusOK, "%s", toReturn)
 }
 
-func getIntegerParameterFromQuery(c *gin.Context, key string) (int64, error) {
+func getIntegerParameterFromQuery(c *gin.Context, key string) (*int64, error) {
 	value := c.Query(key)
 	if value != "" {
 		field, err := strconv.ParseInt(value, 10, 64)
 		if err != nil {
-			return 0, errors.New("Wrong type passed as parameter")
+			return nil, errors.New("Wrong type passed as parameter")
 		}
-		return field, nil
+		return &field, nil
 	}
-	return -1, nil
+	return nil, nil
+}
+
+// GetEventsQueueSize returns events queue size
+func GetEventsQueueSize(c *gin.Context) {
+	eventsStorageAdapter := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+	queueSize := eventsStorageAdapter.Size(eventsStorageAdapter.GetQueueNamespace())
+	c.JSON(http.StatusOK, gin.H{"queueSize": queueSize})
+}
+
+// GetImpressionsQueueSize returns impressions queue size
+func GetImpressionsQueueSize(c *gin.Context) {
+	impressionsStorageAdapter := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+	queueSize := impressionsStorageAdapter.Size(impressionsStorageAdapter.GetQueueNamespace())
+	c.JSON(http.StatusOK, gin.H{"queueSize": queueSize})
 }
 
 // DropEvents drops Events from queue
@@ -100,7 +114,7 @@ func DropEvents(c *gin.Context) {
 	if err != nil {
 		c.String(http.StatusBadRequest, "%s", err.Error())
 	} else {
-		err = eventsStorageAdapter.Drop(eventsStorageAdapter.GetQueueNamespace(), &bulkSize)
+		err = eventsStorageAdapter.Drop(eventsStorageAdapter.GetQueueNamespace(), bulkSize)
 		if err == nil {
 			c.String(http.StatusOK, "%s", "Events dropped")
 		} else {
@@ -116,7 +130,7 @@ func DropImpressions(c *gin.Context) {
 	if err != nil {
 		c.String(http.StatusBadRequest, "%s", err.Error())
 	} else {
-		err = impressionsStorageAdapter.Drop(impressionsStorageAdapter.GetQueueNamespace(), &bulkSize)
+		err = impressionsStorageAdapter.Drop(impressionsStorageAdapter.GetQueueNamespace(), bulkSize)
 		if err == nil {
 			c.String(http.StatusOK, "%s", "Impressions dropped")
 		} else {

@@ -2,7 +2,6 @@ package task
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -137,16 +136,18 @@ func PostEvents(
 }
 
 // EventsFlush Task to flush cached events.
+/*
 func EventsFlush(
 	eventsRecorderAdapter recorder.EventsRecorder,
 	eventsStorageAdapter storage.EventStorage,
 	eventsBulkSize int,
 ) {
 
-	for eventsStorageAdapter.Size() > 0 {
+	for eventsStorageAdapter.Size(eventsStorageAdapter.GetQueueNamespace()) > 0 {
 		fmt.Println("Flushing events list")
 		taskPostEvents(0, eventsRecorderAdapter, eventsStorageAdapter, int64(eventsBulkSize))
 		time.Sleep(100 * time.Millisecond)
 	}
 
 }
+*/

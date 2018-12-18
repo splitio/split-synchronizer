@@ -2,13 +2,15 @@ package task
 
 import (
 	"errors"
+	"time"
+
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/recorder"
-	"time"
 )
 
 var impressionListenerStream = make(chan *ImpressionBulk, recorder.ImpressionListenerMainQueueSize)
 
+// QueueImpressionsForListener Impression Listener for Synchronizer
 func QueueImpressionsForListener(impressions *ImpressionBulk) error {
 	select {
 	case impressionListenerStream <- impressions:
@@ -51,6 +53,7 @@ func taskPostImpressionsToListener(ilSubmitter recorder.ImpressionListenerSubmit
 	}
 }
 
+// PostImpressionsToListener Add Impressions to Listener
 func PostImpressionsToListener(ilSubmitter recorder.ImpressionListenerSubmitter) {
 	var failedQueue = make(chan *ImpressionBulk, recorder.ImpressionListenerFailedQueueSize)
 	for {
