@@ -198,7 +198,7 @@ func TestImpressionsDrop(t *testing.T) {
 		"feature3": makeImpressions("key", "on", 123456, "some_label", "key", 100),
 	}
 
-	//Adding impressions to retrieve.
+	// Adding impressions to drop.
 	for feature, impressions := range impressionsRaw {
 		for _, impression := range impressions {
 			toStore, err := json.Marshal(ImpressionDTO{
@@ -250,4 +250,70 @@ func TestImpressionsDrop(t *testing.T) {
 	}
 
 	Client.Del(prefixAdapter.impressionsQueueNamespace())
+}
+
+func TestEventsDrop(t *testing.T) {
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	conf.Initialize()
+	Initialize(conf.Data.Redis)
+	prefixAdapter := &prefixAdapter{prefix: ""}
+	Client.Del(prefixAdapter.eventsListNamespace())
+
+	metadata := api.SdkMetadata{
+		SdkVersion:  "test-2.0",
+		MachineIP:   "127.0.0.1",
+		MachineName: "ip-127-0-0-1",
+	}
+
+	eventsRaw := makeEvents("key", "eventTypeId", 123456, "trafficTypeName", nil, 30)
+
+	// Adding impressions to drop.
+	for _, event := range eventsRaw {
+		toStore, err := json.Marshal(api.RedisStoredEventDTO{
+			Event: api.EventDTO{
+				Key:             event.Key,
+				EventTypeID:     event.EventTypeID,
+				Timestamp:       event.Timestamp,
+				TrafficTypeName: event.TrafficTypeName,
+				Value:           event.Value,
+			},
+			Metadata: api.RedisStoredMachineMetadataDTO{
+				MachineIP:   metadata.MachineIP,
+				MachineName: metadata.MachineName,
+				SDKVersion:  metadata.SdkVersion,
+			},
+		})
+		if err != nil {
+			t.Error(err.Error())
+			return
+		}
+
+		Client.LPush(
+			prefixAdapter.eventsListNamespace(),
+			toStore,
+		)
+	}
+	eventsStorageAdapter := NewEventStorageAdapter(Client, "")
+	var size int64 = 9
+	err := eventsStorageAdapter.Drop(eventsStorageAdapter.GetQueueNamespace(), &size)
+	if err != nil {
+		t.Error("It should not return error")
+	}
+
+	count := eventsStorageAdapter.Size(eventsStorageAdapter.GetQueueNamespace())
+	if count != 10 {
+		t.Error("It should kept 10 elements")
+	}
+
+	err = eventsStorageAdapter.Drop(eventsStorageAdapter.GetQueueNamespace(), nil)
+	if err != nil {
+		t.Error("It should not return error")
+	}
+	count = eventsStorageAdapter.Size(eventsStorageAdapter.GetQueueNamespace())
+	if count != 0 {
+		t.Error("It should not be elements left")
+	}
+
+	Client.Del(prefixAdapter.eventsListNamespace())
 }
