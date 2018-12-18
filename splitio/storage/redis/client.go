@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-redis/redis"
 	"github.com/splitio/split-synchronizer/conf"
+	"github.com/splitio/split-synchronizer/log"
 )
 
 // Client is a redis client with a connection pool
@@ -102,4 +103,23 @@ func NewInstance(opt conf.RedisSection) (redis.UniversalClient, error) {
 			ReadTimeout:  time.Duration(opt.ReadTimeout) * time.Second,
 			WriteTimeout: time.Duration(opt.WriteTimeout) * time.Second,
 		}), nil
+}
+
+// Drop removes elements from queue
+func (b BaseStorageAdapter) Drop(nameSpace string, bulkSize *int64) error {
+	var size int64
+	if bulkSize == nil {
+		size = -1
+	} else {
+		size = *bulkSize
+	}
+	elMutex.Lock()
+	defer elMutex.Unlock()
+	res := b.client.LTrim(nameSpace, 0, size)
+	if res.Err() != nil {
+		log.Error.Println("Dropped elements", res.Err().Error())
+		return res.Err()
+	}
+	log.Debug.Println(res)
+	return nil
 }
