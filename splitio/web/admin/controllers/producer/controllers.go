@@ -113,14 +113,19 @@ func DropEvents(c *gin.Context) {
 	bulkSize, err := getIntegerParameterFromQuery(c, "size")
 	if err != nil {
 		c.String(http.StatusBadRequest, "%s", err.Error())
-	} else {
-		err = eventsStorageAdapter.Drop(eventsStorageAdapter.GetQueueNamespace(), bulkSize)
-		if err == nil {
-			c.String(http.StatusOK, "%s", "Events dropped")
-		} else {
-			c.String(http.StatusInternalServerError, "%s", err.Error())
-		}
+		return
 	}
+	if bulkSize != nil && *bulkSize < 1 {
+		c.String(http.StatusBadRequest, "%s", "Size cannot be less than 1")
+		return
+	}
+	err = eventsStorageAdapter.Drop(eventsStorageAdapter.GetQueueNamespace(), bulkSize)
+	if err == nil {
+		c.String(http.StatusOK, "%s", "Events dropped")
+		return
+	}
+	c.String(http.StatusInternalServerError, "%s", err.Error())
+
 }
 
 // DropImpressions drops Impressions from queue
@@ -129,12 +134,17 @@ func DropImpressions(c *gin.Context) {
 	bulkSize, err := getIntegerParameterFromQuery(c, "size")
 	if err != nil {
 		c.String(http.StatusBadRequest, "%s", err.Error())
-	} else {
-		err = impressionsStorageAdapter.Drop(impressionsStorageAdapter.GetQueueNamespace(), bulkSize)
-		if err == nil {
-			c.String(http.StatusOK, "%s", "Impressions dropped")
-		} else {
-			c.String(http.StatusInternalServerError, "%s", err.Error())
-		}
+		return
 	}
+	if bulkSize != nil && *bulkSize < 1 {
+		c.String(http.StatusBadRequest, "%s", "Size cannot be less than 1")
+		return
+	}
+	err = impressionsStorageAdapter.Drop(impressionsStorageAdapter.GetQueueNamespace(), bulkSize)
+	if err == nil {
+		c.String(http.StatusOK, "%s", "Impressions dropped")
+		return
+	}
+	c.String(http.StatusInternalServerError, "%s", err.Error())
+
 }

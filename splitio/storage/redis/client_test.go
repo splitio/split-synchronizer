@@ -229,7 +229,7 @@ func TestImpressionsDrop(t *testing.T) {
 		}
 	}
 	impressionsStorageAdapter := NewImpressionStorageAdapter(Client, "")
-	var size int64 = 99
+	var size int64 = 100
 	err := impressionsStorageAdapter.Drop(impressionsStorageAdapter.GetQueueNamespace(), &size)
 	if err != nil {
 		t.Error("It should not return error")
@@ -237,7 +237,7 @@ func TestImpressionsDrop(t *testing.T) {
 
 	count := impressionsStorageAdapter.Size(impressionsStorageAdapter.GetQueueNamespace())
 	if count != 100 {
-		t.Error("It should kept 100 elements")
+		t.Error("It should kept 100 elements, not", count)
 	}
 
 	err = impressionsStorageAdapter.Drop(impressionsStorageAdapter.GetQueueNamespace(), nil)
@@ -302,8 +302,8 @@ func TestEventsDrop(t *testing.T) {
 	}
 
 	count := eventsStorageAdapter.Size(eventsStorageAdapter.GetQueueNamespace())
-	if count != 10 {
-		t.Error("It should kept 10 elements")
+	if count != 21 {
+		t.Error("It should kept 19 elements, not", count)
 	}
 
 	err = eventsStorageAdapter.Drop(eventsStorageAdapter.GetQueueNamespace(), nil)

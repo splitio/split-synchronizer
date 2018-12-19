@@ -125,8 +125,8 @@ func (b BaseStorageAdapter) Drop(nameSpace string, bulkSize *int64) error {
 	defer elMutex.Unlock()
 	if bulkSize == nil {
 		b.client.Del(nameSpace)
-	} else {
-		b.client.LTrim(nameSpace, 0, *bulkSize)
+		return nil
 	}
+	b.client.LTrim(nameSpace, *bulkSize, -1)
 	return nil
 }
