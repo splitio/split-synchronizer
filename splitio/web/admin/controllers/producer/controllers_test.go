@@ -277,6 +277,41 @@ func TestDropEventsFail(t *testing.T) {
 	server.Shutdown(ctx)
 }
 
+func TestDropEventsFailSize(t *testing.T) {
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+
+	conf.Initialize()
+	redis.Initialize(conf.Data.Redis)
+
+	router := gin.Default()
+	router.POST("/test", func(c *gin.Context) {
+		DropEvents(c)
+	})
+
+	server := &http.Server{
+		Addr:    ":9999",
+		Handler: router,
+	}
+
+	go server.ListenAndServe()
+	time.Sleep(3 * time.Second)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	res, _ := http.Post("http://localhost:9999/test?size=-10", "", nil)
+	bodyBytes, _ := ioutil.ReadAll(res.Body)
+	body := string(bodyBytes)
+	if res.StatusCode != 400 {
+		t.Error("Should returned 400")
+	}
+	if body != "Size cannot be less than 1" {
+		t.Error("Wrong message")
+	}
+	server.Shutdown(ctx)
+}
+
 func TestDropEventsSuccess(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
 	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
@@ -300,7 +335,7 @@ func TestDropEventsSuccess(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
-	res, _ := http.Post("http://localhost:9999/test?size=1", "", nil)
+	res, _ := http.Post("http://localhost:9999/test?size=10", "", nil)
 	bodyBytes, _ := ioutil.ReadAll(res.Body)
 	body := string(bodyBytes)
 	if res.StatusCode != 200 {
