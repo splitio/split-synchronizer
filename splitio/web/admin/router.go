@@ -42,6 +42,7 @@ func NewWebAdminServer(options *WebAdminOptions) *WebAdminServer {
 	server.router.GET("/admin/uptime", controllers.Uptime)
 	server.router.GET("/admin/stats", controllers.ShowStats)
 	server.router.GET("/admin/stop/:stopType", controllers.StopProccess)
+	server.router.GET("/admin/userConfig", controllers.GetConfiguration)
 
 	return server
 }

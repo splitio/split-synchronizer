@@ -266,7 +266,7 @@ func TestEventsDrop(t *testing.T) {
 		MachineName: "ip-127-0-0-1",
 	}
 
-	eventsRaw := makeEvents("key", "eventTypeId", 123456, "trafficTypeName", nil, 30)
+	eventsRaw := makeEvents("key", "test", 123456, "user", nil, 30)
 
 	// Adding impressions to drop.
 	for _, event := range eventsRaw {
@@ -295,7 +295,9 @@ func TestEventsDrop(t *testing.T) {
 		)
 	}
 	eventsStorageAdapter := NewEventStorageAdapter(Client, "")
+
 	var size int64 = 9
+
 	err := eventsStorageAdapter.Drop(eventsStorageAdapter.GetQueueNamespace(), &size)
 	if err != nil {
 		t.Error("It should not return error")
