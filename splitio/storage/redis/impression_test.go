@@ -7,19 +7,30 @@ import (
 	"io/ioutil"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/api"
 )
 
-func findImpressionsForFeature(
-	bulk map[string]map[string][]api.ImpressionsDTO,
-	sdk string,
-	instanceID string,
-	featureName string,
-) (*api.ImpressionsDTO, error) {
-	for _, feature := range bulk[sdk][instanceID] {
+func makeImpressions(key string, treatment string, changenumber int64, label string, bucketingKey string, count int) []api.ImpressionDTO {
+	keyMod := int(float64(count)*0.2) + 1
+	imps := make([]api.ImpressionDTO, count)
+	for i := 0; i < count; i++ {
+		imps[i] = api.ImpressionDTO{
+			BucketingKey: bucketingKey,
+			ChangeNumber: changenumber,
+			KeyName:      fmt.Sprintf("%s_%d", key, i%keyMod),
+			Time:         changenumber + int64(i),
+			Treatment:    treatment,
+		}
+	}
+	return imps
+}
+
+func findImpressionsForFeature(bulk []api.ImpressionsDTO, featureName string) (*api.ImpressionsDTO, error) {
+	for _, feature := range bulk {
 		if feature.TestName == featureName {
 			return &feature, nil
 		}
@@ -27,43 +38,54 @@ func findImpressionsForFeature(
 	return nil, fmt.Errorf("Feature %s not found", featureName)
 }
 
-func TestImpressionStorageAdapter(t *testing.T) {
+func TestImpressionStorageAdapterNoQueueKey(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
 	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 
 	//Initialize by default
 	conf.Initialize()
 	Initialize(conf.Data.Redis)
-
-	languageAndVersion := "test-2.0"
-	instanceID := "127.0.0.1"
-	featureName := "some_feature"
-	impressionTXT1 := `{"keyName":"some_key1","treatment":"off","time":1234567890,"changeNumber":55555555,"label":"some label","bucketingKey":"some_bucket_key"}`
-	impressionTXT2 := `{"keyName":"some_key2","treatment":"on","time":1234567999,"changeNumber":577775,"label":"some label no match","bucketingKey":"some_bucket_key_2"}`
-
 	prefixAdapter := &prefixAdapter{prefix: ""}
-	impressionsKey := prefixAdapter.impressionsNamespace(languageAndVersion, instanceID, featureName)
+	Client.Del(prefixAdapter.impressionsQueueNamespace())
+
+	metadata := api.SdkMetadata{
+		SdkVersion: "test-2.0",
+		MachineIP:  "127.0.0.1",
+	}
+	featureName := "some_feature"
+
+	i1TXT := `{
+	    "keyName":"some_key1",
+	    "treatment":"off",
+	    "time":1234567890,
+	    "changeNumber":55555555,
+	    "label":"some label",
+	    "bucketingKey":"some_bucket_key"
+	}`
+	i2TXT := `{
+	    "keyName":"some_key2",
+	    "treatment":"on",
+	    "time":1234567999,
+	    "changeNumber":577775,
+	    "label":"some label no match",
+	    "bucketingKey":"some_bucket_key_2"
+	}`
+	impressionsKey := prefixAdapter.impressionsNamespace(metadata.SdkVersion, metadata.MachineIP, featureName)
 	//Adding impressions to retrieve.
-	Client.SAdd(impressionsKey, impressionTXT1)
-	Client.SAdd(impressionsKey, impressionTXT2)
+	Client.SAdd(impressionsKey, i1TXT, i2TXT)
 
 	impressionsStorageAdapter := NewImpressionStorageAdapter(Client, "")
-	retrievedImpressions, err := impressionsStorageAdapter.RetrieveImpressions()
-
+	retrievedImpressions, err := impressionsStorageAdapter.RetrieveImpressions(500, true)
 	if err != nil {
 		t.Error(err)
 	}
 
-	_, ok1 := retrievedImpressions[languageAndVersion]
+	_, ok1 := retrievedImpressions[metadata]
 	if !ok1 {
-		t.Error("Error retrieving impressions by language and version")
-	}
-	_, ok2 := retrievedImpressions[languageAndVersion][instanceID]
-	if !ok2 {
-		t.Error("Error retrieving impressions by instance ID ")
+		t.Error("Error retrieving impressions by language and version, machineIp & name")
 	}
 
-	impressionDTO := retrievedImpressions[languageAndVersion][instanceID][0]
+	impressionDTO := retrievedImpressions[metadata][0]
 
 	if impressionDTO.TestName != featureName {
 		t.Error("Error on fetched impressions - Test name")
@@ -74,167 +96,69 @@ func TestImpressionStorageAdapter(t *testing.T) {
 	}
 }
 
-func TestThatQuotaiIsApplied(t *testing.T) {
+func TestThatQuotaiIsAppliedNoQueueKey(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
 	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 
 	//Initialize by default
 	conf.Initialize()
 	Initialize(conf.Data.Redis)
+	prefixAdapter := &prefixAdapter{prefix: ""}
+	Client.Del(prefixAdapter.impressionsQueueNamespace())
 
-	languageAndVersion := "test-2.0"
-	instanceID := "127.0.0.1"
-
-	impressionsRaw := map[string][]api.ImpressionDTO{
-		"feature1": {
-			{
-				BucketingKey: "",
-				ChangeNumber: 0,
-				KeyName:      "key1",
-				Label:        "label1",
-				Time:         123,
-				Treatment:    "treatment1",
-			},
-			{
-				BucketingKey: "",
-				ChangeNumber: 0,
-				KeyName:      "key2",
-				Label:        "label1",
-				Time:         123,
-				Treatment:    "treatment2",
-			},
-			{
-				BucketingKey: "",
-				ChangeNumber: 0,
-				KeyName:      "key3",
-				Label:        "label1",
-				Time:         123,
-				Treatment:    "treatment3",
-			},
-			{
-				BucketingKey: "",
-				ChangeNumber: 0,
-				KeyName:      "key4",
-				Label:        "label1",
-				Time:         123,
-				Treatment:    "treatment4",
-			},
-			{
-				BucketingKey: "",
-				ChangeNumber: 0,
-				KeyName:      "key5",
-				Label:        "label1",
-				Time:         123,
-				Treatment:    "treatment5",
-			},
-			{
-				BucketingKey: "",
-				ChangeNumber: 0,
-				KeyName:      "key6",
-				Label:        "label1",
-				Time:         123,
-				Treatment:    "treatment6",
-			},
-		},
-		"feature2": {
-			{
-				BucketingKey: "",
-				ChangeNumber: 0,
-				KeyName:      "key1",
-				Label:        "label1",
-				Time:         123,
-				Treatment:    "treatment1",
-			},
-		},
-		"feature3": {
-			{
-				BucketingKey: "",
-				ChangeNumber: 0,
-				KeyName:      "key1",
-				Label:        "label1",
-				Time:         123,
-				Treatment:    "treatment1",
-			},
-			{
-				BucketingKey: "",
-				ChangeNumber: 0,
-				KeyName:      "key2",
-				Label:        "label1",
-				Time:         123,
-				Treatment:    "treatment2",
-			},
-			{
-				BucketingKey: "",
-				ChangeNumber: 0,
-				KeyName:      "key3",
-				Label:        "label1",
-				Time:         123,
-				Treatment:    "treatment3",
-			},
-			{
-				BucketingKey: "",
-				ChangeNumber: 0,
-				KeyName:      "key4",
-				Label:        "label1",
-				Time:         123,
-				Treatment:    "treatment4",
-			},
-			{
-				BucketingKey: "",
-				ChangeNumber: 0,
-				KeyName:      "key5",
-				Label:        "label1",
-				Time:         123,
-				Treatment:    "treatment5",
-			},
-		},
+	metadata := api.SdkMetadata{
+		SdkVersion: "test-2.0",
+		MachineIP:  "127.0.0.1",
 	}
 
-	prefixAdapter := &prefixAdapter{prefix: ""}
+	impressionsRaw := map[string][]api.ImpressionDTO{
+		"feature1": makeImpressions("key", "on", 123456, "some_label", "key", 30),
+		"feature2": makeImpressions("key", "on", 123456, "some_label", "key", 70),
+		"feature3": makeImpressions("key", "on", 123456, "some_label", "key", 100),
+	}
+
 	//Adding impressions to retrieve.
 	for feature, impressions := range impressionsRaw {
 		for _, impression := range impressions {
 			toStore, _ := json.Marshal(impression)
 			Client.SAdd(
-				prefixAdapter.impressionsNamespace(languageAndVersion, instanceID, feature),
+				prefixAdapter.impressionsNamespace(metadata.SdkVersion, metadata.MachineIP, feature),
 				toStore,
 			)
 		}
 	}
-	conf.Data.ImpressionsPerPost = 9
 	impressionsStorageAdapter := NewImpressionStorageAdapter(Client, "")
-	retrievedImpressions, err := impressionsStorageAdapter.RetrieveImpressions()
 
+	// We have 200 impressions in storage (30 + 70 + 100). And try to retrieve 150 in total,
+	retrievedImpressions, err := impressionsStorageAdapter.RetrieveImpressions(150, true)
 	if err != nil {
 		t.Error(err)
 	}
 
-	// We set an impressionsPerPost value of 6. Which means that when distributed evenly, we should get 3 impressions
-	// per feature. Since feature 2 has only one, we should get 3 for feature1, 1 for feature2 and 5 for feature3.
-	feature1Impressions, err := findImpressionsForFeature(retrievedImpressions, languageAndVersion, instanceID, "feature1")
+	feature1Impressions, err := findImpressionsForFeature(retrievedImpressions[metadata], "feature1")
 	if err != nil {
 		t.Error(err.Error())
 		return
 	}
-	if len(feature1Impressions.KeyImpressions) != 3 {
+	if len(feature1Impressions.KeyImpressions) != 30 {
 		t.Errorf("We should have 3 impressions for feature1, we have %d", len(feature1Impressions.KeyImpressions))
 	}
 
-	feature2Impressions, _ := findImpressionsForFeature(retrievedImpressions, languageAndVersion, instanceID, "feature2")
+	feature2Impressions, err := findImpressionsForFeature(retrievedImpressions[metadata], "feature2")
 	if err != nil {
 		t.Error(err.Error())
 		return
 	}
-	if len(feature2Impressions.KeyImpressions) != 1 {
+	if len(feature2Impressions.KeyImpressions) != 70 {
 		t.Errorf("We should have 3 impressions for feature2, we have %d", len(feature2Impressions.KeyImpressions))
 	}
 
-	feature3Impressions, _ := findImpressionsForFeature(retrievedImpressions, languageAndVersion, instanceID, "feature3")
+	feature3Impressions, err := findImpressionsForFeature(retrievedImpressions[metadata], "feature3")
 	if err != nil {
 		t.Error(err.Error())
 		return
 	}
-	if len(feature3Impressions.KeyImpressions) != 5 {
+	if len(feature3Impressions.KeyImpressions) != 50 {
 		t.Errorf("We should have 5 impressions for feature3, we have %d", len(feature3Impressions.KeyImpressions))
 	}
 }
@@ -246,6 +170,8 @@ func TestLuaScriptFailure(t *testing.T) {
 	//Initialize by default
 	conf.Initialize()
 	Initialize(conf.Data.Redis)
+	prefixAdapter := &prefixAdapter{prefix: ""}
+	Client.Del(prefixAdapter.impressionsQueueNamespace())
 
 	impressionKeysWithCardinalityScriptTemplate = `local impkeys = redis.call('KEYS', '{KEY_NAME`
 
@@ -270,7 +196,7 @@ func TestLuaScriptFailure(t *testing.T) {
 		return
 	}
 
-	imps2, err := impressionsStorageAdapter.RetrieveImpressions()
+	imps2, err := impressionsStorageAdapter.RetrieveImpressions(500, true)
 	if imps2 == nil {
 		t.Error("Impressions should not be null, fallback should work correctly")
 		return
@@ -289,6 +215,8 @@ func TestLuaScriptReturnsIncorrectType(t *testing.T) {
 	//Initialize by default
 	conf.Initialize()
 	Initialize(conf.Data.Redis)
+	prefixAdapter := &prefixAdapter{prefix: ""}
+	Client.Del(prefixAdapter.impressionsQueueNamespace())
 
 	impressionKeysWithCardinalityScriptTemplate = `return 1`
 
@@ -313,7 +241,7 @@ func TestLuaScriptReturnsIncorrectType(t *testing.T) {
 		return
 	}
 
-	imps2, err := impressionsStorageAdapter.RetrieveImpressions()
+	imps2, err := impressionsStorageAdapter.RetrieveImpressions(500, true)
 	if imps2 == nil {
 		t.Error("Impressions should not be null, fallback should work correctly")
 		return
@@ -332,6 +260,8 @@ func TestLuaScriptReturnsIncorrectSlice(t *testing.T) {
 	//Initialize by default
 	conf.Initialize()
 	Initialize(conf.Data.Redis)
+	prefixAdapter := &prefixAdapter{prefix: ""}
+	Client.Del(prefixAdapter.impressionsQueueNamespace())
 
 	impressionKeysWithCardinalityScriptTemplate = `return {1, 2, 3}`
 
@@ -356,7 +286,7 @@ func TestLuaScriptReturnsIncorrectSlice(t *testing.T) {
 		return
 	}
 
-	imps2, err := impressionsStorageAdapter.RetrieveImpressions()
+	imps2, err := impressionsStorageAdapter.RetrieveImpressions(500, true)
 	if imps2 == nil {
 		t.Error("Impressions should not be null, fallback should work correctly")
 		return
@@ -392,4 +322,338 @@ func TestThatMalformedImpressionKeysDoNotPanic(t *testing.T) {
 			t.Errorf("Feature should be empty. Is %s", feature)
 		}
 	}
+}
+
+func TestImpressionsSingleQueue(t *testing.T) {
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	conf.Initialize()
+	Initialize(conf.Data.Redis)
+	prefixAdapter := &prefixAdapter{prefix: ""}
+	Client.Del(prefixAdapter.impressionsQueueNamespace())
+
+	metadata := api.SdkMetadata{
+		SdkVersion: "test-2.0",
+		MachineIP:  "127.0.0.1",
+	}
+
+	impressionsRaw := map[string][]api.ImpressionDTO{
+		"feature1": makeImpressions("key", "on", 123456, "some_label", "key", 30),
+		"feature2": makeImpressions("key", "on", 123456, "some_label", "key", 70),
+		"feature3": makeImpressions("key", "on", 123456, "some_label", "key", 100),
+	}
+
+	//Adding impressions to retrieve.
+	for feature, impressions := range impressionsRaw {
+		for _, impression := range impressions {
+			toStore, err := json.Marshal(ImpressionDTO{
+				Data: ImpressionObject{
+					BucketingKey:      impression.BucketingKey,
+					FeatureName:       feature,
+					KeyName:           impression.KeyName,
+					Rule:              impression.Label,
+					SplitChangeNumber: impression.ChangeNumber,
+					Timestamp:         impression.Time,
+					Treatment:         impression.Treatment,
+				},
+				Metadata: ImpressionMetadata{
+					InstanceIP:   metadata.MachineIP,
+					InstanceName: metadata.MachineName,
+					SdkVersion:   metadata.SdkVersion,
+				},
+			})
+			if err != nil {
+				t.Error(err.Error())
+				return
+			}
+
+			Client.LPush(
+				prefixAdapter.impressionsQueueNamespace(),
+				toStore,
+			)
+		}
+	}
+	impressionsStorageAdapter := NewImpressionStorageAdapter(Client, "")
+
+	// We have 200 impressions in storage (30 + 70 + 100). And try to retrieve 150 in total,
+	retrievedImpressions, err := impressionsStorageAdapter.RetrieveImpressions(200, false)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	if len(retrievedImpressions[metadata]) != 3 {
+		t.Error("Should have 3 elements. Had ", len(retrievedImpressions[metadata]))
+	}
+
+	feature1Impressions, err := findImpressionsForFeature(retrievedImpressions[metadata], "feature1")
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+	if len(feature1Impressions.KeyImpressions) != 30 {
+		t.Error("Should have 30 elements. Had, ", len(feature1Impressions.KeyImpressions))
+	}
+
+	feature2Impressions, err := findImpressionsForFeature(retrievedImpressions[metadata], "feature2")
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+	if len(feature2Impressions.KeyImpressions) != 70 {
+		t.Error("Should have 70 elements. Had, ", len(feature2Impressions.KeyImpressions))
+	}
+
+	feature3Impressions, err := findImpressionsForFeature(retrievedImpressions[metadata], "feature3")
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+	if len(feature3Impressions.KeyImpressions) != 100 {
+		t.Error("Should have 100 elements. Had, ", len(feature3Impressions.KeyImpressions))
+	}
+}
+
+func TestImpressionsSingleQueueAndLegacy(t *testing.T) {
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	conf.Initialize()
+	Initialize(conf.Data.Redis)
+	prefixAdapter := &prefixAdapter{prefix: ""}
+	Client.Del(prefixAdapter.impressionsQueueNamespace())
+
+	metadata := api.SdkMetadata{
+		SdkVersion: "test-2.0",
+		MachineIP:  "127.0.0.1",
+	}
+
+	impressionsSQRaw := map[string][]api.ImpressionDTO{
+		"feature1": makeImpressions("key", "on", 123456, "some_label", "key", 30),
+		"feature2": makeImpressions("key", "on", 123456, "some_label", "key", 20),
+		"feature3": makeImpressions("key", "on", 123456, "some_label", "key", 5),
+	}
+
+	//Adding impressions to single queue.
+	for feature, impressions := range impressionsSQRaw {
+		for _, impression := range impressions {
+			toStore, err := json.Marshal(ImpressionDTO{
+				Data: ImpressionObject{
+					BucketingKey:      impression.BucketingKey,
+					FeatureName:       feature,
+					KeyName:           impression.KeyName,
+					Rule:              impression.Label,
+					SplitChangeNumber: impression.ChangeNumber,
+					Timestamp:         impression.Time,
+					Treatment:         impression.Treatment,
+				},
+				Metadata: ImpressionMetadata{
+					InstanceIP:   metadata.MachineIP,
+					InstanceName: metadata.MachineName,
+					SdkVersion:   metadata.SdkVersion,
+				},
+			})
+			if err != nil {
+				t.Error(err.Error())
+				return
+			}
+
+			Client.LPush(
+				prefixAdapter.impressionsQueueNamespace(),
+				toStore,
+			)
+		}
+	}
+
+	impressionsLegacyRaw := map[string][]api.ImpressionDTO{
+		"feature1": makeImpressions("keykey", "on", 123456, "some_label", "key", 10),
+		"feature2": makeImpressions("keykey", "on", 123456, "some_label", "key", 10),
+		"feature3": makeImpressions("keykey", "on", 123456, "some_label", "key", 10),
+	}
+
+	//Adding impressions to retrieve.
+	for feature, impressions := range impressionsLegacyRaw {
+		for _, impression := range impressions {
+			toStore, _ := json.Marshal(impression)
+			Client.SAdd(
+				prefixAdapter.impressionsNamespace(metadata.SdkVersion, metadata.MachineIP, feature),
+				toStore,
+			)
+		}
+	}
+
+	impressionsStorageAdapter := NewImpressionStorageAdapter(Client, "")
+
+	// We have 200 impressions in storage (30 + 70 + 100). And try to retrieve 150 in total,
+	retrievedImpressions, err := impressionsStorageAdapter.RetrieveImpressions(200, true)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	if len(retrievedImpressions[metadata]) != 3 {
+		t.Error("Should have 3 elements. Had ", len(retrievedImpressions[metadata]))
+	}
+
+	feature1Impressions, err := findImpressionsForFeature(retrievedImpressions[metadata], "feature1")
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+	if len(feature1Impressions.KeyImpressions) != 40 {
+		t.Error("Should have 30 elements. Had, ", len(feature1Impressions.KeyImpressions))
+	}
+
+	feature2Impressions, err := findImpressionsForFeature(retrievedImpressions[metadata], "feature2")
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+	if len(feature2Impressions.KeyImpressions) != 30 {
+		t.Error("Should have 70 elements. Had, ", len(feature2Impressions.KeyImpressions))
+	}
+
+	feature3Impressions, err := findImpressionsForFeature(retrievedImpressions[metadata], "feature3")
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+	if len(feature3Impressions.KeyImpressions) != 15 {
+		t.Error("Should have 100 elements. Had, ", len(feature3Impressions.KeyImpressions))
+	}
+}
+
+func TestImpressionsFromSingleQueueAreRemovedAfterFetched(t *testing.T) {
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	conf.Initialize()
+	Initialize(conf.Data.Redis)
+	prefixAdapter := &prefixAdapter{prefix: ""}
+	Client.Del(prefixAdapter.impressionsQueueNamespace())
+
+	metadata := api.SdkMetadata{
+		SdkVersion: "test-2.0",
+		MachineIP:  "127.0.0.1",
+	}
+
+	impressionsRaw := map[string][]api.ImpressionDTO{
+		"feature1": makeImpressions("key", "on", 123456, "some_label", "key", 30),
+		"feature2": makeImpressions("key", "on", 123456, "some_label", "key", 70),
+		"feature3": makeImpressions("key", "on", 123456, "some_label", "key", 100),
+	}
+
+	//Adding impressions to retrieve.
+	for feature, impressions := range impressionsRaw {
+		for _, impression := range impressions {
+			toStore, err := json.Marshal(ImpressionDTO{
+				Data: ImpressionObject{
+					BucketingKey:      impression.BucketingKey,
+					FeatureName:       feature,
+					KeyName:           impression.KeyName,
+					Rule:              impression.Label,
+					SplitChangeNumber: impression.ChangeNumber,
+					Timestamp:         impression.Time,
+					Treatment:         impression.Treatment,
+				},
+				Metadata: ImpressionMetadata{
+					InstanceIP:   metadata.MachineIP,
+					InstanceName: metadata.MachineName,
+					SdkVersion:   metadata.SdkVersion,
+				},
+			})
+			if err != nil {
+				t.Error(err.Error())
+				return
+			}
+
+			Client.LPush(
+				prefixAdapter.impressionsQueueNamespace(),
+				toStore,
+			)
+		}
+	}
+	impressionsStorageAdapter := NewImpressionStorageAdapter(Client, "")
+
+	// We have 200 impressions in storage (30 + 70 + 100). And try to retrieve 150 in total,
+	retrievedImpressions, err := impressionsStorageAdapter.RetrieveImpressions(200, false)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	if len(retrievedImpressions[metadata]) != 3 {
+		t.Error("Should have impressions for 3 features")
+		return
+	}
+
+	retrievedImpressions, err = impressionsStorageAdapter.RetrieveImpressions(200, false)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	if len(retrievedImpressions[metadata]) != 0 {
+		t.Error("No impressions should have been returned")
+		t.Errorf("%+v", retrievedImpressions)
+		return
+	}
+}
+
+func TestTTLIsSet(t *testing.T) {
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	conf.Initialize()
+	Initialize(conf.Data.Redis)
+	prefixAdapter := &prefixAdapter{prefix: ""}
+	Client.Del(prefixAdapter.impressionsQueueNamespace())
+
+	metadata := api.SdkMetadata{
+		SdkVersion: "test-2.0",
+		MachineIP:  "127.0.0.1",
+	}
+
+	imps := makeImpressions("key", "on", 123456, "some_label", "key", 500)
+
+	//Adding impressions to retrieve.
+	for _, impression := range imps {
+		toStore, err := json.Marshal(ImpressionDTO{
+			Data: ImpressionObject{
+				BucketingKey:      impression.BucketingKey,
+				FeatureName:       "some_feature",
+				KeyName:           impression.KeyName,
+				Rule:              impression.Label,
+				SplitChangeNumber: impression.ChangeNumber,
+				Timestamp:         impression.Time,
+				Treatment:         impression.Treatment,
+			},
+			Metadata: ImpressionMetadata{
+				InstanceIP:   metadata.MachineIP,
+				InstanceName: metadata.MachineName,
+				SdkVersion:   metadata.SdkVersion,
+			},
+		})
+		if err != nil {
+			t.Error(err.Error())
+			return
+		}
+
+		Client.LPush(
+			prefixAdapter.impressionsQueueNamespace(),
+			toStore,
+		)
+	}
+	impressionsStorageAdapter := NewImpressionStorageAdapter(Client, "")
+
+	// We have 200 impressions in storage (30 + 70 + 100). And try to retrieve 150 in total,
+	_, err := impressionsStorageAdapter.RetrieveImpressions(200, false)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	ttl, _ := Client.TTL(prefixAdapter.impressionsQueueNamespace()).Result()
+
+	if ttl > time.Duration(3600)*time.Second || ttl < time.Duration(3590)*time.Second {
+		t.Error("TTL should have been set and be near 3600 seconds")
+	}
+
 }
