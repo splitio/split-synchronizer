@@ -4,7 +4,7 @@ import "github.com/splitio/split-synchronizer/splitio/api"
 
 // ImpressionsRecorder interface to be implemented by Impressions loggers
 type ImpressionsRecorder interface {
-	Post(impressions []api.ImpressionsDTO, sdkVersion string, machineIP string, machineName string) error
+	Post(impressions []api.ImpressionsDTO, metadata api.SdkMetadata) error
 }
 
 // MetricsRecorder interface to be implemented by Metrics loggers

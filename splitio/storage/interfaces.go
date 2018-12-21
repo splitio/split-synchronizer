@@ -37,7 +37,7 @@ type SegmentStorageFactory interface {
 // ImpressionStorage interface defines the impressions data storage actions
 type ImpressionStorage interface {
 	//Returns a map of impressions. The map key must be the name of the feature
-	RetrieveImpressions() (map[string]map[string][]api.ImpressionsDTO, error)
+	RetrieveImpressions(count int64, legacy bool) (map[api.SdkMetadata][]api.ImpressionsDTO, error)
 }
 
 // MetricsStorage interface defines the metrics data storage actions

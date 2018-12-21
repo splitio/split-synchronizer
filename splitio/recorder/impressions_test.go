@@ -72,7 +72,13 @@ func TestImpressionsHTTPRecorderPOST(t *testing.T) {
 
 	impressionsHTTPRecorder := ImpressionsHTTPRecorder{}
 
-	err2 := impressionsHTTPRecorder.Post(impressions, "test-1.0.0", "127.0.0.1", "SOME_MACHINE_NAME")
+	err2 := impressionsHTTPRecorder.Post(
+		impressions,
+		api.SdkMetadata{
+			SdkVersion:  "test-1.0.0",
+			MachineIP:   "127.0.0.1",
+			MachineName: "SOME_MACHINE_NAME",
+		})
 	if err2 != nil {
 		t.Error(err2)
 	}
@@ -97,7 +103,13 @@ func TestImpressionsHTTPRecorderPOSTWithError(t *testing.T) {
 
 	impressionsHTTPRecorder := ImpressionsHTTPRecorder{}
 
-	err2 := impressionsHTTPRecorder.Post(impressions, "test-1.0.0", "127.0.0.1", "SOME_MACHINE_NAME")
+	err2 := impressionsHTTPRecorder.Post(
+		impressions,
+		api.SdkMetadata{
+			SdkVersion:  "test-1.0.0",
+			MachineIP:   "127.0.0.1",
+			MachineName: "SOME_MACHINE_NAME",
+		})
 	if err2 == nil {
 		t.Error(err2)
 	}
