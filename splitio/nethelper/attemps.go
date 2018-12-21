@@ -12,5 +12,5 @@ func random(min, max int) int {
 
 // WaitForNextAttemp returns an integer that represents the seconds to wait for next attemp
 func WaitForNextAttemp() time.Duration {
-	return time.Duration(random(5, 30))
+	return time.Duration(1)
 }

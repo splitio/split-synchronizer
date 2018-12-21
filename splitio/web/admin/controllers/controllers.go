@@ -6,6 +6,8 @@ import (
 	"syscall"
 
 	"github.com/gin-gonic/gin"
+	"github.com/splitio/split-synchronizer/appcontext"
+	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio"
 	"github.com/splitio/split-synchronizer/splitio/stats"
@@ -62,4 +64,43 @@ func StopProccess(c *gin.Context) {
 
 	c.String(http.StatusOK, "%s: %s", "Sign has been sent", toReturn)
 
+}
+
+// GetConfiguration Returns Sync Config
+func GetConfiguration(c *gin.Context) {
+	config := map[string]interface{}{
+		"mode":                      nil,
+		"redisMode":                 nil,
+		"legacyImpressionsFetching": nil,
+	}
+	if appcontext.ExecutionMode() == appcontext.ProxyMode {
+		config["mode"] = "ProxyMode"
+	} else {
+		config["mode"] = "ProducerMode"
+		if conf.Data.Redis.ClusterMode {
+			config["redisMode"] = "Cluster"
+		} else {
+			if conf.Data.Redis.SentinelReplication {
+				config["redisMode"] = "Sentinel"
+			} else {
+				config["redisMode"] = "Simple"
+			}
+		}
+		config["legacyImpressionsFetching"] = conf.Data.Redis.LegacyImpressionsFetching
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"splitRefreshRate":          conf.Data.SplitsFetchRate,
+		"segmentsRefreshRate":       conf.Data.SegmentFetchRate,
+		"impressionsRefreshRate":    conf.Data.ImpressionsPostRate,
+		"impressionsPerPost":        conf.Data.ImpressionsPerPost,
+		"impressionsThreads":        conf.Data.ImpressionsThreads,
+		"eventsPushRate":            conf.Data.EventsPushRate,
+		"eventsConsumerReadSize":    conf.Data.EventsConsumerReadSize,
+		"eventsConsumerThreads":     conf.Data.EventsConsumerThreads,
+		"metricsRefreshRate":        conf.Data.MetricsPostRate,
+		"httpTimeout":               conf.Data.HTTPTimeout,
+		"mode":                      config["mode"],
+		"redisMode":                 config["redisMode"],
+		"legacyImpressionsFetching": config["legacyImpressionsFetching"],
+	})
 }

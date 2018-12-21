@@ -12,6 +12,7 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/stats/counter"
 	"github.com/splitio/split-synchronizer/splitio/stats/latency"
 	"github.com/splitio/split-synchronizer/splitio/storage"
+	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 )
 
 var eventsIncoming chan string
@@ -136,18 +137,12 @@ func PostEvents(
 }
 
 // EventsFlush Task to flush cached events.
-/*
 func EventsFlush(
 	eventsRecorderAdapter recorder.EventsRecorder,
-	eventsStorageAdapter storage.EventStorage,
-	eventsBulkSize int,
+	eventsStorageAdapter *redis.EventStorageAdapter,
+	eventsBulkSize int64,
 ) {
-
 	for eventsStorageAdapter.Size(eventsStorageAdapter.GetQueueNamespace()) > 0 {
-		fmt.Println("Flushing events list")
 		taskPostEvents(0, eventsRecorderAdapter, eventsStorageAdapter, int64(eventsBulkSize))
-		time.Sleep(100 * time.Millisecond)
 	}
-
 }
-*/

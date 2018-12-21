@@ -7,8 +7,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/split-synchronizer/conf"
+	"github.com/splitio/split-synchronizer/splitio/recorder"
 	"github.com/splitio/split-synchronizer/splitio/storage"
 	"github.com/splitio/split-synchronizer/splitio/storage/redis"
+	"github.com/splitio/split-synchronizer/splitio/task"
 	"github.com/splitio/split-synchronizer/splitio/web/dashboard"
 )
 
@@ -81,18 +83,6 @@ func DashboardSegmentKeys(c *gin.Context) {
 	c.String(http.StatusOK, "%s", toReturn)
 }
 
-func getIntegerParameterFromQuery(c *gin.Context, key string) (*int64, error) {
-	value := c.Query(key)
-	if value != "" {
-		field, err := strconv.ParseInt(value, 10, 64)
-		if err != nil {
-			return nil, errors.New("Wrong type passed as parameter")
-		}
-		return &field, nil
-	}
-	return nil, nil
-}
-
 // GetEventsQueueSize returns events queue size
 func GetEventsQueueSize(c *gin.Context) {
 	eventsStorageAdapter := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
@@ -105,6 +95,18 @@ func GetImpressionsQueueSize(c *gin.Context) {
 	impressionsStorageAdapter := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 	queueSize := impressionsStorageAdapter.Size(impressionsStorageAdapter.GetQueueNamespace())
 	c.JSON(http.StatusOK, gin.H{"queueSize": queueSize})
+}
+
+func getIntegerParameterFromQuery(c *gin.Context, key string) (*int64, error) {
+	value := c.Query(key)
+	if value != "" {
+		field, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			return nil, errors.New("Wrong type passed as parameter")
+		}
+		return &field, nil
+	}
+	return nil, nil
 }
 
 // DropEvents drops Events from queue
@@ -125,7 +127,6 @@ func DropEvents(c *gin.Context) {
 		return
 	}
 	c.String(http.StatusInternalServerError, "%s", err.Error())
-
 }
 
 // DropImpressions drops Impressions from queue
@@ -146,5 +147,25 @@ func DropImpressions(c *gin.Context) {
 		return
 	}
 	c.String(http.StatusInternalServerError, "%s", err.Error())
+}
 
+// FlushEvents eviction of Events
+func FlushEvents(c *gin.Context) {
+	bulkSize, err := getIntegerParameterFromQuery(c, "size")
+	if err != nil {
+		c.String(http.StatusBadRequest, "%s", err.Error())
+		return
+	}
+	if bulkSize != nil && *bulkSize < 1 {
+		c.String(http.StatusBadRequest, "%s", "Size cannot be less than 1")
+		return
+	}
+	if bulkSize == nil {
+		var size int64 = 5000
+		bulkSize = &size
+	}
+	eventsStorageAdapter := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+	eventsRecorder := recorder.EventsHTTPRecorder{}
+	task.EventsFlush(eventsRecorder, eventsStorageAdapter, *bulkSize)
+	c.String(http.StatusOK, "%s", "Impressions dropped")
 }
