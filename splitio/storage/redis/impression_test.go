@@ -75,7 +75,7 @@ func TestImpressionStorageAdapterNoQueueKey(t *testing.T) {
 	Client.SAdd(impressionsKey, i1TXT, i2TXT)
 
 	impressionsStorageAdapter := NewImpressionStorageAdapter(Client, "")
-	retrievedImpressions, err := impressionsStorageAdapter.RetrieveImpressions(500, true)
+	retrievedImpressions, err := impressionsStorageAdapter.RetrieveImpressions(500, false)
 	if err != nil {
 		t.Error(err)
 	}
@@ -130,7 +130,7 @@ func TestThatQuotaiIsAppliedNoQueueKey(t *testing.T) {
 	impressionsStorageAdapter := NewImpressionStorageAdapter(Client, "")
 
 	// We have 200 impressions in storage (30 + 70 + 100). And try to retrieve 150 in total,
-	retrievedImpressions, err := impressionsStorageAdapter.RetrieveImpressions(150, true)
+	retrievedImpressions, err := impressionsStorageAdapter.RetrieveImpressions(150, false)
 	if err != nil {
 		t.Error(err)
 	}
@@ -196,7 +196,7 @@ func TestLuaScriptFailure(t *testing.T) {
 		return
 	}
 
-	imps2, err := impressionsStorageAdapter.RetrieveImpressions(500, true)
+	imps2, err := impressionsStorageAdapter.RetrieveImpressions(500, false)
 	if imps2 == nil {
 		t.Error("Impressions should not be null, fallback should work correctly")
 		return
@@ -484,7 +484,7 @@ func TestImpressionsSingleQueueAndLegacy(t *testing.T) {
 	impressionsStorageAdapter := NewImpressionStorageAdapter(Client, "")
 
 	// We have 200 impressions in storage (30 + 70 + 100). And try to retrieve 150 in total,
-	retrievedImpressions, err := impressionsStorageAdapter.RetrieveImpressions(200, true)
+	retrievedImpressions, err := impressionsStorageAdapter.RetrieveImpressions(200, false)
 	if err != nil {
 		t.Error(err.Error())
 		return
