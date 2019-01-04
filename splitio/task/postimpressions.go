@@ -49,13 +49,13 @@ func taskPostImpressions(
 	impressionsRecorderAdapter recorder.ImpressionsRecorder,
 	impressionStorageAdapter storage.ImpressionStorage,
 	impressionsPerPost int64,
-	legacyEnabled bool,
+	legacyDisabled bool,
 	impressionListenerEnabled bool,
 ) {
 
 	mutex.Lock()
 	beforeHitRedis := time.Now().UnixNano()
-	impressionsToSend, err := impressionStorageAdapter.RetrieveImpressions(impressionsPerPost, legacyEnabled)
+	impressionsToSend, err := impressionStorageAdapter.RetrieveImpressions(impressionsPerPost, legacyDisabled)
 	afterHitRedis := time.Now().UnixNano()
 	tookHitRedis := afterHitRedis - beforeHitRedis
 	log.Benchmark.Println("Redis Request took", tookHitRedis)
@@ -112,7 +112,7 @@ func PostImpressions(
 	impressionsRecorderAdapter recorder.ImpressionsRecorder,
 	impressionStorageAdapter storage.ImpressionStorage,
 	impressionsRefreshRate int,
-	legacyEnabled bool,
+	legacyDisabled bool,
 	impressionListenerEnabled bool,
 	impressionsPerPost int64,
 	wg *sync.WaitGroup,
@@ -125,7 +125,7 @@ func PostImpressions(
 			impressionsRecorderAdapter,
 			impressionStorageAdapter,
 			impressionsPerPost,
-			legacyEnabled,
+			legacyDisabled,
 			impressionListenerEnabled,
 		)
 
@@ -146,7 +146,7 @@ func ImpressionsFlush(
 	impressionsRecorderAdapter recorder.ImpressionsRecorder,
 	impressionStorageAdapter storage.ImpressionStorage,
 	impressionsPerPost int64,
-	legacyEnabled,
+	legacyDisabled,
 	impressionListenerEnabled bool,
 ) {
 
@@ -156,7 +156,7 @@ func ImpressionsFlush(
 		impressionsRecorderAdapter,
 		impressionStorageAdapter,
 		impressionsPerPost,
-		legacyEnabled,
+		legacyDisabled,
 		impressionListenerEnabled,
 	)
 }
