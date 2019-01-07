@@ -69,9 +69,9 @@ func StopProccess(c *gin.Context) {
 // GetConfiguration Returns Sync Config
 func GetConfiguration(c *gin.Context) {
 	config := map[string]interface{}{
-		"mode":                      nil,
-		"redisMode":                 nil,
-		"legacyImpressionsFetching": nil,
+		"mode":                     nil,
+		"redisMode":                nil,
+		"disableLegacyImpressions": nil,
 	}
 	if appcontext.ExecutionMode() == appcontext.ProxyMode {
 		config["mode"] = "ProxyMode"
@@ -86,21 +86,21 @@ func GetConfiguration(c *gin.Context) {
 				config["redisMode"] = "Simple"
 			}
 		}
-		config["legacyImpressionsFetching"] = conf.Data.Redis.LegacyImpressionsFetching
+		config["disableLegacyImpressions"] = conf.Data.Redis.DisableLegacyImpressions
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"splitRefreshRate":          conf.Data.SplitsFetchRate,
-		"segmentsRefreshRate":       conf.Data.SegmentFetchRate,
-		"impressionsRefreshRate":    conf.Data.ImpressionsPostRate,
-		"impressionsPerPost":        conf.Data.ImpressionsPerPost,
-		"impressionsThreads":        conf.Data.ImpressionsThreads,
-		"eventsPushRate":            conf.Data.EventsPushRate,
-		"eventsConsumerReadSize":    conf.Data.EventsConsumerReadSize,
-		"eventsConsumerThreads":     conf.Data.EventsConsumerThreads,
-		"metricsRefreshRate":        conf.Data.MetricsPostRate,
-		"httpTimeout":               conf.Data.HTTPTimeout,
-		"mode":                      config["mode"],
-		"redisMode":                 config["redisMode"],
-		"legacyImpressionsFetching": config["legacyImpressionsFetching"],
+		"splitRefreshRate":         conf.Data.SplitsFetchRate,
+		"segmentsRefreshRate":      conf.Data.SegmentFetchRate,
+		"impressionsRefreshRate":   conf.Data.ImpressionsPostRate,
+		"impressionsPerPost":       conf.Data.ImpressionsPerPost,
+		"impressionsThreads":       conf.Data.ImpressionsThreads,
+		"eventsPushRate":           conf.Data.EventsPushRate,
+		"eventsConsumerReadSize":   conf.Data.EventsConsumerReadSize,
+		"eventsConsumerThreads":    conf.Data.EventsConsumerThreads,
+		"metricsRefreshRate":       conf.Data.MetricsPostRate,
+		"httpTimeout":              conf.Data.HTTPTimeout,
+		"mode":                     config["mode"],
+		"redisMode":                config["redisMode"],
+		"disableLegacyImpressions": config["disableLegacyImpressions"],
 	})
 }
