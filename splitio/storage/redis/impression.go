@@ -450,33 +450,35 @@ func mergeImpressionsDTOSlices(slice1 []api.ImpressionsDTO, slice2 []api.Impress
 }
 
 // RetrieveImpressions returns impressions stored in redis
-func (r ImpressionStorageAdapter) RetrieveImpressions(count int64, legacyEnabled bool) (map[api.SdkMetadata][]api.ImpressionsDTO, error) {
+func (r ImpressionStorageAdapter) RetrieveImpressions(count int64, legacyDisabled bool) (map[api.SdkMetadata][]api.ImpressionsDTO, error) {
 	impressions, err := r.fetchImpressionsFromQueue(count)
 	if err != nil {
 		return nil, err
 	}
 
-	if legacyEnabled {
-		legacyImpressions, err := r.fetchImpressionsLegacy(count)
-		if err != nil {
-			log.Error.Println("Legacy impressions fetching is enabled, but failed to execute:")
-			log.Error.Println(err.Error())
-			return impressions, nil
-		}
-		for key := range legacyImpressions {
-			if _, exists := impressions[key]; !exists {
-				impressions[key] = legacyImpressions[key]
-			} else {
-				merged, err := mergeImpressionsDTOSlices(impressions[key], legacyImpressions[key])
-				if err != nil {
-					log.Error.Printf(
-						"Queue and legacy impressions found for metadata %+v, but merging failed. Keeping only queued ones.",
-						key,
-					)
-					continue
-				}
-				impressions[key] = merged
+	if legacyDisabled {
+		return impressions, nil
+	}
+
+	legacyImpressions, err := r.fetchImpressionsLegacy(count)
+	if err != nil {
+		log.Error.Println("Legacy impressions fetching is enabled, but failed to execute:")
+		log.Error.Println(err.Error())
+		return impressions, nil
+	}
+	for key := range legacyImpressions {
+		if _, exists := impressions[key]; !exists {
+			impressions[key] = legacyImpressions[key]
+		} else {
+			merged, err := mergeImpressionsDTOSlices(impressions[key], legacyImpressions[key])
+			if err != nil {
+				log.Error.Printf(
+					"Queue and legacy impressions found for metadata %+v, but merging failed. Keeping only queued ones.",
+					key,
+				)
+				continue
 			}
+			impressions[key] = merged
 		}
 	}
 	return impressions, nil

@@ -13,7 +13,7 @@ import (
 /* ImpressionStorage for testing */
 type testImpressionStorage struct{}
 
-func (r testImpressionStorage) RetrieveImpressions(count int64, legacyEnabled bool) (map[api.SdkMetadata][]api.ImpressionsDTO, error) {
+func (r testImpressionStorage) RetrieveImpressions(count int64, legacyDisabled bool) (map[api.SdkMetadata][]api.ImpressionsDTO, error) {
 	imp1 := api.ImpressionDTO{KeyName: "some_key_1", Treatment: "on", Time: 1234567890, ChangeNumber: 9876543210, Label: "some_label_1", BucketingKey: "some_bucket_key_1"}
 	imp2 := api.ImpressionDTO{KeyName: "some_key_2", Treatment: "off", Time: 1234567890, ChangeNumber: 9876543210, Label: "some_label_2", BucketingKey: "some_bucket_key_2"}
 
