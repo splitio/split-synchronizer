@@ -12,6 +12,7 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/stats/counter"
 	"github.com/splitio/split-synchronizer/splitio/stats/latency"
 	"github.com/splitio/split-synchronizer/splitio/storage"
+	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 )
 
 var impressionsIncoming chan string
@@ -144,19 +145,19 @@ func PostImpressions(
 // ImpressionsFlush Task to flush cached impressions.
 func ImpressionsFlush(
 	impressionsRecorderAdapter recorder.ImpressionsRecorder,
-	impressionStorageAdapter storage.ImpressionStorage,
+	impressionStorageAdapter *redis.ImpressionStorageAdapter,
 	impressionsPerPost int64,
 	legacyDisabled,
 	impressionListenerEnabled bool,
 ) {
-
-	fmt.Println("Flushing impressions list")
-	taskPostImpressions(
-		0,
-		impressionsRecorderAdapter,
-		impressionStorageAdapter,
-		impressionsPerPost,
-		legacyDisabled,
-		impressionListenerEnabled,
-	)
+	for impressionStorageAdapter.Size(impressionStorageAdapter.GetQueueNamespace()) > 0 {
+		taskPostImpressions(
+			0,
+			impressionsRecorderAdapter,
+			impressionStorageAdapter,
+			impressionsPerPost,
+			legacyDisabled,
+			impressionListenerEnabled,
+		)
+	}
 }

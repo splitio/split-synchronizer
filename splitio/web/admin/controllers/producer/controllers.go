@@ -167,5 +167,26 @@ func FlushEvents(c *gin.Context) {
 	eventsStorageAdapter := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 	eventsRecorder := recorder.EventsHTTPRecorder{}
 	task.EventsFlush(eventsRecorder, eventsStorageAdapter, *bulkSize)
-	c.String(http.StatusOK, "%s", "Impressions dropped")
+	c.String(http.StatusOK, "%s", "Events flushed")
+}
+
+// FlushImpressions eviction of Impressions
+func FlushImpressions(c *gin.Context) {
+	bulkSize, err := getIntegerParameterFromQuery(c, "size")
+	if err != nil {
+		c.String(http.StatusBadRequest, "%s", err.Error())
+		return
+	}
+	if bulkSize != nil && *bulkSize < 1 {
+		c.String(http.StatusBadRequest, "%s", "Size cannot be less than 1")
+		return
+	}
+	if bulkSize == nil {
+		var size int64 = 5000
+		bulkSize = &size
+	}
+	impressionsStorageAdapter := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+	impressionRecorder := recorder.ImpressionsHTTPRecorder{}
+	task.ImpressionsFlush(impressionRecorder, impressionsStorageAdapter, *bulkSize, conf.Data.Redis.DisableLegacyImpressions, false)
+	c.String(http.StatusOK, "%s", "Impressions flushed")
 }

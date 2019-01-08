@@ -117,6 +117,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		waServer.Router().POST("/admin/events/drop/*size", producerControllers.DropEvents)
 		waServer.Router().POST("/admin/impressions/drop/*size", producerControllers.DropImpressions)
 		waServer.Router().POST("/admin/events/flush/*size", producerControllers.FlushEvents)
+		waServer.Router().POST("/admin/impressions/flush/*size", producerControllers.FlushImpressions)
 
 		waServer.Run()
 	}()
