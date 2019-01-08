@@ -8,10 +8,12 @@ import (
 
 	"text/template"
 
+	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio"
 	"github.com/splitio/split-synchronizer/splitio/stats"
 	"github.com/splitio/split-synchronizer/splitio/storage"
+	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 	"github.com/splitio/split-synchronizer/splitio/web/dashboard/HTMLtemplates"
 )
 
@@ -184,6 +186,24 @@ func (d *Dashboard) parseCachedSegments() string {
 		HTMLtemplates.CachedSegmentsTPLVars{Segments: toRender})
 }
 
+func (d *Dashboard) parseEventsSize() string {
+	eventsStorageAdapter := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+	size := eventsStorageAdapter.Size(eventsStorageAdapter.GetQueueNamespace())
+
+	eventsSize := strconv.FormatInt(size, 10)
+
+	return eventsSize
+}
+
+func (d *Dashboard) parseImpressionSize() string {
+	impressionsStorageAdapter := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+	size := impressionsStorageAdapter.Size(impressionsStorageAdapter.GetQueueNamespace())
+
+	impressionsSize := strconv.FormatInt(size, 10)
+
+	return impressionsSize
+}
+
 //HTML returns parsed HTML code
 func (d *Dashboard) HTML() string {
 	counters := stats.Counters()
@@ -207,6 +227,14 @@ func (d *Dashboard) HTML() string {
 	// Cached data
 	cachedSplits := d.parseCachedSplits()
 	cachedSegments := d.parseCachedSegments()
+
+	// Queue data
+	impressionsQueueSize := ""
+	eventsQueueSize := ""
+	if d.proxy == false {
+		impressionsQueueSize = d.parseImpressionSize()
+		eventsQueueSize = d.parseEventsSize()
+	}
 
 	//Parsing main menu
 	d.mainMenuTpl = d.parse(
@@ -242,6 +270,8 @@ func (d *Dashboard) HTML() string {
 			LatenciesGroupDataBackend:   latenciesGroupDataBackend,
 			SplitRows:                   cachedSplits,
 			SegmentRows:                 cachedSegments,
+			ImpressionsQueueSize:        impressionsQueueSize,
+			EventsQueueSize:             eventsQueueSize,
 		})
 
 	return d.mainMenuTpl
