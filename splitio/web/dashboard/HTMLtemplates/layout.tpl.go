@@ -19,6 +19,8 @@ type LayoutTPLVars struct {
 	BackendRequestErrorFormated string
 	SplitRows                   string
 	SegmentRows                 string
+	ImpressionsQueueSize        string
+	EventsQueueSize             string
 	LatenciesGroupData          string
 	RequestOk                   string
 	RequestError                string
@@ -216,6 +218,24 @@ var LayoutTPL = `
               </div>
             </div>
           </div>
+
+          {{if .ProxyMode}} 
+          {{else}}
+            <div class="row">
+              <div class="col-md-6">
+                <div class="gray1Box metricBox">
+                  <h4>Impressions Queue Size</h4>
+                  <h1 class="centerText">{{.ImpressionsQueueSize}}</h1>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="gray1Box metricBox">
+                  <h4>Events Queue Size</h4>
+                  <h1 class="centerText">{{.EventsQueueSize}}</h1>
+                </div>
+              </div>
+            </div>
+          {{end}}
 
           <div class="row">
             <div class="col-md-12">
