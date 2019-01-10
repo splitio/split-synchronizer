@@ -93,8 +93,15 @@ func TestHealthCheckEndpointSuccessful(t *testing.T) {
 }
 
 func TestHealthCheckEndpointFailure(t *testing.T) {
-	os.Setenv("SPLITIO_SDK_URL", "s")
-	os.Setenv("SPLITIO_EVENTS_URL", "ss")
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("500 - Error"))
+		fmt.Fprintln(w, "ok")
+	}))
+	defer ts.Close()
+
+	os.Setenv("SPLITIO_SDK_URL", ts.URL)
+	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
 
 	router := gin.Default()
 	router.GET("/test", func(c *gin.Context) {
@@ -130,7 +137,14 @@ func TestHealthCheckEndpointSDKFail(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	os.Setenv("SPLITIO_SDK_URL", "FAIL")
+	fail := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("500 - Error"))
+		fmt.Fprintln(w, "ok")
+	}))
+	defer fail.Close()
+
+	os.Setenv("SPLITIO_SDK_URL", fail.URL)
 	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
 
 	router := gin.Default()
@@ -174,8 +188,15 @@ func TestHealthCheckEndpointEventsFail(t *testing.T) {
 	}))
 	defer ts.Close()
 
+	fail := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("500 - Error"))
+		fmt.Fprintln(w, "ok")
+	}))
+	defer fail.Close()
+
 	os.Setenv("SPLITIO_SDK_URL", ts.URL)
-	os.Setenv("SPLITIO_EVENTS_URL", "FAIL")
+	os.Setenv("SPLITIO_EVENTS_URL", fail.URL)
 
 	router := gin.Default()
 	router.GET("/test", func(c *gin.Context) {
