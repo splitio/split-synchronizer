@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -47,6 +50,14 @@ func (m mockStorage) SplitsNames() ([]string, error)           { return nil, nil
 func (m mockStorage) RawSplits() ([]string, error)             { return nil, nil }
 
 func TestHealthCheckEndpointSuccessful(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "ok")
+	}))
+	defer ts.Close()
+
+	os.Setenv("SPLITIO_SDK_URL", ts.URL)
+	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
+
 	router := gin.Default()
 	router.GET("/test", func(c *gin.Context) {
 		c.Set("SplitStorage", mockStorage{shouldFail: false})
@@ -72,10 +83,19 @@ func TestHealthCheckEndpointSuccessful(t *testing.T) {
 	if !gs.Storage.Healthy {
 		t.Error("Storage should be healthy")
 	}
+	if !gs.Events.Healthy {
+		t.Error("Events should be healthy")
+	}
+	if !gs.Sdk.Healthy {
+		t.Error("Sdk should be healthy")
+	}
 	server.Shutdown(ctx)
 }
 
 func TestHealthCheckEndpointFailure(t *testing.T) {
+	os.Setenv("SPLITIO_SDK_URL", "s")
+	os.Setenv("SPLITIO_EVENTS_URL", "ss")
+
 	router := gin.Default()
 	router.GET("/test", func(c *gin.Context) {
 		c.Set("SplitStorage", mockStorage{shouldFail: true})
@@ -101,6 +121,94 @@ func TestHealthCheckEndpointFailure(t *testing.T) {
 	if gs.Storage.Healthy {
 		t.Error("Storage should NOT be healthy")
 	}
+	server.Shutdown(ctx)
+}
+
+func TestHealthCheckEndpointSDKFail(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "ok")
+	}))
+	defer ts.Close()
+
+	os.Setenv("SPLITIO_SDK_URL", "FAIL")
+	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
+
+	router := gin.Default()
+	router.GET("/test", func(c *gin.Context) {
+		c.Set("SplitStorage", mockStorage{shouldFail: false})
+		HealthCheck(c)
+	})
+
+	server := &http.Server{
+		Addr:    ":9999",
+		Handler: router,
+	}
+
+	go server.ListenAndServe()
+	time.Sleep(3 * time.Second)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	res, _ := http.Get("http://localhost:9999/test")
+	body, _ := ioutil.ReadAll(res.Body)
+
+	gs := globalStatus{}
+	json.Unmarshal(body, &gs)
+	if !gs.Storage.Healthy {
+		t.Error("Storage should be healthy")
+	}
+	if !gs.Events.Healthy {
+		t.Error("Events should be healthy")
+	}
+	if gs.Sdk.Healthy {
+		t.Error("Sdk should not be healthy")
+	}
+
+	server.Shutdown(ctx)
+}
+
+func TestHealthCheckEndpointEventsFail(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "ok")
+	}))
+	defer ts.Close()
+
+	os.Setenv("SPLITIO_SDK_URL", ts.URL)
+	os.Setenv("SPLITIO_EVENTS_URL", "FAIL")
+
+	router := gin.Default()
+	router.GET("/test", func(c *gin.Context) {
+		c.Set("SplitStorage", mockStorage{shouldFail: false})
+		HealthCheck(c)
+	})
+
+	server := &http.Server{
+		Addr:    ":9999",
+		Handler: router,
+	}
+
+	go server.ListenAndServe()
+	time.Sleep(3 * time.Second)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	res, _ := http.Get("http://localhost:9999/test")
+	body, _ := ioutil.ReadAll(res.Body)
+
+	gs := globalStatus{}
+	json.Unmarshal(body, &gs)
+	if !gs.Storage.Healthy {
+		t.Error("Storage should be healthy")
+	}
+	if gs.Events.Healthy {
+		t.Error("Events should not be healthy")
+	}
+	if !gs.Sdk.Healthy {
+		t.Error("Sdk should not be healthy")
+	}
+
 	server.Shutdown(ctx)
 }
 
