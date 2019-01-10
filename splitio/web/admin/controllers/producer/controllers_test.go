@@ -50,29 +50,34 @@ func (m mockStorage) SplitsNames() ([]string, error)           { return nil, nil
 func (m mockStorage) RawSplits() ([]string, error)             { return nil, nil }
 
 func TestHealthCheckEndpointSuccessful(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+
+	tsHealthcheck := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "ok")
 	}))
-	defer ts.Close()
+	defer tsHealthcheck.Close()
 
-	os.Setenv("SPLITIO_SDK_URL", ts.URL)
-	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
+	os.Setenv("SPLITIO_SDK_URL", tsHealthcheck.URL)
+	os.Setenv("SPLITIO_EVENTS_URL", tsHealthcheck.URL)
 
-	router := gin.Default()
-	router.GET("/test", func(c *gin.Context) {
+	api.Initialize()
+
+	routerHealthcheck := gin.Default()
+	routerHealthcheck.GET("/test", func(c *gin.Context) {
 		c.Set("SplitStorage", mockStorage{shouldFail: false})
 		HealthCheck(c)
 	})
 
-	server := &http.Server{
+	serverHealthcheck := &http.Server{
 		Addr:    ":9999",
-		Handler: router,
+		Handler: routerHealthcheck,
 	}
 
-	go server.ListenAndServe()
+	go serverHealthcheck.ListenAndServe()
 	time.Sleep(3 * time.Second)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctxHealthcheck, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
 	res, _ := http.Get("http://localhost:9999/test")
@@ -89,38 +94,43 @@ func TestHealthCheckEndpointSuccessful(t *testing.T) {
 	if !gs.Sdk.Healthy {
 		t.Error("Sdk should be healthy")
 	}
-	server.Shutdown(ctx)
+	serverHealthcheck.Shutdown(ctxHealthcheck)
 }
 
 func TestHealthCheckEndpointFailure(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+
+	tsHealthcheck2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("500 - Error"))
 		fmt.Fprintln(w, "ok")
 	}))
-	defer ts.Close()
+	defer tsHealthcheck2.Close()
 
-	os.Setenv("SPLITIO_SDK_URL", ts.URL)
-	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
+	os.Setenv("SPLITIO_SDK_URL", tsHealthcheck2.URL)
+	os.Setenv("SPLITIO_EVENTS_URL", tsHealthcheck2.URL)
 
-	router := gin.Default()
-	router.GET("/test", func(c *gin.Context) {
+	api.Initialize()
+
+	routerHealthcheck2 := gin.Default()
+	routerHealthcheck2.GET("/TestHealthCheckEndpointFailure", func(c *gin.Context) {
 		c.Set("SplitStorage", mockStorage{shouldFail: true})
 		HealthCheck(c)
 	})
 
-	server := &http.Server{
-		Addr:    ":9998",
-		Handler: router,
+	serverHealthcheck2 := &http.Server{
+		Addr:    ":9999",
+		Handler: routerHealthcheck2,
 	}
 
-	go server.ListenAndServe()
+	go serverHealthcheck2.ListenAndServe()
 	time.Sleep(3 * time.Second)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctxHealthcheck2, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
-	res, _ := http.Get("http://localhost:9998/test")
+	res, _ := http.Get("http://localhost:9999/TestHealthCheckEndpointFailure")
 	body, _ := ioutil.ReadAll(res.Body)
 
 	gs := globalStatus{}
@@ -128,10 +138,13 @@ func TestHealthCheckEndpointFailure(t *testing.T) {
 	if gs.Storage.Healthy {
 		t.Error("Storage should NOT be healthy")
 	}
-	server.Shutdown(ctx)
+	serverHealthcheck2.Shutdown(ctxHealthcheck2)
 }
 
 func TestHealthCheckEndpointSDKFail(t *testing.T) {
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "ok")
 	}))
@@ -146,6 +159,8 @@ func TestHealthCheckEndpointSDKFail(t *testing.T) {
 
 	os.Setenv("SPLITIO_SDK_URL", fail.URL)
 	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
+
+	api.Initialize()
 
 	router := gin.Default()
 	router.GET("/test", func(c *gin.Context) {
@@ -183,6 +198,9 @@ func TestHealthCheckEndpointSDKFail(t *testing.T) {
 }
 
 func TestHealthCheckEndpointEventsFail(t *testing.T) {
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "ok")
 	}))
@@ -197,6 +215,8 @@ func TestHealthCheckEndpointEventsFail(t *testing.T) {
 
 	os.Setenv("SPLITIO_SDK_URL", ts.URL)
 	os.Setenv("SPLITIO_EVENTS_URL", fail.URL)
+
+	api.Initialize()
 
 	router := gin.Default()
 	router.GET("/test", func(c *gin.Context) {
