@@ -41,7 +41,6 @@ func taskPostEvents(tid int,
 	storageAdapter storage.EventStorage,
 	bulkSize int64,
 ) {
-
 	//[SDKVersion][MachineIP][MachineName]
 	toSend := make(map[string]map[string]map[string][]api.EventDTO)
 
@@ -140,9 +139,21 @@ func PostEvents(
 func EventsFlush(
 	eventsRecorderAdapter recorder.EventsRecorder,
 	eventsStorageAdapter *redis.EventStorageAdapter,
-	eventsBulkSize int64,
+	size *int64,
 ) {
-	for eventsStorageAdapter.Size(eventsStorageAdapter.GetQueueNamespace()) > 0 {
-		taskPostEvents(0, eventsRecorderAdapter, eventsStorageAdapter, int64(eventsBulkSize))
+	if size == nil {
+		for eventsStorageAdapter.Size(eventsStorageAdapter.GetQueueNamespace()) > 0 {
+			taskPostEvents(0, eventsRecorderAdapter, eventsStorageAdapter, 5000)
+		}
+	} else {
+		elementsToFlush := *size
+		for elementsToFlush > 0 && eventsStorageAdapter.Size(eventsStorageAdapter.GetQueueNamespace()) > 0 {
+			maxSize := int64(5000)
+			if elementsToFlush < 5000 {
+				maxSize = elementsToFlush
+			}
+			taskPostEvents(0, eventsRecorderAdapter, eventsStorageAdapter, maxSize)
+			elementsToFlush = elementsToFlush - 5000
+		}
 	}
 }

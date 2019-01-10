@@ -11,12 +11,12 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/storage"
 	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 	"github.com/splitio/split-synchronizer/splitio/task"
+	"github.com/splitio/split-synchronizer/splitio/web/admin/controllers"
 	"github.com/splitio/split-synchronizer/splitio/web/dashboard"
 )
 
 // HealthCheck returns the service status
 func HealthCheck(c *gin.Context) {
-
 	producerStatus := make(map[string]interface{})
 	storageStatus := make(map[string]interface{})
 
@@ -37,12 +37,14 @@ func HealthCheck(c *gin.Context) {
 		}
 	}
 
-	if storageStatus["healthy"].(bool) {
-		c.JSON(http.StatusOK, gin.H{"sync": producerStatus, "storage": storageStatus})
-	} else {
-		c.JSON(http.StatusInternalServerError, gin.H{"sync": producerStatus, "storage": storageStatus})
-	}
+	sdkStatus := controllers.GetSdkStatus()
+	eventsStatus := controllers.GetEventsStatus()
 
+	if storageStatus["healthy"].(bool) || sdkStatus["healthy"].(bool) || eventsStatus["healthy"].(bool) {
+		c.JSON(http.StatusOK, gin.H{"sync": producerStatus, "storage": storageStatus, "sdk": sdkStatus, "events": eventsStatus})
+	} else {
+		c.JSON(http.StatusInternalServerError, gin.H{"sync": producerStatus, "storage": storageStatus, "sdk": sdkStatus, "events": eventsStatus})
+	}
 }
 
 // Dashboard returns a dashboard
@@ -151,42 +153,34 @@ func DropImpressions(c *gin.Context) {
 
 // FlushEvents eviction of Events
 func FlushEvents(c *gin.Context) {
-	bulkSize, err := getIntegerParameterFromQuery(c, "size")
+	size, err := getIntegerParameterFromQuery(c, "size")
 	if err != nil {
 		c.String(http.StatusBadRequest, "%s", err.Error())
 		return
 	}
-	if bulkSize != nil && *bulkSize < 1 {
+	if size != nil && *size < 1 {
 		c.String(http.StatusBadRequest, "%s", "Size cannot be less than 1")
 		return
 	}
-	if bulkSize == nil {
-		var size int64 = 5000
-		bulkSize = &size
-	}
 	eventsStorageAdapter := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 	eventsRecorder := recorder.EventsHTTPRecorder{}
-	task.EventsFlush(eventsRecorder, eventsStorageAdapter, *bulkSize)
+	task.EventsFlush(eventsRecorder, eventsStorageAdapter, size)
 	c.String(http.StatusOK, "%s", "Events flushed")
 }
 
 // FlushImpressions eviction of Impressions
 func FlushImpressions(c *gin.Context) {
-	bulkSize, err := getIntegerParameterFromQuery(c, "size")
+	size, err := getIntegerParameterFromQuery(c, "size")
 	if err != nil {
 		c.String(http.StatusBadRequest, "%s", err.Error())
 		return
 	}
-	if bulkSize != nil && *bulkSize < 1 {
+	if size != nil && *size < 1 {
 		c.String(http.StatusBadRequest, "%s", "Size cannot be less than 1")
 		return
 	}
-	if bulkSize == nil {
-		var size int64 = 5000
-		bulkSize = &size
-	}
 	impressionsStorageAdapter := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 	impressionRecorder := recorder.ImpressionsHTTPRecorder{}
-	task.ImpressionsFlush(impressionRecorder, impressionsStorageAdapter, *bulkSize, conf.Data.Redis.DisableLegacyImpressions, false)
+	task.ImpressionsFlush(impressionRecorder, impressionsStorageAdapter, size, conf.Data.Redis.DisableLegacyImpressions, true)
 	c.String(http.StatusOK, "%s", "Impressions flushed")
 }

@@ -241,13 +241,13 @@ var LayoutTPL = `
               <div class="col-md-6">
                 <div class="gray1Box metricBox">
                   <h4>Impressions Queue Size</h4>
-                  <h1 class="centerText">{{.ImpressionsQueueSize}}</h1>
+                  <h1 id="impressions_queue_value" class="centerText">{{.ImpressionsQueueSize}}</h1>
                 </div>
               </div>
               <div class="col-md-6">
                 <div class="gray1Box metricBox">
                   <h4>Events Queue Size</h4>
-                  <h1 class="centerText">{{.EventsQueueSize}}</h1>
+                  <h1 id="events_queue_value" class="centerText">{{.EventsQueueSize}}</h1>
                 </div>
               </div>
             </div>
@@ -314,71 +314,70 @@ var LayoutTPL = `
             <div class="col-md-6">
               <div class="gray1Box metricBox">
                 <h4>Impressions Queue Size</h4>
-                <h1 class="centerText">{{.ImpressionsQueueSize}}</h1>
+                <h1 id="impressions_queue_value_section" class="centerText">{{.ImpressionsQueueSize}}</h1>
               </div>
             </div>
             <div class="col-md-6">
               <div class="gray1Box metricBox">
                 <h4>Events Queue Size</h4>
-                <h1 class="centerText">{{.EventsQueueSize}}</h1>
+                <h1 id="events_queue_value_section" class="centerText">{{.EventsQueueSize}}</h1>
               </div>
             </div>
           </div>
 
-        <div class="row">
-          <div class="col-md-2" style="text-align: center;"
-            data-toggle="tooltip" data-placement="top"
-            title="This action will remove all the impressions from the Synchronizer">
-            <button type="button" class="btn btn-danger btn-lg drop" onclick="javascript:dropImpressions();"
-              style="padding-top: 4px; padding-bottom: 4px">
-              <span class="btn-label">
-                <i class="glyphicon glyphicon-trash"></i>
-              </span>Drop Impressions
-            </button>
-          </div>
-          <div class="col-md-4" style="text-align: center;  float: left"
-            data-toggle="tooltip" data-placement="top"
-            title="This action will flush all the impressions from the Synchronizer">
-            <div class="input-group input-group-lg">
-              <input type="text" class="form-control" placeholder="Size" aria-label="Size" aria-describedby="basic-addon2"
-                id="impressionsSize" default="">
-              <span class="input-group-lg input-group-btn">
-                <button class="btn btn-success btn-lg flush" type="button" onClick="javascript:flushImpressions();">
-                  <span>
-                    <i class="glyphicon glyphicon-share-alt"></i>
-                  </span>Flush Impressions
-                </button>
-              </span>
+         <div class="row">
+            <div class="col-md-2" style="text-align: center;"
+              data-toggle="tooltip" data-placement="top"
+              title="This action will remove all the impressions from the Synchronizer">
+              <button type="button" class="btn btn-danger btn-lg drop" onclick="javascript:dropImpressions();"
+                style="padding-top: 4px; padding-bottom: 4px">
+                <span class="btn-label">
+                  <i class="glyphicon glyphicon-trash"></i>
+                </span>Drop Impressions
+              </button>
+            </div>
+            <div class="col-md-4" style="text-align: center;  float: left"
+              data-toggle="tooltip" data-placement="top"
+              title="This action will flush all the impressions from the Synchronizer">
+              <div class="input-group input-group-lg">
+                <input type="text" class="form-control" placeholder="Size" aria-label="Size" aria-describedby="basic-addon2"
+                  id="impressionsSize" default="">
+                <span class="input-group-lg input-group-btn">
+                  <button class="btn btn-success btn-lg flush" type="button" onClick="javascript:flushImpressions();">
+                    <span>
+                      <i class="glyphicon glyphicon-share-alt"></i>
+                    </span>Flush Impressions
+                  </button>
+                </span>
+              </div>
+            </div>
+
+            <div class="col-md-2" style="text-align: center"
+              data-toggle="tooltip" data-placement="top"
+              title="This action will remove all the events from the Synchronizer">
+              <button type="button" class="btn btn-danger btn-lg drop" onclick="javascript:dropEvents();"
+                style="padding-top: 4px; padding-bottom: 4px">
+                <span class="btn-label">
+                  <i class="glyphicon glyphicon-trash"></i>
+                </span>Drop Events
+              </button>
+            </div>
+            <div class="col-md-4" style="text-align: center;  float: left"
+              data-toggle="tooltip" data-placement="top"
+              title="This action will flush all the events from the Synchronizer">
+              <div class="input-group input-group-lg">
+                <input type="text" class="form-control" placeholder="Size" aria-label="Size" aria-describedby="basic-addon2"
+                  id="eventsSize" default="">
+                <span class="input-group-lg input-group-btn">
+                  <button class="btn btn-success btn-lg flush" type="button" onClick="javascript:flushEvents();">
+                    <span>
+                      <i class="glyphicon glyphicon-share-alt"></i>
+                    </span>Flush Events
+                  </button>
+                </span>
+              </div>
             </div>
           </div>
-
-          <div class="col-md-2" style="text-align: center"
-            data-toggle="tooltip" data-placement="top"
-            title="This action will remove all the events from the Synchronizer">
-            <button type="button" class="btn btn-danger btn-lg drop" onclick="javascript:dropEvents();"
-              style="padding-top: 4px; padding-bottom: 4px">
-              <span class="btn-label">
-                <i class="glyphicon glyphicon-trash"></i>
-              </span>Drop Events
-            </button>
-          </div>
-          <div class="col-md-4" style="text-align: center;  float: left"
-            data-toggle="tooltip" data-placement="top"
-            title="This action will flush all the events from the Synchronizer">
-            <div class="input-group input-group-lg">
-              <input type="text" class="form-control" placeholder="Size" aria-label="Size" aria-describedby="basic-addon2"
-                id="eventsSize" default="">
-              <span class="input-group-lg input-group-btn">
-                <button class="btn btn-success btn-lg flush" type="button" onClick="javascript:flushEvents();">
-                  <span>
-                    <i class="glyphicon glyphicon-share-alt"></i>
-                  </span>Flush Events
-                </button>
-              </span>
-            </div>
-          </div>
-        </div>
-
         </div>
     {{end}}
         <!-- BACKEND STATS -->
@@ -646,9 +645,42 @@ var LayoutTPL = `
     }
   }
 
+  function refreshImpressionsSize() {
+    $.ajax({
+        url: "impressions/queueSize",
+        cache: false,
+        success: function(response) {
+            $('#impressions_queue_value').text(response.queueSize);
+            $('#impressions_queue_value_section').text(response.queueSize);
+            setTimeout(function() {
+              refreshImpressionsSize();
+            }, 8000);
+        }
+    });
+  };
+
+  function refreshEventsSize() {
+      $.ajax({
+          url: "events/queueSize",
+          cache: false,
+          success: function(response) {
+              $('#events_queue_value').text(response.queueSize);
+              $('#events_queue_value_section').text(response.queueSize);
+              setTimeout(function() {
+                refreshEventsSize();
+              }, 8000);
+          }
+      });
+  };
+
   $(function () {
     $('[data-toggle="tooltip"]').tooltip()
   })
+
+  $(document).ready(function () {
+    refreshImpressionsSize();
+    refreshEventsSize();
+  });
 
     /*window.onload = function() {
         setTimeout(function () {
