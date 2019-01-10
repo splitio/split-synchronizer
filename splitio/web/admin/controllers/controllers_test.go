@@ -24,7 +24,7 @@ func TestGetConfiguration(t *testing.T) {
 	redis.Initialize(conf.Data.Redis)
 
 	router := gin.Default()
-	router.GET("/test", func(c *gin.Context) {
+	router.GET("/TestGetConfiguration", func(c *gin.Context) {
 		GetConfiguration(c)
 	})
 
@@ -39,7 +39,7 @@ func TestGetConfiguration(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
-	res, _ := http.Get("http://localhost:9999/test")
+	res, _ := http.Get("http://localhost:9999/TestGetConfiguration")
 	responseBody, _ := ioutil.ReadAll(res.Body)
 
 	var data map[string]interface{}
@@ -71,23 +71,23 @@ func TestGetConfigurationSimple(t *testing.T) {
 	conf.Initialize()
 	redis.Initialize(conf.Data.Redis)
 
-	router := gin.Default()
-	router.GET("/test", func(c *gin.Context) {
+	router2 := gin.Default()
+	router2.GET("/TestGetConfigurationSimple", func(c *gin.Context) {
 		GetConfiguration(c)
 	})
 
-	server := &http.Server{
+	server2 := &http.Server{
 		Addr:    ":9999",
-		Handler: router,
+		Handler: router2,
 	}
 
-	go server.ListenAndServe()
-	time.Sleep(3 * time.Second)
+	go server2.ListenAndServe()
+	time.Sleep(5 * time.Second)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx2, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
-	res, _ := http.Get("http://localhost:9999/test")
+	res, _ := http.Get("http://localhost:9999/TestGetConfigurationSimple")
 	responseBody, _ := ioutil.ReadAll(res.Body)
 
 	var data map[string]interface{}
@@ -109,7 +109,7 @@ func TestGetConfigurationSimple(t *testing.T) {
 		t.Error("Should not have config")
 	}
 
-	server.Shutdown(ctx)
+	server2.Shutdown(ctx2)
 }
 
 func TestGetConfigurationProxyMode(t *testing.T) {
@@ -118,23 +118,23 @@ func TestGetConfigurationProxyMode(t *testing.T) {
 
 	appcontext.Initialize(appcontext.ProxyMode)
 
-	router := gin.Default()
-	router.GET("/test", func(c *gin.Context) {
+	router3 := gin.Default()
+	router3.GET("/TestGetConfigurationProxyMode", func(c *gin.Context) {
 		GetConfiguration(c)
 	})
 
-	server := &http.Server{
+	server3 := &http.Server{
 		Addr:    ":9999",
-		Handler: router,
+		Handler: router3,
 	}
 
-	go server.ListenAndServe()
+	go server3.ListenAndServe()
 	time.Sleep(3 * time.Second)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx3, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
-	res, _ := http.Get("http://localhost:9999/test")
+	res, _ := http.Get("http://localhost:9999/TestGetConfigurationProxyMode")
 	responseBody, _ := ioutil.ReadAll(res.Body)
 
 	var data map[string]interface{}
@@ -152,5 +152,5 @@ func TestGetConfigurationProxyMode(t *testing.T) {
 		t.Error("Should have config")
 	}
 
-	server.Shutdown(ctx)
+	server3.Shutdown(ctx3)
 }
