@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/splitio/storage"
+	"github.com/splitio/split-synchronizer/splitio/web/admin/controllers"
 	"github.com/splitio/split-synchronizer/splitio/web/dashboard"
 )
 
@@ -18,7 +19,14 @@ func HealthCheck(c *gin.Context) {
 	proxyStatus["healthy"] = true
 	proxyStatus["message"] = "Proxy service working as expected"
 
-	c.JSON(http.StatusOK, gin.H{"proxy": proxyStatus})
+	sdkStatus := controllers.GetSdkStatus()
+	eventsStatus := controllers.GetEventsStatus()
+
+	if sdkStatus["healthy"].(bool) || eventsStatus["healthy"].(bool) {
+		c.JSON(http.StatusOK, gin.H{"proxy": proxyStatus, "sdk": sdkStatus, "events": eventsStatus})
+	} else {
+		c.JSON(http.StatusInternalServerError, gin.H{"proxy": proxyStatus, "sdk": sdkStatus, "events": eventsStatus})
+	}
 }
 
 // Dashboard returns a dashboard

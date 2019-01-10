@@ -24,6 +24,8 @@ type itemStatus struct {
 type globalStatus struct {
 	Sync    itemStatus `json:"sync"`
 	Storage itemStatus `json:"storage"`
+	Sdk     itemStatus `json:"sdk"`
+	Events  itemStatus `json:"events"`
 }
 
 type mockStorage struct {

@@ -146,18 +146,37 @@ func PostImpressions(
 func ImpressionsFlush(
 	impressionsRecorderAdapter recorder.ImpressionsRecorder,
 	impressionStorageAdapter *redis.ImpressionStorageAdapter,
-	impressionsPerPost int64,
+	size *int64,
 	legacyDisabled,
 	impressionListenerEnabled bool,
 ) {
-	for impressionStorageAdapter.Size(impressionStorageAdapter.GetQueueNamespace()) > 0 {
-		taskPostImpressions(
-			0,
-			impressionsRecorderAdapter,
-			impressionStorageAdapter,
-			impressionsPerPost,
-			legacyDisabled,
-			impressionListenerEnabled,
-		)
+	if size == nil {
+		for impressionStorageAdapter.Size(impressionStorageAdapter.GetQueueNamespace()) > 0 {
+			taskPostImpressions(
+				0,
+				impressionsRecorderAdapter,
+				impressionStorageAdapter,
+				5000,
+				legacyDisabled,
+				impressionListenerEnabled,
+			)
+		}
+	} else {
+		elementsToFlush := *size
+		for elementsToFlush > 0 && impressionStorageAdapter.Size(impressionStorageAdapter.GetQueueNamespace()) > 0 {
+			maxSize := int64(5000)
+			if elementsToFlush < 5000 {
+				maxSize = elementsToFlush
+			}
+			taskPostImpressions(
+				0,
+				impressionsRecorderAdapter,
+				impressionStorageAdapter,
+				maxSize,
+				legacyDisabled,
+				impressionListenerEnabled,
+			)
+			elementsToFlush = elementsToFlush - 5000
+		}
 	}
 }
