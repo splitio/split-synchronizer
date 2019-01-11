@@ -22,7 +22,7 @@ func HealthCheck(c *gin.Context) {
 	sdkStatus := controllers.GetSdkStatus()
 	eventsStatus := controllers.GetEventsStatus()
 
-	if sdkStatus["healthy"].(bool) || eventsStatus["healthy"].(bool) {
+	if sdkStatus["healthy"].(bool) && eventsStatus["healthy"].(bool) {
 		c.JSON(http.StatusOK, gin.H{"proxy": proxyStatus, "sdk": sdkStatus, "events": eventsStatus})
 	} else {
 		c.JSON(http.StatusInternalServerError, gin.H{"proxy": proxyStatus, "sdk": sdkStatus, "events": eventsStatus})

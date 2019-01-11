@@ -82,7 +82,7 @@ func init() {
 			log.Error.Println(err.Error())
 			os.Exit(1)
 		}
-		if conf.Data.Redis.DisableLegacyImpressions == false {
+		if !conf.Data.Redis.DisableLegacyImpressions {
 			log.Warning.Println("DisableLegacyImpressions is false: The size of impressions will only consider the impressions from the queue.")
 		}
 	}

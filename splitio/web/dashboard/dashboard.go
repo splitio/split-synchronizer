@@ -231,7 +231,7 @@ func (d *Dashboard) HTML() string {
 	// Queue data
 	impressionsQueueSize := ""
 	eventsQueueSize := ""
-	if d.proxy == false {
+	if !d.proxy {
 		impressionsQueueSize = d.parseImpressionSize()
 		eventsQueueSize = d.parseEventsSize()
 	}
