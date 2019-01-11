@@ -1,7 +1,6 @@
 package producer
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -49,6 +48,13 @@ func (m mockStorage) SetChangeNumber(changeNumber int64) error { return nil }
 func (m mockStorage) SplitsNames() ([]string, error)           { return nil, nil }
 func (m mockStorage) RawSplits() ([]string, error)             { return nil, nil }
 
+func performRequest(r http.Handler, method, path string) *httptest.ResponseRecorder {
+	req, _ := http.NewRequest(method, path, nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	return w
+}
+
 func TestHealthCheckEndpointSuccessful(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
 	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
@@ -63,25 +69,19 @@ func TestHealthCheckEndpointSuccessful(t *testing.T) {
 
 	api.Initialize()
 
-	routerHealthcheck := gin.Default()
-	routerHealthcheck.GET("/test", func(c *gin.Context) {
+	router := gin.Default()
+	router.GET("/", func(c *gin.Context) {
 		c.Set("SplitStorage", mockStorage{shouldFail: false})
 		HealthCheck(c)
 	})
 
-	serverHealthcheck := &http.Server{
-		Addr:    ":9999",
-		Handler: routerHealthcheck,
+	w := performRequest(router, "GET", "/")
+
+	if http.StatusOK != w.Code {
+		t.Error("Expected 200")
 	}
 
-	go serverHealthcheck.ListenAndServe()
-	time.Sleep(3 * time.Second)
-
-	ctxHealthcheck, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	res, _ := http.Get("http://localhost:9999/test")
-	body, _ := ioutil.ReadAll(res.Body)
+	body, _ := ioutil.ReadAll(w.Body)
 
 	gs := globalStatus{}
 	json.Unmarshal(body, &gs)
@@ -94,51 +94,43 @@ func TestHealthCheckEndpointSuccessful(t *testing.T) {
 	if !gs.Sdk.Healthy {
 		t.Error("Sdk should be healthy")
 	}
-	serverHealthcheck.Shutdown(ctxHealthcheck)
 }
 
 func TestHealthCheckEndpointFailure(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
 	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 
-	tsHealthcheck2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("500 - Error"))
 		fmt.Fprintln(w, "ok")
 	}))
-	defer tsHealthcheck2.Close()
+	defer ts.Close()
 
-	os.Setenv("SPLITIO_SDK_URL", tsHealthcheck2.URL)
-	os.Setenv("SPLITIO_EVENTS_URL", tsHealthcheck2.URL)
+	os.Setenv("SPLITIO_SDK_URL", ts.URL)
+	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
 
 	api.Initialize()
 
-	routerHealthcheck2 := gin.Default()
-	routerHealthcheck2.GET("/TestHealthCheckEndpointFailure", func(c *gin.Context) {
+	router := gin.Default()
+	router.GET("/", func(c *gin.Context) {
 		c.Set("SplitStorage", mockStorage{shouldFail: true})
 		HealthCheck(c)
 	})
 
-	serverHealthcheck2 := &http.Server{
-		Addr:    ":9999",
-		Handler: routerHealthcheck2,
+	w := performRequest(router, "GET", "/")
+
+	if http.StatusInternalServerError != w.Code {
+		t.Error("Expected 500")
 	}
 
-	go serverHealthcheck2.ListenAndServe()
-	time.Sleep(3 * time.Second)
-
-	ctxHealthcheck2, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	res, _ := http.Get("http://localhost:9999/TestHealthCheckEndpointFailure")
-	body, _ := ioutil.ReadAll(res.Body)
+	body, _ := ioutil.ReadAll(w.Body)
 
 	gs := globalStatus{}
 	json.Unmarshal(body, &gs)
 	if gs.Storage.Healthy {
 		t.Error("Storage should NOT be healthy")
 	}
-	serverHealthcheck2.Shutdown(ctxHealthcheck2)
 }
 
 func TestHealthCheckEndpointSDKFail(t *testing.T) {
@@ -163,24 +155,18 @@ func TestHealthCheckEndpointSDKFail(t *testing.T) {
 	api.Initialize()
 
 	router := gin.Default()
-	router.GET("/test", func(c *gin.Context) {
+	router.GET("/", func(c *gin.Context) {
 		c.Set("SplitStorage", mockStorage{shouldFail: false})
 		HealthCheck(c)
 	})
 
-	server := &http.Server{
-		Addr:    ":9999",
-		Handler: router,
+	w := performRequest(router, "GET", "/")
+
+	if http.StatusInternalServerError != w.Code {
+		t.Error("Expected 500")
 	}
 
-	go server.ListenAndServe()
-	time.Sleep(3 * time.Second)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	res, _ := http.Get("http://localhost:9999/test")
-	body, _ := ioutil.ReadAll(res.Body)
+	body, _ := ioutil.ReadAll(w.Body)
 
 	gs := globalStatus{}
 	json.Unmarshal(body, &gs)
@@ -193,8 +179,6 @@ func TestHealthCheckEndpointSDKFail(t *testing.T) {
 	if gs.Sdk.Healthy {
 		t.Error("Sdk should not be healthy")
 	}
-
-	server.Shutdown(ctx)
 }
 
 func TestHealthCheckEndpointEventsFail(t *testing.T) {
@@ -219,24 +203,18 @@ func TestHealthCheckEndpointEventsFail(t *testing.T) {
 	api.Initialize()
 
 	router := gin.Default()
-	router.GET("/test", func(c *gin.Context) {
+	router.GET("/", func(c *gin.Context) {
 		c.Set("SplitStorage", mockStorage{shouldFail: false})
 		HealthCheck(c)
 	})
 
-	server := &http.Server{
-		Addr:    ":9999",
-		Handler: router,
+	w := performRequest(router, "GET", "/")
+
+	if http.StatusInternalServerError != w.Code {
+		t.Error("Expected 500")
 	}
 
-	go server.ListenAndServe()
-	time.Sleep(3 * time.Second)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	res, _ := http.Get("http://localhost:9999/test")
-	body, _ := ioutil.ReadAll(res.Body)
+	body, _ := ioutil.ReadAll(w.Body)
 
 	gs := globalStatus{}
 	json.Unmarshal(body, &gs)
@@ -249,8 +227,6 @@ func TestHealthCheckEndpointEventsFail(t *testing.T) {
 	if !gs.Sdk.Healthy {
 		t.Error("Sdk should not be healthy")
 	}
-
-	server.Shutdown(ctx)
 }
 
 func TestSizeEvents(t *testing.T) {
@@ -293,23 +269,18 @@ func TestSizeEvents(t *testing.T) {
 	)
 
 	router := gin.Default()
-	router.GET("/test", func(c *gin.Context) {
+	router.GET("/", func(c *gin.Context) {
 		GetEventsQueueSize(c)
 	})
 
-	server := &http.Server{
-		Addr:    ":9999",
-		Handler: router,
+	time.Sleep(3 * time.Second)
+	w := performRequest(router, "GET", "/")
+
+	if http.StatusOK != w.Code {
+		t.Error("Expected 200")
 	}
 
-	go server.ListenAndServe()
-	time.Sleep(3 * time.Second)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	res, _ := http.Get("http://localhost:9999/test")
-	responseBody, _ := ioutil.ReadAll(res.Body)
+	responseBody, _ := ioutil.ReadAll(w.Body)
 
 	var data map[string]interface{}
 	_ = json.Unmarshal([]byte(responseBody), &data)
@@ -319,7 +290,6 @@ func TestSizeEvents(t *testing.T) {
 	}
 
 	redis.Client.Del(eventsStorageAdapter.GetQueueNamespace())
-	server.Shutdown(ctx)
 }
 
 func TestSizeImpressions(t *testing.T) {
@@ -364,23 +334,18 @@ func TestSizeImpressions(t *testing.T) {
 	)
 
 	router := gin.Default()
-	router.GET("/test", func(c *gin.Context) {
+	router.GET("/", func(c *gin.Context) {
 		GetImpressionsQueueSize(c)
 	})
 
-	server := &http.Server{
-		Addr:    ":9999",
-		Handler: router,
+	time.Sleep(3 * time.Second)
+	w := performRequest(router, "GET", "/")
+
+	if http.StatusOK != w.Code {
+		t.Error("Expected 200")
 	}
 
-	go server.ListenAndServe()
-	time.Sleep(3 * time.Second)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	res, _ := http.Get("http://localhost:9999/test")
-	responseBody, _ := ioutil.ReadAll(res.Body)
+	responseBody, _ := ioutil.ReadAll(w.Body)
 
 	var data map[string]interface{}
 	_ = json.Unmarshal([]byte(responseBody), &data)
@@ -390,7 +355,6 @@ func TestSizeImpressions(t *testing.T) {
 	}
 
 	redis.Client.Del(impressionsStorageAdapter.GetQueueNamespace())
-	server.Shutdown(ctx)
 }
 
 func TestDropEventsFail(t *testing.T) {
@@ -405,27 +369,17 @@ func TestDropEventsFail(t *testing.T) {
 		DropEvents(c)
 	})
 
-	server := &http.Server{
-		Addr:    ":9999",
-		Handler: router,
-	}
-
-	go server.ListenAndServe()
 	time.Sleep(3 * time.Second)
+	res := performRequest(router, "POST", "/test?size=size")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	res, _ := http.Post("http://localhost:9999/test?size=size", "", nil)
 	bodyBytes, _ := ioutil.ReadAll(res.Body)
 	body := string(bodyBytes)
-	if res.StatusCode != 400 {
+	if res.Code != http.StatusBadRequest {
 		t.Error("Should returned 400")
 	}
 	if body != "Wrong type passed as parameter" {
 		t.Error("Wrong message")
 	}
-	server.Shutdown(ctx)
 }
 
 func TestDropEventsFailSize(t *testing.T) {
@@ -440,27 +394,17 @@ func TestDropEventsFailSize(t *testing.T) {
 		DropEvents(c)
 	})
 
-	server := &http.Server{
-		Addr:    ":9999",
-		Handler: router,
-	}
-
-	go server.ListenAndServe()
 	time.Sleep(3 * time.Second)
+	res := performRequest(router, "POST", "/test?size=-10")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	res, _ := http.Post("http://localhost:9999/test?size=-10", "", nil)
 	bodyBytes, _ := ioutil.ReadAll(res.Body)
 	body := string(bodyBytes)
-	if res.StatusCode != 400 {
+	if res.Code != http.StatusBadRequest {
 		t.Error("Should returned 400")
 	}
 	if body != "Size cannot be less than 1" {
 		t.Error("Wrong message")
 	}
-	server.Shutdown(ctx)
 }
 
 func TestDropEventsSuccess(t *testing.T) {
@@ -475,27 +419,17 @@ func TestDropEventsSuccess(t *testing.T) {
 		DropEvents(c)
 	})
 
-	server := &http.Server{
-		Addr:    ":9999",
-		Handler: router,
-	}
-
-	go server.ListenAndServe()
 	time.Sleep(3 * time.Second)
+	res := performRequest(router, "POST", "/test?size=10")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	res, _ := http.Post("http://localhost:9999/test?size=10", "", nil)
 	bodyBytes, _ := ioutil.ReadAll(res.Body)
 	body := string(bodyBytes)
-	if res.StatusCode != 200 {
+	if res.Code != http.StatusOK {
 		t.Error("Should returned 200")
 	}
 	if body != "Events dropped" {
 		t.Error("Wrong message")
 	}
-	server.Shutdown(ctx)
 }
 
 func TestDropEventsSuccessDefault(t *testing.T) {
@@ -510,27 +444,16 @@ func TestDropEventsSuccessDefault(t *testing.T) {
 		DropEvents(c)
 	})
 
-	server := &http.Server{
-		Addr:    ":9999",
-		Handler: router,
-	}
-
-	go server.ListenAndServe()
 	time.Sleep(3 * time.Second)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	res, _ := http.Post("http://localhost:9999/test", "", nil)
+	res := performRequest(router, "POST", "/test")
 	bodyBytes, _ := ioutil.ReadAll(res.Body)
 	body := string(bodyBytes)
-	if res.StatusCode != 200 {
+	if res.Code != http.StatusOK {
 		t.Error("Should returned 200")
 	}
 	if body != "Events dropped" {
 		t.Error("Wrong message")
 	}
-	server.Shutdown(ctx)
 }
 
 func TestDropImpressionsFail(t *testing.T) {
@@ -545,27 +468,16 @@ func TestDropImpressionsFail(t *testing.T) {
 		DropImpressions(c)
 	})
 
-	server := &http.Server{
-		Addr:    ":9999",
-		Handler: router,
-	}
-
-	go server.ListenAndServe()
 	time.Sleep(3 * time.Second)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	res, _ := http.Post("http://localhost:9999/test?size=size", "", nil)
+	res := performRequest(router, "POST", "/test?size=size")
 	bodyBytes, _ := ioutil.ReadAll(res.Body)
 	body := string(bodyBytes)
-	if res.StatusCode != 400 {
+	if res.Code != http.StatusBadRequest {
 		t.Error("Should returned 400")
 	}
 	if body != "Wrong type passed as parameter" {
 		t.Error("Wrong message")
 	}
-	server.Shutdown(ctx)
 }
 
 func TestDropImpressionsSuccess(t *testing.T) {
@@ -580,27 +492,16 @@ func TestDropImpressionsSuccess(t *testing.T) {
 		DropImpressions(c)
 	})
 
-	server := &http.Server{
-		Addr:    ":9999",
-		Handler: router,
-	}
-
-	go server.ListenAndServe()
 	time.Sleep(3 * time.Second)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	res, _ := http.Post("http://localhost:9999/test?size=1", "", nil)
+	res := performRequest(router, "POST", "/test?size=1")
 	bodyBytes, _ := ioutil.ReadAll(res.Body)
 	body := string(bodyBytes)
-	if res.StatusCode != 200 {
+	if res.Code != http.StatusOK {
 		t.Error("Should returned 200")
 	}
 	if body != "Impressions dropped" {
 		t.Error("Wrong message")
 	}
-	server.Shutdown(ctx)
 }
 
 func TestDropImpressionsSuccessDefault(t *testing.T) {
@@ -615,25 +516,14 @@ func TestDropImpressionsSuccessDefault(t *testing.T) {
 		DropImpressions(c)
 	})
 
-	server := &http.Server{
-		Addr:    ":9999",
-		Handler: router,
-	}
-
-	go server.ListenAndServe()
 	time.Sleep(3 * time.Second)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	res, _ := http.Post("http://localhost:9999/test", "", nil)
+	res := performRequest(router, "POST", "/test")
 	bodyBytes, _ := ioutil.ReadAll(res.Body)
 	body := string(bodyBytes)
-	if res.StatusCode != 200 {
+	if res.Code != http.StatusOK {
 		t.Error("Should returned 200")
 	}
 	if body != "Impressions dropped" {
 		t.Error("Wrong message")
 	}
-	server.Shutdown(ctx)
 }
