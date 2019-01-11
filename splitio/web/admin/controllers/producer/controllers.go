@@ -40,7 +40,7 @@ func HealthCheck(c *gin.Context) {
 	sdkStatus := controllers.GetSdkStatus()
 	eventsStatus := controllers.GetEventsStatus()
 
-	if storageStatus["healthy"].(bool) || sdkStatus["healthy"].(bool) || eventsStatus["healthy"].(bool) {
+	if storageStatus["healthy"].(bool) && sdkStatus["healthy"].(bool) && eventsStatus["healthy"].(bool) {
 		c.JSON(http.StatusOK, gin.H{"sync": producerStatus, "storage": storageStatus, "sdk": sdkStatus, "events": eventsStatus})
 	} else {
 		c.JSON(http.StatusInternalServerError, gin.H{"sync": producerStatus, "storage": storageStatus, "sdk": sdkStatus, "events": eventsStatus})
