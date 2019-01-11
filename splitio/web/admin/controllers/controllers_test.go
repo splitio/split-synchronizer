@@ -1,10 +1,10 @@
 package controllers
 
 import (
-	"context"
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -15,6 +15,13 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 )
 
+func performRequest(r http.Handler, method, path string) *httptest.ResponseRecorder {
+	req, _ := http.NewRequest(method, path, nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	return w
+}
+
 func TestGetConfiguration(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
 	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
@@ -24,23 +31,18 @@ func TestGetConfiguration(t *testing.T) {
 	redis.Initialize(conf.Data.Redis)
 
 	router := gin.Default()
-	router.GET("/TestGetConfiguration", func(c *gin.Context) {
+	router.GET("/", func(c *gin.Context) {
 		GetConfiguration(c)
 	})
 
-	server := &http.Server{
-		Addr:    ":9999",
-		Handler: router,
+	time.Sleep(1 * time.Second)
+	w := performRequest(router, "GET", "/")
+
+	if http.StatusOK != w.Code {
+		t.Error("Expected 200")
 	}
 
-	go server.ListenAndServe()
-	time.Sleep(3 * time.Second)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	res, _ := http.Get("http://localhost:9999/TestGetConfiguration")
-	responseBody, _ := ioutil.ReadAll(res.Body)
+	responseBody, _ := ioutil.ReadAll(w.Body)
 
 	var data map[string]interface{}
 	_ = json.Unmarshal([]byte(responseBody), &data)
@@ -60,8 +62,6 @@ func TestGetConfiguration(t *testing.T) {
 	if data["proxy"] != nil {
 		t.Error("Should not have config")
 	}
-
-	server.Shutdown(ctx)
 }
 
 func TestGetConfigurationSimple(t *testing.T) {
@@ -71,24 +71,16 @@ func TestGetConfigurationSimple(t *testing.T) {
 	conf.Initialize()
 	redis.Initialize(conf.Data.Redis)
 
-	router2 := gin.Default()
-	router2.GET("/TestGetConfigurationSimple", func(c *gin.Context) {
+	router := gin.Default()
+	router.GET("/", func(c *gin.Context) {
 		GetConfiguration(c)
 	})
 
-	server2 := &http.Server{
-		Addr:    ":9999",
-		Handler: router2,
-	}
+	time.Sleep(1 * time.Second)
 
-	go server2.ListenAndServe()
-	time.Sleep(5 * time.Second)
+	w := performRequest(router, "GET", "/")
 
-	ctx2, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	res, _ := http.Get("http://localhost:9999/TestGetConfigurationSimple")
-	responseBody, _ := ioutil.ReadAll(res.Body)
+	responseBody, _ := ioutil.ReadAll(w.Body)
 
 	var data map[string]interface{}
 	_ = json.Unmarshal([]byte(responseBody), &data)
@@ -108,8 +100,6 @@ func TestGetConfigurationSimple(t *testing.T) {
 	if data["proxy"] != nil {
 		t.Error("Should not have config")
 	}
-
-	server2.Shutdown(ctx2)
 }
 
 func TestGetConfigurationProxyMode(t *testing.T) {
@@ -118,24 +108,15 @@ func TestGetConfigurationProxyMode(t *testing.T) {
 
 	appcontext.Initialize(appcontext.ProxyMode)
 
-	router3 := gin.Default()
-	router3.GET("/TestGetConfigurationProxyMode", func(c *gin.Context) {
+	router := gin.Default()
+	router.GET("/", func(c *gin.Context) {
 		GetConfiguration(c)
 	})
 
-	server3 := &http.Server{
-		Addr:    ":9999",
-		Handler: router3,
-	}
+	time.Sleep(1 * time.Second)
+	w := performRequest(router, "GET", "/")
 
-	go server3.ListenAndServe()
-	time.Sleep(3 * time.Second)
-
-	ctx3, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	res, _ := http.Get("http://localhost:9999/TestGetConfigurationProxyMode")
-	responseBody, _ := ioutil.ReadAll(res.Body)
+	responseBody, _ := ioutil.ReadAll(w.Body)
 
 	var data map[string]interface{}
 	_ = json.Unmarshal([]byte(responseBody), &data)
@@ -151,6 +132,4 @@ func TestGetConfigurationProxyMode(t *testing.T) {
 	if data["proxy"] == nil {
 		t.Error("Should have config")
 	}
-
-	server3.Shutdown(ctx3)
 }
