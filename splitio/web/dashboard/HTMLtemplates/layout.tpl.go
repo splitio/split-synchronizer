@@ -128,6 +128,10 @@ var LayoutTPL = `
     outline-width: 10px;
     outline-offset: -2px;
   }
+  .btn:focus,.btn:active {
+    outline: none !important;
+    box-shadow: none;
+ }
 
   /*234	234	233*/
   .centerText {text-align: center;}
@@ -326,24 +330,24 @@ var LayoutTPL = `
           </div>
 
          <div class="row">
-            <div class="col-md-2" style="text-align: center;"
-              data-toggle="tooltip" data-placement="top"
-              title="This action will remove all the impressions from the Synchronizer">
-              <button type="button" class="btn btn-danger btn-lg drop" onclick="javascript:dropImpressions();"
-                style="padding-top: 4px; padding-bottom: 4px">
+            <div class="col-md-2" style="text-align: center;">
+              <button type="button" class="btn btn-danger btn-lg btn-block drop" onclick="javascript:dropImpressions();"
+                style="padding-top: 4px; padding-bottom: 4px"
+                data-toggle="tooltip" data-placement="top"
+                title="This action will remove all the impressions from the Synchronizer">
                 <span class="btn-label">
                   <i class="glyphicon glyphicon-trash"></i>
                 </span>Drop Impressions
               </button>
             </div>
-            <div class="col-md-4" style="text-align: center;  float: left"
-              data-toggle="tooltip" data-placement="top"
-              title="This action will flush all the impressions from the Synchronizer">
+            <div class="col-md-4" style="text-align: center;  float: left">
               <div class="input-group input-group-lg">
                 <input type="text" class="form-control" placeholder="Size" aria-label="Size" aria-describedby="basic-addon2"
                   id="impressionsSize" default="">
                 <span class="input-group-lg input-group-btn">
-                  <button class="btn btn-success btn-lg flush" type="button" onClick="javascript:flushImpressions();">
+                  <button class="btn btn-success btn-lg flush" type="button" onClick="javascript:flushImpressions();"
+                    data-toggle="tooltip" data-placement="top"
+                    title="This action will flush all the impressions from the Synchronizer">
                     <span>
                       <i class="glyphicon glyphicon-share-alt"></i>
                     </span>Flush Impressions
@@ -352,24 +356,25 @@ var LayoutTPL = `
               </div>
             </div>
 
-            <div class="col-md-2" style="text-align: center"
-              data-toggle="tooltip" data-placement="top"
-              title="This action will remove all the events from the Synchronizer">
-              <button type="button" class="btn btn-danger btn-lg drop" onclick="javascript:dropEvents();"
-                style="padding-top: 4px; padding-bottom: 4px">
+            <div class="col-md-2" style="text-align: center">
+              <button type="button" class="btn btn-danger btn-lg btn-block drop" onclick="javascript:dropEvents();"
+                style="padding-top: 4px; padding-bottom: 4px"
+                data-placement="top"
+                data-toggle="tooltip"
+                title="This action will remove all the events from the Synchronizer">
                 <span class="btn-label">
                   <i class="glyphicon glyphicon-trash"></i>
                 </span>Drop Events
               </button>
             </div>
-            <div class="col-md-4" style="text-align: center;  float: left"
-              data-toggle="tooltip" data-placement="top"
-              title="This action will flush all the events from the Synchronizer">
+            <div class="col-md-4" style="text-align: center;  float: left">
               <div class="input-group input-group-lg">
                 <input type="text" class="form-control" placeholder="Size" aria-label="Size" aria-describedby="basic-addon2"
                   id="eventsSize" default="">
                 <span class="input-group-lg input-group-btn">
-                  <button class="btn btn-success btn-lg flush" type="button" onClick="javascript:flushEvents();">
+                  <button class="btn btn-success btn-lg flush" type="button" onClick="javascript:flushEvents();"
+                    data-toggle="tooltip" data-placement="top"
+                    title="This action will flush all the events from the Synchronizer">
                     <span>
                       <i class="glyphicon glyphicon-share-alt"></i>
                     </span>Flush Events
@@ -514,11 +519,6 @@ var LayoutTPL = `
 
         </div>
       </div>
-
-
-
-
-
   </div>
 
 
