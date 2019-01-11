@@ -268,7 +268,7 @@ func TestEventsDrop(t *testing.T) {
 
 	eventsRaw := makeEvents("key", "test", 123456, "user", nil, 30)
 
-	// Adding impressions to drop.
+	// Adding events to drop.
 	for _, event := range eventsRaw {
 		toStore, err := json.Marshal(api.RedisStoredEventDTO{
 			Event: api.EventDTO{

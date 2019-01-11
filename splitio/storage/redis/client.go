@@ -109,7 +109,7 @@ func NewInstance(opt conf.RedisSection) (redis.UniversalClient, error) {
 func (b BaseStorageAdapter) Size(nameSpace string) int64 {
 	elMutex.Lock()
 	defer elMutex.Unlock()
-	llen := b.client.LLen(nameSpace) //LRange(r.eventsListNamespace(), 0, n-1)
+	llen := b.client.LLen(nameSpace)
 
 	if llen.Err() != nil {
 		log.Error.Println(llen.Err())

@@ -42,7 +42,6 @@ func TestTaskPostEvents(t *testing.T) {
 		}
 
 		rBody, _ := ioutil.ReadAll(r.Body)
-		//fmt.Println(string(rBody))
 
 		var eventsInPost []api.EventDTO
 		err := json.Unmarshal(rBody, &eventsInPost)
@@ -178,7 +177,7 @@ func TestFlushEvents(t *testing.T) {
 		return
 	}
 
-	//Pushing 10 events
+	//Pushing 5 events
 	for i := 0; i < itemsToAdd; i++ {
 		redis.Client.RPush(eventListName, eventJSON)
 	}
@@ -251,7 +250,7 @@ func TestFlushEventsInBatches(t *testing.T) {
 		return
 	}
 
-	//Pushing 10 events
+	//Pushing 10003 events
 	for i := 0; i < itemsToAdd; i++ {
 		redis.Client.RPush(eventListName, eventJSON)
 	}
@@ -322,7 +321,7 @@ func TestFlushEventsNilSize(t *testing.T) {
 		return
 	}
 
-	//Pushing 10 events
+	//Pushing 5001 events
 	for i := 0; i < itemsToAdd; i++ {
 		redis.Client.RPush(eventListName, eventJSON)
 	}
