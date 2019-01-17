@@ -33,6 +33,11 @@ _testmain.go
 .DS_Store
 *.json
 !/test/dataset/test.conf.json
+!/test/dataset/test.conf.error1.json
+!/test/dataset/test.conf.error2.json
+!/test/dataset/test.conf.error3.json
+!/test/dataset/test.conf.error4.json
+!/test/dataset/test.conf.error5.json
 
 # vim backup files
 *.swp
