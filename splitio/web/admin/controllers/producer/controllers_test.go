@@ -18,6 +18,12 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 )
 
+//Events
+const eventsListNamespace = "SPLITIO.events"
+
+//Impressions
+const impressionsQueueNamespace = "SPLITIO.impressions"
+
 type itemStatus struct {
 	Healthy bool   `json:"healthy"`
 	Message string `json:"message"`
@@ -235,8 +241,7 @@ func TestSizeEvents(t *testing.T) {
 
 	conf.Initialize()
 	redis.Initialize(conf.Data.Redis)
-	eventsStorageAdapter := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-	redis.Client.Del(eventsStorageAdapter.GetQueueNamespace())
+	redis.Client.Del(eventsListNamespace)
 
 	metadata := api.SdkMetadata{
 		SdkVersion:  "test-2.0",
@@ -264,7 +269,7 @@ func TestSizeEvents(t *testing.T) {
 	}
 
 	redis.Client.LPush(
-		eventsStorageAdapter.GetQueueNamespace(),
+		eventsListNamespace,
 		toStore,
 	)
 
@@ -289,7 +294,7 @@ func TestSizeEvents(t *testing.T) {
 		t.Error("It should return 1")
 	}
 
-	redis.Client.Del(eventsStorageAdapter.GetQueueNamespace())
+	redis.Client.Del(eventsListNamespace)
 }
 
 func TestSizeImpressions(t *testing.T) {
@@ -298,8 +303,7 @@ func TestSizeImpressions(t *testing.T) {
 
 	conf.Initialize()
 	redis.Initialize(conf.Data.Redis)
-	impressionsStorageAdapter := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-	redis.Client.Del(impressionsStorageAdapter.GetQueueNamespace())
+	redis.Client.Del(impressionsQueueNamespace)
 
 	metadata := api.SdkMetadata{
 		SdkVersion:  "test-2.0",
@@ -329,7 +333,7 @@ func TestSizeImpressions(t *testing.T) {
 	}
 
 	redis.Client.LPush(
-		impressionsStorageAdapter.GetQueueNamespace(),
+		impressionsQueueNamespace,
 		toStore,
 	)
 
@@ -354,7 +358,7 @@ func TestSizeImpressions(t *testing.T) {
 		t.Error("It should return 1")
 	}
 
-	redis.Client.Del(impressionsStorageAdapter.GetQueueNamespace())
+	redis.Client.Del(impressionsQueueNamespace)
 }
 
 func TestDropEventsFail(t *testing.T) {

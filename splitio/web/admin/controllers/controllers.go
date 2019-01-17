@@ -91,7 +91,7 @@ func GetConfiguration(c *gin.Context) {
 		config["redis"] = conf.Data.Redis
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"apiKey":                 conf.Data.APIKey,
+		"apiKey":                 log.ObfuscateAPIKey(conf.Data.APIKey),
 		"impressionListener":     conf.Data.ImpressionListener,
 		"splitRefreshRate":       conf.Data.SplitsFetchRate,
 		"segmentsRefreshRate":    conf.Data.SegmentFetchRate,

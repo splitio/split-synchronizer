@@ -484,7 +484,12 @@ func (r ImpressionStorageAdapter) RetrieveImpressions(count int64, legacyDisable
 	return impressions, nil
 }
 
-// GetQueueNamespace returns the key of impressions queue
-func (r ImpressionStorageAdapter) GetQueueNamespace() string {
-	return r.impressionsQueueNamespace()
+// Drop drops events from queue
+func (r ImpressionStorageAdapter) Drop(size *int64) error {
+	return r.BaseStorageAdapter.Drop(r.impressionsQueueNamespace(), size)
+}
+
+// Size returns the size of the impressions queue
+func (r ImpressionStorageAdapter) Size() int64 {
+	return r.BaseStorageAdapter.Size(r.impressionsQueueNamespace())
 }

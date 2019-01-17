@@ -164,7 +164,7 @@ func TestEventsSize(t *testing.T) {
 		)
 	}
 	eventsStorageAdapter := NewEventStorageAdapter(Client, "")
-	size := eventsStorageAdapter.Size(prefixAdapter.eventsListNamespace())
+	size := eventsStorageAdapter.Size()
 	if size != 30 {
 		t.Error("Size is not the expected one. Expected 200. Actual", size)
 	}

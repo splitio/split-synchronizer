@@ -103,7 +103,7 @@ func taskPostEvents(tid int,
 						postEventsLocalCounters.Increment("backend::request.ok")
 					}
 					attemps++
-					time.Sleep(nethelper.WaitForNextAttemp() * time.Second)
+					time.Sleep(nethelper.WaitForNextAttempt() * time.Second)
 				}
 
 			}
@@ -144,12 +144,12 @@ func EventsFlush(
 	size *int64,
 ) {
 	if size == nil {
-		for eventsStorageAdapter.Size(eventsStorageAdapter.GetQueueNamespace()) > 0 {
+		for eventsStorageAdapter.Size() > 0 {
 			taskPostEvents(0, eventsRecorderAdapter, eventsStorageAdapter, maxBulkSize)
 		}
 	} else {
 		elementsToFlush := *size
-		for elementsToFlush > 0 && eventsStorageAdapter.Size(eventsStorageAdapter.GetQueueNamespace()) > 0 {
+		for elementsToFlush > 0 && eventsStorageAdapter.Size() > 0 {
 			maxSize := maxBulkSize
 			if elementsToFlush < maxBulkSize {
 				maxSize = elementsToFlush

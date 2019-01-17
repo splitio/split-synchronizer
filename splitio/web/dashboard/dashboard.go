@@ -188,7 +188,7 @@ func (d *Dashboard) parseCachedSegments() string {
 
 func (d *Dashboard) parseEventsSize() string {
 	eventsStorageAdapter := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-	size := eventsStorageAdapter.Size(eventsStorageAdapter.GetQueueNamespace())
+	size := eventsStorageAdapter.Size()
 
 	eventsSize := strconv.FormatInt(size, 10)
 
@@ -197,7 +197,7 @@ func (d *Dashboard) parseEventsSize() string {
 
 func (d *Dashboard) parseImpressionSize() string {
 	impressionsStorageAdapter := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-	size := impressionsStorageAdapter.Size(impressionsStorageAdapter.GetQueueNamespace())
+	size := impressionsStorageAdapter.Size()
 
 	impressionsSize := strconv.FormatInt(size, 10)
 

@@ -107,8 +107,6 @@ func NewInstance(opt conf.RedisSection) (redis.UniversalClient, error) {
 
 // Size return the value of LLEN
 func (b BaseStorageAdapter) Size(nameSpace string) int64 {
-	elMutex.Lock()
-	defer elMutex.Unlock()
 	llen := b.client.LLen(nameSpace)
 
 	if llen.Err() != nil {
@@ -120,13 +118,11 @@ func (b BaseStorageAdapter) Size(nameSpace string) int64 {
 }
 
 // Drop removes elements from queue
-func (b BaseStorageAdapter) Drop(nameSpace string, bulkSize *int64) error {
-	elMutex.Lock()
-	defer elMutex.Unlock()
-	if bulkSize == nil {
+func (b BaseStorageAdapter) Drop(nameSpace string, size *int64) error {
+	if size == nil {
 		b.client.Del(nameSpace)
 		return nil
 	}
-	b.client.LTrim(nameSpace, *bulkSize, -1)
+	b.client.LTrim(nameSpace, *size, -1)
 	return nil
 }

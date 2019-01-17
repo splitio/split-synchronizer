@@ -708,7 +708,7 @@ func TestImpressionsSize(t *testing.T) {
 		}
 	}
 	impressionsStorageAdapter := NewImpressionStorageAdapter(Client, "")
-	size := impressionsStorageAdapter.Size(prefixAdapter.impressionsQueueNamespace())
+	size := impressionsStorageAdapter.Size()
 	if size != 200 {
 		t.Error("Size is not the expected one. Expected 200. Actual", size)
 	}

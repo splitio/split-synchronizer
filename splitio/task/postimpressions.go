@@ -153,7 +153,7 @@ func ImpressionsFlush(
 	impressionListenerEnabled bool,
 ) {
 	if size == nil {
-		for impressionStorageAdapter.Size(impressionStorageAdapter.GetQueueNamespace()) > 0 {
+		for impressionStorageAdapter.Size() > 0 {
 			taskPostImpressions(
 				0,
 				impressionsRecorderAdapter,
@@ -165,7 +165,7 @@ func ImpressionsFlush(
 		}
 	} else {
 		elementsToFlush := *size
-		for elementsToFlush > 0 && impressionStorageAdapter.Size(impressionStorageAdapter.GetQueueNamespace()) > 0 {
+		for elementsToFlush > 0 && impressionStorageAdapter.Size() > 0 {
 			maxSize := maxBulkSizeImpressions
 			if elementsToFlush < maxBulkSizeImpressions {
 				maxSize = elementsToFlush

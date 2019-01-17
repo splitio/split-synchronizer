@@ -132,7 +132,7 @@ func TestFlushImpressions(t *testing.T) {
 		}()
 		count := int64(size)
 		ImpressionsFlush(impressionRecorderAdapter, impressionStorageAdapter, &count, conf.Data.Redis.DisableLegacyImpressions, true)
-		total := impressionStorageAdapter.Size(impressionStorageAdapter.GetQueueNamespace())
+		total := impressionStorageAdapter.Size()
 		if total != 1 {
 			t.Error("It should kept 1 element, but there are:", total)
 		}
@@ -202,7 +202,7 @@ func TestFlushImpressionsNilSize(t *testing.T) {
 			}
 		}()
 		ImpressionsFlush(impressionRecorderAdapter, impressionStorageAdapter, nil, conf.Data.Redis.DisableLegacyImpressions, true)
-		total := impressionStorageAdapter.Size(impressionStorageAdapter.GetQueueNamespace())
+		total := impressionStorageAdapter.Size()
 		if total != 0 {
 			t.Error("It should flush all the elements, but there are:", total)
 		}
@@ -275,7 +275,7 @@ func TestFlushImpressionsInBatches(t *testing.T) {
 		}()
 		count := int64(size)
 		ImpressionsFlush(impressionRecorderAdapter, impressionStorageAdapter, &count, conf.Data.Redis.DisableLegacyImpressions, true)
-		total := impressionStorageAdapter.Size(impressionStorageAdapter.GetQueueNamespace())
+		total := impressionStorageAdapter.Size()
 		if total != 2 {
 			t.Error("It should kept 2 element, but there are:", total)
 		}
