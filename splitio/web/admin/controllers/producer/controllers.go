@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/split-synchronizer/conf"
+	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/recorder"
 	"github.com/splitio/split-synchronizer/splitio/storage"
 	"github.com/splitio/split-synchronizer/splitio/storage/redis"
@@ -87,15 +88,23 @@ func DashboardSegmentKeys(c *gin.Context) {
 
 // GetEventsQueueSize returns events queue size
 func GetEventsQueueSize(c *gin.Context) {
+	if !conf.Data.Redis.DisableLegacyImpressions {
+		log.Warning.Println("DisableLegacyImpressions is false: The size of events will only consider the events from the queue.")
+	}
+
 	eventsStorageAdapter := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-	queueSize := eventsStorageAdapter.Size(eventsStorageAdapter.GetQueueNamespace())
+	queueSize := eventsStorageAdapter.Size()
 	c.JSON(http.StatusOK, gin.H{"queueSize": queueSize})
 }
 
 // GetImpressionsQueueSize returns impressions queue size
 func GetImpressionsQueueSize(c *gin.Context) {
+	if !conf.Data.Redis.DisableLegacyImpressions {
+		log.Warning.Println("DisableLegacyImpressions is false: The size of impressions will only consider the impressions from the queue.")
+	}
+
 	impressionsStorageAdapter := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-	queueSize := impressionsStorageAdapter.Size(impressionsStorageAdapter.GetQueueNamespace())
+	queueSize := impressionsStorageAdapter.Size()
 	c.JSON(http.StatusOK, gin.H{"queueSize": queueSize})
 }
 
@@ -123,7 +132,7 @@ func DropEvents(c *gin.Context) {
 		c.String(http.StatusBadRequest, "%s", "Size cannot be less than 1")
 		return
 	}
-	err = eventsStorageAdapter.Drop(eventsStorageAdapter.GetQueueNamespace(), bulkSize)
+	err = eventsStorageAdapter.Drop(bulkSize)
 	if err == nil {
 		c.String(http.StatusOK, "%s", "Events dropped")
 		return
@@ -143,7 +152,7 @@ func DropImpressions(c *gin.Context) {
 		c.String(http.StatusBadRequest, "%s", "Size cannot be less than 1")
 		return
 	}
-	err = impressionsStorageAdapter.Drop(impressionsStorageAdapter.GetQueueNamespace(), bulkSize)
+	err = impressionsStorageAdapter.Drop(bulkSize)
 	if err == nil {
 		c.String(http.StatusOK, "%s", "Impressions dropped")
 		return

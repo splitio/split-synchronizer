@@ -194,7 +194,7 @@ func TestFlushEvents(t *testing.T) {
 		}()
 		count := int64(size)
 		EventsFlush(eventsRecorderAdapter, eventsStorageAdapter, &count)
-		total := eventsStorageAdapter.Size(eventsStorageAdapter.GetQueueNamespace())
+		total := eventsStorageAdapter.Size()
 		if total != 1 {
 			t.Error("It should kept 1 element")
 		}
@@ -267,7 +267,7 @@ func TestFlushEventsInBatches(t *testing.T) {
 		}()
 		count := int64(size)
 		EventsFlush(eventsRecorderAdapter, eventsStorageAdapter, &count)
-		total := eventsStorageAdapter.Size(eventsStorageAdapter.GetQueueNamespace())
+		total := eventsStorageAdapter.Size()
 		if total != 2 {
 			t.Error("It should kept 2 element, but there are:", total)
 		}
@@ -338,7 +338,7 @@ func TestFlushEventsNilSize(t *testing.T) {
 		}()
 
 		EventsFlush(eventsRecorderAdapter, eventsStorageAdapter, nil)
-		total := eventsStorageAdapter.Size(eventsStorageAdapter.GetQueueNamespace())
+		total := eventsStorageAdapter.Size()
 		if total != 0 {
 			t.Error("It should evict all the elements. The remaining elements are:", total)
 		}

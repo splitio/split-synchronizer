@@ -66,7 +66,12 @@ func (r EventStorageAdapter) PopN(n int64) ([]api.RedisStoredEventDTO, error) {
 	return toReturn, nil
 }
 
-// GetQueueNamespace returns the key of events queue
-func (r EventStorageAdapter) GetQueueNamespace() string {
-	return r.eventsListNamespace()
+// Drop drops events from queue
+func (r EventStorageAdapter) Drop(size *int64) error {
+	return r.BaseStorageAdapter.Drop(r.eventsListNamespace(), size)
+}
+
+// Size returns the size of the impressions queue
+func (r EventStorageAdapter) Size() int64 {
+	return r.BaseStorageAdapter.Size(r.eventsListNamespace())
 }
