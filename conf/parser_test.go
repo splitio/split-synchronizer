@@ -31,6 +31,56 @@ func TestLoadFromFile(t *testing.T) {
 	}
 }
 
+func TestLoadFromFileWithErrorOnSection(t *testing.T) {
+	err := LoadFromFile("../test/dataset/test.conf.error1.json")
+	if err == nil {
+		t.Error("It should inform an error")
+	}
+	if err.Error() != "\"redisError\" is not a valid property in configuration" {
+		t.Error("Wrong message error")
+	}
+}
+
+func TestLoadFromFileWithErrorOnSectionAndChildShouldInformSection(t *testing.T) {
+	err := LoadFromFile("../test/dataset/test.conf.error2.json")
+	if err == nil {
+		t.Error("It should inform an error")
+	}
+	if err.Error() != "\"redisError\" is not a valid property in configuration" {
+		t.Error("Wrong message error")
+	}
+}
+
+func TestLoadFromFileWithErrorInsideSection(t *testing.T) {
+	err := LoadFromFile("../test/dataset/test.conf.error3.json")
+	if err == nil {
+		t.Error("It should inform an error")
+	}
+	if err.Error() != "\"redis.hostError\" is not a valid property in configuration" {
+		t.Error("Wrong message error")
+	}
+}
+
+func TestLoadFromFileWithErrorOnPropertyInt(t *testing.T) {
+	err := LoadFromFile("../test/dataset/test.conf.error4.json")
+	if err == nil {
+		t.Error("It should inform an error")
+	}
+	if err.Error() != "\"metricsError\" is not a valid property in configuration" {
+		t.Error("Wrong message error")
+	}
+}
+
+func TestLoadFromFileWithErrorOnPropertyString(t *testing.T) {
+	err := LoadFromFile("../test/dataset/test.conf.error5.json")
+	if err == nil {
+		t.Error("It should inform an error")
+	}
+	if err.Error() != "\"apiKeyError\" is not a valid property in configuration" {
+		t.Error("Wrong message error")
+	}
+}
+
 // TestWriteDefaultConfigFile tests if the config file with default values could be written
 func TestWriteDefaultConfigFile(t *testing.T) {
 	WriteDefaultConfigFile("/tmp/splitio.test.config.json")

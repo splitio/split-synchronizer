@@ -18,3 +18,6 @@
   name = "github.com/gin-contrib/gzip"
   branch = "master"
   
+[[constraint]]
+  name = "github.com/splitio/go-toolkit"
+  branch = "master"
