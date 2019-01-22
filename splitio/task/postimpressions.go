@@ -15,8 +15,6 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 )
 
-const maxBulkSizeImpressions = int64(5000)
-
 var impressionsIncoming chan string
 
 // InitializeImpressions initialiaze events task
@@ -152,33 +150,27 @@ func ImpressionsFlush(
 	legacyDisabled,
 	impressionListenerEnabled bool,
 ) {
-	if size == nil {
-		for impressionStorageAdapter.Size() > 0 {
-			taskPostImpressions(
-				0,
-				impressionsRecorderAdapter,
-				impressionStorageAdapter,
-				maxBulkSizeImpressions,
-				legacyDisabled,
-				impressionListenerEnabled,
-			)
-		}
-	} else {
-		elementsToFlush := *size
-		for elementsToFlush > 0 && impressionStorageAdapter.Size() > 0 {
-			maxSize := maxBulkSizeImpressions
-			if elementsToFlush < maxBulkSizeImpressions {
-				maxSize = elementsToFlush
-			}
-			taskPostImpressions(
-				0,
-				impressionsRecorderAdapter,
-				impressionStorageAdapter,
-				maxSize,
-				legacyDisabled,
-				impressionListenerEnabled,
-			)
-			elementsToFlush = elementsToFlush - maxBulkSizeImpressions
-		}
+	elementsToFlush := api.MaxSizeToFlush
+
+	if size != nil {
+		elementsToFlush = *size
 	}
+
+	for elementsToFlush > 0 && impressionStorageAdapter.Size() > 0 {
+		maxSize := api.DefaultSize
+		if elementsToFlush < api.DefaultSize {
+			maxSize = elementsToFlush
+		}
+		taskPostImpressions(
+			0,
+			impressionsRecorderAdapter,
+			impressionStorageAdapter,
+			maxSize,
+			legacyDisabled,
+			impressionListenerEnabled,
+		)
+		elementsToFlush = elementsToFlush - api.DefaultSize
+	}
+
+	SetImpressionOperation(false)
 }
