@@ -1,7 +1,6 @@
 package task
 
 import (
-	"fmt"
 	"sync/atomic"
 )
 
@@ -13,11 +12,6 @@ var ImpressionOperation atomic.Value
 
 // CanPerformEventOperation Returns if an operation is running on Events
 func CanPerformEventOperation() bool {
-	fmt.Println("CANPERFORM?")
-	fmt.Println("CANPERFORM?")
-	fmt.Println("CANPERFORM?")
-	fmt.Println("CANPERFORM?")
-	fmt.Println(EventOperation.Load())
 	if EventOperation.Load() == nil {
 		return true
 	}
@@ -31,11 +25,6 @@ func SetEventOperation(value bool) {
 
 // CanPerformImpressionOperation Returns if an operation is running on Impressions
 func CanPerformImpressionOperation() bool {
-	fmt.Println("CANPERFORM?")
-	fmt.Println("CANPERFORM?")
-	fmt.Println("CANPERFORM?")
-	fmt.Println("CANPERFORM?")
-	fmt.Println(ImpressionOperation.Load())
 	if ImpressionOperation.Load() == nil {
 		return true
 	}
