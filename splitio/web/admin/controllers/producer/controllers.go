@@ -140,12 +140,11 @@ func DropEvents(c *gin.Context) {
 		return
 	}
 	err = eventsStorageAdapter.Drop(size)
+	task.SetEventOperation(false)
 	if err == nil {
 		c.String(http.StatusOK, "%s", "Events dropped")
-		task.SetEventOperation(false)
 		return
 	}
-	task.SetEventOperation(false)
 	c.String(http.StatusInternalServerError, "%s", err.Error())
 }
 
@@ -165,12 +164,11 @@ func DropImpressions(c *gin.Context) {
 		return
 	}
 	err = impressionsStorageAdapter.Drop(size)
+	task.SetImpressionOperation(false)
 	if err == nil {
 		c.String(http.StatusOK, "%s", "Impressions dropped")
-		task.SetImpressionOperation(false)
 		return
 	}
-	task.SetImpressionOperation(false)
 	c.String(http.StatusInternalServerError, "%s", err.Error())
 }
 
@@ -214,7 +212,7 @@ func FlushImpressions(c *gin.Context) {
 		return
 	}
 	if size != nil && *size > api.MaxSizeToFlush {
-		task.SetEventOperation(false)
+		task.SetImpressionOperation(false)
 		c.String(http.StatusBadRequest, "%s", "Max Size to Flush is "+strconv.FormatInt(api.MaxSizeToFlush, 10))
 		return
 	}

@@ -484,6 +484,31 @@ func TestDropImpressionsFail(t *testing.T) {
 	}
 }
 
+func TestDropImpressionsFailSize(t *testing.T) {
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+
+	conf.Initialize()
+	redis.Initialize(conf.Data.Redis)
+
+	router := gin.Default()
+	router.POST("/test", func(c *gin.Context) {
+		DropImpressions(c)
+	})
+
+	time.Sleep(3 * time.Second)
+	res := performRequest(router, "POST", "/test?size=-10")
+
+	bodyBytes, _ := ioutil.ReadAll(res.Body)
+	body := string(bodyBytes)
+	if res.Code != http.StatusBadRequest {
+		t.Error("Should returned 400")
+	}
+	if body != "Size cannot be less than 1" {
+		t.Error("Wrong message")
+	}
+}
+
 func TestDropImpressionsSuccess(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
 	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
@@ -556,6 +581,105 @@ func TestFlushImpressionsFail(t *testing.T) {
 	}
 }
 
+func TestAnotherOperationRunningOnEvents(t *testing.T) {
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		rBody, _ := ioutil.ReadAll(r.Body)
+
+		var eventsInPost []api.EventDTO
+		err := json.Unmarshal(rBody, &eventsInPost)
+		time.Sleep(3 * time.Second)
+
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+	}))
+
+	defer ts.Close()
+
+	os.Setenv("SPLITIO_SDK_URL", ts.URL)
+	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
+
+	api.Initialize()
+	conf.Initialize()
+	conf.Data.Redis.Prefix = "testflush"
+
+	redis.Initialize(conf.Data.Redis)
+
+	//INSERT MOCK DATA
+	//----------------
+	itemsToAdd := 10003
+	eventListName := conf.Data.Redis.Prefix + ".SPLITIO.events"
+
+	eventJSON := `{"m":{"s":"test-1.0.0","i":"127.0.0.1","n":"SOME_MACHINE_NAME"},"e":{"key":"6c4829ab-a0d8-4e72-8176-a334f596fb79","trafficTypeName":"user","eventTypeId":"a5213963-5564-43ff-83b2-ac6dbd5af3b1","value":2993.4876,"timestamp":1516310749882}}`
+
+	//Deleting previous test data
+	res := redis.Client.Del(eventListName)
+	if res.Err() != nil {
+		t.Error(res.Err().Error())
+		return
+	}
+
+	//Pushing 10003 events
+	for i := 0; i < itemsToAdd; i++ {
+		redis.Client.RPush(eventListName, eventJSON)
+	}
+	//----------------
+
+	//Catching panic status and reporting error
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Error("Recovered task", r)
+			}
+		}()
+
+		router := gin.Default()
+		router.POST("/flushEvents", func(c *gin.Context) {
+			FlushEvents(c)
+		})
+
+		router.POST("/dropEvents", func(c *gin.Context) {
+			DropEvents(c)
+		})
+
+		time.Sleep(3 * time.Second)
+
+		res1 := make(chan int, 1)
+		res2 := make(chan int, 1)
+
+		go func() {
+			res := performRequest(router, "POST", "/flushEvents")
+			res1 <- res.Code
+		}()
+		go func() {
+			time.Sleep(300 * time.Millisecond)
+			res := performRequest(router, "POST", "/dropEvents")
+			res2 <- res.Code
+		}()
+
+		x := <-res1
+		y := <-res2
+		if x != http.StatusOK {
+			t.Error("Should returned 200")
+		}
+
+		if y != http.StatusInternalServerError {
+			t.Error("Should returned 500")
+		}
+
+		res := performRequest(router, "POST", "/dropEvents")
+		if res.Code != http.StatusOK {
+			t.Error("Should returned 200")
+		}
+	}()
+}
+
 func TestFlushEventsFail(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
 	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
@@ -578,4 +702,104 @@ func TestFlushEventsFail(t *testing.T) {
 	if body != "Max Size to Flush is 25000" {
 		t.Error("Wrong message")
 	}
+}
+
+func TestAnotherOperationRunningOnImpressions(t *testing.T) {
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		rBody, _ := ioutil.ReadAll(r.Body)
+
+		var impressionsInPost []redis.ImpressionDTO
+		err := json.Unmarshal(rBody, &impressionsInPost)
+		time.Sleep(3 * time.Second)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+	}))
+
+	defer ts.Close()
+
+	os.Setenv("SPLITIO_SDK_URL", ts.URL)
+	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
+
+	api.Initialize()
+	conf.Initialize()
+	conf.Data.Redis.Prefix = "impressionstest"
+
+	//Redis storage by default
+	redis.Initialize(conf.Data.Redis)
+
+	//INSERT MOCK DATA
+	//----------------
+	itemsToAdd := 10003
+	impressionListName := conf.Data.Redis.Prefix + ".SPLITIO.impressions"
+
+	impressionJSON := `{"m":{"s":"test-1.0.0","i":"127.0.0.1","n":"SOME_MACHINE_NAME"},"i":{"k":"6c4829ab-a0d8-4e72-8176-a334f596fb79","b":"bucketing","f":"feature","t":"ON","c":12345,"r":"rule","timestamp":1516310749882}}`
+
+	//Deleting previous test data
+	res := redis.Client.Del(impressionListName)
+	if res.Err() != nil {
+		t.Error(res.Err().Error())
+		return
+	}
+
+	//Pushing 10003 impressions
+	for i := 0; i < itemsToAdd; i++ {
+		redis.Client.RPush(impressionListName, impressionJSON)
+	}
+
+	//----------------
+
+	//Catching panic status and reporting error
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Error("Recovered task", r)
+			}
+		}()
+
+		router := gin.Default()
+		router.POST("/flushImpressions", func(c *gin.Context) {
+			FlushImpressions(c)
+		})
+
+		router.POST("/dropImpressions", func(c *gin.Context) {
+			DropImpressions(c)
+		})
+
+		time.Sleep(3 * time.Second)
+
+		res1 := make(chan int, 1)
+		res2 := make(chan int, 1)
+
+		go func() {
+			res := performRequest(router, "POST", "/flushImpressions")
+			res1 <- res.Code
+		}()
+		go func() {
+			time.Sleep(300 * time.Millisecond)
+			res := performRequest(router, "POST", "/dropImpressions")
+			res2 <- res.Code
+		}()
+
+		x := <-res1
+		y := <-res2
+		if x != http.StatusOK {
+			t.Error("Should returned 200")
+		}
+
+		if y != http.StatusInternalServerError {
+			t.Error("Should returned 500")
+		}
+
+		res := performRequest(router, "POST", "/dropImpressions")
+		if res.Code != http.StatusOK {
+			t.Error("Should returned 200")
+		}
+	}()
 }
