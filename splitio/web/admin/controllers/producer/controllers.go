@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/splitio/split-synchronizer/splitio/api"
+
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
@@ -115,6 +117,9 @@ func getIntegerParameterFromQuery(c *gin.Context, key string) (*int64, error) {
 		if err != nil {
 			return nil, errors.New("Wrong type passed as parameter")
 		}
+		if field > api.MaxSizeToFlush {
+			return nil, errors.New("Max Size to Flush is " + strconv.FormatInt(api.MaxSizeToFlush, 10))
+		}
 		return &field, nil
 	}
 	return nil, nil
@@ -122,53 +127,81 @@ func getIntegerParameterFromQuery(c *gin.Context, key string) (*int64, error) {
 
 // DropEvents drops Events from queue
 func DropEvents(c *gin.Context) {
+	if !task.CanPerformEventOperation() {
+		c.String(http.StatusInternalServerError, "%s", "Another operation is running on Events")
+		return
+	}
+	task.SetEventOperation(true)
+
 	eventsStorageAdapter := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-	bulkSize, err := getIntegerParameterFromQuery(c, "size")
+	size, err := getIntegerParameterFromQuery(c, "size")
 	if err != nil {
 		c.String(http.StatusBadRequest, "%s", err.Error())
+		task.SetEventOperation(false)
 		return
 	}
-	if bulkSize != nil && *bulkSize < 1 {
+	if size != nil && *size < 1 {
 		c.String(http.StatusBadRequest, "%s", "Size cannot be less than 1")
+		task.SetEventOperation(false)
 		return
 	}
-	err = eventsStorageAdapter.Drop(bulkSize)
+	err = eventsStorageAdapter.Drop(size)
 	if err == nil {
 		c.String(http.StatusOK, "%s", "Events dropped")
+		task.SetEventOperation(false)
 		return
 	}
+	task.SetEventOperation(false)
 	c.String(http.StatusInternalServerError, "%s", err.Error())
 }
 
 // DropImpressions drops Impressions from queue
 func DropImpressions(c *gin.Context) {
+	if !task.CanPerformImpressionOperation() {
+		c.String(http.StatusInternalServerError, "%s", "Another operation is running on Impressions")
+		return
+	}
+	task.SetImpressionOperation(true)
+
 	impressionsStorageAdapter := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-	bulkSize, err := getIntegerParameterFromQuery(c, "size")
+	size, err := getIntegerParameterFromQuery(c, "size")
 	if err != nil {
 		c.String(http.StatusBadRequest, "%s", err.Error())
+		task.SetImpressionOperation(false)
 		return
 	}
-	if bulkSize != nil && *bulkSize < 1 {
+	if size != nil && *size < 1 {
 		c.String(http.StatusBadRequest, "%s", "Size cannot be less than 1")
+		task.SetImpressionOperation(false)
 		return
 	}
-	err = impressionsStorageAdapter.Drop(bulkSize)
+	err = impressionsStorageAdapter.Drop(size)
 	if err == nil {
 		c.String(http.StatusOK, "%s", "Impressions dropped")
+		task.SetImpressionOperation(false)
 		return
 	}
+	task.SetImpressionOperation(false)
 	c.String(http.StatusInternalServerError, "%s", err.Error())
 }
 
 // FlushEvents eviction of Events
 func FlushEvents(c *gin.Context) {
+	if !task.CanPerformEventOperation() {
+		c.String(http.StatusInternalServerError, "%s", "Another operation is running on Events")
+		return
+	}
+	task.SetEventOperation(true)
+
 	size, err := getIntegerParameterFromQuery(c, "size")
 	if err != nil {
 		c.String(http.StatusBadRequest, "%s", err.Error())
+		task.SetEventOperation(false)
 		return
 	}
 	if size != nil && *size < 1 {
 		c.String(http.StatusBadRequest, "%s", "Size cannot be less than 1")
+		task.SetEventOperation(false)
 		return
 	}
 	eventsStorageAdapter := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
@@ -179,13 +212,21 @@ func FlushEvents(c *gin.Context) {
 
 // FlushImpressions eviction of Impressions
 func FlushImpressions(c *gin.Context) {
+	if !task.CanPerformImpressionOperation() {
+		c.String(http.StatusInternalServerError, "%s", "Another operation is running on Impressions")
+		return
+	}
+	task.SetImpressionOperation(true)
+
 	size, err := getIntegerParameterFromQuery(c, "size")
 	if err != nil {
 		c.String(http.StatusBadRequest, "%s", err.Error())
+		task.SetImpressionOperation(false)
 		return
 	}
 	if size != nil && *size < 1 {
 		c.String(http.StatusBadRequest, "%s", "Size cannot be less than 1")
+		task.SetImpressionOperation(false)
 		return
 	}
 	impressionsStorageAdapter := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)

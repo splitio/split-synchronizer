@@ -15,8 +15,6 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 )
 
-const maxBulkSize = int64(5000)
-
 var eventsIncoming chan string
 
 var postEventsLatencies = latency.NewLatencyBucket()
@@ -143,19 +141,19 @@ func EventsFlush(
 	eventsStorageAdapter *redis.EventStorageAdapter,
 	size *int64,
 ) {
-	if size == nil {
-		for eventsStorageAdapter.Size() > 0 {
-			taskPostEvents(0, eventsRecorderAdapter, eventsStorageAdapter, maxBulkSize)
-		}
-	} else {
-		elementsToFlush := *size
-		for elementsToFlush > 0 && eventsStorageAdapter.Size() > 0 {
-			maxSize := maxBulkSize
-			if elementsToFlush < maxBulkSize {
-				maxSize = elementsToFlush
-			}
-			taskPostEvents(0, eventsRecorderAdapter, eventsStorageAdapter, maxSize)
-			elementsToFlush = elementsToFlush - maxBulkSize
-		}
+	elementsToFlush := api.MaxSizeToFlush
+	if size != nil {
+		elementsToFlush = *size
 	}
+
+	for elementsToFlush > 0 && eventsStorageAdapter.Size() > 0 {
+		maxSize := api.DefaultSize
+		if elementsToFlush < api.DefaultSize {
+			maxSize = elementsToFlush
+		}
+		taskPostEvents(0, eventsRecorderAdapter, eventsStorageAdapter, maxSize)
+		elementsToFlush = elementsToFlush - api.DefaultSize
+	}
+
+	SetEventOperation(false)
 }

@@ -203,8 +203,8 @@ func TestFlushImpressionsNilSize(t *testing.T) {
 		}()
 		ImpressionsFlush(impressionRecorderAdapter, impressionStorageAdapter, nil, conf.Data.Redis.DisableLegacyImpressions, true)
 		total := impressionStorageAdapter.Size()
-		if total != 0 {
-			t.Error("It should flush all the elements, but there are:", total)
+		if total != 25001 {
+			t.Error("It should flush 25000 elements, but there are:", total)
 		}
 	}()
 }

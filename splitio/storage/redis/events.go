@@ -68,6 +68,8 @@ func (r EventStorageAdapter) PopN(n int64) ([]api.RedisStoredEventDTO, error) {
 
 // Drop drops events from queue
 func (r EventStorageAdapter) Drop(size *int64) error {
+	elMutex.Lock()
+	defer elMutex.Unlock()
 	return r.BaseStorageAdapter.Drop(r.eventsListNamespace(), size)
 }
 
