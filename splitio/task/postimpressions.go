@@ -118,6 +118,10 @@ func PostImpressions(
 	impressionsPerPost int64,
 	wg *sync.WaitGroup,
 ) {
+	if !CanPerformImpressionOperation() {
+		log.Debug.Println("Another task executed by the user is performing operations on Impressions. Skipping.")
+		return
+	}
 	wg.Add(1)
 	keepLoop := true
 	for keepLoop {
