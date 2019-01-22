@@ -5,11 +5,10 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/splitio/split-synchronizer/splitio/api"
-
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/api"
 	"github.com/splitio/split-synchronizer/splitio/recorder"
 	"github.com/splitio/split-synchronizer/splitio/storage"
 	"github.com/splitio/split-synchronizer/splitio/storage/redis"
@@ -117,8 +116,8 @@ func getIntegerParameterFromQuery(c *gin.Context, key string) (*int64, error) {
 		if err != nil {
 			return nil, errors.New("Wrong type passed as parameter")
 		}
-		if field > api.MaxSizeToFlush {
-			return nil, errors.New("Max Size to Flush is " + strconv.FormatInt(api.MaxSizeToFlush, 10))
+		if field < 1 {
+			return nil, errors.New("Size cannot be less than 1")
 		}
 		return &field, nil
 	}
@@ -137,11 +136,6 @@ func DropEvents(c *gin.Context) {
 	size, err := getIntegerParameterFromQuery(c, "size")
 	if err != nil {
 		c.String(http.StatusBadRequest, "%s", err.Error())
-		task.SetEventOperation(false)
-		return
-	}
-	if size != nil && *size < 1 {
-		c.String(http.StatusBadRequest, "%s", "Size cannot be less than 1")
 		task.SetEventOperation(false)
 		return
 	}
@@ -170,11 +164,6 @@ func DropImpressions(c *gin.Context) {
 		task.SetImpressionOperation(false)
 		return
 	}
-	if size != nil && *size < 1 {
-		c.String(http.StatusBadRequest, "%s", "Size cannot be less than 1")
-		task.SetImpressionOperation(false)
-		return
-	}
 	err = impressionsStorageAdapter.Drop(size)
 	if err == nil {
 		c.String(http.StatusOK, "%s", "Impressions dropped")
@@ -199,9 +188,9 @@ func FlushEvents(c *gin.Context) {
 		task.SetEventOperation(false)
 		return
 	}
-	if size != nil && *size < 1 {
-		c.String(http.StatusBadRequest, "%s", "Size cannot be less than 1")
+	if size != nil && *size > api.MaxSizeToFlush {
 		task.SetEventOperation(false)
+		c.String(http.StatusBadRequest, "%s", "Max Size to Flush is "+strconv.FormatInt(api.MaxSizeToFlush, 10))
 		return
 	}
 	eventsStorageAdapter := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
@@ -224,9 +213,9 @@ func FlushImpressions(c *gin.Context) {
 		task.SetImpressionOperation(false)
 		return
 	}
-	if size != nil && *size < 1 {
-		c.String(http.StatusBadRequest, "%s", "Size cannot be less than 1")
-		task.SetImpressionOperation(false)
+	if size != nil && *size > api.MaxSizeToFlush {
+		task.SetEventOperation(false)
+		c.String(http.StatusBadRequest, "%s", "Max Size to Flush is "+strconv.FormatInt(api.MaxSizeToFlush, 10))
 		return
 	}
 	impressionsStorageAdapter := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)

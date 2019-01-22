@@ -531,3 +531,51 @@ func TestDropImpressionsSuccessDefault(t *testing.T) {
 		t.Error("Wrong message")
 	}
 }
+
+func TestFlushImpressionsFail(t *testing.T) {
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+
+	conf.Initialize()
+	redis.Initialize(conf.Data.Redis)
+
+	router := gin.Default()
+	router.POST("/test", func(c *gin.Context) {
+		FlushImpressions(c)
+	})
+
+	time.Sleep(3 * time.Second)
+	res := performRequest(router, "POST", "/test?size=200000")
+	bodyBytes, _ := ioutil.ReadAll(res.Body)
+	body := string(bodyBytes)
+	if res.Code != http.StatusBadRequest {
+		t.Error("Should returned 400")
+	}
+	if body != "Max Size to Flush is 25000" {
+		t.Error("Wrong message")
+	}
+}
+
+func TestFlushEventsFail(t *testing.T) {
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+
+	conf.Initialize()
+	redis.Initialize(conf.Data.Redis)
+
+	router := gin.Default()
+	router.POST("/test", func(c *gin.Context) {
+		FlushEvents(c)
+	})
+
+	time.Sleep(3 * time.Second)
+	res := performRequest(router, "POST", "/test?size=200000")
+	bodyBytes, _ := ioutil.ReadAll(res.Body)
+	body := string(bodyBytes)
+	if res.Code != http.StatusBadRequest {
+		t.Error("Should returned 400")
+	}
+	if body != "Max Size to Flush is 25000" {
+		t.Error("Wrong message")
+	}
+}
