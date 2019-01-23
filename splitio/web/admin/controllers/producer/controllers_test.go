@@ -650,8 +650,9 @@ func TestAnotherOperationRunningOnEvents(t *testing.T) {
 
 		time.Sleep(3 * time.Second)
 
-		res1 := make(chan int, 1)
-		res2 := make(chan int, 1)
+		res1 := make(chan int)
+		res2 := make(chan int)
+		res2Msg := make(chan string)
 
 		go func() {
 			res := performRequest(router, "POST", "/flushEvents")
@@ -661,16 +662,22 @@ func TestAnotherOperationRunningOnEvents(t *testing.T) {
 			time.Sleep(300 * time.Millisecond)
 			res := performRequest(router, "POST", "/dropEvents")
 			res2 <- res.Code
+			bodyBytes, _ := ioutil.ReadAll(res.Body)
+			res2Msg <- string(bodyBytes)
 		}()
 
 		x := <-res1
 		y := <-res2
+		yMsg := <-res2Msg
 		if x != http.StatusOK {
 			t.Error("Should returned 200")
 		}
 
 		if y != http.StatusInternalServerError {
 			t.Error("Should returned 500")
+		}
+		if yMsg != "Another operation is running on Events" {
+			t.Error("Wrong message")
 		}
 
 		res := performRequest(router, "POST", "/dropEvents")
@@ -774,8 +781,9 @@ func TestAnotherOperationRunningOnImpressions(t *testing.T) {
 
 		time.Sleep(3 * time.Second)
 
-		res1 := make(chan int, 1)
-		res2 := make(chan int, 1)
+		res1 := make(chan int)
+		res2 := make(chan int)
+		res2Msg := make(chan string)
 
 		go func() {
 			res := performRequest(router, "POST", "/flushImpressions")
@@ -784,17 +792,23 @@ func TestAnotherOperationRunningOnImpressions(t *testing.T) {
 		go func() {
 			time.Sleep(300 * time.Millisecond)
 			res := performRequest(router, "POST", "/dropImpressions")
+			bodyBytes, _ := ioutil.ReadAll(res.Body)
 			res2 <- res.Code
+			res2Msg <- string(bodyBytes)
 		}()
 
 		x := <-res1
 		y := <-res2
+		yMsg := <-res2Msg
 		if x != http.StatusOK {
 			t.Error("Should returned 200")
 		}
 
 		if y != http.StatusInternalServerError {
 			t.Error("Should returned 500")
+		}
+		if yMsg != "Another operation is running on Impressions" {
+			t.Error("Wrong message")
 		}
 
 		res := performRequest(router, "POST", "/dropImpressions")
