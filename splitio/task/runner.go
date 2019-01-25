@@ -1,37 +1,42 @@
 package task
 
-import (
-	"sync/atomic"
-)
+import "sync"
 
-// EventOperation indicates if task is running for Events
-var EventOperation atomic.Value
+var opsMutex = sync.Mutex{}
+var ops = make(map[string]bool)
 
-// ImpressionOperation indicates if task is running for Impressions
-var ImpressionOperation atomic.Value
-
-// CanPerformEventOperation Returns if an operation is running on Events
-func CanPerformEventOperation() bool {
-	if EventOperation.Load() == nil {
+// RequestOperation Checks if the operation can be executed
+func RequestOperation(operation string) bool {
+	opsMutex.Lock()
+	defer opsMutex.Unlock()
+	opStatus, ok := ops[operation]
+	if !ok {
+		// The operation is not registered on the Hashmap, it will be the first execution
+		ops[operation] = true
 		return true
 	}
-	return !EventOperation.Load().(bool)
-}
 
-// SetEventOperation Sets the valiue for atomic Events
-func SetEventOperation(value bool) {
-	EventOperation.Store(value)
-}
-
-// CanPerformImpressionOperation Returns if an operation is running on Impressions
-func CanPerformImpressionOperation() bool {
-	if ImpressionOperation.Load() == nil {
+	if !opStatus {
+		// The operation is not running at this time, set a flag to true to execute
+		ops[operation] = true
 		return true
 	}
-	return !ImpressionOperation.Load().(bool)
+
+	// Operation is currently running
+	return false
 }
 
-// SetImpressionOperation Sets the valiue for atomic Impressions
-func SetImpressionOperation(value bool) {
-	ImpressionOperation.Store(value)
+// FinishOperation finished an operation already executed
+func FinishOperation(operation string) {
+	opsMutex.Lock()
+	defer opsMutex.Unlock()
+	ops[operation] = false
+}
+
+// IsOperationRunning Indicates if the operation is running or not
+func IsOperationRunning(operation string) bool {
+	opsMutex.Lock()
+	defer opsMutex.Unlock()
+	opStatus, _ := ops[operation]
+	return opStatus
 }

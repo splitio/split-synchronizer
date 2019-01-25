@@ -2,6 +2,7 @@ package task
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -123,7 +124,7 @@ func PostImpressions(
 
 	for keepLoop {
 		// Checks if a current eviction is already running
-		if !CanPerformImpressionOperation() {
+		if IsOperationRunning("impressionsOperation") {
 			log.Debug.Println("Another task executed by the user is performing operations on Impressions. Skipping.")
 		} else {
 			taskPostImpressions(
@@ -155,7 +156,13 @@ func ImpressionsFlush(
 	size *int64,
 	legacyDisabled,
 	impressionListenerEnabled bool,
-) {
+) error {
+	if RequestOperation("impressionsOperation") {
+		defer FinishOperation("impressionsOperation")
+	} else {
+		log.Debug.Println("Cannot execute flush. Another operation is performing operations on Impressions.")
+		return errors.New("Cannot execute flush. Another operation is performing operations on Impressions")
+	}
 	elementsToFlush := api.MaxSizeToFlush
 
 	if size != nil {
@@ -177,6 +184,5 @@ func ImpressionsFlush(
 		)
 		elementsToFlush = elementsToFlush - api.DefaultSize
 	}
-
-	SetImpressionOperation(false)
+	return nil
 }
