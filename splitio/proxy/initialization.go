@@ -8,6 +8,7 @@ import (
 
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio"
 	"github.com/splitio/split-synchronizer/splitio/proxy/controllers"
 	"github.com/splitio/split-synchronizer/splitio/recorder"
 	"github.com/splitio/split-synchronizer/splitio/task"
@@ -32,7 +33,7 @@ func gracefulShutdownProxy(sigs chan os.Signal, gracefulShutdownWaitingGroup *sy
 	fmt.Println(" * Waiting goroutines stop")
 	gracefulShutdownWaitingGroup.Wait()
 	fmt.Println(" * Shutting it down - see you soon!")
-	os.Exit(0)
+	os.Exit(splitio.SuccessfulOperation)
 }
 
 // Start initialize in proxy mode

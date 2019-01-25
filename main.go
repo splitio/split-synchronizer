@@ -47,7 +47,7 @@ func init() {
 	//print the version
 	if *versionInfo {
 		fmt.Printf("\nSplit Synchronizer - Version: %s (%s) \n", splitio.Version, splitio.CommitVersion)
-		os.Exit(0)
+		os.Exit(splitio.SuccessfulOperation)
 	}
 
 	//Show initial banner
@@ -58,13 +58,13 @@ func init() {
 	if *writeDefaultConfigFile != "" {
 		fmt.Println("DEFAULT CONFIG FILE HAS BEEN WRITTEN:", *writeDefaultConfigFile)
 		conf.WriteDefaultConfigFile(*writeDefaultConfigFile)
-		os.Exit(0)
+		os.Exit(splitio.SuccessfulOperation)
 	}
 
 	//Initialize modules
 	err := loadConfiguration()
 	if err != nil {
-		os.Exit(1)
+		os.Exit(splitio.ExitInvalidConfiguration)
 	}
 	loadLogger()
 	api.Initialize()
@@ -83,7 +83,7 @@ func init() {
 		err := redis.Initialize(conf.Data.Redis)
 		if err != nil {
 			log.Error.Println(err.Error())
-			os.Exit(1)
+			os.Exit(splitio.ExitRedisInitializationFailed)
 		}
 	}
 
