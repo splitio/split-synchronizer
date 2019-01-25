@@ -268,7 +268,7 @@ func TestSizeEvents(t *testing.T) {
 		return
 	}
 
-	redis.Client.LPush(
+	redis.Client.RPush(
 		eventsListNamespace,
 		toStore,
 	)
@@ -332,7 +332,7 @@ func TestSizeImpressions(t *testing.T) {
 		return
 	}
 
-	redis.Client.LPush(
+	redis.Client.RPush(
 		impressionsQueueNamespace,
 		toStore,
 	)

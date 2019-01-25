@@ -222,7 +222,7 @@ func TestImpressionsDrop(t *testing.T) {
 				return
 			}
 
-			Client.LPush(
+			Client.RPush(
 				prefixAdapter.impressionsQueueNamespace(),
 				toStore,
 			)
@@ -289,7 +289,7 @@ func TestEventsDrop(t *testing.T) {
 			return
 		}
 
-		Client.LPush(
+		Client.RPush(
 			prefixAdapter.eventsListNamespace(),
 			toStore,
 		)
