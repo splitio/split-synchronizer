@@ -367,7 +367,7 @@ func TestImpressionsSingleQueue(t *testing.T) {
 				return
 			}
 
-			Client.LPush(
+			Client.RPush(
 				prefixAdapter.impressionsQueueNamespace(),
 				toStore,
 			)
@@ -457,7 +457,7 @@ func TestImpressionsSingleQueueAndLegacy(t *testing.T) {
 				return
 			}
 
-			Client.LPush(
+			Client.RPush(
 				prefixAdapter.impressionsQueueNamespace(),
 				toStore,
 			)
@@ -565,7 +565,7 @@ func TestImpressionsFromSingleQueueAreRemovedAfterFetched(t *testing.T) {
 				return
 			}
 
-			Client.LPush(
+			Client.RPush(
 				prefixAdapter.impressionsQueueNamespace(),
 				toStore,
 			)
@@ -636,7 +636,7 @@ func TestTTLIsSet(t *testing.T) {
 			return
 		}
 
-		Client.LPush(
+		Client.RPush(
 			prefixAdapter.impressionsQueueNamespace(),
 			toStore,
 		)
@@ -701,7 +701,7 @@ func TestImpressionsSize(t *testing.T) {
 				return
 			}
 
-			Client.LPush(
+			Client.RPush(
 				prefixAdapter.impressionsQueueNamespace(),
 				toStore,
 			)

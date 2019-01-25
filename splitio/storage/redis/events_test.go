@@ -158,7 +158,7 @@ func TestEventsSize(t *testing.T) {
 			return
 		}
 
-		Client.LPush(
+		Client.RPush(
 			prefixAdapter.eventsListNamespace(),
 			toStore,
 		)
