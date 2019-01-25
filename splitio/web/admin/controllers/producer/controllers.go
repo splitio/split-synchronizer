@@ -126,21 +126,20 @@ func getIntegerParameterFromQuery(c *gin.Context, key string) (*int64, error) {
 
 // DropEvents drops Events from queue
 func DropEvents(c *gin.Context) {
-	if !task.CanPerformEventOperation() {
-		c.String(http.StatusInternalServerError, "%s", "Another operation is running on Events")
+	if task.RequestOperation("eventsOperation") {
+		defer task.FinishOperation("eventsOperation")
+	} else {
+		c.String(http.StatusInternalServerError, "%s", "Cannot execute drop. Another operation is performing operations on Events")
 		return
 	}
-	task.SetEventOperation(true)
 
 	eventsStorageAdapter := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 	size, err := getIntegerParameterFromQuery(c, "size")
 	if err != nil {
 		c.String(http.StatusBadRequest, "%s", err.Error())
-		task.SetEventOperation(false)
 		return
 	}
 	err = eventsStorageAdapter.Drop(size)
-	task.SetEventOperation(false)
 	if err == nil {
 		c.String(http.StatusOK, "%s", "Events dropped")
 		return
@@ -150,21 +149,20 @@ func DropEvents(c *gin.Context) {
 
 // DropImpressions drops Impressions from queue
 func DropImpressions(c *gin.Context) {
-	if !task.CanPerformImpressionOperation() {
-		c.String(http.StatusInternalServerError, "%s", "Another operation is running on Impressions")
+	if task.RequestOperation("impressionsOperation") {
+		defer task.FinishOperation("impressionsOperation")
+	} else {
+		c.String(http.StatusInternalServerError, "%s", "Cannot execute drop. Another operation is performing operations on Impressions")
 		return
 	}
-	task.SetImpressionOperation(true)
 
 	impressionsStorageAdapter := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 	size, err := getIntegerParameterFromQuery(c, "size")
 	if err != nil {
 		c.String(http.StatusBadRequest, "%s", err.Error())
-		task.SetImpressionOperation(false)
 		return
 	}
 	err = impressionsStorageAdapter.Drop(size)
-	task.SetImpressionOperation(false)
 	if err == nil {
 		c.String(http.StatusOK, "%s", "Impressions dropped")
 		return
@@ -174,50 +172,42 @@ func DropImpressions(c *gin.Context) {
 
 // FlushEvents eviction of Events
 func FlushEvents(c *gin.Context) {
-	if !task.CanPerformEventOperation() {
-		c.String(http.StatusInternalServerError, "%s", "Another operation is running on Events")
-		return
-	}
-	task.SetEventOperation(true)
-
 	size, err := getIntegerParameterFromQuery(c, "size")
 	if err != nil {
 		c.String(http.StatusBadRequest, "%s", err.Error())
-		task.SetEventOperation(false)
 		return
 	}
 	if size != nil && *size > api.MaxSizeToFlush {
-		task.SetEventOperation(false)
 		c.String(http.StatusBadRequest, "%s", "Max Size to Flush is "+strconv.FormatInt(api.MaxSizeToFlush, 10))
 		return
 	}
 	eventsStorageAdapter := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 	eventsRecorder := recorder.EventsHTTPRecorder{}
-	task.EventsFlush(eventsRecorder, eventsStorageAdapter, size)
+	err = task.EventsFlush(eventsRecorder, eventsStorageAdapter, size)
+	if err != nil {
+		c.String(http.StatusInternalServerError, "%s", err.Error())
+		return
+	}
 	c.String(http.StatusOK, "%s", "Events flushed")
 }
 
 // FlushImpressions eviction of Impressions
 func FlushImpressions(c *gin.Context) {
-	if !task.CanPerformImpressionOperation() {
-		c.String(http.StatusInternalServerError, "%s", "Another operation is running on Impressions")
-		return
-	}
-	task.SetImpressionOperation(true)
-
 	size, err := getIntegerParameterFromQuery(c, "size")
 	if err != nil {
 		c.String(http.StatusBadRequest, "%s", err.Error())
-		task.SetImpressionOperation(false)
 		return
 	}
 	if size != nil && *size > api.MaxSizeToFlush {
-		task.SetImpressionOperation(false)
 		c.String(http.StatusBadRequest, "%s", "Max Size to Flush is "+strconv.FormatInt(api.MaxSizeToFlush, 10))
 		return
 	}
 	impressionsStorageAdapter := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 	impressionRecorder := recorder.ImpressionsHTTPRecorder{}
-	task.ImpressionsFlush(impressionRecorder, impressionsStorageAdapter, size, conf.Data.Redis.DisableLegacyImpressions, true)
+	err = task.ImpressionsFlush(impressionRecorder, impressionsStorageAdapter, size, conf.Data.Redis.DisableLegacyImpressions, true)
+	if err != nil {
+		c.String(http.StatusInternalServerError, "%s", err.Error())
+		return
+	}
 	c.String(http.StatusOK, "%s", "Impressions flushed")
 }
