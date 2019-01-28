@@ -5,6 +5,12 @@ import "sync"
 var opsMutex = sync.Mutex{}
 var ops = make(map[string]bool)
 
+// EventsOperation tag to register an operation on Events
+const EventsOperation = "eventsOperation"
+
+// ImpressionsOperation tag to register an operation on Impressions
+const ImpressionsOperation = "impressionsOperation"
+
 // RequestOperation Checks if the operation can be executed
 func RequestOperation(operation string) bool {
 	opsMutex.Lock()

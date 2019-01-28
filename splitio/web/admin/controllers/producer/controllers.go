@@ -126,8 +126,8 @@ func getIntegerParameterFromQuery(c *gin.Context, key string) (*int64, error) {
 
 // DropEvents drops Events from queue
 func DropEvents(c *gin.Context) {
-	if task.RequestOperation("eventsOperation") {
-		defer task.FinishOperation("eventsOperation")
+	if task.RequestOperation(task.EventsOperation) {
+		defer task.FinishOperation(task.EventsOperation)
 	} else {
 		c.String(http.StatusInternalServerError, "%s", "Cannot execute drop. Another operation is performing operations on Events")
 		return
@@ -149,8 +149,8 @@ func DropEvents(c *gin.Context) {
 
 // DropImpressions drops Impressions from queue
 func DropImpressions(c *gin.Context) {
-	if task.RequestOperation("impressionsOperation") {
-		defer task.FinishOperation("impressionsOperation")
+	if task.RequestOperation(task.ImpressionsOperation) {
+		defer task.FinishOperation(task.ImpressionsOperation)
 	} else {
 		c.String(http.StatusInternalServerError, "%s", "Cannot execute drop. Another operation is performing operations on Impressions")
 		return

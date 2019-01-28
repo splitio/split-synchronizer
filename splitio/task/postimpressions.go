@@ -124,7 +124,7 @@ func PostImpressions(
 
 	for keepLoop {
 		// Checks if a current eviction is already running
-		if IsOperationRunning("impressionsOperation") {
+		if IsOperationRunning(ImpressionsOperation) {
 			log.Debug.Println("Another task executed by the user is performing operations on Impressions. Skipping.")
 		} else {
 			taskPostImpressions(
@@ -157,8 +157,8 @@ func ImpressionsFlush(
 	legacyDisabled,
 	impressionListenerEnabled bool,
 ) error {
-	if RequestOperation("impressionsOperation") {
-		defer FinishOperation("impressionsOperation")
+	if RequestOperation(ImpressionsOperation) {
+		defer FinishOperation(ImpressionsOperation)
 	} else {
 		log.Debug.Println("Cannot execute flush. Another operation is performing operations on Impressions.")
 		return errors.New("Cannot execute flush. Another operation is performing operations on Impressions")
