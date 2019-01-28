@@ -1,6 +1,10 @@
+2.1.0 ()
+ - Added endpoints for flushing and dropping Impressions/Events mannually.
+ - Added new metrics on Synchronizer Dashboard in Producer Mode to reflect the queue size of Events and Impressions.
+ - Added buttons to execute flushing and dropping for Impressions/Events.
+ - Added validator to inform error when some property is wrong in json config.
 2.0.0 (Dec 21, 2018)
  - Migrated impressions to use a single queue approach.
- - Added validator to inform error when some property is wrong in json config.
 1.8.0 (Nov 14, 2018)
  - Added support for redis cluster.
  - Migrated to dep.
