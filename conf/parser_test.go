@@ -81,7 +81,6 @@ func TestLoadFromFileWithErrorOnPropertyString(t *testing.T) {
 	}
 }
 
-// TestWriteDefaultConfigFile tests if the config file with default values could be written
 func TestWriteDefaultConfigFile(t *testing.T) {
 	WriteDefaultConfigFile("/tmp/splitio.test.config.json")
 	if _, err := os.Stat("/tmp/splitio.test.config.json"); os.IsNotExist(err) {

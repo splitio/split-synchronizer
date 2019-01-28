@@ -122,7 +122,7 @@ func PostEvents(
 	keepLoop := true
 	for keepLoop {
 		// Checks if a current eviction is already running
-		if IsOperationRunning("eventsOperation") {
+		if IsOperationRunning(EventsOperation) {
 			log.Debug.Println("Another task executed by the user is performing operations on Events. Skipping.")
 		} else {
 			taskPostEvents(tid, eventsRecorderAdapter, eventsStorageAdapter, int64(eventsBulkSize))
@@ -146,8 +146,8 @@ func EventsFlush(
 	eventsStorageAdapter *redis.EventStorageAdapter,
 	size *int64,
 ) error {
-	if RequestOperation("eventsOperation") {
-		defer FinishOperation("eventsOperation")
+	if RequestOperation(EventsOperation) {
+		defer FinishOperation(EventsOperation)
 	} else {
 		log.Debug.Println("Cannot execute flush. Another operation is performing operations on Events.")
 		return errors.New("Cannot execute flush. Another operation is performing operations on Events")
