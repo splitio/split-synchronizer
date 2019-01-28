@@ -14,13 +14,13 @@ func TestMainMenu(t *testing.T) {
 	tpl := template.Must(template.New("MainMenu").Parse(MainMenuTPL))
 
 	tpl.Execute(buf, MainMenuTPLVars{ProxyMode: false})
-	if len(buf.String()) != 692 {
+	if len(buf.String()) != 905 {
 		t.Error("Parssed main menu ProxyMode:FALSE wrong len")
 	}
 
 	buf.Reset()
 	tpl.Execute(buf, MainMenuTPLVars{ProxyMode: true})
-	if len(buf.String()) != 887 {
+	if len(buf.String()) != 889 {
 		t.Error("Parssed main menu ProxyMode:TRUE wrong len")
 	}
 }

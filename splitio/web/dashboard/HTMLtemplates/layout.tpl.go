@@ -19,6 +19,8 @@ type LayoutTPLVars struct {
 	BackendRequestErrorFormated string
 	SplitRows                   string
 	SegmentRows                 string
+	ImpressionsQueueSize        string
+	EventsQueueSize             string
 	LatenciesGroupData          string
 	RequestOk                   string
 	RequestError                string
@@ -109,6 +111,27 @@ var LayoutTPL = `
   .yellowBox {background-color: rgba(255, 206, 86, 0.2)}
   .gray1Box {background-color:rgba(69, 82, 96, 1); color:white;}
   .gray2Box {background-color:rgba(201, 203, 205, 1);}
+  .buttonBox {background-color:none; color:black;}
+  .btn-label {position: relative;left: -12px;display: inline-block;padding: 6px 12px;border-radius: 3px 0 0 3px;}
+  .btn-labeled {padding-top: 0;padding-bottom: 0;}
+  .drop:focus,.drop:active:focus,.drop.active:focus,.drop.focus,.drop:active.focus,.drop.active.focus {
+    outline: 10px auto #b92c28;
+    outline-color: #b92c28;
+    outline-style: auto;
+    outline-width: 10px;
+    outline-offset: -2px;
+  }
+  .flush:focus,.flush:active:focus,.flush.active:focus,.flush.focus,.flush:active.focus,.flush.active.focus {
+    outline: 10px auto #3e8f3e;
+    outline-color: #3e8f3e;
+    outline-style: auto;
+    outline-width: 10px;
+    outline-offset: -2px;
+  }
+  .btn:focus,.btn:active {
+    outline: none !important;
+    box-shadow: none;
+ }
 
   /*234	234	233*/
   .centerText {text-align: center;}
@@ -217,6 +240,23 @@ var LayoutTPL = `
             </div>
           </div>
 
+          {{if not .ProxyMode}} 
+            <div class="row">
+              <div class="col-md-6">
+                <div class="gray1Box metricBox">
+                  <h4>Impressions Queue Size</h4>
+                  <h1 id="impressions_queue_value" class="centerText">{{.ImpressionsQueueSize}}</h1>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="gray1Box metricBox">
+                  <h4>Events Queue Size</h4>
+                  <h1 id="events_queue_value" class="centerText">{{.EventsQueueSize}}</h1>
+                </div>
+              </div>
+            </div>
+          {{end}}
+
           <div class="row">
             <div class="col-md-12">
               <div class="bg-primary metricBox">
@@ -269,6 +309,82 @@ var LayoutTPL = `
 
             </div>
         {{end}}
+
+        {{if not .ProxyMode}}
+        <!-- QUEUE MANAGER -->
+        <div role="tabpanel" class="tab-pane" id="queue-manager">
+
+          <div class="row">
+            <div class="col-md-6">
+              <div class="gray1Box metricBox">
+                <h4>Impressions Queue Size</h4>
+                <h1 id="impressions_queue_value_section" class="centerText">{{.ImpressionsQueueSize}}</h1>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="gray1Box metricBox">
+                <h4>Events Queue Size</h4>
+                <h1 id="events_queue_value_section" class="centerText">{{.EventsQueueSize}}</h1>
+              </div>
+            </div>
+          </div>
+
+         <div class="row">
+            <div class="col-md-2" style="text-align: center;">
+              <button type="button" class="btn btn-danger btn-lg btn-block drop" onclick="javascript:dropImpressions();"
+                style="padding-top: 4px; padding-bottom: 4px"
+                data-toggle="tooltip" data-placement="top"
+                title="This action will remove all the impressions from the Synchronizer">
+                <span class="btn-label">
+                  <i class="glyphicon glyphicon-trash"></i>
+                </span>Drop Impressions
+              </button>
+            </div>
+            <div class="col-md-4" style="text-align: center;  float: left">
+              <div class="input-group input-group-lg">
+                <input type="text" class="form-control" placeholder="Size" aria-label="Size" aria-describedby="basic-addon2"
+                  id="impressionsSize" default="">
+                <span class="input-group-lg input-group-btn">
+                  <button class="btn btn-success btn-lg flush" type="button" onClick="javascript:flushImpressions();"
+                    data-toggle="tooltip" data-placement="top"
+                    title="This action will flush all the impressions from the Synchronizer">
+                    <span>
+                      <i class="glyphicon glyphicon-share-alt"></i>
+                    </span>Flush Impressions
+                  </button>
+                </span>
+              </div>
+            </div>
+
+            <div class="col-md-2" style="text-align: center">
+              <button type="button" class="btn btn-danger btn-lg btn-block drop" onclick="javascript:dropEvents();"
+                style="padding-top: 4px; padding-bottom: 4px"
+                data-placement="top"
+                data-toggle="tooltip"
+                title="This action will remove all the events from the Synchronizer">
+                <span class="btn-label">
+                  <i class="glyphicon glyphicon-trash"></i>
+                </span>Drop Events
+              </button>
+            </div>
+            <div class="col-md-4" style="text-align: center;  float: left">
+              <div class="input-group input-group-lg">
+                <input type="text" class="form-control" placeholder="Size" aria-label="Size" aria-describedby="basic-addon2"
+                  id="eventsSize" default="">
+                <span class="input-group-lg input-group-btn">
+                  <button class="btn btn-success btn-lg flush" type="button" onClick="javascript:flushEvents();"
+                    data-toggle="tooltip" data-placement="top"
+                    title="This action will flush all the events from the Synchronizer">
+                    <span>
+                      <i class="glyphicon glyphicon-share-alt"></i>
+                    </span>Flush Events
+                  </button>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+    {{end}}
         <!-- BACKEND STATS -->
         <div role="tabpanel" class="tab-pane" id="backend-stats"">
 
@@ -403,11 +519,6 @@ var LayoutTPL = `
 
         </div>
       </div>
-
-
-
-
-
   </div>
 
 
@@ -487,6 +598,90 @@ var LayoutTPL = `
       }
     });
   }
+
+  function dropImpressions(){
+    if(confirm("This action will drop all the impressions, are you sure?")) {
+      console.log("Dropping impressions")
+
+      $.post("/admin/impressions/drop", function(data) {
+        console.log("Response:", data);
+      })
+    }
+  }
+
+  function flushImpressions(){
+    if(confirm("This action will flush impressions to the server, are you sure?")) {
+      console.log("Flushing impressions")
+
+      const size = document.getElementById("impressionsSize").value;
+      const api = size === "" ? "/admin/impressions/flush" : "/admin/impressions/flush?size=" + size;
+
+      $.post(api, function(data) {
+        console.log("Response:", data);
+      })
+    }
+  }
+
+  function dropEvents(){
+    if(confirm("This action will drop all the events, are you sure?")) {
+      console.log("Dropping events")
+
+      $.post("/admin/events/drop", function(data) {
+        console.log("Response:", data);
+      })
+    }
+  }
+
+  function flushEvents(){
+    if(confirm("This action will flush events to the server, are you sure?")) {
+      console.log("Flushing events")
+
+      const size = document.getElementById("eventsSize").value;
+      const api = size === "" ? "/admin/events/flush" : "/admin/events/flush?size=" + size;
+
+      $.post(api, function(data) {
+        console.log("Response:", data);
+      })
+    }
+  }
+
+  function refreshImpressionsSize() {
+    $.ajax({
+        url: "impressions/queueSize",
+        cache: false,
+        success: function(response) {
+            $('#impressions_queue_value').text(response.queueSize);
+            $('#impressions_queue_value_section').text(response.queueSize);
+            setTimeout(function() {
+              refreshImpressionsSize();
+            }, 8000);
+        }
+    });
+  };
+
+  function refreshEventsSize() {
+      $.ajax({
+          url: "events/queueSize",
+          cache: false,
+          success: function(response) {
+              $('#events_queue_value').text(response.queueSize);
+              $('#events_queue_value_section').text(response.queueSize);
+              setTimeout(function() {
+                refreshEventsSize();
+              }, 8000);
+          }
+      });
+  };
+
+  $(function () {
+    $('[data-toggle="tooltip"]').tooltip()
+  })
+
+  $(document).ready(function () {
+    refreshImpressionsSize();
+    refreshEventsSize();
+  });
+
     /*window.onload = function() {
         setTimeout(function () {
             location.reload()

@@ -31,6 +31,7 @@ const _metricsGaugesNamespace = "SPLITIO/%s/%s/gauge.%s"
 //Events
 const _eventsListNamespace = "SPLITIO.events"
 
+//Impressions
 const _impressionsQueueNamespace = "SPLITIO.impressions"
 
 type prefixAdapter struct {

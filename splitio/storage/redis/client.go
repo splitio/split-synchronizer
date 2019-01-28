@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-redis/redis"
 	"github.com/splitio/split-synchronizer/conf"
+	"github.com/splitio/split-synchronizer/log"
 )
 
 // Client is a redis client with a connection pool
@@ -102,4 +103,26 @@ func NewInstance(opt conf.RedisSection) (redis.UniversalClient, error) {
 			ReadTimeout:  time.Duration(opt.ReadTimeout) * time.Second,
 			WriteTimeout: time.Duration(opt.WriteTimeout) * time.Second,
 		}), nil
+}
+
+// Size return the value of LLEN
+func (b BaseStorageAdapter) Size(nameSpace string) int64 {
+	llen := b.client.LLen(nameSpace)
+
+	if llen.Err() != nil {
+		log.Error.Println(llen.Err())
+		return 0
+	}
+
+	return llen.Val()
+}
+
+// Drop removes elements from queue
+func (b BaseStorageAdapter) Drop(nameSpace string, size *int64) error {
+	if size == nil {
+		b.client.Del(nameSpace)
+		return nil
+	}
+	b.client.LTrim(nameSpace, *size, -1)
+	return nil
 }

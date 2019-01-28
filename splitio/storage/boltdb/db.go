@@ -9,6 +9,7 @@ import (
 
 	"github.com/boltdb/bolt"
 	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio"
 )
 
 // InMemoryMode used to store ramdom db into temporal folder
@@ -25,7 +26,7 @@ func Initialize(path string, options *bolt.Options) {
 	DBB, err = NewInstance(path, options)
 	if err != nil {
 		fmt.Println(err)
-		os.Exit(1)
+		os.Exit(splitio.ExitErrorDB)
 	}
 }
 

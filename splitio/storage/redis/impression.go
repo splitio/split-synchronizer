@@ -483,3 +483,15 @@ func (r ImpressionStorageAdapter) RetrieveImpressions(count int64, legacyDisable
 	}
 	return impressions, nil
 }
+
+// Drop drops events from queue
+func (r ImpressionStorageAdapter) Drop(size *int64) error {
+	impressionMutex.Lock()
+	defer impressionMutex.Unlock()
+	return r.BaseStorageAdapter.Drop(r.impressionsQueueNamespace(), size)
+}
+
+// Size returns the size of the impressions queue
+func (r ImpressionStorageAdapter) Size() int64 {
+	return r.BaseStorageAdapter.Size(r.impressionsQueueNamespace())
+}
