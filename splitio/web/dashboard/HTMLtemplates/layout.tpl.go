@@ -678,8 +678,10 @@ var LayoutTPL = `
   })
 
   $(document).ready(function () {
-    refreshImpressionsSize();
-    refreshEventsSize();
+    if (document.getElementById("eventsSize")) {
+      refreshImpressionsSize();
+      refreshEventsSize();
+    }
   });
 
     /*window.onload = function() {
