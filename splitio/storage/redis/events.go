@@ -66,16 +66,14 @@ func (r EventStorageAdapter) PopN(n int64) ([]api.RedisStoredEventDTO, error) {
 	return toReturn, nil
 }
 
-// Size return the value of LLEN
-func (r EventStorageAdapter) Size() int64 {
+// Drop drops events from queue
+func (r EventStorageAdapter) Drop(size *int64) error {
 	elMutex.Lock()
-	llen := r.client.LLen(r.eventsListNamespace()) //LRange(r.eventsListNamespace(), 0, n-1)
-	elMutex.Unlock()
+	defer elMutex.Unlock()
+	return r.BaseStorageAdapter.Drop(r.eventsListNamespace(), size)
+}
 
-	if llen.Err() != nil {
-		log.Error.Println(llen.Err())
-		return 0
-	}
-
-	return llen.Val()
+// Size returns the size of the impressions queue
+func (r EventStorageAdapter) Size() int64 {
+	return r.BaseStorageAdapter.Size(r.eventsListNamespace())
 }

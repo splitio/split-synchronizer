@@ -2,7 +2,6 @@ package task
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/stats/counter"
 	"github.com/splitio/split-synchronizer/splitio/stats/latency"
 	"github.com/splitio/split-synchronizer/splitio/storage"
+	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 )
 
 var eventsIncoming chan string
@@ -41,7 +41,6 @@ func taskPostEvents(tid int,
 	storageAdapter storage.EventStorage,
 	bulkSize int64,
 ) {
-
 	//[SDKVersion][MachineIP][MachineName]
 	toSend := make(map[string]map[string]map[string][]api.EventDTO)
 
@@ -102,7 +101,7 @@ func taskPostEvents(tid int,
 						postEventsLocalCounters.Increment("backend::request.ok")
 					}
 					attemps++
-					time.Sleep(nethelper.WaitForNextAttemp() * time.Second)
+					time.Sleep(nethelper.WaitForNextAttempt() * time.Second)
 				}
 
 			}
@@ -122,7 +121,12 @@ func PostEvents(
 	wg.Add(1)
 	keepLoop := true
 	for keepLoop {
-		taskPostEvents(tid, eventsRecorderAdapter, eventsStorageAdapter, int64(eventsBulkSize))
+		// Checks if a current eviction is already running
+		if IsOperationRunning(EventsOperation) {
+			log.Debug.Println("Another task executed by the user is performing operations on Events. Skipping.")
+		} else {
+			taskPostEvents(tid, eventsRecorderAdapter, eventsStorageAdapter, int64(eventsBulkSize))
+		}
 
 		select {
 		case msg := <-eventsIncoming:
@@ -139,14 +143,27 @@ func PostEvents(
 // EventsFlush Task to flush cached events.
 func EventsFlush(
 	eventsRecorderAdapter recorder.EventsRecorder,
-	eventsStorageAdapter storage.EventStorage,
-	eventsBulkSize int,
-) {
-
-	for eventsStorageAdapter.Size() > 0 {
-		fmt.Println("Flushing events list")
-		taskPostEvents(0, eventsRecorderAdapter, eventsStorageAdapter, int64(eventsBulkSize))
-		time.Sleep(100 * time.Millisecond)
+	eventsStorageAdapter *redis.EventStorageAdapter,
+	size *int64,
+) error {
+	if RequestOperation(EventsOperation) {
+		defer FinishOperation(EventsOperation)
+	} else {
+		log.Debug.Println("Cannot execute flush. Another operation is performing operations on Events.")
+		return errors.New("Cannot execute flush. Another operation is performing operations on Events")
+	}
+	elementsToFlush := api.MaxSizeToFlush
+	if size != nil {
+		elementsToFlush = *size
 	}
 
+	for elementsToFlush > 0 && eventsStorageAdapter.Size() > 0 {
+		maxSize := api.DefaultSize
+		if elementsToFlush < api.DefaultSize {
+			maxSize = elementsToFlush
+		}
+		taskPostEvents(0, eventsRecorderAdapter, eventsStorageAdapter, maxSize)
+		elementsToFlush = elementsToFlush - api.DefaultSize
+	}
+	return nil
 }

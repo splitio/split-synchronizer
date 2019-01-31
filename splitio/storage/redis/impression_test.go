@@ -367,7 +367,7 @@ func TestImpressionsSingleQueue(t *testing.T) {
 				return
 			}
 
-			Client.LPush(
+			Client.RPush(
 				prefixAdapter.impressionsQueueNamespace(),
 				toStore,
 			)
@@ -457,7 +457,7 @@ func TestImpressionsSingleQueueAndLegacy(t *testing.T) {
 				return
 			}
 
-			Client.LPush(
+			Client.RPush(
 				prefixAdapter.impressionsQueueNamespace(),
 				toStore,
 			)
@@ -565,7 +565,7 @@ func TestImpressionsFromSingleQueueAreRemovedAfterFetched(t *testing.T) {
 				return
 			}
 
-			Client.LPush(
+			Client.RPush(
 				prefixAdapter.impressionsQueueNamespace(),
 				toStore,
 			)
@@ -636,7 +636,7 @@ func TestTTLIsSet(t *testing.T) {
 			return
 		}
 
-		Client.LPush(
+		Client.RPush(
 			prefixAdapter.impressionsQueueNamespace(),
 			toStore,
 		)
@@ -656,4 +656,61 @@ func TestTTLIsSet(t *testing.T) {
 		t.Error("TTL should have been set and be near 3600 seconds")
 	}
 
+}
+
+func TestImpressionsSize(t *testing.T) {
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	conf.Initialize()
+	Initialize(conf.Data.Redis)
+	prefixAdapter := &prefixAdapter{prefix: ""}
+	Client.Del(prefixAdapter.impressionsQueueNamespace())
+
+	metadata := api.SdkMetadata{
+		SdkVersion: "test-2.0",
+		MachineIP:  "127.0.0.1",
+	}
+
+	impressionsRaw := map[string][]api.ImpressionDTO{
+		"feature1": makeImpressions("key", "on", 123456, "some_label", "key", 30),
+		"feature2": makeImpressions("key", "on", 123456, "some_label", "key", 70),
+		"feature3": makeImpressions("key", "on", 123456, "some_label", "key", 100),
+	}
+
+	//Adding impressions to retrieve.
+	for feature, impressions := range impressionsRaw {
+		for _, impression := range impressions {
+			toStore, err := json.Marshal(ImpressionDTO{
+				Data: ImpressionObject{
+					BucketingKey:      impression.BucketingKey,
+					FeatureName:       feature,
+					KeyName:           impression.KeyName,
+					Rule:              impression.Label,
+					SplitChangeNumber: impression.ChangeNumber,
+					Timestamp:         impression.Time,
+					Treatment:         impression.Treatment,
+				},
+				Metadata: ImpressionMetadata{
+					InstanceIP:   metadata.MachineIP,
+					InstanceName: metadata.MachineName,
+					SdkVersion:   metadata.SdkVersion,
+				},
+			})
+			if err != nil {
+				t.Error(err.Error())
+				return
+			}
+
+			Client.RPush(
+				prefixAdapter.impressionsQueueNamespace(),
+				toStore,
+			)
+		}
+	}
+	impressionsStorageAdapter := NewImpressionStorageAdapter(Client, "")
+	size := impressionsStorageAdapter.Size()
+	if size != 200 {
+		t.Error("Size is not the expected one. Expected 200. Actual", size)
+	}
+	Client.Del(prefixAdapter.impressionsQueueNamespace())
 }

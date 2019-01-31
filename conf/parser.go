@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+
+	validator "github.com/splitio/go-toolkit/json-struct-validator"
 )
 
 // Data contains all configuration values
@@ -32,7 +34,7 @@ func Initialize() {
 	Data = getDefaultConfigData()
 }
 
-func loadFile(path string) {
+func loadFile(path string) error {
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		dat, err := ioutil.ReadFile(path)
 		if err != nil {
@@ -42,12 +44,20 @@ func loadFile(path string) {
 		if err != nil {
 			fmt.Println(err.Error())
 		}
+
+		var Config ConfigData
+		err = validator.ValidateConfiguration(Config, dat)
+		if err != nil {
+			fmt.Println(err.Error())
+			return err
+		}
 	}
+	return nil
 }
 
 // LoadFromFile configuration values from file
-func LoadFromFile(path string) {
-	loadFile(path)
+func LoadFromFile(path string) error {
+	return loadFile(path)
 }
 
 func loadDefaultValuesRecursiveChildren(val reflect.Value) {
