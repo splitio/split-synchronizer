@@ -6,6 +6,8 @@ import (
 	"syscall"
 
 	"github.com/gin-gonic/gin"
+	"github.com/splitio/split-synchronizer/appcontext"
+	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio"
 	"github.com/splitio/split-synchronizer/splitio/stats"
@@ -62,4 +64,50 @@ func StopProccess(c *gin.Context) {
 
 	c.String(http.StatusOK, "%s: %s", "Sign has been sent", toReturn)
 
+}
+
+// GetConfiguration Returns Sync Config
+func GetConfiguration(c *gin.Context) {
+	config := map[string]interface{}{
+		"mode":      nil,
+		"redisMode": nil,
+		"redis":     nil,
+		"proxy":     nil,
+	}
+	if appcontext.ExecutionMode() == appcontext.ProxyMode {
+		config["mode"] = "ProxyMode"
+		config["proxy"] = conf.Data.Proxy
+	} else {
+		config["mode"] = "ProducerMode"
+		if conf.Data.Redis.ClusterMode {
+			config["redisMode"] = "Cluster"
+		} else {
+			if conf.Data.Redis.SentinelReplication {
+				config["redisMode"] = "Sentinel"
+			} else {
+				config["redisMode"] = "Standard"
+			}
+		}
+		config["redis"] = conf.Data.Redis
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"apiKey":                 log.ObfuscateAPIKey(conf.Data.APIKey),
+		"impressionListener":     conf.Data.ImpressionListener,
+		"splitRefreshRate":       conf.Data.SplitsFetchRate,
+		"segmentsRefreshRate":    conf.Data.SegmentFetchRate,
+		"impressionsRefreshRate": conf.Data.ImpressionsPostRate,
+		"impressionsPerPost":     conf.Data.ImpressionsPerPost,
+		"impressionsThreads":     conf.Data.ImpressionsThreads,
+		"eventsPushRate":         conf.Data.EventsPushRate,
+		"eventsConsumerReadSize": conf.Data.EventsConsumerReadSize,
+		"eventsConsumerThreads":  conf.Data.EventsConsumerThreads,
+		"metricsRefreshRate":     conf.Data.MetricsPostRate,
+		"httpTimeout":            conf.Data.HTTPTimeout,
+		"mode":                   config["mode"],
+		"redisMode":              config["redisMode"],
+		"log":                    conf.Data.Logger,
+		"redis":                  config["redis"],
+		"proxy":                  config["proxy"],
+		"admin":                  conf.Data.Producer.Admin,
+	})
 }

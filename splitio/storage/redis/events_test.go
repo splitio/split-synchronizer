@@ -1,13 +1,28 @@
 package redis
 
 import (
+	"encoding/json"
 	"io/ioutil"
 	"testing"
 
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/api"
 )
 
+func makeEvents(key string, eventTypeID string, time int64, trafficTypeName string, value *float64, count int) []api.EventDTO {
+	evts := make([]api.EventDTO, count)
+	for i := 0; i < count; i++ {
+		evts[i] = api.EventDTO{
+			Key:             key,
+			EventTypeID:     eventTypeID,
+			Timestamp:       time + int64(i),
+			TrafficTypeName: trafficTypeName,
+			Value:           value,
+		}
+	}
+	return evts
+}
 func TestEventsPOPN(t *testing.T) {
 
 	stdoutWriter := ioutil.Discard //os.Stdout
@@ -105,4 +120,53 @@ func TestEventsPOPN(t *testing.T) {
 		return
 	}
 
+}
+
+func TestEventsSize(t *testing.T) {
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	conf.Initialize()
+	Initialize(conf.Data.Redis)
+	prefixAdapter := &prefixAdapter{prefix: ""}
+	Client.Del(prefixAdapter.eventsListNamespace())
+
+	metadata := api.SdkMetadata{
+		SdkVersion: "test-2.0",
+		MachineIP:  "127.0.0.1",
+	}
+
+	eventsRaw := makeEvents("key", "eventTypeId", 123456, "trafficTypeName", nil, 30)
+
+	//Adding events to retrieve.
+	for _, event := range eventsRaw {
+		toStore, err := json.Marshal(api.RedisStoredEventDTO{
+			Event: api.EventDTO{
+				Key:             event.Key,
+				EventTypeID:     event.EventTypeID,
+				Timestamp:       event.Timestamp,
+				TrafficTypeName: event.TrafficTypeName,
+				Value:           event.Value,
+			},
+			Metadata: api.RedisStoredMachineMetadataDTO{
+				MachineIP:   metadata.MachineIP,
+				MachineName: metadata.MachineName,
+				SDKVersion:  metadata.SdkVersion,
+			},
+		})
+		if err != nil {
+			t.Error(err.Error())
+			return
+		}
+
+		Client.RPush(
+			prefixAdapter.eventsListNamespace(),
+			toStore,
+		)
+	}
+	eventsStorageAdapter := NewEventStorageAdapter(Client, "")
+	size := eventsStorageAdapter.Size()
+	if size != 30 {
+		t.Error("Size is not the expected one. Expected 200. Actual", size)
+	}
+	Client.Del(prefixAdapter.eventsListNamespace())
 }

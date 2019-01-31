@@ -2,9 +2,13 @@
 package redis
 
 import (
+	"encoding/json"
+	"io/ioutil"
 	"testing"
 
 	"github.com/splitio/split-synchronizer/conf"
+	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/api"
 )
 
 func TestInitializeClient(t *testing.T) {
@@ -172,4 +176,146 @@ func TestInitializeRedisClusterProperly(t *testing.T) {
 	if err != nil {
 		t.Error("No error should have been returned for valid cluster parameters")
 	}
+}
+
+func TestImpressionsDrop(t *testing.T) {
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	conf.Initialize()
+	Initialize(conf.Data.Redis)
+	prefixAdapter := &prefixAdapter{prefix: ""}
+	Client.Del(prefixAdapter.impressionsQueueNamespace())
+
+	metadata := api.SdkMetadata{
+		SdkVersion:  "test-2.0",
+		MachineIP:   "127.0.0.1",
+		MachineName: "ip-127-0-0-1",
+	}
+
+	impressionsRaw := map[string][]api.ImpressionDTO{
+		"feature1": makeImpressions("key", "on", 123456, "some_label", "key", 30),
+		"feature2": makeImpressions("key", "on", 123456, "some_label", "key", 70),
+		"feature3": makeImpressions("key", "on", 123456, "some_label", "key", 100),
+	}
+
+	// Adding impressions to drop.
+	for feature, impressions := range impressionsRaw {
+		for _, impression := range impressions {
+			toStore, err := json.Marshal(ImpressionDTO{
+				Data: ImpressionObject{
+					BucketingKey:      impression.BucketingKey,
+					FeatureName:       feature,
+					KeyName:           impression.KeyName,
+					Rule:              impression.Label,
+					SplitChangeNumber: impression.ChangeNumber,
+					Timestamp:         impression.Time,
+					Treatment:         impression.Treatment,
+				},
+				Metadata: ImpressionMetadata{
+					InstanceIP:   metadata.MachineIP,
+					InstanceName: metadata.MachineName,
+					SdkVersion:   metadata.SdkVersion,
+				},
+			})
+			if err != nil {
+				t.Error(err.Error())
+				return
+			}
+
+			Client.RPush(
+				prefixAdapter.impressionsQueueNamespace(),
+				toStore,
+			)
+		}
+	}
+	impressionsStorageAdapter := NewImpressionStorageAdapter(Client, "")
+	var size int64 = 100
+	err := impressionsStorageAdapter.Drop(&size)
+	if err != nil {
+		t.Error("It should not return error")
+	}
+
+	count := impressionsStorageAdapter.Size()
+	if count != 100 {
+		t.Error("It should kept 100 elements, not", count)
+	}
+
+	err = impressionsStorageAdapter.Drop(nil)
+	if err != nil {
+		t.Error("It should not return error")
+	}
+	count = impressionsStorageAdapter.Size()
+	if count != 0 {
+		t.Error("It should not be elements left")
+	}
+
+	Client.Del(prefixAdapter.impressionsQueueNamespace())
+}
+
+func TestEventsDrop(t *testing.T) {
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	conf.Initialize()
+	Initialize(conf.Data.Redis)
+	prefixAdapter := &prefixAdapter{prefix: ""}
+	Client.Del(prefixAdapter.eventsListNamespace())
+
+	metadata := api.SdkMetadata{
+		SdkVersion:  "test-2.0",
+		MachineIP:   "127.0.0.1",
+		MachineName: "ip-127-0-0-1",
+	}
+
+	eventsRaw := makeEvents("key", "test", 123456, "user", nil, 30)
+
+	// Adding events to drop.
+	for _, event := range eventsRaw {
+		toStore, err := json.Marshal(api.RedisStoredEventDTO{
+			Event: api.EventDTO{
+				Key:             event.Key,
+				EventTypeID:     event.EventTypeID,
+				Timestamp:       event.Timestamp,
+				TrafficTypeName: event.TrafficTypeName,
+				Value:           event.Value,
+			},
+			Metadata: api.RedisStoredMachineMetadataDTO{
+				MachineIP:   metadata.MachineIP,
+				MachineName: metadata.MachineName,
+				SDKVersion:  metadata.SdkVersion,
+			},
+		})
+		if err != nil {
+			t.Error(err.Error())
+			return
+		}
+
+		Client.RPush(
+			prefixAdapter.eventsListNamespace(),
+			toStore,
+		)
+	}
+	eventsStorageAdapter := NewEventStorageAdapter(Client, "")
+
+	var size int64 = 9
+
+	err := eventsStorageAdapter.Drop(&size)
+	if err != nil {
+		t.Error("It should not return error")
+	}
+
+	count := eventsStorageAdapter.Size()
+	if count != 21 {
+		t.Error("It should kept 19 elements, not", count)
+	}
+
+	err = eventsStorageAdapter.Drop(nil)
+	if err != nil {
+		t.Error("It should not return error")
+	}
+	count = eventsStorageAdapter.Size()
+	if count != 0 {
+		t.Error("It should not be elements left")
+	}
+
+	Client.Del(prefixAdapter.eventsListNamespace())
 }

@@ -2,6 +2,7 @@ package task
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/stats/counter"
 	"github.com/splitio/split-synchronizer/splitio/stats/latency"
 	"github.com/splitio/split-synchronizer/splitio/storage"
+	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 )
 
 var impressionsIncoming chan string
@@ -119,15 +121,21 @@ func PostImpressions(
 ) {
 	wg.Add(1)
 	keepLoop := true
+
 	for keepLoop {
-		taskPostImpressions(
-			tid,
-			impressionsRecorderAdapter,
-			impressionStorageAdapter,
-			impressionsPerPost,
-			legacyDisabled,
-			impressionListenerEnabled,
-		)
+		// Checks if a current eviction is already running
+		if IsOperationRunning(ImpressionsOperation) {
+			log.Debug.Println("Another task executed by the user is performing operations on Impressions. Skipping.")
+		} else {
+			taskPostImpressions(
+				tid,
+				impressionsRecorderAdapter,
+				impressionStorageAdapter,
+				impressionsPerPost,
+				legacyDisabled,
+				impressionListenerEnabled,
+			)
+		}
 
 		select {
 		case msg := <-impressionsIncoming:
@@ -144,19 +152,37 @@ func PostImpressions(
 // ImpressionsFlush Task to flush cached impressions.
 func ImpressionsFlush(
 	impressionsRecorderAdapter recorder.ImpressionsRecorder,
-	impressionStorageAdapter storage.ImpressionStorage,
-	impressionsPerPost int64,
+	impressionStorageAdapter *redis.ImpressionStorageAdapter,
+	size *int64,
 	legacyDisabled,
 	impressionListenerEnabled bool,
-) {
+) error {
+	if RequestOperation(ImpressionsOperation) {
+		defer FinishOperation(ImpressionsOperation)
+	} else {
+		log.Debug.Println("Cannot execute flush. Another operation is performing operations on Impressions.")
+		return errors.New("Cannot execute flush. Another operation is performing operations on Impressions")
+	}
+	elementsToFlush := api.MaxSizeToFlush
 
-	fmt.Println("Flushing impressions list")
-	taskPostImpressions(
-		0,
-		impressionsRecorderAdapter,
-		impressionStorageAdapter,
-		impressionsPerPost,
-		legacyDisabled,
-		impressionListenerEnabled,
-	)
+	if size != nil {
+		elementsToFlush = *size
+	}
+
+	for elementsToFlush > 0 && impressionStorageAdapter.Size() > 0 {
+		maxSize := api.DefaultSize
+		if elementsToFlush < api.DefaultSize {
+			maxSize = elementsToFlush
+		}
+		taskPostImpressions(
+			0,
+			impressionsRecorderAdapter,
+			impressionStorageAdapter,
+			maxSize,
+			legacyDisabled,
+			impressionListenerEnabled,
+		)
+		elementsToFlush = elementsToFlush - api.DefaultSize
+	}
+	return nil
 }

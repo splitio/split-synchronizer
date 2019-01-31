@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio"
 	"github.com/splitio/split-synchronizer/splitio/fetcher"
 	"github.com/splitio/split-synchronizer/splitio/recorder"
 	"github.com/splitio/split-synchronizer/splitio/storage"
@@ -53,7 +54,7 @@ func gracefulShutdownProducer(sigs chan os.Signal, gracefulShutdownWaitingGroup 
 	fmt.Println(" * Waiting goroutines stop")
 	gracefulShutdownWaitingGroup.Wait()
 	fmt.Println(" * Shutting it down - see you soon!")
-	os.Exit(0)
+	os.Exit(splitio.SuccessfulOperation)
 }
 
 func splitFetcherFactory() fetcher.SplitFetcher {
@@ -112,6 +113,12 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		waServer.Router().GET("/admin/healthcheck", producerControllers.HealthCheck)
 		waServer.Router().GET("/admin/dashboard", producerControllers.Dashboard)
 		waServer.Router().GET("/admin/dashboard/segmentKeys/:segment", producerControllers.DashboardSegmentKeys)
+		waServer.Router().GET("/admin/events/queueSize", producerControllers.GetEventsQueueSize)
+		waServer.Router().GET("/admin/impressions/queueSize", producerControllers.GetImpressionsQueueSize)
+		waServer.Router().POST("/admin/events/drop/*size", producerControllers.DropEvents)
+		waServer.Router().POST("/admin/impressions/drop/*size", producerControllers.DropImpressions)
+		waServer.Router().POST("/admin/events/flush/*size", producerControllers.FlushEvents)
+		waServer.Router().POST("/admin/impressions/flush/*size", producerControllers.FlushImpressions)
 
 		waServer.Run()
 	}()
