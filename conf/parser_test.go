@@ -37,7 +37,7 @@ func TestLoadFromFileWithErrorOnSection(t *testing.T) {
 		t.Error("It should inform an error")
 	}
 	if err.Error() != "\"redisError\" is not a valid property in configuration" {
-		t.Error("Wrong message error")
+		t.Error("Wrong message error: actual:", err.Error())
 	}
 }
 
@@ -47,7 +47,7 @@ func TestLoadFromFileWithErrorOnSectionAndChildShouldInformSection(t *testing.T)
 		t.Error("It should inform an error")
 	}
 	if err.Error() != "\"redisError\" is not a valid property in configuration" {
-		t.Error("Wrong message error")
+		t.Error("Wrong message error: actual:", err.Error())
 	}
 }
 
@@ -57,7 +57,7 @@ func TestLoadFromFileWithErrorInsideSection(t *testing.T) {
 		t.Error("It should inform an error")
 	}
 	if err.Error() != "\"redis.hostError\" is not a valid property in configuration" {
-		t.Error("Wrong message error")
+		t.Error("Wrong message error: actual:", err.Error())
 	}
 }
 
@@ -67,7 +67,7 @@ func TestLoadFromFileWithErrorOnPropertyInt(t *testing.T) {
 		t.Error("It should inform an error")
 	}
 	if err.Error() != "\"metricsError\" is not a valid property in configuration" {
-		t.Error("Wrong message error")
+		t.Error("Wrong message error: actual:", err.Error())
 	}
 }
 
@@ -77,7 +77,7 @@ func TestLoadFromFileWithErrorOnPropertyString(t *testing.T) {
 		t.Error("It should inform an error")
 	}
 	if err.Error() != "\"apiKeyError\" is not a valid property in configuration" {
-		t.Error("Wrong message error")
+		t.Error("Wrong message error: actual:", err.Error())
 	}
 }
 
