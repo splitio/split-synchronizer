@@ -1,3 +1,5 @@
+2.1.1 (March 7, 2019)
+ - Updated Splits refreshing rate.
 2.1.0 (Jan 31, 2019)
  - Added endpoints for flushing and dropping Impressions/Events mannually.
  - Added new metrics on Synchronizer Dashboard in Producer Mode to reflect the queue size of Events and Impressions.
