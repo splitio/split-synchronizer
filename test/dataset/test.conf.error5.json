@@ -6,7 +6,7 @@
 	"impressionsRefreshRate":80,
 	"impressionsPerPost":56000,
 	"impressionsThreads": 1,
-	"metricsError":60,
+	"metricsRefreshRate":60,
 
 	"redis": {
     "host":"localhost",
