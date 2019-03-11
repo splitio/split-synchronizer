@@ -9,3 +9,4 @@ services:
 
 script:
   - go test -v -cover $(go list ./... | grep -v /vendor/)
+  - cd release && sh build.sh
