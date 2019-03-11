@@ -38,7 +38,7 @@ before_deploy:
   - cp split-sync-win_*.zip ../split-sync-win.zip
   # List files
   - ls -R ${TRAVIS_BUILD_DIR}/release/deploy
-  - aws s3 cp ${TRAVIS_BUILD_DIR}/release/deploy/synchronizer synchronizer-temp/
+  - aws s3 sync ${TRAVIS_BUILD_DIR}/release/deploy/synchronizer s3://synchronizer-temp/
 
 deploy:
   - provider: s3
