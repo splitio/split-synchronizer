@@ -8,8 +8,9 @@ services:
   - redis-server
 
 before_script:
-  BUILD_VERSION=$(tail -n 1 splitio/version.go | awk '{print $4}' | tr -d '"')
-  mkdir -p release/deploy/synchronizer/${BUILD_VERSION}
+  - BUILD_VERSION=$(tail -n 1 splitio/version.go | awk '{print $4}' | tr -d '"')
+  - echo ${BUILD_VERSION}
+  - mkdir -p release/deploy/synchronizer/${BUILD_VERSION}
 
 script:
   - go test -v -cover $(go list ./... | grep -v /vendor/)
@@ -30,4 +31,4 @@ after_script:
   # List
   - cd ../../..
   - pwd
-  - ls -R .
+  - ls -R deploy
