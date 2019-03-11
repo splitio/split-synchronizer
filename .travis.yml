@@ -31,7 +31,8 @@ before_deploy:
   - cp install_osx_*.bin ../install_osx.bin
   - cp split-sync-win_*.zip ../split-sync-win.zip
   # List files
-  - ls -R ${TRAVIS_BUILD_DIR}/release/deploy
+  - cd ${TRAVIS_BUILD_DIR}
+  - ls -R release/deploy
 
 deploy:
   - provider: s3
@@ -45,6 +46,6 @@ deploy:
     on:
       branch: master
   - provider: script
-    script: bash ${TRAVIS_BUILD_DIR}/docker_push
+    script: bash docker_push
     on:
       branch: travis-build-INFRA-1014
