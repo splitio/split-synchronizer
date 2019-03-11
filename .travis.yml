@@ -47,7 +47,7 @@ deploy:
     secret_access_key: ${AWS_SECRET_ACCESS_KEY}
     bucket: "synchronizer-temp"
     region: us-east-1
-    #local_dir: ${TRAVIS_BUILD_DIR}/release/deploy/synchronizer
+    local_dir: ${TRAVIS_BUILD_DIR}/release/deploy/synchronizer
     skip_cleanup: true
     #acl: public_read
     on:
