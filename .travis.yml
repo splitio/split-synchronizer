@@ -9,15 +9,13 @@ services:
 
 before_script:
   - BUILD_VERSION=$(tail -n 1 splitio/version.go | awk '{print $4}' | tr -d '"')
-  - echo ${BUILD_VERSION}
   - mkdir -p release/deploy/synchronizer/${BUILD_VERSION}
 
 script:
-  #- go test -v -cover $(go list ./... | grep -v /vendor/)
-  - echo "hola"
+  - go test -v -cover $(go list ./... | grep -v /vendor/)
 
 after_success:
-  #- docker build -t splitsoftware/split-synchronizer:${BUILD_VERSION} -t splitsoftware/split-synchronizer:latest .
+  - docker build -t splitsoftware/split-synchronizer:${BUILD_VERSION} -t splitsoftware/split-synchronizer:latest .
   - cd release
   - sh build.sh
 
@@ -39,14 +37,14 @@ deploy:
   - provider: s3
     access_key_id: ${AWS_ACCESS_KEY_ID}
     secret_access_key: ${AWS_SECRET_ACCESS_KEY}
-    bucket: synchronizer-temp
+    bucket: downloads.split.io
     region: us-east-1
     local_dir: ${TRAVIS_BUILD_DIR}/release/deploy
     skip_cleanup: true
     acl: public_read
     on:
-      branch: travis-build-INFRA-1014
+      branch: master
   - provider: script
     script: bash docker_push
     on:
-      branch: master
+      branch: travis-build-INFRA-1014
