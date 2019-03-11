@@ -15,7 +15,7 @@ before_script:
 script:
   - go test -v -cover $(go list ./... | grep -v /vendor/)
 
-after_script:
+after_success:
   - docker build -t splitsoftware/split-synchronizer:${BUILD_VERSION} -t splitsoftware/split-synchronizer:latest .
   - cd release
   - sh build.sh
