@@ -31,7 +31,7 @@ before_deploy:
   - cp install_linux_*.bin ../install_linux.bin
   - cp install_osx_*.bin ../install_osx.bin
   - cp split-sync-win_*.zip ../split-sync-win.zip
-  # Debug
+  # List
   - cd ../../..
   - ls -R deploy
 
@@ -41,7 +41,7 @@ deploy:
     secret_access_key: ${AWS_SECRET_ACCESS_KEY}
     bucket: "downloads.split.io"
     region: ${AWS_DEFAULT_REGION}
-    local_dir: release/deploy/synchronizer
+    local_dir: deploy/synchronizer
     skip_cleanup: true
     acl: public_read
     on:
