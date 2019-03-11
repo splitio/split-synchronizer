@@ -5,6 +5,7 @@ go:
 
 services:
   - docker
+  - redis-server
 
 script:
   - go test -v -cover $(go list ./... | grep -v /vendor/)
