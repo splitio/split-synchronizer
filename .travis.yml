@@ -7,6 +7,18 @@ services:
   - docker
   - redis-server
 
+before_script:
+  BUILD_VERSION=$(tail -n 1 splitio/version.go | awk '{print $4}' | tr -d '"')
+  mkdir -p release/deploy/synchronizer/${BUILD_VERSION}
+
 script:
   - go test -v -cover $(go list ./... | grep -v /vendor/)
+
+after_script:
   - cd release && sh build.sh
+
+before_deploy:
+  - cp install_linux_*.bin release/deploy/synchronizer/${BUILD_VERSION}
+  - cp install_osx_*.bin release/deploy/synchronizer/${BUILD_VERSION}
+  - cp split-sync-win_*.zip release/deploy/synchronizer/${BUILD_VERSION}
+  - ls -R release/deploy
