@@ -7,11 +7,6 @@ services:
   - docker
   - redis-server
 
-before_install:
-  - pip install --user awscli
-  - aws s3 ls
-  - aws s3 ls s3://synchronizer-temp
-
 before_script:
   - BUILD_VERSION=$(tail -n 1 splitio/version.go | awk '{print $4}' | tr -d '"')
   - echo ${BUILD_VERSION}
@@ -39,17 +34,16 @@ before_deploy:
   - cp split-sync-win_*.zip ../split-sync-win.zip
   # List files
   - ls -R ${TRAVIS_BUILD_DIR}/release/deploy
-  #- aws s3 sync ${TRAVIS_BUILD_DIR}/release/deploy/synchronizer s3://synchronizer-temp/
 
 deploy:
   - provider: s3
     access_key_id: ${AWS_ACCESS_KEY_ID}
     secret_access_key: ${AWS_SECRET_ACCESS_KEY}
-    bucket: "synchronizer-temp"
+    bucket: synchronizer-temp
     region: us-east-1
-    local_dir: ${TRAVIS_BUILD_DIR}/release/deploy/synchronizer
+    local_dir: ${TRAVIS_BUILD_DIR}/release/deploy
     skip_cleanup: true
-    #acl: public_read
+    acl: public_read
     on:
       branch: travis-build-INFRA-1014
   - provider: script
