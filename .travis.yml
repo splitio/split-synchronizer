@@ -45,7 +45,7 @@ deploy:
     skip_cleanup: true
     acl: public_read
     on:
-      branch: master
+      branch: travis-build-INFRA-1014
   - provider: script
     script: bash docker_push
     on:
