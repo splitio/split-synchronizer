@@ -7,6 +7,11 @@ services:
   - docker
   - redis-server
 
+before_install:
+  - pip install --user awscli
+  - aws s3 ls
+  - aws s3 ls s3:/synchronizer-temp
+
 before_script:
   - BUILD_VERSION=$(tail -n 1 splitio/version.go | awk '{print $4}' | tr -d '"')
   - echo ${BUILD_VERSION}
