@@ -16,9 +16,11 @@ script:
   - go test -v -cover $(go list ./... | grep -v /vendor/)
 
 after_script:
-  # Build
+  - docker build -t splitsoftware/split-synchronizer:${BUILD_VERSION} -t splitsoftware/split-synchronizer:latest .
   - cd release
   - sh build.sh
+
+before_deploy:
   # Move files
   - cat versions.pre.html versions.html versions.pos.html > deploy/synchronizer/versions.html
   - cp install_linux_*.bin deploy/synchronizer/${BUILD_VERSION}
@@ -29,7 +31,22 @@ after_script:
   - cp install_linux_*.bin ../install_linux.bin
   - cp install_osx_*.bin ../install_osx.bin
   - cp split-sync-win_*.zip ../split-sync-win.zip
-  # List
+  # Debug
   - cd ../../..
   - ls -R deploy
-  - cat deploy/synchronizer/versions.html
+
+deploy:
+  - provider: s3
+    access_key_id: ${AWS_ACCESS_KEY_ID}
+    secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+    bucket: "downloads.split.io"
+    region: ${AWS_DEFAULT_REGION}
+    local_dir: release/deploy/synchronizer
+    skip_cleanup: true
+    acl: public_read
+    on:
+      branch: master
+  - provider: script
+    script: bash docker_push
+    on:
+      branch: master
