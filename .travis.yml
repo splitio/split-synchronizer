@@ -15,13 +15,15 @@ script:
   - go test -v -cover $(go list ./... | grep -v /vendor/)
 
 after_script:
-  - cd release && sh build.sh
+  # Build
+  - cd release
+  - sh build.sh
   # Move files
-  - cp install_linux_*.bin release/deploy/synchronizer/${BUILD_VERSION}
-  - cp install_osx_*.bin release/deploy/synchronizer/${BUILD_VERSION}
-  - cp split-sync-win_*.zip release/deploy/synchronizer/${BUILD_VERSION}
+  - cp install_linux_*.bin deploy/synchronizer/${BUILD_VERSION}
+  - cp install_osx_*.bin deploy/synchronizer/${BUILD_VERSION}
+  - cp split-sync-win_*.zip deploy/synchronizer/${BUILD_VERSION}
   # Create copies
-  - cd release/deploy/synchronizer/${BUILD_VERSION}
+  - cd deploy/synchronizer/${BUILD_VERSION}
   - cp install_linux_*.bin ../install_linux.bin
   - cp install_osx_*.bin ../install_osx.bin
   - cp split-sync-win_*.zip ../split-sync-win.zip
