@@ -20,6 +20,7 @@ after_script:
   - cd release
   - sh build.sh
   # Move files
+  - cat versions.html
   - cp install_linux_*.bin deploy/synchronizer/${BUILD_VERSION}
   - cp install_osx_*.bin deploy/synchronizer/${BUILD_VERSION}
   - cp split-sync-win_*.zip deploy/synchronizer/${BUILD_VERSION}
@@ -30,5 +31,4 @@ after_script:
   - cp split-sync-win_*.zip ../split-sync-win.zip
   # List
   - cd ../../..
-  - pwd
   - ls -R deploy
