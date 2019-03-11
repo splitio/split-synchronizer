@@ -47,5 +47,6 @@ deploy:
       branch: master
   - provider: script
     script: bash docker_push
+    skip_cleanup: true
     on:
       branch: travis-build-INFRA-1014
