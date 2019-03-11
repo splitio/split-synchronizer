@@ -16,9 +16,15 @@ script:
 
 after_script:
   - cd release && sh build.sh
-
-before_deploy:
+  # Move files
   - cp install_linux_*.bin release/deploy/synchronizer/${BUILD_VERSION}
   - cp install_osx_*.bin release/deploy/synchronizer/${BUILD_VERSION}
   - cp split-sync-win_*.zip release/deploy/synchronizer/${BUILD_VERSION}
-  - ls -R release/deploy
+  # Create copies
+  - cd release/deploy/synchronizer/${BUILD_VERSION}
+  - cp install_linux_*.bin ../install_linux.bin
+  - cp install_osx_*.bin ../install_osx.bin
+  - cp split-sync-win_*.zip ../split-sync-win.zip
+  # List
+  - cd ../../..
+  - ls -R deploy
