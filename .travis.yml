@@ -10,7 +10,7 @@ services:
 before_install:
   - pip install --user awscli
   - aws s3 ls
-  - aws s3 ls s3:/synchronizer-temp
+  - aws s3 ls s3://synchronizer-temp
 
 before_script:
   - BUILD_VERSION=$(tail -n 1 splitio/version.go | awk '{print $4}' | tr -d '"')
@@ -38,6 +38,7 @@ before_deploy:
   - cp split-sync-win_*.zip ../split-sync-win.zip
   # List files
   - ls -R ${TRAVIS_BUILD_DIR}/release/deploy
+  - aws s3 cp ${TRAVIS_BUILD_DIR}/release/deploy/synchronizer synchronizer-temp/
 
 deploy:
   - provider: s3
