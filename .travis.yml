@@ -1,0 +1,10 @@
+language: go
+
+go:
+  - 1.8.3
+
+services:
+  - docker
+
+script:
+  - go test -v -cover $(go list ./... | grep -v /vendor/)
