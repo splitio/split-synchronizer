@@ -29,4 +29,5 @@ after_script:
   - cp split-sync-win_*.zip ../split-sync-win.zip
   # List
   - cd ../../..
-  - ls -R deploy
+  - pwd
+  - ls -R .
