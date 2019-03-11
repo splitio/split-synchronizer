@@ -45,6 +45,6 @@ deploy:
     on:
       branch: master
   - provider: script
-    script: bash docker_push
+    script: bash ${TRAVIS_BUILD_DIR}/docker_push
     on:
       branch: travis-build-INFRA-1014
