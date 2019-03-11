@@ -39,7 +39,7 @@ before_deploy:
   - cp split-sync-win_*.zip ../split-sync-win.zip
   # List files
   - ls -R ${TRAVIS_BUILD_DIR}/release/deploy
-  - aws s3 sync ${TRAVIS_BUILD_DIR}/release/deploy/synchronizer s3://synchronizer-temp/
+  #- aws s3 sync ${TRAVIS_BUILD_DIR}/release/deploy/synchronizer s3://synchronizer-temp/
 
 deploy:
   - provider: s3
@@ -47,9 +47,9 @@ deploy:
     secret_access_key: ${AWS_SECRET_ACCESS_KEY}
     bucket: "synchronizer-temp"
     region: us-east-1
-    local_dir: ${TRAVIS_BUILD_DIR}/release/deploy/synchronizer
+    #local_dir: ${TRAVIS_BUILD_DIR}/release/deploy/synchronizer
     skip_cleanup: true
-    acl: public_read
+    #acl: public_read
     on:
       branch: travis-build-INFRA-1014
   - provider: script
