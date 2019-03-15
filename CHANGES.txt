@@ -1,3 +1,5 @@
+2.1.2 ()
+ - Added logic for storing trafficTypeName in redis.
 2.1.1 (March 8, 2019)
  - Updated Splits refreshing rate.
 2.1.0 (Jan 31, 2019)

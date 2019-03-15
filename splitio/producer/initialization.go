@@ -73,6 +73,10 @@ func segmentStorageFactory() storage.SegmentStorageFactory {
 	return storage.SegmentStorageMainFactory{}
 }
 
+func trafficTypeStorageFactory() storage.TrafficTypeStorage {
+	return redis.NewTrafficTypeStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+}
+
 func startLoop(loopTime int64) {
 	for {
 		time.Sleep(time.Duration(loopTime) * time.Millisecond)
@@ -93,6 +97,8 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 
 	segmentFetcher := segmentFetcherFactory()
 	segmentStorage := segmentStorageFactory()
+
+	trafficTypeStorage := trafficTypeStorageFactory()
 
 	go func() {
 		// WebAdmin configuration
@@ -123,7 +129,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		waServer.Run()
 	}()
 
-	go task.FetchSplits(splitFetcher, splitStorage, conf.Data.SplitsFetchRate, gracefulShutdownWaitingGroup)
+	go task.FetchSplits(splitFetcher, splitStorage, conf.Data.SplitsFetchRate, gracefulShutdownWaitingGroup, trafficTypeStorage)
 
 	go task.FetchSegments(segmentFetcher, segmentStorage, conf.Data.SegmentFetchRate, gracefulShutdownWaitingGroup)
 
