@@ -34,6 +34,9 @@ const _eventsListNamespace = "SPLITIO.events"
 //Impressions
 const _impressionsQueueNamespace = "SPLITIO.impressions"
 
+//TrafficTypeNames
+const _trafficTypeNamespace = "SPLITIO.trafficType"
+
 type prefixAdapter struct {
 	prefix string
 }
@@ -87,4 +90,8 @@ func (p prefixAdapter) eventsListNamespace() string {
 
 func (p prefixAdapter) impressionsQueueNamespace() string {
 	return fmt.Sprint(p.setPrefixPattern(_impressionsQueueNamespace))
+}
+
+func (p prefixAdapter) trafficTypeNamespace() string {
+	return fmt.Sprintf(p.setPrefixPattern(_trafficTypeNamespace))
 }
