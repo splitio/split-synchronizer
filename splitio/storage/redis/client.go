@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"crypto/tls"
 
 	"github.com/go-redis/redis"
 	"github.com/splitio/split-synchronizer/conf"
@@ -91,6 +92,12 @@ func NewInstance(opt conf.RedisSection) (redis.UniversalClient, error) {
 			}), nil
 	}
 
+	fmt.Println("Using Redis TLS:", opt.TLS)
+	var tlsConfig *tls.Config
+	if opt.TLS {
+		tlsConfig = &tls.Config{ServerName: opt.Host}
+	}
+
 	return redis.NewUniversalClient(
 		&redis.UniversalOptions{
 			// Network:      opt.Network,
@@ -102,6 +109,7 @@ func NewInstance(opt conf.RedisSection) (redis.UniversalClient, error) {
 			DialTimeout:  time.Duration(opt.DialTimeout) * time.Second,
 			ReadTimeout:  time.Duration(opt.ReadTimeout) * time.Second,
 			WriteTimeout: time.Duration(opt.WriteTimeout) * time.Second,
+			TLSConfig: 	  tlsConfig,
 		}), nil
 }
 

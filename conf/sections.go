@@ -27,6 +27,9 @@ type RedisSection struct {
 	// Default is 10 seconds.
 	ReadTimeout int `json:"readTimeout" split-default-value:"10" split-cli-option:"redis-read-timeout" split-cli-description:"Redis connection read timeout"`
 
+	// Boolean for TLS
+	TLS bool `json:"TLS" split-default-value:"false" split-cli-option:"redis-tls" split-cli-description:"Redis connection use TLS"`
+
 	// Timeout for socket writes. If reached, commands will fail
 	// with a timeout instead of blocking.
 	// Default is 3 seconds.
