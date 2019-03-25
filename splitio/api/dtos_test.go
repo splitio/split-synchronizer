@@ -24,7 +24,7 @@ var splitMock = `{
   "defaultTreatment": "of",
   "changeNumber": 1491244291288,
   "algo": 2,
-  "configurations": {"on":{"size":15}},
+  "configurations": {"on":"{\"size\":15}"},
   "conditions": [
     {
       "conditionType": "ROLLOUT",
@@ -144,11 +144,10 @@ func TestSplitDTOWithConfigs(t *testing.T) {
 			t.Error("Marshal struct mal formed [Killed]")
 		}
 
-		if string(splitChangesDtoFromMarshal.Splits[0].Configurations) !=
-			string(splitChangesDtoFromMock.Splits[0].Configurations) {
+		if string(splitChangesDtoFromMarshal.Splits[0].Configurations["on"]) !=
+			string(splitChangesDtoFromMock.Splits[0].Configurations["on"]) {
 			t.Error("Marshal struct mal formed [Configurations]")
 		}
-
 	}
 }
 
