@@ -24,6 +24,7 @@ var splitMock = `{
   "defaultTreatment": "of",
   "changeNumber": 1491244291288,
   "algo": 2,
+  "configurations": {"on":{"size":15}},
   "conditions": [
     {
       "conditionType": "ROLLOUT",
@@ -103,6 +104,49 @@ func TestSplitDTO(t *testing.T) {
 		if splitChangesDtoFromMarshal.Splits[0].Killed !=
 			splitChangesDtoFromMock.Splits[0].Killed {
 			t.Error("Marshal struct mal formed [Killed]")
+		}
+
+	}
+}
+
+func TestSplitDTOWithConfigs(t *testing.T) {
+	mockedData := fmt.Sprintf(splitsMock, splitMock)
+
+	var splitChangesDtoFromMock SplitChangesDTO
+	var splitChangesDtoFromMarshal SplitChangesDTO
+
+	err := json.Unmarshal([]byte(mockedData), &splitChangesDtoFromMock)
+	if err != nil {
+		t.Error("Error parsing split changes JSON ", err)
+	}
+
+	if dataSerialize, err := splitChangesDtoFromMock.Splits[0].MarshalBinary(); err != nil {
+		t.Error(err)
+	} else {
+		marshalData := fmt.Sprintf(splitsMock, dataSerialize)
+		err2 := json.Unmarshal([]byte(marshalData), &splitChangesDtoFromMarshal)
+		if err2 != nil {
+			t.Error("Error parsing split changes JSON ", err)
+		}
+
+		if splitChangesDtoFromMarshal.Splits[0].ChangeNumber !=
+			splitChangesDtoFromMock.Splits[0].ChangeNumber {
+			t.Error("Marshal struct mal formed [ChangeNumber]")
+		}
+
+		if splitChangesDtoFromMarshal.Splits[0].Name !=
+			splitChangesDtoFromMock.Splits[0].Name {
+			t.Error("Marshal struct mal formed [Name]")
+		}
+
+		if splitChangesDtoFromMarshal.Splits[0].Killed !=
+			splitChangesDtoFromMock.Splits[0].Killed {
+			t.Error("Marshal struct mal formed [Killed]")
+		}
+
+		if string(splitChangesDtoFromMarshal.Splits[0].Configurations) !=
+			string(splitChangesDtoFromMock.Splits[0].Configurations) {
+			t.Error("Marshal struct mal formed [Configurations]")
 		}
 
 	}
