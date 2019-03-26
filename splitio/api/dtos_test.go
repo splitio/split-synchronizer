@@ -17,15 +17,48 @@ var splitMock = `{
   "trafficTypeName": "user",
   "name": "DEMO_MURMUR2",
   "trafficAllocation": 100,
-  "trafficAllocationSeed": 1314112417,
-  "seed": -2059033614,
+  "trafficAllocationSeed": -929871296,
+  "seed": -871033445,
   "status": "ACTIVE",
   "killed": false,
-  "defaultTreatment": "of",
+  "defaultTreatment": "off",
   "changeNumber": 1491244291288,
   "algo": 2,
-  "configurations": {"on":"{\"size\":15}"},
+  "configurations": {
+    "on": "{\"color\": \"blue\",\"size\": 13}"
+  },
   "conditions": [
+    {
+      "conditionType": "WHITELIST",
+      "matcherGroup": {
+        "combiner": "AND",
+        "matchers": [
+          {
+            "keySelector": null,
+            "matcherType": "WHITELIST",
+            "negate": false,
+            "userDefinedSegmentMatcherData": null,
+            "whitelistMatcherData": {
+              "whitelist": [
+                "343454"
+              ]
+            },
+            "unaryNumericMatcherData": null,
+            "betweenMatcherData": null,
+            "booleanMatcherData": null,
+            "dependencyMatcherData": null,
+            "stringMatcherData": null
+          }
+        ]
+      },
+      "partitions": [
+        {
+          "treatment": "on",
+          "size": 100
+        }
+      ],
+      "label": "whitelisted"
+    },
     {
       "conditionType": "ROLLOUT",
       "matcherGroup": {
@@ -41,21 +74,24 @@ var splitMock = `{
             "userDefinedSegmentMatcherData": null,
             "whitelistMatcherData": null,
             "unaryNumericMatcherData": null,
-            "betweenMatcherData": null
+            "betweenMatcherData": null,
+            "booleanMatcherData": null,
+            "dependencyMatcherData": null,
+            "stringMatcherData": null
           }
         ]
       },
       "partitions": [
         {
           "treatment": "on",
-          "size": 0
+          "size": 50
         },
         {
-          "treatment": "of",
-          "size": 100
+          "treatment": "off",
+          "size": 50
         }
       ],
-      "label": "in segment all"
+      "label": "default rule"
     }
   ]
 }`
