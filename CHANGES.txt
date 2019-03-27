@@ -1,3 +1,5 @@
+2.1.2 (, 2019)
+ - Added logic to store dynamic configs on splitChanges in redis mode.
 2.1.1 (March 8, 2019)
  - Updated Splits refreshing rate.
 2.1.0 (Jan 31, 2019)
