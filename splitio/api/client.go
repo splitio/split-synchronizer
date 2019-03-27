@@ -22,8 +22,11 @@ const eventsURL = "https://events.split.io/api"
 const envSdkURLNamespace = "SPLITIO_SDK_URL"
 const envEventsURLNamespace = "SPLITIO_EVENTS_URL"
 
-var sdkClient *Client
-var eventsClient *Client
+// SdkClient exporting
+var SdkClient *Client
+
+// EventsClient exporting
+var EventsClient *Client
 
 // HttpError represetns a http error
 type HttpError struct {
@@ -40,19 +43,19 @@ func (h HttpError) Error() string {
 func Initialize() {
 	envSdkURL := os.Getenv(envSdkURLNamespace)
 	if envSdkURL != "" {
-		sdkClient = NewClient(envSdkURL)
+		SdkClient = NewClient(envSdkURL)
 		log.Debug.Println("SDK API Client created with endpoint ", envSdkURL)
 	} else {
-		sdkClient = NewClient(sdkURL)
+		SdkClient = NewClient(sdkURL)
 		log.Debug.Println("SDK API Client created with endpoint ", sdkURL)
 	}
 
 	envEventsURL := os.Getenv(envEventsURLNamespace)
 	if envEventsURL != "" {
-		eventsClient = NewClient(envEventsURL)
+		EventsClient = NewClient(envEventsURL)
 		log.Debug.Println("EVENTS API Client created with endpoint ", envEventsURL)
 	} else {
-		eventsClient = NewClient(eventsURL)
+		EventsClient = NewClient(eventsURL)
 		log.Debug.Println("EVENTS API Client created with endpoint ", eventsURL)
 	}
 }
