@@ -6,7 +6,7 @@ import (
 )
 
 func postToEventsServer(url string, data []byte, sdkVersion string, machineIP string, machineName string) error {
-	var _client = *eventsClient
+	var _client = *EventsClient
 	_client.ResetHeaders()
 	_client.AddHeader("SplitSDKVersion", sdkVersion)
 	_client.AddHeader("SplitSDKMachineIP", machineIP)
