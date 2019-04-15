@@ -9,7 +9,7 @@ import (
 )
 
 func sdkFetch(url string) ([]byte, error) {
-	data, err := sdkClient.Get(url)
+	data, err := SdkClient.Get(url)
 	if err != nil {
 		return nil, err
 	}
