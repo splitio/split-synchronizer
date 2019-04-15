@@ -17,14 +17,48 @@ var splitMock = `{
   "trafficTypeName": "user",
   "name": "DEMO_MURMUR2",
   "trafficAllocation": 100,
-  "trafficAllocationSeed": 1314112417,
-  "seed": -2059033614,
+  "trafficAllocationSeed": -929871296,
+  "seed": -871033445,
   "status": "ACTIVE",
   "killed": false,
-  "defaultTreatment": "of",
+  "defaultTreatment": "off",
   "changeNumber": 1491244291288,
   "algo": 2,
+  "configurations": {
+    "on": "{\"color\": \"blue\",\"size\": 13}"
+  },
   "conditions": [
+    {
+      "conditionType": "WHITELIST",
+      "matcherGroup": {
+        "combiner": "AND",
+        "matchers": [
+          {
+            "keySelector": null,
+            "matcherType": "WHITELIST",
+            "negate": false,
+            "userDefinedSegmentMatcherData": null,
+            "whitelistMatcherData": {
+              "whitelist": [
+                "343454"
+              ]
+            },
+            "unaryNumericMatcherData": null,
+            "betweenMatcherData": null,
+            "booleanMatcherData": null,
+            "dependencyMatcherData": null,
+            "stringMatcherData": null
+          }
+        ]
+      },
+      "partitions": [
+        {
+          "treatment": "on",
+          "size": 100
+        }
+      ],
+      "label": "whitelisted"
+    },
     {
       "conditionType": "ROLLOUT",
       "matcherGroup": {
@@ -40,21 +74,24 @@ var splitMock = `{
             "userDefinedSegmentMatcherData": null,
             "whitelistMatcherData": null,
             "unaryNumericMatcherData": null,
-            "betweenMatcherData": null
+            "betweenMatcherData": null,
+            "booleanMatcherData": null,
+            "dependencyMatcherData": null,
+            "stringMatcherData": null
           }
         ]
       },
       "partitions": [
         {
           "treatment": "on",
-          "size": 0
+          "size": 50
         },
         {
-          "treatment": "of",
-          "size": 100
+          "treatment": "off",
+          "size": 50
         }
       ],
-      "label": "in segment all"
+      "label": "default rule"
     }
   ]
 }`
@@ -105,6 +142,48 @@ func TestSplitDTO(t *testing.T) {
 			t.Error("Marshal struct mal formed [Killed]")
 		}
 
+	}
+}
+
+func TestSplitDTOWithConfigs(t *testing.T) {
+	mockedData := fmt.Sprintf(splitsMock, splitMock)
+
+	var splitChangesDtoFromMock SplitChangesDTO
+	var splitChangesDtoFromMarshal SplitChangesDTO
+
+	err := json.Unmarshal([]byte(mockedData), &splitChangesDtoFromMock)
+	if err != nil {
+		t.Error("Error parsing split changes JSON ", err)
+	}
+
+	if dataSerialize, err := splitChangesDtoFromMock.Splits[0].MarshalBinary(); err != nil {
+		t.Error(err)
+	} else {
+		marshalData := fmt.Sprintf(splitsMock, dataSerialize)
+		err2 := json.Unmarshal([]byte(marshalData), &splitChangesDtoFromMarshal)
+		if err2 != nil {
+			t.Error("Error parsing split changes JSON ", err)
+		}
+
+		if splitChangesDtoFromMarshal.Splits[0].ChangeNumber !=
+			splitChangesDtoFromMock.Splits[0].ChangeNumber {
+			t.Error("Marshal struct mal formed [ChangeNumber]")
+		}
+
+		if splitChangesDtoFromMarshal.Splits[0].Name !=
+			splitChangesDtoFromMock.Splits[0].Name {
+			t.Error("Marshal struct mal formed [Name]")
+		}
+
+		if splitChangesDtoFromMarshal.Splits[0].Killed !=
+			splitChangesDtoFromMock.Splits[0].Killed {
+			t.Error("Marshal struct mal formed [Killed]")
+		}
+
+		if string(splitChangesDtoFromMarshal.Splits[0].Configurations["on"]) !=
+			string(splitChangesDtoFromMock.Splits[0].Configurations["on"]) {
+			t.Error("Marshal struct mal formed [Configurations]")
+		}
 	}
 }
 

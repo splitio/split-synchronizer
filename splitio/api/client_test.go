@@ -24,8 +24,8 @@ func before() {
 }
 
 func reset() {
-	sdkClient = nil
-	eventsClient = nil
+	SdkClient = nil
+	EventsClient = nil
 }
 
 func TestInitializeProd(t *testing.T) {
@@ -35,11 +35,11 @@ func TestInitializeProd(t *testing.T) {
 
 	Initialize()
 
-	if sdkClient == nil {
+	if SdkClient == nil {
 		t.Error("SDK client not initialized")
 	}
 
-	if eventsClient == nil {
+	if EventsClient == nil {
 		t.Error("Events client not initialized")
 	}
 
@@ -54,11 +54,11 @@ func TestInitialize(t *testing.T) {
 
 	Initialize()
 
-	if sdkClient == nil {
+	if SdkClient == nil {
 		t.Error("SDK client not initialized")
 	}
 
-	if eventsClient == nil {
+	if EventsClient == nil {
 		t.Error("Events client not initialized")
 	}
 
@@ -77,7 +77,7 @@ func TestGet(t *testing.T) {
 
 	Initialize()
 
-	txt, errg := sdkClient.Get("/")
+	txt, errg := SdkClient.Get("/")
 	if errg != nil {
 		t.Error(errg)
 	}
@@ -105,7 +105,7 @@ func TestGetGZIP(t *testing.T) {
 
 	Initialize()
 
-	txt, errg := sdkClient.Get("/")
+	txt, errg := SdkClient.Get("/")
 	if errg != nil {
 		t.Error(errg)
 	}
@@ -129,8 +129,8 @@ func TestPost(t *testing.T) {
 
 	Initialize()
 
-	sdkClient.AddHeader("someHeader", "HeaderValue")
-	errp := sdkClient.Post("/", []byte("some text"))
+	SdkClient.AddHeader("someHeader", "HeaderValue")
+	errp := SdkClient.Post("/", []byte("some text"))
 	if errp != nil {
 		t.Error(errp)
 	}
@@ -150,14 +150,14 @@ func TestHeaders(t *testing.T) {
 
 	Initialize()
 
-	sdkClient.AddHeader("someHeader", "HeaderValue")
-	_, ok1 := sdkClient.headers["someHeader"]
+	SdkClient.AddHeader("someHeader", "HeaderValue")
+	_, ok1 := SdkClient.headers["someHeader"]
 	if !ok1 {
 		t.Error("Header could not be added")
 	}
 
-	sdkClient.ResetHeaders()
-	_, ok2 := sdkClient.headers["someHeader"]
+	SdkClient.ResetHeaders()
+	_, ok2 := SdkClient.headers["someHeader"]
 	if ok2 {
 		t.Error("Reset Header fails")
 	}
