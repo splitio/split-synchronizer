@@ -343,4 +343,6 @@ func TestFlushEventsNilSize(t *testing.T) {
 			t.Error("It should evict 25000 elements. The remaining elements are:", total)
 		}
 	}()
+
+	redis.Client.Del("posteventunittest.SPLITIO.events")
 }
