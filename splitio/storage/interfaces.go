@@ -61,4 +61,5 @@ type TrafficTypeStorage interface {
 	// Save trafficType
 	Incr(trafficType string) error
 	Decr(trafficType string) error
+	Clean() error
 }

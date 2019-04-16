@@ -38,6 +38,10 @@ func taskFetchSplits(splitFetcherAdapter fetcher.SplitFetcher,
 		lastChangeNumber = -1
 	}
 
+	if lastChangeNumber == -1 {
+		trafficTypeStorageAdapter.Clean()
+	}
+
 	startTime := splitChangesLatencies.StartMeasuringLatency()
 	data, err := splitFetcherAdapter.Fetch(lastChangeNumber)
 	if err != nil {

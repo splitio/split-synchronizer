@@ -120,6 +120,7 @@ func TestEventsPOPN(t *testing.T) {
 		return
 	}
 
+	adapter.client.Del("splitsyncunittest.SPLITIO.events")
 }
 
 func TestEventsSize(t *testing.T) {

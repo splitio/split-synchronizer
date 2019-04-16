@@ -39,10 +39,9 @@ func (t TrafficTypeStorageAdapter) Incr(trafficType string) error {
 
 // Decr decrements trafficType count in Redis
 func (t TrafficTypeStorageAdapter) Decr(trafficType string) error {
+	trafficMutex.Lock()
 	defer trafficMutex.Unlock()
 	trafficTypeToDecr := t.trafficTypeNamespace() + "." + trafficType
-
-	trafficMutex.Lock()
 	v, _ := t.client.Get(trafficTypeToDecr).Int()
 	if v > 0 {
 		err := t.client.Decr(trafficTypeToDecr).Err()
@@ -51,6 +50,26 @@ func (t TrafficTypeStorageAdapter) Decr(trafficType string) error {
 			log.Error.Println(err)
 			return errors.New("Error decrementing trafficType")
 		}
+	}
+	return nil
+}
+
+// Clean erase all the trafficTypes in Redis
+func (t TrafficTypeStorageAdapter) Clean() error {
+	trafficMutex.Lock()
+	defer trafficMutex.Unlock()
+
+	trafficTypes, err := t.client.Keys(t.trafficTypeNamespace() + "*").Result()
+	if err != nil {
+		log.Error.Println("Error fetching trafficTypes in redis")
+		log.Error.Println(err)
+		return errors.New("Error fetching trafficTypes in redis")
+	}
+	err = t.client.Del(trafficTypes...).Err()
+	if err != nil {
+		log.Error.Println("Error cleaning trafficTypes in redis")
+		log.Error.Println(err)
+		return errors.New("Error cleaning trafficTypes in redis")
 	}
 	return nil
 }
