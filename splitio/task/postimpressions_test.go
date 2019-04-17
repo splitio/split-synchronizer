@@ -280,4 +280,6 @@ func TestFlushImpressionsInBatches(t *testing.T) {
 			t.Error("It should kept 2 element, but there are:", total)
 		}
 	}()
+
+	redis.Client.Del("postimpressionsintest.SPLITIO.impressions")
 }

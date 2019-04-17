@@ -55,3 +55,11 @@ type EventStorage interface {
 	//returns the first N elements from events queue
 	PopN(n int64) ([]api.RedisStoredEventDTO, error)
 }
+
+// TrafficTypeStorage interface defines trafficType storage actions
+type TrafficTypeStorage interface {
+	// Save trafficType
+	Incr(trafficType string) error
+	Decr(trafficType string) error
+	Clean() error
+}
