@@ -1,5 +1,6 @@
 2.1.3 (, 2019)
  - Added logic to store dynamic configs on splitChanges in redis mode.
+ - Added logic for storing trafficTypeName in redis.
 2.1.2 (March 27, 2019)
  - Fixed healthcheck status.
 2.1.1 (March 8, 2019)
