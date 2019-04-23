@@ -65,11 +65,13 @@ func (t TrafficTypeStorageAdapter) Clean() error {
 		log.Error.Println(err)
 		return errors.New("Error fetching trafficTypes in redis")
 	}
-	err = t.client.Del(trafficTypes...).Err()
-	if err != nil {
-		log.Error.Println("Error cleaning trafficTypes in redis")
-		log.Error.Println(err)
-		return errors.New("Error cleaning trafficTypes in redis")
+	if len(trafficTypes) > 0 {
+		err = t.client.Del(trafficTypes...).Err()
+		if err != nil {
+			log.Error.Println("Error cleaning trafficTypes in redis")
+			log.Error.Println(err)
+			return errors.New("Error cleaning trafficTypes in redis")
+		}
 	}
 	return nil
 }
