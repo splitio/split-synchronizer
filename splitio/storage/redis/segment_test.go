@@ -13,12 +13,13 @@ func TestSegmentStorageAdapter(t *testing.T) {
 	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 
 	config := conf.NewInitializedConfigData()
+	config.Redis.Prefix = "segmenttests"
 	Initialize(config.Redis)
 
 	segmentName := "some_segment"
 	var changeNumber int64 = 123123435345
 
-	segmentStorageadapter := NewSegmentStorageAdapter(Client, "")
+	segmentStorageadapter := NewSegmentStorageAdapter(Client, "segmenttests")
 
 	err := segmentStorageadapter.AddToSegment(segmentName, []string{})
 	if err != nil {
@@ -58,4 +59,6 @@ func TestSegmentStorageAdapter(t *testing.T) {
 		t.Error(errRs)
 	}
 
+	segmentStorageadapter.client.Del("segmenttests.SPLITIO.segment.some_segment.till")
+	segmentStorageadapter.client.Del("segmenttests.SPLITIO.segment.some_segment")
 }

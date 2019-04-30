@@ -1,3 +1,6 @@
+2.2.0 (April 30, 2019)
+ - Added logic to store Dynamic Configurations when splitChanges is called in redis mode.
+ - Added logic to store TrafficTypeNames when splitChanges is called in redis mode.
 2.1.2 (March 27, 2019)
  - Fixed healthcheck status.
 2.1.1 (March 8, 2019)
