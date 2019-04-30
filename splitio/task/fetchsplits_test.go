@@ -10,6 +10,7 @@ import (
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/api"
+	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 )
 
 var splitsMock = `{
@@ -81,6 +82,17 @@ func (h testSplitFetcher) Fetch(changeNumber int64) (*api.SplitChangesDTO, error
 
 	var splitChangesDtoFromMock api.SplitChangesDTO
 
+	var objmap map[string]*json.RawMessage
+	if err := json.Unmarshal([]byte(mockedData), &objmap); err != nil {
+		log.Error.Println(err)
+		return nil, err
+	}
+
+	if err := json.Unmarshal(*objmap["splits"], &splitChangesDtoFromMock.RawSplits); err != nil {
+		log.Error.Println(err)
+		return nil, err
+	}
+
 	err := json.Unmarshal([]byte(mockedData), &splitChangesDtoFromMock)
 	if err != nil {
 		fmt.Println("Error parsing split changes JSON ", err)
@@ -97,9 +109,15 @@ func (h testSplitStorage) Save(split interface{}) error             { return nil
 func (h testSplitStorage) Remove(split interface{}) error           { return nil }
 func (h testSplitStorage) RegisterSegment(name string) error        { return nil }
 func (h testSplitStorage) SetChangeNumber(changeNumber int64) error { return nil }
-func (h testSplitStorage) ChangeNumber() (int64, error)             { return 1491244291288, nil }
+func (h testSplitStorage) ChangeNumber() (int64, error)             { return -1, nil }
 func (h testSplitStorage) SplitsNames() ([]string, error)           { return nil, nil }
 func (h testSplitStorage) RawSplits() ([]string, error)             { return nil, nil }
+
+type testTrafficStorage struct{}
+
+func (h testTrafficStorage) Decr(name string) error { return nil }
+func (h testTrafficStorage) Incr(name string) error { return nil }
+func (h testTrafficStorage) Clean() error           { return nil }
 func TestFetchSplits(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
 	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
@@ -110,6 +128,7 @@ func TestFetchSplits(t *testing.T) {
 	splitFetcherAdapterActive := testSplitFetcher{Status: "ACTIVE"}
 	splitFetcherAdapterArchived := testSplitFetcher{Status: "ARCHIVED"}
 	splitStorageAdapter := testSplitStorage{}
+	trafficStorageAdapter := testTrafficStorage{}
 
 	//Catching panic status and reporting error
 	func() {
@@ -119,7 +138,7 @@ func TestFetchSplits(t *testing.T) {
 			}
 		}()
 		//Test ACTIVE SPLIT
-		taskFetchSplits(splitFetcherAdapterActive, splitStorageAdapter)
+		taskFetchSplits(splitFetcherAdapterActive, splitStorageAdapter, trafficStorageAdapter)
 	}()
 
 	//Catching panic status and reporting error
@@ -130,7 +149,148 @@ func TestFetchSplits(t *testing.T) {
 			}
 		}()
 		//Test ARCHIVED SPLIT
-		taskFetchSplits(splitFetcherAdapterArchived, splitStorageAdapter)
+		taskFetchSplits(splitFetcherAdapterArchived, splitStorageAdapter, trafficStorageAdapter)
+	}()
+}
+
+func TestTrafficTypes(t *testing.T) {
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+
+	config := conf.NewInitializedConfigData()
+	config.Redis.Prefix = "trafficTest"
+	redis.Initialize(config.Redis)
+
+	testKey := "trafficTest.SPLITIO.trafficType.user"
+
+	redis.Client.Del(testKey)
+
+	if redis.Client.Get(testKey).Val() != "" {
+		t.Error("It should not exist")
+	}
+
+	redisStorageAdapter := redis.NewSplitStorageAdapter(redis.Client, "trafficTest")
+	trafficStorageAdapter := redis.NewTrafficTypeStorageAdapter(redis.Client, "trafficTest")
+
+	splitFetcherAdapterActive := testSplitFetcher{Status: "ACTIVE"}
+	//Catching panic status and reporting error
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Error("Recovered task", r)
+			}
+		}()
+		//Test ARCHIVED SPLIT
+		taskFetchSplits(splitFetcherAdapterActive, redisStorageAdapter, trafficStorageAdapter)
 	}()
 
+	if redis.Client.Get(testKey).Val() != "1" {
+		t.Error("It should be 1")
+	}
+
+	splitFetcherAdapterArchived := testSplitFetcher{Status: "ARCHIVED"}
+	//Catching panic status and reporting error
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Error("Recovered task", r)
+			}
+		}()
+		//Test ARCHIVED SPLIT
+		taskFetchSplits(splitFetcherAdapterArchived, redisStorageAdapter, trafficStorageAdapter)
+	}()
+
+	if redis.Client.Get(testKey).Val() != "0" {
+		t.Error("It should be 0")
+	}
+}
+
+func TestTrafficTypesArchived(t *testing.T) {
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+
+	config := conf.NewInitializedConfigData()
+	config.Redis.Prefix = "trafficTest"
+	redis.Initialize(config.Redis)
+
+	testKey := "trafficTest.SPLITIO.trafficType.user"
+
+	redis.Client.Del(testKey)
+
+	if redis.Client.Get(testKey).Val() != "" {
+		t.Error("It should not exist")
+	}
+
+	redisStorageAdapter := redis.NewSplitStorageAdapter(redis.Client, "trafficTest")
+	trafficStorageAdapter := redis.NewTrafficTypeStorageAdapter(redis.Client, "trafficTest")
+
+	splitFetcherAdapterArchived := testSplitFetcher{Status: "ARCHIVED"}
+	//Catching panic status and reporting error
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Error("Recovered task", r)
+			}
+		}()
+		//Test ARCHIVED SPLIT
+		taskFetchSplits(splitFetcherAdapterArchived, redisStorageAdapter, trafficStorageAdapter)
+	}()
+
+	if redis.Client.Get(testKey).Val() != "" {
+		t.Error("It should not exist")
+	}
+
+	redis.Client.Del(testKey)
+	redis.Client.Del("trafficTest.SPLITIO.splits.till")
+	redis.Client.Del("trafficTest.SPLITIO.segments.registered")
+}
+
+func TestFetchSplitsCleanup(t *testing.T) {
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+
+	//Initialize by default
+	config := conf.NewInitializedConfigData()
+	config.Redis.Prefix = "trafficCleanupTest"
+	redis.Initialize(config.Redis)
+
+	testKey := "trafficCleanupTest.SPLITIO.trafficType.user"
+
+	redis.Client.Del(testKey)
+	redis.Client.Del("trafficCleanupTest.SPLITIO.splits.till")
+
+	if redis.Client.Get(testKey).Val() != "" {
+		t.Error("It should not exist")
+	}
+
+	trafficStorageAdapter := redis.NewTrafficTypeStorageAdapter(redis.Client, "trafficCleanupTest")
+	redisStorageAdapter := redis.NewSplitStorageAdapter(redis.Client, "trafficCleanupTest")
+	splitFetcherAdapterActive := testSplitFetcher{Status: "ACTIVE"}
+
+	trafficStorageAdapter.Incr("cleanup")
+
+	//Catching panic status and reporting error
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Error("Recovered task", r)
+			}
+		}()
+		//Test ACTIVE SPLIT
+		taskFetchSplits(splitFetcherAdapterActive, redisStorageAdapter, trafficStorageAdapter)
+	}()
+
+	if redis.Client.Get(testKey).Val() != "1" {
+		t.Error("It should be 1")
+	}
+
+	if redis.Client.Get("trafficCleanupTest.SPLITIO.trafficType.cleanup").Val() != "" {
+		t.Error("It should not exist")
+	}
+
+	redis.Client.Del(testKey)
+	redis.Client.Del("trafficCleanupTest.SPLITIO.splits.till")
+	redis.Client.Del("trafficCleanupTest.SPLITIO.trafficType.cleanup")
+	redis.Client.Del("trafficCleanupTest.SPLITIO.segments.registered")
+	redis.Client.Del("trafficCleanupTest.SPLITIO.split.DEMO_MURMUR2")
 }

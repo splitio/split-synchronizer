@@ -18,14 +18,14 @@ func TestMetricsRedisStorageAdapter(t *testing.T) {
 	conf.Initialize()
 	Initialize(conf.Data.Redis)
 
-	prefixAdapter := &prefixAdapter{prefix: ""}
+	prefixAdapter := &prefixAdapter{prefix: "metricstest"}
 
 	languageAndVersion := "test-2.0"
 	instanceID := "127.0.0.1"
 	metricName := "some_metric"
 	bucketNumber := "4"
 
-	metricsStorageAdapter := NewMetricsStorageAdapter(Client, "")
+	metricsStorageAdapter := NewMetricsStorageAdapter(Client, "metricstest")
 
 	/* Metric Counters */
 	counterKey := prefixAdapter.metricsCounterNamespace(languageAndVersion, instanceID, metricName)
@@ -105,6 +105,9 @@ func TestMetricsRedisStorageAdapter(t *testing.T) {
 		t.Error("Error retrieving latencie value")
 	}
 
+	metricsStorageAdapter.client.Del("metricstest.SPLITIO/test-2.0/127.0.0.1/gauge.some_metric")
+	metricsStorageAdapter.client.Del("metricstest.SPLITIO/test-2.0/127.0.0.1/latency.some_metric.bucket.4")
+	metricsStorageAdapter.client.Del("metricstest.SPLITIO/test-2.0/127.0.0.1/count.some_metric")
 }
 
 func TestThatMalformedLatencyKeysDoNotPanic(t *testing.T) {
