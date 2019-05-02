@@ -36,14 +36,17 @@ func (r SplitStorageAdapter) save(key string, split api.SplitDTO) error {
 }
 
 func (r SplitStorageAdapter) remove(key string) error {
-	err := r.client.Del(r.splitNamespace(key)).Err()
+	val, err := r.client.Del(r.splitNamespace(key)).Result()
 	if err != nil {
-		log.Error.Println("Error removing item", key, "in Redis:", err)
-	} else {
-		log.Verbose.Println("Item removed at key:", key)
+		log.Error.Println("Error removing item", key, "in Redis:")
+		return err
 	}
-
-	return err
+	if val <= 0 {
+		log.Error.Println("Split does not exist")
+		return errors.New("Split does not exist")
+	}
+	log.Verbose.Println("Split removed at key:", key)
+	return nil
 }
 
 func getKey(split []byte) (string, error) {
