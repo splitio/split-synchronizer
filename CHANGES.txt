@@ -1,3 +1,5 @@
+2.2.1 (May 2, 2019)
+ - Fixed possible (but unlikely) issue when expiring traffic type.
 2.2.0 (April 30, 2019)
  - Added logic to store Dynamic Configurations when splitChanges is called in redis mode.
  - Added logic to store TrafficTypeNames when splitChanges is called in redis mode.
