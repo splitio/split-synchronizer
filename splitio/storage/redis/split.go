@@ -42,7 +42,6 @@ func (r SplitStorageAdapter) remove(key string) error {
 		return err
 	}
 	if val <= 0 {
-		log.Error.Println("Split does not exist")
 		return errors.New("Split does not exist")
 	}
 	log.Verbose.Println("Split removed at key:", key)
