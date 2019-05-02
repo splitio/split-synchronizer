@@ -94,10 +94,8 @@ func taskFetchSplits(splitFetcherAdapter fetcher.SplitFetcher,
 				}
 			} else {
 				if err := splitStorageAdapter.Remove(jsonD); err == nil {
-					deletedItems++
-				}
-				if lastChangeNumber != -1 {
 					trafficTypeStorageAdapter.Decr(splitDTO.TrafficTypeName)
+					deletedItems++
 				}
 			}
 		}

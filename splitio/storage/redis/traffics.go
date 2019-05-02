@@ -50,6 +50,11 @@ func (t TrafficTypeStorageAdapter) Decr(trafficType string) error {
 			log.Error.Println(err)
 			return errors.New("Error decrementing trafficType")
 		}
+	} else {
+		err := t.client.Del(trafficTypeToDecr).Err()
+		if err != nil {
+			log.Verbose.Println(fmt.Sprintf("Error removing trafficType %s in redis", trafficType))
+		}
 	}
 	return nil
 }
