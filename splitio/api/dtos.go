@@ -164,11 +164,30 @@ type MySegmentDTO struct {
 
 // EventDTO struct mapping events json
 type EventDTO struct {
-	Key             string   `json:"key"`
-	TrafficTypeName string   `json:"trafficTypeName"`
-	EventTypeID     string   `json:"eventTypeId"`
-	Value           *float64 `json:"value"`
-	Timestamp       int64    `json:"timestamp"`
+	Key             string                 `json:"key"`
+	TrafficTypeName string                 `json:"trafficTypeName"`
+	EventTypeID     string                 `json:"eventTypeId"`
+	Value           *float64               `json:"value"`
+	Timestamp       int64                  `json:"timestamp"`
+	Properties      map[string]interface{} `json:"properties,omitempty"`
+}
+
+// Size returns a relatively accurate estimation of the size of the event
+func (e *EventDTO) Size() int {
+	size := 1024
+	if e.Properties == nil {
+		return size
+	}
+
+	for key, value := range e.Properties {
+		size += len(key)
+		switch typedValue := value.(type) {
+		case string:
+			size += len(typedValue)
+		default:
+		}
+	}
+	return size
 }
 
 // RedisStoredMachineMetadataDTO maps sdk version, machine IP and machine name

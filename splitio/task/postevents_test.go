@@ -321,12 +321,13 @@ func TestFlushEventsNilSize(t *testing.T) {
 		return
 	}
 
+	start := time.Now()
 	//Pushing 50001 events
 	for i := 0; i < itemsToAdd; i++ {
 		redis.Client.RPush(eventListName, eventJSON)
 	}
 	//----------------
-
+	t.Error("populate", time.Since(start))
 	eventsRecorderAdapter := recorder.EventsHTTPRecorder{}
 	eventsStorageAdapter := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 	//Catching panic status and reporting error
@@ -337,7 +338,10 @@ func TestFlushEventsNilSize(t *testing.T) {
 			}
 		}()
 
+		start = time.Now()
 		EventsFlush(eventsRecorderAdapter, eventsStorageAdapter, nil)
+		t.Error("flush", time.Since(start))
+
 		total := eventsStorageAdapter.Size()
 		if total != 25001 {
 			t.Error("It should evict 25000 elements. The remaining elements are:", total)
