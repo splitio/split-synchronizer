@@ -2,6 +2,7 @@ package redis
 
 import (
 	"encoding/json"
+	"math"
 	"sync"
 
 	"github.com/go-redis/redis"
@@ -14,6 +15,9 @@ var elMutex = &sync.Mutex{}
 
 // MaxAccumulatedSize is the maximum number of bytes to be fetched from cache before posting to the backend
 const MaxAccumulatedSize = 5 * 1024 * 1024
+
+// MaxEventSize is the maximum allowed event size
+const MaxEventSize = 32 * 1024
 
 // EventStorageAdapter implements EventStorage interface
 type EventStorageAdapter struct {
@@ -63,40 +67,42 @@ func NewEventStorageAdapter(clientInstance redis.UniversalClient, prefix string)
 
 // PopN returns elements given by LRANGE 0 items and perform a LTRIM items -1
 func (r *EventStorageAdapter) PopN(n int64) ([]api.RedisStoredEventDTO, error) {
-
-	toReturn := make([]api.RedisStoredEventDTO, 0)
+	toReturn := make([]api.RedisStoredEventDTO, n)
 	var err error
 	fetchedCount := 0
 	accumulatedSize := 0
+	writeIndex := 0
 	for int64(fetchedCount) < n && accumulatedSize < MaxAccumulatedSize && err == nil {
-		elems, err := r.cache.Fetch(1)
-		fetchedCount++
+		numberOfItemsToFetch := int(math.Min(
+			float64((MaxAccumulatedSize-accumulatedSize)/MaxEventSize),
+			float64(n-int64(fetchedCount)),
+		))
+		elems, err := r.cache.Fetch(numberOfItemsToFetch)
 		if err != nil {
-			// TODO: Handle and log
-			break
-		}
-		if len(elems) < 1 {
-			// TODO: Handle and log
+			log.Error.Println("Error fetching events", err.Error())
 			break
 		}
 
-		asStr, ok := elems[0].(string)
-		if !ok {
-			// TODO: LOG
-			continue
-		}
+		for _, elem := range elems {
+			asStr, ok := elem.(string)
+			if !ok {
+				log.Error.Println("Error type-asserting event as string", err.Error())
+				continue
+			}
 
-		storedEventDTO := api.RedisStoredEventDTO{}
-		err = json.Unmarshal([]byte(asStr), &storedEventDTO)
-		if err != nil {
-			log.Error.Println("Error decoding event JSON", err.Error())
-			continue
+			storedEventDTO := api.RedisStoredEventDTO{}
+			err = json.Unmarshal([]byte(asStr), &storedEventDTO)
+			if err != nil {
+				log.Error.Println("Error decoding event JSON", err.Error())
+				continue
+			}
+			accumulatedSize += storedEventDTO.Event.Size()
+			toReturn[writeIndex] = storedEventDTO
+			writeIndex++
 		}
-		accumulatedSize += storedEventDTO.Event.Size()
-		toReturn = append(toReturn, storedEventDTO)
+		fetchedCount += len(elems)
 	}
-
-	return toReturn, nil
+	return toReturn[0:writeIndex], nil
 }
 
 // Drop drops events from queue
