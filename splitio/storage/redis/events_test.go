@@ -63,7 +63,7 @@ func TestEventsPOPN(t *testing.T) {
 	}
 
 	if len(data) != itemsToFetch {
-		t.Error("Error list length")
+		t.Error("Error list length, should be ", itemsToFetch, " and is ", len(data))
 		return
 	}
 
@@ -73,7 +73,11 @@ func TestEventsPOPN(t *testing.T) {
 		return
 	}
 
-	if llen.Val() != int64(itemsToAdd-itemsToFetch) {
+	if llen.Val() != 0 {
+		t.Error("All elements should have been removed from redis and pushed into the in-memory cache")
+	}
+
+	if adapter.cache.Count() != itemsToAdd-itemsToFetch {
 		t.Error("Error trimming the list in Redis")
 		return
 	}
