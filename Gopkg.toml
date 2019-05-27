@@ -20,4 +20,4 @@
   
 [[constraint]]
   name = "github.com/splitio/go-toolkit"
-  branch = "master"
+  branch = "feature/queueCache"
