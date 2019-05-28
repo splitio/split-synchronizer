@@ -72,7 +72,7 @@ func (r *EventStorageAdapter) PopN(n int64) ([]api.RedisStoredEventDTO, error) {
 	fetchedCount := 0
 	accumulatedSize := 0
 	writeIndex := 0
-	for int64(fetchedCount) < n && accumulatedSize < MaxAccumulatedSize && err == nil {
+	for r.Size() > 0 && int64(fetchedCount) < n && accumulatedSize < MaxAccumulatedSize && err == nil {
 		numberOfItemsToFetch := int(math.Min(
 			float64((MaxAccumulatedSize-accumulatedSize)/MaxEventSize),
 			float64(n-int64(fetchedCount)),
