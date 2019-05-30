@@ -1,3 +1,6 @@
+2.3.0 (May 30, 2019)
+ - Added support for track properties
+ - Added cache overlay on top of redis for fetching events
 2.2.1 (May 2, 2019)
  - Fixed possible (but unlikely) issue when expiring traffic type.
 2.2.0 (April 30, 2019)
