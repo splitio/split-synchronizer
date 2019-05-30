@@ -2,7 +2,9 @@ package redis
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"testing"
 
 	"github.com/splitio/split-synchronizer/conf"
@@ -10,7 +12,15 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/api"
 )
 
-func makeEvents(key string, eventTypeID string, time int64, trafficTypeName string, value *float64, count int) []api.EventDTO {
+func makeEvents(
+	key string,
+	eventTypeID string,
+	time int64,
+	trafficTypeName string,
+	value *float64,
+	properties map[string]interface{},
+	count int,
+) []api.EventDTO {
 	evts := make([]api.EventDTO, count)
 	for i := 0; i < count; i++ {
 		evts[i] = api.EventDTO{
@@ -19,10 +29,12 @@ func makeEvents(key string, eventTypeID string, time int64, trafficTypeName stri
 			Timestamp:       time + int64(i),
 			TrafficTypeName: trafficTypeName,
 			Value:           value,
+			Properties:      properties,
 		}
 	}
 	return evts
 }
+
 func TestEventsPOPN(t *testing.T) {
 
 	stdoutWriter := ioutil.Discard //os.Stdout
@@ -63,7 +75,7 @@ func TestEventsPOPN(t *testing.T) {
 	}
 
 	if len(data) != itemsToFetch {
-		t.Error("Error list length")
+		t.Error("Error list length, should be ", itemsToFetch, " and is ", len(data))
 		return
 	}
 
@@ -73,7 +85,11 @@ func TestEventsPOPN(t *testing.T) {
 		return
 	}
 
-	if llen.Val() != int64(itemsToAdd-itemsToFetch) {
+	if llen.Val() != 0 {
+		t.Error("All elements should have been removed from redis and pushed into the in-memory cache")
+	}
+
+	if adapter.cache.Count() != itemsToAdd-itemsToFetch {
 		t.Error("Error trimming the list in Redis")
 		return
 	}
@@ -136,7 +152,7 @@ func TestEventsSize(t *testing.T) {
 		MachineIP:  "127.0.0.1",
 	}
 
-	eventsRaw := makeEvents("key", "eventTypeId", 123456, "trafficTypeName", nil, 30)
+	eventsRaw := makeEvents("key", "eventTypeId", 123456, "trafficTypeName", nil, nil, 30)
 
 	//Adding events to retrieve.
 	for _, event := range eventsRaw {
@@ -170,4 +186,79 @@ func TestEventsSize(t *testing.T) {
 		t.Error("Size is not the expected one. Expected 200. Actual", size)
 	}
 	Client.Del(prefixAdapter.eventsListNamespace())
+}
+
+func makeBigString(length int) string {
+	letterRunes := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	asRuneSlice := make([]rune, length)
+	for index := range asRuneSlice {
+		asRuneSlice[index] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(asRuneSlice)
+}
+
+func TestPopNLimitedBySize(t *testing.T) {
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	conf.Initialize()
+	Initialize(conf.Data.Redis)
+	prefixAdapter := &prefixAdapter{prefix: ""}
+	Client.Del(prefixAdapter.eventsListNamespace())
+
+	metadata := api.SdkMetadata{
+		SdkVersion: "test-2.0",
+		MachineIP:  "127.0.0.1",
+	}
+
+	props := make(map[string]interface{})
+	for i := 0; i < 62; i++ {
+		props[fmt.Sprintf("%s%d", makeBigString(255), i)] = makeBigString(255)
+	}
+
+	eventsRaw := makeEvents("key", "eventTypeId", 123456, "trafficTypeName", nil, props, 300)
+
+	//Adding events to retrieve.
+	for _, event := range eventsRaw {
+		toStore, err := json.Marshal(api.RedisStoredEventDTO{
+			Event: api.EventDTO{
+				Key:             event.Key,
+				EventTypeID:     event.EventTypeID,
+				Timestamp:       event.Timestamp,
+				TrafficTypeName: event.TrafficTypeName,
+				Properties:      props,
+				Value:           event.Value,
+			},
+			Metadata: api.RedisStoredMachineMetadataDTO{
+				MachineIP:   metadata.MachineIP,
+				MachineName: metadata.MachineName,
+				SDKVersion:  metadata.SdkVersion,
+			},
+		})
+		if err != nil {
+			t.Error(err.Error())
+			return
+		}
+
+		Client.RPush(
+			prefixAdapter.eventsListNamespace(),
+			toStore,
+		)
+	}
+
+	eventsStorageAdapter := NewEventStorageAdapter(Client, "")
+	size := eventsStorageAdapter.Size()
+	if size != 300 {
+		t.Error("Size is not the expected one. Expected 50. Actual:", size)
+	}
+
+	retrieved, err := eventsStorageAdapter.PopN(300)
+	if err != nil {
+		t.Error("No error should have been returned. Got:", err.Error())
+	}
+	if len(retrieved) != 160 {
+		t.Error("It should have fetched 160 events. Fetched: ", len(retrieved))
+	}
+
+	Client.Del(prefixAdapter.eventsListNamespace())
+
 }

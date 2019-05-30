@@ -309,7 +309,6 @@ func TestFlushEventsNilSize(t *testing.T) {
 
 	//INSERT MOCK DATA
 	//----------------
-	itemsToAdd := 50001
 	eventListName := conf.Data.Redis.Prefix + ".SPLITIO.events"
 
 	eventJSON := `{"m":{"s":"test-1.0.0","i":"127.0.0.1","n":"SOME_MACHINE_NAME"},"e":{"key":"6c4829ab-a0d8-4e72-8176-a334f596fb79","trafficTypeName":"user","eventTypeId":"a5213963-5564-43ff-83b2-ac6dbd5af3b1","value":2993.4876,"timestamp":1516310749882}}`
@@ -321,12 +320,13 @@ func TestFlushEventsNilSize(t *testing.T) {
 		return
 	}
 
-	//Pushing 50001 events
-	for i := 0; i < itemsToAdd; i++ {
-		redis.Client.RPush(eventListName, eventJSON)
+	eventsToStore := make([]interface{}, 50001)
+	for index := range eventsToStore {
+		eventsToStore[index] = eventJSON
 	}
-	//----------------
+	redis.Client.RPush(eventListName, eventsToStore...)
 
+	//----------------
 	eventsRecorderAdapter := recorder.EventsHTTPRecorder{}
 	eventsStorageAdapter := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 	//Catching panic status and reporting error
@@ -338,6 +338,7 @@ func TestFlushEventsNilSize(t *testing.T) {
 		}()
 
 		EventsFlush(eventsRecorderAdapter, eventsStorageAdapter, nil)
+
 		total := eventsStorageAdapter.Size()
 		if total != 25001 {
 			t.Error("It should evict 25000 elements. The remaining elements are:", total)
