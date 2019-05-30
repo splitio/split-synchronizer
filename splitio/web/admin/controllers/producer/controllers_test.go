@@ -626,9 +626,12 @@ func TestAnotherOperationRunningOnEvents(t *testing.T) {
 	}
 
 	//Pushing 10003 events
+	eventBulk := make([]interface{}, itemsToAdd)
 	for i := 0; i < itemsToAdd; i++ {
-		redis.Client.RPush(eventListName, eventJSON)
+		eventBulk[i] = eventJSON
 	}
+	redis.Client.RPush(eventListName, eventBulk...)
+
 	//----------------
 
 	//Catching panic status and reporting error

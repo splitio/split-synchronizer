@@ -266,7 +266,7 @@ func TestEventsDrop(t *testing.T) {
 		MachineName: "ip-127-0-0-1",
 	}
 
-	eventsRaw := makeEvents("key", "test", 123456, "user", nil, 30)
+	eventsRaw := makeEvents("key", "test", 123456, "user", nil, nil, 30)
 
 	// Adding events to drop.
 	for _, event := range eventsRaw {

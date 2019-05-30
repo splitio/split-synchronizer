@@ -174,10 +174,7 @@ func TestFlushImpressionsNilSize(t *testing.T) {
 
 	//INSERT MOCK DATA
 	//----------------
-	itemsToAdd := 50001
 	impressionListName := conf.Data.Redis.Prefix + ".SPLITIO.impressions"
-
-	impressionJSON := `{"m":{"s":"test-1.0.0","i":"127.0.0.1","n":"SOME_MACHINE_NAME"},"i":{"k":"6c4829ab-a0d8-4e72-8176-a334f596fb79","b":"bucketing","f":"feature","t":"ON","c":12345,"r":"rule","timestamp":1516310749882}}`
 
 	//Deleting previous test data
 	res := redis.Client.Del(impressionListName)
@@ -186,11 +183,13 @@ func TestFlushImpressionsNilSize(t *testing.T) {
 		return
 	}
 
-	//Pushing 50001 impressions
-	for i := 0; i < itemsToAdd; i++ {
-		redis.Client.RPush(impressionListName, impressionJSON)
+	impressionJSON := `{"m":{"s":"test-1.0.0","i":"127.0.0.1","n":"SOME_MACHINE_NAME"},"i":{"k":"6c4829ab-a0d8-4e72-8176-a334f596fb79","b":"bucketing","f":"feature","t":"ON","c":12345,"r":"rule","timestamp":1516310749882}}`
+
+	impressionsToStore := make([]interface{}, 50001)
+	for index := range impressionsToStore {
+		impressionsToStore[index] = impressionJSON
 	}
-	//----------------
+	redis.Client.RPush(impressionListName, impressionsToStore...)
 
 	impressionRecorderAdapter := recorder.ImpressionsHTTPRecorder{}
 	impressionStorageAdapter := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
