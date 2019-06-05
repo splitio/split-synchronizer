@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/split-synchronizer/splitio/storage/boltdb/wrappers"
 	"github.com/splitio/split-synchronizer/splitio/web/admin"
-	proxyAdminControllers "github.com/splitio/split-synchronizer/splitio/web/admin/controllers/proxy"
+	"github.com/splitio/split-synchronizer/splitio/web/admin/controllers"
 	"github.com/splitio/split-synchronizer/splitio/web/middleware"
 )
 
@@ -64,9 +64,9 @@ func Run(options *ProxyOptions) {
 			c.Set("SegmentStorage", wrappers.NewSegmentChangesWrapper())
 		})
 
-		waServer.Router().GET("/admin/healthcheck", proxyAdminControllers.HealthCheck)
-		waServer.Router().GET("/admin/dashboard", proxyAdminControllers.Dashboard)
-		waServer.Router().GET("/admin/dashboard/segmentKeys/:segment", proxyAdminControllers.DashboardSegmentKeys)
+		waServer.Router().GET("/admin/healthcheck", controllers.HealthCheck)
+		waServer.Router().GET("/admin/dashboard", controllers.Dashboard)
+		waServer.Router().GET("/admin/dashboard/segmentKeys/:segment", controllers.DashboardSegmentKeys)
 
 		waServer.Run()
 	}()

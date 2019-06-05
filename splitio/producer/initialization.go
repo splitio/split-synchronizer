@@ -16,7 +16,7 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 	"github.com/splitio/split-synchronizer/splitio/task"
 	"github.com/splitio/split-synchronizer/splitio/web/admin"
-	producerControllers "github.com/splitio/split-synchronizer/splitio/web/admin/controllers/producer"
+	"github.com/splitio/split-synchronizer/splitio/web/admin/controllers"
 )
 
 func gracefulShutdownProducer(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
@@ -116,15 +116,15 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 			c.Set("SegmentStorage", segmentStorage.NewInstance())
 		})
 
-		waServer.Router().GET("/admin/healthcheck", producerControllers.HealthCheck)
-		waServer.Router().GET("/admin/dashboard", producerControllers.Dashboard)
-		waServer.Router().GET("/admin/dashboard/segmentKeys/:segment", producerControllers.DashboardSegmentKeys)
-		waServer.Router().GET("/admin/events/queueSize", producerControllers.GetEventsQueueSize)
-		waServer.Router().GET("/admin/impressions/queueSize", producerControllers.GetImpressionsQueueSize)
-		waServer.Router().POST("/admin/events/drop/*size", producerControllers.DropEvents)
-		waServer.Router().POST("/admin/impressions/drop/*size", producerControllers.DropImpressions)
-		waServer.Router().POST("/admin/events/flush/*size", producerControllers.FlushEvents)
-		waServer.Router().POST("/admin/impressions/flush/*size", producerControllers.FlushImpressions)
+		waServer.Router().GET("/admin/healthcheck", controllers.HealthCheck)
+		waServer.Router().GET("/admin/dashboard", controllers.Dashboard)
+		waServer.Router().GET("/admin/dashboard/segmentKeys/:segment", controllers.DashboardSegmentKeys)
+		waServer.Router().GET("/admin/events/queueSize", controllers.GetEventsQueueSize)
+		waServer.Router().GET("/admin/impressions/queueSize", controllers.GetImpressionsQueueSize)
+		waServer.Router().POST("/admin/events/drop/*size", controllers.DropEvents)
+		waServer.Router().POST("/admin/impressions/drop/*size", controllers.DropImpressions)
+		waServer.Router().POST("/admin/events/flush/*size", controllers.FlushEvents)
+		waServer.Router().POST("/admin/impressions/flush/*size", controllers.FlushImpressions)
 
 		waServer.Run()
 	}()
