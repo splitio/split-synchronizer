@@ -6,7 +6,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/split-synchronizer/splitio/storage/boltdb/wrappers"
 	"github.com/splitio/split-synchronizer/splitio/web/admin"
-	"github.com/splitio/split-synchronizer/splitio/web/admin/controllers"
 	"github.com/splitio/split-synchronizer/splitio/web/middleware"
 )
 
@@ -47,29 +46,15 @@ func Run(options *ProxyOptions) {
 	router.Use(middleware.Logger())
 	router.Use(middleware.ValidateAPIKeys(options.APIKeys))
 
-	// running admin endpoints
-	go func() {
-		// WebAdmin configuration
-		waOptions := &admin.WebAdminOptions{
-			Port:          options.AdminPort,
-			AdminUsername: options.AdminUsername,
-			AdminPassword: options.AdminPassword,
-			DebugOn:       options.DebugOn,
-		}
+	// WebAdmin configuration
+	waOptions := &admin.WebAdminOptions{
+		Port:          options.AdminPort,
+		AdminUsername: options.AdminUsername,
+		AdminPassword: options.AdminPassword,
+		DebugOn:       options.DebugOn,
+	}
 
-		waServer := admin.NewWebAdminServer(waOptions)
-
-		waServer.Router().Use(func(c *gin.Context) {
-			c.Set("SplitStorage", wrappers.NewSplitChangesWrapper())
-			c.Set("SegmentStorage", wrappers.NewSegmentChangesWrapper())
-		})
-
-		waServer.Router().GET("/admin/healthcheck", controllers.HealthCheck)
-		waServer.Router().GET("/admin/dashboard", controllers.Dashboard)
-		waServer.Router().GET("/admin/dashboard/segmentKeys/:segment", controllers.DashboardSegmentKeys)
-
-		waServer.Run()
-	}()
+	admin.StartAdminWebAdmin(waOptions, wrappers.NewSplitChangesWrapper(), wrappers.NewSegmentChangesWrapper())
 
 	// API routes
 	api := router.Group("/api")
