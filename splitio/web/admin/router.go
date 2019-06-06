@@ -4,6 +4,8 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/splitio/split-synchronizer/appcontext"
+	"github.com/splitio/split-synchronizer/splitio/storage"
 	"github.com/splitio/split-synchronizer/splitio/web/admin/controllers"
 	"github.com/splitio/split-synchronizer/splitio/web/middleware"
 )
@@ -22,8 +24,15 @@ type WebAdminServer struct {
 	router  *gin.Engine
 }
 
-// NewWebAdminServer creates a webserver
-func NewWebAdminServer(options *WebAdminOptions) *WebAdminServer {
+// StartAdminWebAdmin starts new webserver
+func StartAdminWebAdmin(options *WebAdminOptions, splitStorage storage.SplitStorage, segmentStorage storage.SegmentStorage) {
+	go func() {
+		server := newWebAdminServer(options, splitStorage, segmentStorage)
+		server.Run()
+	}()
+}
+
+func newWebAdminServer(options *WebAdminOptions, splitStorage storage.SplitStorage, segmentStorage storage.SegmentStorage) *WebAdminServer {
 	if !options.DebugOn {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -36,6 +45,11 @@ func NewWebAdminServer(options *WebAdminOptions) *WebAdminServer {
 		server.router.Use(middleware.HTTPBasicAuth(options.AdminUsername, options.AdminPassword))
 	}
 
+	server.Router().Use(func(c *gin.Context) {
+		c.Set("SplitStorage", splitStorage)
+		c.Set("SegmentStorage", segmentStorage)
+	})
+
 	// Admin routes
 	server.router.GET("/admin/ping", controllers.Ping)
 	server.router.GET("/admin/version", controllers.Version)
@@ -43,6 +57,18 @@ func NewWebAdminServer(options *WebAdminOptions) *WebAdminServer {
 	server.router.GET("/admin/stats", controllers.ShowStats)
 	server.router.GET("/admin/stop/:stopType", controllers.StopProccess)
 	server.router.GET("/admin/userConfig", controllers.GetConfiguration)
+	server.Router().GET("/admin/healthcheck", controllers.HealthCheck)
+	server.Router().GET("/admin/dashboard", controllers.Dashboard)
+	server.Router().GET("/admin/dashboard/segmentKeys/:segment", controllers.DashboardSegmentKeys)
+
+	if appcontext.ExecutionMode() == appcontext.ProducerMode {
+		server.Router().GET("/admin/events/queueSize", controllers.GetEventsQueueSize)
+		server.Router().GET("/admin/impressions/queueSize", controllers.GetImpressionsQueueSize)
+		server.Router().POST("/admin/events/drop/*size", controllers.DropEvents)
+		server.Router().POST("/admin/impressions/drop/*size", controllers.DropImpressions)
+		server.Router().POST("/admin/events/flush/*size", controllers.FlushEvents)
+		server.Router().POST("/admin/impressions/flush/*size", controllers.FlushImpressions)
+	}
 
 	return server
 }
