@@ -6,9 +6,9 @@
 #    - SPLIT_SYNC_API_KEY                      Split service API-KEY grabbed from webconsole
 #    - SPLIT_SYNC_SPLITS_REFRESH_RATE          Refresh rate of splits fetcher
 #    - SPLIT_SYNC_SEGMENTS_REFRESH_RATE        Refresh rate of segments fetcher
-#    - SPLIT_SYNC_IMPRESSIONS_REFRESH_RATE     Refresh rate of impressions recorder
-#    - SPLIT_SYNC_EVENTS_REFRESH_RATE          Refresh rate of events recorder
-#    - SPLIT_SYNC_METRICS_REFRESH_RATE         Refresh rate of metrics recorder
+#    - SPLIT_SYNC_IMPRESSIONS_POST_RATE        Post rate of impressions recorder
+#    - SPLIT_SYNC_EVENTS_POST_RATE             Post rate of events recorder
+#    - SPLIT_SYNC_METRICS_POST_RATE            Post rate of metrics recorder
 #    - SPLIT_SYNC_HTTP_TIMEOUT                 Timeout specifies a time limit for requests
 #    - SPLIT_SYNC_LOG_DEBUG                    Enable debug mode: Set as 'on'
 #    - SPLIT_SYNC_LOG_VERBOSE                  Enable verbose mode: Set as 'on'
@@ -64,16 +64,34 @@ if [ ! -z ${SPLIT_SYNC_SEGMENTS_REFRESH_RATE+x} ]; then
   PARAMETERS="${PARAMETERS} -segment-refresh-rate=${SPLIT_SYNC_SEGMENTS_REFRESH_RATE}"
 fi
 
+# Backwards compatibility
 if [ ! -z ${SPLIT_SYNC_IMPRESSIONS_REFRESH_RATE+x} ]; then
+  echo "\033[33mWARNING: The environment variable 'SPLIT_SYNC_IMPRESSIONS_REFRESH_RATE' will be deprecated soon in favor of 'SPLIT_SYNC_IMPRESSIONS_POST_RATE'. Mapping to replacement: 'SPLIT_SYNC_IMPRESSIONS_POST_RATE'\033[0m"
   PARAMETERS="${PARAMETERS} -impressions-post-rate=${SPLIT_SYNC_IMPRESSIONS_REFRESH_RATE}"
 fi
 
-if [ ! -z ${SPLIT_SYNC_EVENTS_REFRESH_RATE+x} ]; then
-  PARAMETERS="${PARAMETERS} -events-push-rate=${SPLIT_SYNC_EVENTS_REFRESH_RATE}"
+if [ ! -z ${SPLIT_SYNC_IMPRESSIONS_POST_RATE+x} ]; then
+  PARAMETERS="${PARAMETERS} -impressions-post-rate=${SPLIT_SYNC_IMPRESSIONS_POST_RATE}"
 fi
 
+# Backwards compatibility
+if [ ! -z ${SPLIT_SYNC_EVENTS_REFRESH_RATE+x} ]; then
+  echo "\033[33mWARNING: The environment variable 'SPLIT_SYNC_EVENTS_REFRESH_RATE' will be deprecated soon in favor of 'SPLIT_SYNC_EVENTS_POST_RATE'. Mapping to replacement: 'SPLIT_SYNC_EVENTS_POST_RATE'\033[0m"
+  PARAMETERS="${PARAMETERS} -events-post-rate=${SPLIT_SYNC_EVENTS_REFRESH_RATE}"
+fi
+
+if [ ! -z ${SPLIT_SYNC_EVENTS_POST_RATE+x} ]; then
+  PARAMETERS="${PARAMETERS} -events-post-rate=${SPLIT_SYNC_EVENTS_POST_RATE}"
+fi
+
+# Backwards compatibility
 if [ ! -z ${SPLIT_SYNC_METRICS_REFRESH_RATE+x} ]; then
+  echo "\033[33mWARNING: The environment variable 'SPLIT_SYNC_METRICS_REFRESH_RATE' will be deprecated soon in favor of 'SPLIT_SYNC_METRICS_POST_RATE'. Mapping to replacement: 'SPLIT_SYNC_METRICS_POST_RATE'\033[0m"
   PARAMETERS="${PARAMETERS} -metrics-post-rate=${SPLIT_SYNC_METRICS_REFRESH_RATE}"
+fi
+
+if [ ! -z ${SPLIT_SYNC_METRICS_POST_RATE+x} ]; then
+  PARAMETERS="${PARAMETERS} -metrics-post-rate=${SPLIT_SYNC_METRICS_POST_RATE}"
 fi
 
 if [ ! -z ${SPLIT_SYNC_HTTP_TIMEOUT+x} ]; then
@@ -202,7 +220,7 @@ else
   fi
 
   if [ ! -z ${SPLIT_SYNC_IMPRESSIONS_THREADS+x} ]; then
-    PARAMETERS="${PARAMETERS} -impressions-recorder-threads=${SPLIT_SYNC_IMPRESSIONS_THREADS}"
+    PARAMETERS="${PARAMETERS} -impressions-threads=${SPLIT_SYNC_IMPRESSIONS_THREADS}"
   fi
 
   if [ ! -z ${SPLIT_SYNC_ADMIN_USER+x} ]; then
@@ -218,11 +236,11 @@ else
   fi
 
   if [ ! -z ${SPLIT_SYNC_EVENTS_PER_POST+x} ]; then
-    PARAMETERS="${PARAMETERS} -events-consumer-read-size=${SPLIT_SYNC_EVENTS_PER_POST}"
+    PARAMETERS="${PARAMETERS} -events-per-post=${SPLIT_SYNC_EVENTS_PER_POST}"
   fi
 
   if [ ! -z ${SPLIT_SYNC_EVENTS_THREADS+x} ]; then
-    PARAMETERS="${PARAMETERS} -events-consumer-threads=${SPLIT_SYNC_EVENTS_THREADS}"
+    PARAMETERS="${PARAMETERS} -events-threads=${SPLIT_SYNC_EVENTS_THREADS}"
   fi
 
 fi
