@@ -174,14 +174,21 @@ func HealthCheck(c *gin.Context) {
 		storageStatus := make(map[string]interface{})
 		splitStorage, exists := c.Get("SplitStorage")
 		if exists {
-			_, err := splitStorage.(storage.SplitStorage).ChangeNumber()
-			if err != nil {
-				storageStatus["healthy"] = false
-				storageStatus["message"] = err.Error()
+			st, ok := splitStorage.(storage.SplitStorage)
+			if ok {
+				_, err := st.ChangeNumber()
+				if err != nil {
+					storageStatus["healthy"] = false
+					storageStatus["message"] = err.Error()
+				} else {
+					storageStatus["healthy"] = true
+					storageStatus["message"] = "Storage service working as expected"
+				}
 			} else {
-				storageStatus["healthy"] = true
-				storageStatus["message"] = "Storage service working as expected"
+				storageStatus["healthy"] = false
+				storageStatus["message"] = "Could not access to SplitStorage"
 			}
+
 		}
 
 		if storageStatus["healthy"].(bool) && sdkStatus["healthy"].(bool) && eventsStatus["healthy"].(bool) {
