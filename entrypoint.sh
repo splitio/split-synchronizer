@@ -53,6 +53,18 @@
 #    - SPLIT_SYNC_REDIS_CLUSTER_NODES          Comma-separated list of <HOST:PORT> nodes of redis cluster
 #    - SPLIT_SYNC_REDIS_CLUSTER_KEYHASHTAG     String keyHashTag for redis cluster
 
+# Accepted values for options
+is_true() {
+    case $1 in
+        TRUE|true|ON|on|YES|yes)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
 # COMMON PARAMETERS
 PARAMETERS="-api-key=${SPLIT_SYNC_API_KEY}"
 
@@ -98,15 +110,15 @@ if [ ! -z ${SPLIT_SYNC_HTTP_TIMEOUT+x} ]; then
   PARAMETERS="${PARAMETERS} -http-timeout=${SPLIT_SYNC_HTTP_TIMEOUT}"
 fi
 
-if [ "$SPLIT_SYNC_LOG_DEBUG" = "on" ]; then
+if is_true "$SPLIT_SYNC_LOG_DEBUG"; then
   PARAMETERS="${PARAMETERS} -log-debug"
 fi
 
-if [ "$SPLIT_SYNC_LOG_VERBOSE" = "on" ]; then
+if is_true "$SPLIT_SYNC_LOG_VERBOSE"; then
   PARAMETERS="${PARAMETERS} -log-verbose"
 fi
 
-if [ "$SPLIT_SYNC_LOG_STDOUT" = "on" ]; then
+if is_true "$SPLIT_SYNC_LOG_STDOUT"; then
   PARAMETERS="${PARAMETERS} -log-stdout"
 fi
 
@@ -136,7 +148,7 @@ fi
 
 
 # PROXY MODE ON
-if [ "$SPLIT_SYNC_PROXY" = "on" ];
+if is_true "$SPLIT_SYNC_PROXY";
 then
   printf "Running in PROXY mode"
   PARAMETERS="${PARAMETERS} -proxy"
@@ -169,7 +181,7 @@ then
 else
   printf "Running in PRODUCER mode"
 
-  if [ "$SPLIT_SYNC_REDIS_DISABLE_LEGACY_IMPRESSIONS" = "on" ]; then
+  if is_true "$SPLIT_SYNC_REDIS_DISABLE_LEGACY_IMPRESSIONS"; then
     PARAMETERS="${PARAMETERS} -redis-disable-legacy-impressions"
   fi
 
@@ -194,7 +206,7 @@ else
   fi
 
   # redis sentinel config
-  if [ "$SPLIT_SYNC_REDIS_SENTINEL_REPLICATION" = "on" ]; then
+  if is_true "$SPLIT_SYNC_REDIS_SENTINEL_REPLICATION"; then
     PARAMETERS="${PARAMETERS} -redis-sentinel-replication"
     if [ ! -z ${SPLIT_SYNC_REDIS_SENTINEL_MASTER+x} ]; then
       PARAMETERS="${PARAMETERS} -redis-sentinel-master=${SPLIT_SYNC_REDIS_SENTINEL_MASTER}"
@@ -205,7 +217,7 @@ else
   fi
 
   # redis cluster config
-  if [ "$SPLIT_SYNC_REDIS_CLUSTER_MODE" = "on" ]; then
+  if is_true "$SPLIT_SYNC_REDIS_CLUSTER_MODE"; then
     PARAMETERS="${PARAMETERS} -redis-cluster-mode"
     if [ ! -z ${SPLIT_SYNC_REDIS_CLUSTER_NODES+x} ]; then
       PARAMETERS="${PARAMETERS} -redis-cluster-nodes=${SPLIT_SYNC_REDIS_CLUSTER_NODES}"

@@ -1,4 +1,4 @@
-FROM golang:1.8
+FROM  golang:1.12.6-stretch
 
 WORKDIR /go/src/github.com/splitio/split-synchronizer
 
