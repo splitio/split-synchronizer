@@ -1,3 +1,5 @@
+2.3.1 (Jun , 2019)
+ - Merged controllers for web admin dashboard.
 2.3.0 (May 30, 2019)
  - Added support for track properties
  - Added cache overlay on top of redis for fetching events
