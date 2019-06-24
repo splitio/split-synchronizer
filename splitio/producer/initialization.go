@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio"
@@ -16,7 +15,6 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 	"github.com/splitio/split-synchronizer/splitio/task"
 	"github.com/splitio/split-synchronizer/splitio/web/admin"
-	producerControllers "github.com/splitio/split-synchronizer/splitio/web/admin/controllers/producer"
 )
 
 func gracefulShutdownProducer(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
@@ -100,34 +98,15 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 
 	trafficTypeStorage := trafficTypeStorageFactory()
 
-	go func() {
-		// WebAdmin configuration
-		waOptions := &admin.WebAdminOptions{
-			Port:          conf.Data.Producer.Admin.Port,
-			AdminUsername: conf.Data.Producer.Admin.Username,
-			AdminPassword: conf.Data.Producer.Admin.Password,
-			DebugOn:       conf.Data.Logger.DebugOn,
-		}
-
-		waServer := admin.NewWebAdminServer(waOptions)
-
-		waServer.Router().Use(func(c *gin.Context) {
-			c.Set("SplitStorage", splitStorage)
-			c.Set("SegmentStorage", segmentStorage.NewInstance())
-		})
-
-		waServer.Router().GET("/admin/healthcheck", producerControllers.HealthCheck)
-		waServer.Router().GET("/admin/dashboard", producerControllers.Dashboard)
-		waServer.Router().GET("/admin/dashboard/segmentKeys/:segment", producerControllers.DashboardSegmentKeys)
-		waServer.Router().GET("/admin/events/queueSize", producerControllers.GetEventsQueueSize)
-		waServer.Router().GET("/admin/impressions/queueSize", producerControllers.GetImpressionsQueueSize)
-		waServer.Router().POST("/admin/events/drop/*size", producerControllers.DropEvents)
-		waServer.Router().POST("/admin/impressions/drop/*size", producerControllers.DropImpressions)
-		waServer.Router().POST("/admin/events/flush/*size", producerControllers.FlushEvents)
-		waServer.Router().POST("/admin/impressions/flush/*size", producerControllers.FlushImpressions)
-
-		waServer.Run()
-	}()
+	// WebAdmin configuration
+	waOptions := &admin.WebAdminOptions{
+		Port:          conf.Data.Producer.Admin.Port,
+		AdminUsername: conf.Data.Producer.Admin.Username,
+		AdminPassword: conf.Data.Producer.Admin.Password,
+		DebugOn:       conf.Data.Logger.DebugOn,
+	}
+	// Run WebAdmin Server
+	admin.StartAdminWebAdmin(waOptions, splitStorage, segmentStorage.NewInstance())
 
 	go task.FetchSplits(splitFetcher, splitStorage, conf.Data.SplitsFetchRate, gracefulShutdownWaitingGroup, trafficTypeStorage)
 
