@@ -66,7 +66,7 @@ fi
 
 # Backwards compatibility
 if [ ! -z ${SPLIT_SYNC_IMPRESSIONS_REFRESH_RATE+x} ]; then
-  echo "\033[33mWARNING: The environment variable 'SPLIT_SYNC_IMPRESSIONS_REFRESH_RATE' will be deprecated soon in favor of 'SPLIT_SYNC_IMPRESSIONS_POST_RATE'. Mapping to replacement: 'SPLIT_SYNC_IMPRESSIONS_POST_RATE'\033[0m"
+  printf "\033[33mWARNING: The environment variable 'SPLIT_SYNC_IMPRESSIONS_REFRESH_RATE' will be deprecated soon in favor of 'SPLIT_SYNC_IMPRESSIONS_POST_RATE'. Mapping to replacement: 'SPLIT_SYNC_IMPRESSIONS_POST_RATE'\n\033[0m"
   PARAMETERS="${PARAMETERS} -impressions-post-rate=${SPLIT_SYNC_IMPRESSIONS_REFRESH_RATE}"
 fi
 
@@ -76,7 +76,7 @@ fi
 
 # Backwards compatibility
 if [ ! -z ${SPLIT_SYNC_EVENTS_REFRESH_RATE+x} ]; then
-  echo "\033[33mWARNING: The environment variable 'SPLIT_SYNC_EVENTS_REFRESH_RATE' will be deprecated soon in favor of 'SPLIT_SYNC_EVENTS_POST_RATE'. Mapping to replacement: 'SPLIT_SYNC_EVENTS_POST_RATE'\033[0m"
+  printf "\033[33mWARNING: The environment variable 'SPLIT_SYNC_EVENTS_REFRESH_RATE' will be deprecated soon in favor of 'SPLIT_SYNC_EVENTS_POST_RATE'. Mapping to replacement: 'SPLIT_SYNC_EVENTS_POST_RATE'\n\033[0m"
   PARAMETERS="${PARAMETERS} -events-post-rate=${SPLIT_SYNC_EVENTS_REFRESH_RATE}"
 fi
 
@@ -86,7 +86,7 @@ fi
 
 # Backwards compatibility
 if [ ! -z ${SPLIT_SYNC_METRICS_REFRESH_RATE+x} ]; then
-  echo "\033[33mWARNING: The environment variable 'SPLIT_SYNC_METRICS_REFRESH_RATE' will be deprecated soon in favor of 'SPLIT_SYNC_METRICS_POST_RATE'. Mapping to replacement: 'SPLIT_SYNC_METRICS_POST_RATE'\033[0m"
+  printf "\033[33mWARNING: The environment variable 'SPLIT_SYNC_METRICS_REFRESH_RATE' will be deprecated soon in favor of 'SPLIT_SYNC_METRICS_POST_RATE'. Mapping to replacement: 'SPLIT_SYNC_METRICS_POST_RATE'\n\033[0m"
   PARAMETERS="${PARAMETERS} -metrics-post-rate=${SPLIT_SYNC_METRICS_REFRESH_RATE}"
 fi
 
@@ -138,7 +138,7 @@ fi
 # PROXY MODE ON
 if [ "$SPLIT_SYNC_PROXY" = "on" ];
 then
-  echo "Running in PROXY mode"
+  printf "Running in PROXY mode"
   PARAMETERS="${PARAMETERS} -proxy"
 
   if [ ! -z ${SPLIT_SYNC_PROXY_SDK_APIKEYS+x} ]; then
@@ -167,7 +167,7 @@ then
 
 #PRODUCER MODE ON
 else
-  echo "Running in PRODUCER mode"
+  printf "Running in PRODUCER mode"
 
   if [ "$SPLIT_SYNC_REDIS_DISABLE_LEGACY_IMPRESSIONS" = "on" ]; then
     PARAMETERS="${PARAMETERS} -redis-disable-legacy-impressions"
