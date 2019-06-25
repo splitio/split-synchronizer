@@ -231,9 +231,11 @@ func (d *Dashboard) HTML() string {
 	// Queue data
 	impressionsQueueSize := ""
 	eventsQueueSize := ""
+	runningMode := "Running as Proxy Mode"
 	if !d.proxy {
 		impressionsQueueSize = d.parseImpressionSize()
 		eventsQueueSize = d.parseEventsSize()
+		runningMode = "Running as Synchronizer Mode"
 	}
 
 	//Parsing main menu
@@ -248,6 +250,7 @@ func (d *Dashboard) HTML() string {
 		HTMLtemplates.LayoutTPL,
 		HTMLtemplates.LayoutTPLVars{
 			DashboardTitle:              d.title,
+			RunningMode:                 runningMode,
 			ProxyMode:                   d.proxy,
 			MainMenu:                    d.mainMenuTpl,
 			Uptime:                      stats.UptimeFormated(),
