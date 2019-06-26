@@ -31,11 +31,12 @@ type itemStatus struct {
 }
 
 type globalStatus struct {
-	Sync    itemStatus  `json:"sync"`
-	Storage *itemStatus `json:"storage"`
-	Sdk     itemStatus  `json:"sdk"`
-	Events  itemStatus  `json:"events"`
-	Proxy   *itemStatus `json:"proxy,omitempty"`
+	Sync        itemStatus  `json:"sync"`
+	Storage     *itemStatus `json:"storage"`
+	Sdk         itemStatus  `json:"sdk"`
+	Events      itemStatus  `json:"events"`
+	Proxy       *itemStatus `json:"proxy,omitempty"`
+	LastSucceed string      `json:"lastSucceed"`
 }
 
 type mockStorage struct {
@@ -894,6 +895,9 @@ func TestHealthCheckEndpointFailure(t *testing.T) {
 	if gs.Proxy != nil {
 		t.Error("Should not be status for proxy mode")
 	}
+	if gs.LastSucceed != "" {
+		t.Error("It should not write lastSucceed")
+	}
 }
 
 func TestHealthCheckEndpointSDKFail(t *testing.T) {
@@ -946,6 +950,9 @@ func TestHealthCheckEndpointSDKFail(t *testing.T) {
 	}
 	if gs.Proxy != nil {
 		t.Error("Should not be status for proxy mode")
+	}
+	if gs.LastSucceed != "" {
+		t.Error("It should not write lastSucceed")
 	}
 }
 
