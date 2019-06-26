@@ -67,8 +67,8 @@ func TestTaskCheckEnvirontmentStatusWithSomeFail(t *testing.T) {
 			}
 		}()
 		taskCheckEnvirontmentStatus(splitStorageAdapter)
-		if !lastSucceed.IsZero() {
-			t.Error("It should not write lastSucceed")
+		if !since.IsZero() {
+			t.Error("It should not write since")
 		}
 	}()
 }
@@ -105,14 +105,14 @@ func TestTaskCheckEnvirontmentStatus(t *testing.T) {
 		}()
 		check := time.Now()
 		taskCheckEnvirontmentStatus(splitStorageAdapter)
-		if check.After(lastSucceed) {
+		if check.After(since) {
 			t.Error("It should succeed")
 		}
-		succeed = lastSucceed
+		succeed = since
 	}()
 }
 
-func TestTaskCheckEnvirontmentStatusWithSomeFailAndLastSucceed(t *testing.T) {
+func TestTaskCheckEnvirontmentStatusWithSomeFailAndSince(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
 	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 
@@ -150,8 +150,8 @@ func TestTaskCheckEnvirontmentStatusWithSomeFailAndLastSucceed(t *testing.T) {
 			}
 		}()
 		taskCheckEnvirontmentStatus(splitStorageAdapter)
-		if lastSucceed != succeed {
-			t.Error("It should not write new lastSucceed")
+		if since != succeed {
+			t.Error("It should not write new since")
 		}
 	}()
 }

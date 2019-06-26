@@ -20,7 +20,7 @@ func StopHealtcheck() {
 	}
 }
 
-var lastSucceed time.Time
+var since time.Time
 
 func getSdkStatus() bool {
 	_, err := api.SdkClient.Get("/version")
@@ -54,7 +54,7 @@ func taskCheckEnvirontmentStatus(splitStorage storage.SplitStorage) {
 	storageStatus := getStorageStatus(splitStorage)
 
 	if sdkStatus && eventsStatus && storageStatus {
-		lastSucceed = time.Now()
+		since = time.Now()
 	}
 }
 
@@ -77,10 +77,10 @@ func CheckEnvirontmentStatus(wg *sync.WaitGroup, splitStorage storage.SplitStora
 	wg.Done()
 }
 
-// GetLastSucceed returns last time that healthech was succesful
-func GetLastSucceed() string {
-	if lastSucceed.IsZero() {
+// GetSince returns last time that healtcheck was succesful
+func GetSince() string {
+	if since.IsZero() {
 		return ""
 	}
-	return lastSucceed.Format("01-02-2006 15:04:05")
+	return since.Format("01-02-2006 15:04:05")
 }
