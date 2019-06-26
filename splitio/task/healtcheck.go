@@ -22,26 +22,32 @@ func StopHealtcheck() {
 
 var since time.Time
 
-func getSdkStatus() bool {
+// GetSdkStatus checks the status of the SDK Server
+func GetSdkStatus() bool {
 	_, err := api.SdkClient.Get("/version")
 	if err != nil {
+		log.Debug.Println(err.Error())
 		return false
 	}
 	return true
 }
 
-func getEventsStatus() bool {
+// GetEventsStatus checks the status of the Events Server
+func GetEventsStatus() bool {
 	_, err := api.EventsClient.Get("/version")
 	if err != nil {
+		log.Debug.Println(err.Error())
 		return false
 	}
 	return true
 }
 
-func getStorageStatus(splitStorage storage.SplitStorage) bool {
+// GetStorageStatus checks the status of the Storage
+func GetStorageStatus(splitStorage storage.SplitStorage) bool {
 	if appcontext.ExecutionMode() == appcontext.ProducerMode {
 		_, err := splitStorage.ChangeNumber()
 		if err != nil {
+			log.Debug.Println(err.Error())
 			return false
 		}
 	}
@@ -49,9 +55,9 @@ func getStorageStatus(splitStorage storage.SplitStorage) bool {
 }
 
 func taskCheckEnvirontmentStatus(splitStorage storage.SplitStorage) {
-	sdkStatus := getSdkStatus()
-	eventsStatus := getEventsStatus()
-	storageStatus := getStorageStatus(splitStorage)
+	sdkStatus := GetSdkStatus()
+	eventsStatus := GetEventsStatus()
+	storageStatus := GetStorageStatus(splitStorage)
 
 	if sdkStatus && eventsStatus && storageStatus {
 		since = time.Now()

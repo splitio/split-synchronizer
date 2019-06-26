@@ -120,14 +120,11 @@ func GetConfiguration(c *gin.Context) {
 	})
 }
 
-// getSdkStatus checks the status of the SDK Server
 func getSdkStatus() map[string]interface{} {
-	_, err := api.SdkClient.Get("/version")
 	sdkStatus := make(map[string]interface{})
-	if err != nil {
+	if !task.GetSdkStatus() {
 		sdkStatus["healthy"] = false
 		sdkStatus["message"] = "Cannot reach SDK service"
-		log.Debug.Println("Events Server:", err)
 	} else {
 		sdkStatus["healthy"] = true
 		sdkStatus["message"] = "SDK service working as expected"
@@ -135,14 +132,11 @@ func getSdkStatus() map[string]interface{} {
 	return sdkStatus
 }
 
-// getEventsStatus checks the status of the Events Server
 func getEventsStatus() map[string]interface{} {
-	_, err := api.EventsClient.Get("/version")
 	eventsStatus := make(map[string]interface{})
-	if err != nil {
+	if !task.GetEventsStatus() {
 		eventsStatus["healthy"] = false
 		eventsStatus["message"] = "Cannot reach Events service"
-		log.Debug.Println("Events Server:", err)
 	} else {
 		eventsStatus["healthy"] = true
 		eventsStatus["message"] = "Events service working as expected"
@@ -161,7 +155,6 @@ func HealthCheck(c *gin.Context) {
 
 	if appcontext.ExecutionMode() == appcontext.ProxyMode {
 		status["message"] = "Proxy service working as expected"
-
 		if sdkStatus["healthy"].(bool) && eventsStatus["healthy"].(bool) {
 			c.JSON(http.StatusOK, gin.H{"proxy": status, "sdk": sdkStatus, "events": eventsStatus, "since": task.GetSince()})
 		} else {
@@ -176,10 +169,9 @@ func HealthCheck(c *gin.Context) {
 		if exists {
 			st, ok := splitStorage.(storage.SplitStorage)
 			if ok {
-				_, err := st.ChangeNumber()
-				if err != nil {
+				if !task.GetStorageStatus(st) {
 					storageStatus["healthy"] = false
-					storageStatus["message"] = err.Error()
+					storageStatus["message"] = "Could not access to SplitStorage"
 				} else {
 					storageStatus["healthy"] = true
 					storageStatus["message"] = "Storage service working as expected"
@@ -197,7 +189,6 @@ func HealthCheck(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"sync": status, "storage": storageStatus, "sdk": sdkStatus, "events": eventsStatus, "since": task.GetSince()})
 		}
 	}
-
 }
 
 // DashboardSegmentKeys returns a keys for a given segment
