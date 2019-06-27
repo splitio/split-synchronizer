@@ -156,9 +156,9 @@ func HealthCheck(c *gin.Context) {
 	if appcontext.ExecutionMode() == appcontext.ProxyMode {
 		status["message"] = "Proxy service working as expected"
 		if sdkStatus["healthy"].(bool) && eventsStatus["healthy"].(bool) {
-			c.JSON(http.StatusOK, gin.H{"proxy": status, "sdk": sdkStatus, "events": eventsStatus, "since": task.GetSince()})
+			c.JSON(http.StatusOK, gin.H{"proxy": status, "sdk": sdkStatus, "events": eventsStatus, "healthySince": task.GetHealthySince()})
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"proxy": status, "sdk": sdkStatus, "events": eventsStatus, "since": task.GetSince()})
+			c.JSON(http.StatusInternalServerError, gin.H{"proxy": status, "sdk": sdkStatus, "events": eventsStatus, "healthySince": task.GetHealthySince()})
 		}
 	} else {
 		status["message"] = "Synchronizer service working as expected"
@@ -184,9 +184,9 @@ func HealthCheck(c *gin.Context) {
 		}
 
 		if storageStatus["healthy"].(bool) && sdkStatus["healthy"].(bool) && eventsStatus["healthy"].(bool) {
-			c.JSON(http.StatusOK, gin.H{"sync": status, "storage": storageStatus, "sdk": sdkStatus, "events": eventsStatus, "since": task.GetSince()})
+			c.JSON(http.StatusOK, gin.H{"sync": status, "storage": storageStatus, "sdk": sdkStatus, "events": eventsStatus, "healthySince": task.GetHealthySince()})
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"sync": status, "storage": storageStatus, "sdk": sdkStatus, "events": eventsStatus, "since": task.GetSince()})
+			c.JSON(http.StatusInternalServerError, gin.H{"sync": status, "storage": storageStatus, "sdk": sdkStatus, "events": eventsStatus, "healthySince": task.GetHealthySince()})
 		}
 	}
 }

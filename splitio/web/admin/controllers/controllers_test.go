@@ -31,12 +31,12 @@ type itemStatus struct {
 }
 
 type globalStatus struct {
-	Sync    itemStatus  `json:"sync"`
-	Storage *itemStatus `json:"storage"`
-	Sdk     itemStatus  `json:"sdk"`
-	Events  itemStatus  `json:"events"`
-	Proxy   *itemStatus `json:"proxy,omitempty"`
-	Since   string      `json:"since"`
+	Sync         itemStatus  `json:"sync"`
+	Storage      *itemStatus `json:"storage"`
+	Sdk          itemStatus  `json:"sdk"`
+	Events       itemStatus  `json:"events"`
+	Proxy        *itemStatus `json:"proxy,omitempty"`
+	HealthySince string      `json:"healthySince"`
 }
 
 type mockStorage struct {
@@ -895,7 +895,7 @@ func TestHealthCheckEndpointFailure(t *testing.T) {
 	if gs.Proxy != nil {
 		t.Error("Should not be status for proxy mode")
 	}
-	if gs.Since != "" {
+	if gs.HealthySince != "" {
 		t.Error("It should not write since")
 	}
 }
@@ -951,7 +951,7 @@ func TestHealthCheckEndpointSDKFail(t *testing.T) {
 	if gs.Proxy != nil {
 		t.Error("Should not be status for proxy mode")
 	}
-	if gs.Since != "" {
+	if gs.HealthySince != "" {
 		t.Error("It should not write since")
 	}
 }
