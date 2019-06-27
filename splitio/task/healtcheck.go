@@ -20,7 +20,7 @@ func StopHealtcheck() {
 	}
 }
 
-var since time.Time
+var healthySince time.Time
 
 // GetSdkStatus checks the status of the SDK Server
 func GetSdkStatus() bool {
@@ -60,7 +60,7 @@ func taskCheckEnvirontmentStatus(splitStorage storage.SplitStorage) {
 	storageStatus := GetStorageStatus(splitStorage)
 
 	if sdkStatus && eventsStatus && storageStatus {
-		since = time.Now()
+		healthySince = time.Now()
 	}
 }
 
@@ -83,10 +83,10 @@ func CheckEnvirontmentStatus(wg *sync.WaitGroup, splitStorage storage.SplitStora
 	wg.Done()
 }
 
-// GetSince returns last time that healtcheck was succesful
-func GetSince() string {
-	if since.IsZero() {
+// GetHealthySince returns last time that healtcheck was successful
+func GetHealthySince() string {
+	if healthySince.IsZero() {
 		return ""
 	}
-	return since.Format("01-02-2006 15:04:05")
+	return healthySince.Format("01-02-2006 15:04:05")
 }

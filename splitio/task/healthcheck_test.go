@@ -67,8 +67,8 @@ func TestTaskCheckEnvirontmentStatusWithSomeFail(t *testing.T) {
 			}
 		}()
 		taskCheckEnvirontmentStatus(splitStorageAdapter)
-		if !since.IsZero() {
-			t.Error("It should not write since")
+		if !healthySince.IsZero() {
+			t.Error("It should not write healthySince")
 		}
 	}()
 }
@@ -105,10 +105,10 @@ func TestTaskCheckEnvirontmentStatus(t *testing.T) {
 		}()
 		check := time.Now()
 		taskCheckEnvirontmentStatus(splitStorageAdapter)
-		if check.After(since) {
+		if check.After(healthySince) {
 			t.Error("It should succeed")
 		}
-		succeed = since
+		succeed = healthySince
 	}()
 }
 
@@ -150,8 +150,8 @@ func TestTaskCheckEnvirontmentStatusWithSomeFailAndSince(t *testing.T) {
 			}
 		}()
 		taskCheckEnvirontmentStatus(splitStorageAdapter)
-		if since != succeed {
-			t.Error("It should not write new since")
+		if healthySince != succeed {
+			t.Error("It should not write new healthySince")
 		}
 	}()
 }
