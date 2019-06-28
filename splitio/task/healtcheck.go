@@ -11,6 +11,7 @@ import (
 )
 
 var healtcheck = make(chan string, 1)
+var healthySince time.Time
 
 // StopHealtcheck stops StopHealtcheck task sendding signal
 func StopHealtcheck() {
@@ -20,10 +21,7 @@ func StopHealtcheck() {
 	}
 }
 
-var healthySince time.Time
-
-// GetSdkStatus checks the status of the SDK Server
-func GetSdkStatus() bool {
+func getSdkStatus() bool {
 	_, err := api.SdkClient.Get("/version")
 	if err != nil {
 		log.Debug.Println(err.Error())
@@ -32,8 +30,7 @@ func GetSdkStatus() bool {
 	return true
 }
 
-// GetEventsStatus checks the status of the Events Server
-func GetEventsStatus() bool {
+func getEventsStatus() bool {
 	_, err := api.EventsClient.Get("/version")
 	if err != nil {
 		log.Debug.Println(err.Error())
@@ -42,26 +39,49 @@ func GetEventsStatus() bool {
 	return true
 }
 
-// GetStorageStatus checks the status of the Storage
-func GetStorageStatus(splitStorage storage.SplitStorage) bool {
-	if appcontext.ExecutionMode() == appcontext.ProducerMode {
-		_, err := splitStorage.ChangeNumber()
-		if err != nil {
-			log.Debug.Println(err.Error())
-			return false
-		}
+func getStorageStatus(splitStorage interface{}) bool {
+	if splitStorage == nil {
+		return false
+	}
+	st, ok := splitStorage.(storage.SplitStorage)
+	if !ok {
+		return false
+	}
+	_, err := st.ChangeNumber()
+	if err != nil {
+		log.Debug.Println(err.Error())
+		return false
 	}
 	return true
 }
 
-func taskCheckEnvirontmentStatus(splitStorage storage.SplitStorage) {
-	sdkStatus := GetSdkStatus()
-	eventsStatus := GetEventsStatus()
-	storageStatus := GetStorageStatus(splitStorage)
-
-	if sdkStatus && eventsStatus && storageStatus {
+// CheckProxyStatus checks proxy status
+func CheckProxyStatus() (bool, bool) {
+	eventStatus := getEventsStatus()
+	sdkStatus := getSdkStatus()
+	if healthySince.IsZero() && eventStatus && sdkStatus {
 		healthySince = time.Now()
+	} else {
+		if !sdkStatus || !eventStatus {
+			healthySince = time.Time{}
+		}
 	}
+	return eventStatus, sdkStatus
+}
+
+// CheckProducerStatus checks producer status
+func CheckProducerStatus(splitStorage interface{}) (bool, bool, bool) {
+	eventStatus := getEventsStatus()
+	sdkStatus := getSdkStatus()
+	storageStatus := getStorageStatus(splitStorage)
+	if healthySince.IsZero() && eventStatus && sdkStatus && storageStatus {
+		healthySince = time.Now()
+	} else {
+		if !sdkStatus || !eventStatus || !storageStatus {
+			healthySince = time.Time{}
+		}
+	}
+	return eventStatus, sdkStatus, storageStatus
 }
 
 // CheckEnvirontmentStatus task to check status of Synchronizer
@@ -69,7 +89,11 @@ func CheckEnvirontmentStatus(wg *sync.WaitGroup, splitStorage storage.SplitStora
 	wg.Add(1)
 	keepLoop := true
 	for keepLoop {
-		taskCheckEnvirontmentStatus(splitStorage)
+		if appcontext.ExecutionMode() == appcontext.ProducerMode {
+			CheckProducerStatus(splitStorage)
+		} else {
+			CheckProxyStatus()
+		}
 
 		select {
 		case msg := <-healtcheck:
@@ -86,7 +110,7 @@ func CheckEnvirontmentStatus(wg *sync.WaitGroup, splitStorage storage.SplitStora
 // GetHealthySince returns last time that healtcheck was successful
 func GetHealthySince() string {
 	if healthySince.IsZero() {
-		return ""
+		return "0"
 	}
 	return healthySince.Format("01-02-2006 15:04:05")
 }

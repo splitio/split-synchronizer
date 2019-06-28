@@ -853,6 +853,9 @@ func TestHealthCheckEndpointSuccessful(t *testing.T) {
 	if gs.Proxy != nil {
 		t.Error("Should not be status for proxy mode")
 	}
+	if gs.HealthySince == "0" {
+		t.Error("Should be healthy")
+	}
 }
 
 func TestHealthCheckEndpointFailure(t *testing.T) {
@@ -895,7 +898,7 @@ func TestHealthCheckEndpointFailure(t *testing.T) {
 	if gs.Proxy != nil {
 		t.Error("Should not be status for proxy mode")
 	}
-	if gs.HealthySince != "" {
+	if gs.HealthySince != "0" {
 		t.Error("It should not write since")
 	}
 }
@@ -951,7 +954,7 @@ func TestHealthCheckEndpointSDKFail(t *testing.T) {
 	if gs.Proxy != nil {
 		t.Error("Should not be status for proxy mode")
 	}
-	if gs.HealthySince != "" {
+	if gs.HealthySince != "0" {
 		t.Error("It should not write since")
 	}
 }
@@ -1007,6 +1010,9 @@ func TestHealthCheckEndpointEventsFail(t *testing.T) {
 	if gs.Proxy != nil {
 		t.Error("Should not be status for proxy mode")
 	}
+	if gs.HealthySince != "0" {
+		t.Error("Should be 0")
+	}
 }
 
 func TestHealtcheckEndpointProxy(t *testing.T) {
@@ -1052,5 +1058,8 @@ func TestHealtcheckEndpointProxy(t *testing.T) {
 	}
 	if gs.Storage != nil {
 		t.Error("Should not be status for producer mode")
+	}
+	if gs.HealthySince == "0" {
+		t.Error("It should have a date")
 	}
 }
