@@ -232,11 +232,17 @@ func (d *Dashboard) HTML() string {
 	// Queue data
 	impressionsQueueSize := ""
 	eventsQueueSize := ""
+	eventStatus := true
+	sdkStatus := true
+	storageStatus := true
 	runningMode := "Running as Proxy Mode"
 	if !d.proxy {
 		impressionsQueueSize = d.parseImpressionSize()
 		eventsQueueSize = d.parseEventsSize()
 		runningMode = "Running as Synchronizer Mode"
+		eventStatus, sdkStatus, storageStatus = task.CheckProducerStatus(d.splitStorage)
+	} else {
+		eventStatus, sdkStatus = task.CheckProxyStatus()
 	}
 
 	//Parsing main menu
@@ -276,9 +282,9 @@ func (d *Dashboard) HTML() string {
 			SegmentRows:                 cachedSegments,
 			ImpressionsQueueSize:        impressionsQueueSize,
 			EventsQueueSize:             eventsQueueSize,
-			EventServerStatus:           task.GetEventsStatus(),
-			SDKServerStatus:             task.GetSdkStatus(),
-			StorageStatus:               task.GetStorageStatus(d.splitStorage),
+			EventServerStatus:           eventStatus,
+			SDKServerStatus:             sdkStatus,
+			StorageStatus:               storageStatus,
 			Sync:                        true,
 			HealthySince:                task.GetHealthySinceTimestamp(),
 		})
