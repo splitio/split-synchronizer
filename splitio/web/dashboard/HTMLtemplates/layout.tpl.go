@@ -28,6 +28,11 @@ type LayoutTPLVars struct {
 	LatenciesGroupDataBackend   string
 	BackendRequestOk            string
 	BackendRequestError         string
+	EventServerStatus           bool
+	SDKServerStatus             bool
+	StorageStatus               bool
+	Sync                        bool
+	HealthySince                string
 }
 
 // LayoutTPL template
@@ -111,6 +116,8 @@ var LayoutTPL = `
   .redBox {background-color:rgba(255, 99, 132, 0.2)}
   .yellowBox {background-color: rgba(255, 206, 86, 0.2)}
   .gray1Box {background-color:rgba(69, 82, 96, 1); color:white;}
+  .green1Box {background-color:rgb(32, 150, 90); color:white;}
+  .red1Box {background-color:rgb(195, 6, 6); color:white;}
   .gray2Box {background-color:rgba(201, 203, 205, 1);}
   .buttonBox {background-color:none; color:black;}
   .btn-label {position: relative;left: -12px;display: inline-block;padding: 6px 12px;border-radius: 3px 0 0 3px;}
@@ -190,13 +197,19 @@ var LayoutTPL = `
     <!-- DASHBOARD -->
         <div role="tabpanel" class="tab-pane active" id="split-dashboard">
           <div class="row">
-            <div class="col-md-4">
+            <div class="col-md-3">
               <div class="gray1Box metricBox">
                 <h4>Uptime</h4>
                 <h1 class="centerText">{{.Uptime}}</h1>
               </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
+              <div class="gray1Box metricBox">
+                <h4>Healthy Since</h4>
+                <h1 class="centerText">{{.HealthySince}}</h1>
+              </div>
+            </div>
+            <div class="col-md-3">
               <div class="redBox metricBox">
                 <h4>Logged Errors</h4>
                 <h1 class="centerText">{{.LoggedErrors}}</h1>
@@ -204,14 +217,14 @@ var LayoutTPL = `
             </div>
 
             {{if .ProxyMode}}   
-              <div class="col-md-4">
+              <div class="col-md-3">
                 <div class="gray2Box metricBox">
                   <h4>SDKs Total Hits</h4>
                   <h1 class="centerText">{{.SdksTotalRequests}}</h1>
                 </div>
               </div>
             {{else}}
-              <div class="col-md-4">
+              <div class="col-md-3">
                 <div class="gray2Box metricBox">
                   <h4>Backend Total Hits</h4>
                   <h1 class="centerText">{{.BackendTotalRequests}}</h1>
@@ -244,16 +257,67 @@ var LayoutTPL = `
 
           {{if not .ProxyMode}} 
             <div class="row">
-              <div class="col-md-6">
+              <div class="col-md-2">
                 <div class="gray1Box metricBox">
                   <h4>Impressions Queue Size</h4>
                   <h1 id="impressions_queue_value" class="centerText">{{.ImpressionsQueueSize}}</h1>
                 </div>
               </div>
-              <div class="col-md-6">
+              <div class="col-md-2">
                 <div class="gray1Box metricBox">
                   <h4>Events Queue Size</h4>
                   <h1 id="events_queue_value" class="centerText">{{.EventsQueueSize}}</h1>
+                </div>
+              </div>
+              {{if .SDKServerStatus}} 
+              <div class="col-md-2">
+                <div class="green1Box metricBox">
+                  <h4>SDK Server</h4>
+                  <h1 id="sdk_server" class="centerText">OK</h1>
+                </div>
+              </div>
+              {{else}}
+              <div class="col-md-2">
+                <div class="red1Box metricBox">
+                  <h4>SDK Server</h4>
+                  <h1 id="sdk_server" class="centerText">ERROR</h1>
+                </div>
+              </div>
+              {{end}}
+              {{if .EventServerStatus}} 
+              <div class="col-md-2">
+                <div class="green1Box metricBox">
+                  <h4>Events Server</h4>
+                  <h1 id="event_server" class="centerText">OK</h1>
+                </div>
+              </div>
+              {{else}}
+              <div class="col-md-2">
+                <div class="red1Box metricBox">
+                  <h4>Events Server</h4>
+                  <h1 id="event_server" class="centerText">ERROR</h1>
+                </div>
+              </div>
+              {{end}}
+              {{if .StorageStatus}} 
+              <div class="col-md-2">
+                <div class="green1Box metricBox">
+                  <h4>Storage</h4>
+                  <h1 id="storage" class="centerText">OK</h1>
+                </div>
+              </div>
+              {{else}}
+              <div class="col-md-2">
+                <div class="red1Box metricBox">
+                  <h4>Storage</h4>
+                  <h1 id="storage" class="centerText">ERROR</h1>
+                </div>
+              </div>
+              {{end}}
+              <div class="col-md-2">
+                <div class="green1Box metricBox">
+                  <h4>Sync</h4>
+                  <h1 id="sync" class="centerText">OK</h1>
                 </div>
               </div>
             </div>
