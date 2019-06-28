@@ -14,6 +14,7 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/stats"
 	"github.com/splitio/split-synchronizer/splitio/storage"
 	"github.com/splitio/split-synchronizer/splitio/storage/redis"
+	"github.com/splitio/split-synchronizer/splitio/task"
 	"github.com/splitio/split-synchronizer/splitio/web/dashboard/HTMLtemplates"
 )
 
@@ -275,6 +276,11 @@ func (d *Dashboard) HTML() string {
 			SegmentRows:                 cachedSegments,
 			ImpressionsQueueSize:        impressionsQueueSize,
 			EventsQueueSize:             eventsQueueSize,
+			EventServerStatus:           task.GetEventsStatus(),
+			SDKServerStatus:             task.GetSdkStatus(),
+			StorageStatus:               task.GetStorageStatus(d.splitStorage),
+			Sync:                        true,
+			HealthySince:                task.GetHealthySinceTimestamp(),
 		})
 
 	return d.mainMenuTpl

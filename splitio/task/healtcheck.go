@@ -86,7 +86,16 @@ func CheckEnvirontmentStatus(wg *sync.WaitGroup, splitStorage storage.SplitStora
 // GetHealthySince returns last time that healtcheck was successful
 func GetHealthySince() string {
 	if healthySince.IsZero() {
-		return ""
+		return "---"
 	}
 	return healthySince.Format("01-02-2006 15:04:05")
+}
+
+// GetHealthySinceTimestamp returns timestamp of the last healthceck that was ok
+func GetHealthySinceTimestamp() string {
+	if healthySince.IsZero() {
+		return "- -"
+	}
+	subs := (time.Now()).Sub(healthySince)
+	return time.Time{}.Add(subs).Format("15:04:05")
 }
