@@ -117,7 +117,7 @@ var LayoutTPL = `
   .yellowBox {background-color: rgba(255, 206, 86, 0.2)}
   .gray1Box {background-color:rgba(69, 82, 96, 1); color:white;}
   .green1Box {background-color:rgb(32, 150, 90); color:white;}
-  .red1Box {background-color:rgba(255, 99, 132, 0.2); color:white;}
+  .red1Box {background-color:rgba(255, 99, 132, 0.2); color:black;}
   .gray2Box {background-color:rgba(201, 203, 205, 1);}
   .buttonBox {background-color:none; color:black;}
   .btn-label {position: relative;left: -12px;display: inline-block;padding: 6px 12px;border-radius: 3px 0 0 3px;}
