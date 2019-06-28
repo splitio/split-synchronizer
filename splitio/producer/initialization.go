@@ -49,6 +49,10 @@ func gracefulShutdownProducer(sigs chan os.Signal, gracefulShutdownWaitingGroup 
 		task.StopPostImpressions()
 	}
 
+	// Healthcheck - Emit task stop signal
+	fmt.Println(" -> Sending STOP to healthcheck goroutine")
+	task.StopHealtcheck()
+
 	fmt.Println(" * Waiting goroutines stop")
 	gracefulShutdownWaitingGroup.Wait()
 	fmt.Println(" * Shutting it down - see you soon!")
@@ -143,6 +147,8 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		go task.PostEvents(i, eventsRecorder, eventsStorage, conf.Data.EventsPushRate,
 			conf.Data.EventsConsumerReadSize, gracefulShutdownWaitingGroup)
 	}
+
+	go task.CheckEnvirontmentStatus(gracefulShutdownWaitingGroup, splitStorage)
 
 	//Keeping service alive
 	startLoop(500)

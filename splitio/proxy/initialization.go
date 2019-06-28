@@ -30,6 +30,10 @@ func gracefulShutdownProxy(sigs chan os.Signal, gracefulShutdownWaitingGroup *sy
 	fmt.Println(" -> Sending STOP to event posting goroutine")
 	controllers.StopImpressionsRecording()
 
+	// Healthcheck - Emit task stop signal
+	fmt.Println(" -> Sending STOP to healthcheck goroutine")
+	task.StopHealtcheck()
+
 	fmt.Println(" * Waiting goroutines stop")
 	gracefulShutdownWaitingGroup.Wait()
 	fmt.Println(" * Shutting it down - see you soon!")
@@ -46,6 +50,8 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 			Endpoint: conf.Data.ImpressionListener.Endpoint,
 		})
 	}
+
+	go task.CheckEnvirontmentStatus(gracefulShutdownWaitingGroup, nil)
 
 	controllers.InitializeImpressionWorkers(
 		conf.Data.Proxy.ImpressionsMaxSize,

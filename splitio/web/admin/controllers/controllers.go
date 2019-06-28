@@ -120,84 +120,49 @@ func GetConfiguration(c *gin.Context) {
 	})
 }
 
-// getSdkStatus checks the status of the SDK Server
-func getSdkStatus() map[string]interface{} {
-	_, err := api.SdkClient.Get("/version")
-	sdkStatus := make(map[string]interface{})
-	if err != nil {
-		sdkStatus["healthy"] = false
-		sdkStatus["message"] = "Cannot reach SDK service"
-		log.Debug.Println("Events Server:", err)
-	} else {
-		sdkStatus["healthy"] = true
-		sdkStatus["message"] = "SDK service working as expected"
+func parseStatus(ok bool, value string) map[string]interface{} {
+	status := make(map[string]interface{})
+	if ok {
+		status["healthy"] = true
+		status["message"] = value + " service working as expected"
+		return status
 	}
-	return sdkStatus
-}
-
-// getEventsStatus checks the status of the Events Server
-func getEventsStatus() map[string]interface{} {
-	_, err := api.EventsClient.Get("/version")
-	eventsStatus := make(map[string]interface{})
-	if err != nil {
-		eventsStatus["healthy"] = false
-		eventsStatus["message"] = "Cannot reach Events service"
-		log.Debug.Println("Events Server:", err)
-	} else {
-		eventsStatus["healthy"] = true
-		eventsStatus["message"] = "Events service working as expected"
-	}
-	return eventsStatus
+	status["healthy"] = false
+	status["message"] = "Cannot reach " + value
+	return status
 }
 
 // HealthCheck returns the service status
 func HealthCheck(c *gin.Context) {
 	status := make(map[string]interface{})
-	sdkStatus := getSdkStatus()
-	eventsStatus := getEventsStatus()
-
-	// Producer service
 	status["healthy"] = true
 
 	if appcontext.ExecutionMode() == appcontext.ProxyMode {
 		status["message"] = "Proxy service working as expected"
-
+		eventsOK, sdkOK := task.CheckProxyStatus()
+		eventsStatus := parseStatus(eventsOK, "Events")
+		sdkStatus := parseStatus(sdkOK, "SDK")
 		if sdkStatus["healthy"].(bool) && eventsStatus["healthy"].(bool) {
-			c.JSON(http.StatusOK, gin.H{"proxy": status, "sdk": sdkStatus, "events": eventsStatus})
+			c.JSON(http.StatusOK, gin.H{"proxy": status, "sdk": sdkStatus, "events": eventsStatus, "healthySince": task.GetHealthySince()})
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"proxy": status, "sdk": sdkStatus, "events": eventsStatus})
+			c.JSON(http.StatusInternalServerError, gin.H{"proxy": status, "sdk": sdkStatus, "events": eventsStatus, "healthySince": task.GetHealthySince()})
 		}
 	} else {
 		status["message"] = "Synchronizer service working as expected"
 
 		// Storage service
-		storageStatus := make(map[string]interface{})
-		splitStorage, exists := c.Get("SplitStorage")
-		if exists {
-			st, ok := splitStorage.(storage.SplitStorage)
-			if ok {
-				_, err := st.ChangeNumber()
-				if err != nil {
-					storageStatus["healthy"] = false
-					storageStatus["message"] = err.Error()
-				} else {
-					storageStatus["healthy"] = true
-					storageStatus["message"] = "Storage service working as expected"
-				}
-			} else {
-				storageStatus["healthy"] = false
-				storageStatus["message"] = "Could not access to SplitStorage"
-			}
-
-		}
+		splitStorage, _ := c.Get("SplitStorage")
+		eventsOK, sdkOK, storageOk := task.CheckProducerStatus(splitStorage)
+		eventsStatus := parseStatus(eventsOK, "Events")
+		sdkStatus := parseStatus(sdkOK, "SDK")
+		storageStatus := parseStatus(storageOk, "Storage")
 
 		if storageStatus["healthy"].(bool) && sdkStatus["healthy"].(bool) && eventsStatus["healthy"].(bool) {
-			c.JSON(http.StatusOK, gin.H{"sync": status, "storage": storageStatus, "sdk": sdkStatus, "events": eventsStatus})
+			c.JSON(http.StatusOK, gin.H{"sync": status, "storage": storageStatus, "sdk": sdkStatus, "events": eventsStatus, "healthySince": task.GetHealthySince()})
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"sync": status, "storage": storageStatus, "sdk": sdkStatus, "events": eventsStatus})
+			c.JSON(http.StatusInternalServerError, gin.H{"sync": status, "storage": storageStatus, "sdk": sdkStatus, "events": eventsStatus, "healthySince": task.GetHealthySince()})
 		}
 	}
-
 }
 
 // DashboardSegmentKeys returns a keys for a given segment
