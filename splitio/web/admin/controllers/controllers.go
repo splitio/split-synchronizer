@@ -120,41 +120,28 @@ func GetConfiguration(c *gin.Context) {
 	})
 }
 
-func getSdkStatus() map[string]interface{} {
-	sdkStatus := make(map[string]interface{})
-	if !task.GetSdkStatus() {
-		sdkStatus["healthy"] = false
-		sdkStatus["message"] = "Cannot reach SDK service"
-	} else {
-		sdkStatus["healthy"] = true
-		sdkStatus["message"] = "SDK service working as expected"
+func parseStatus(ok bool, value string) map[string]interface{} {
+	status := make(map[string]interface{})
+	if ok {
+		status["healthy"] = true
+		status["message"] = value + " service working as expected"
+		return status
 	}
-	return sdkStatus
-}
-
-func getEventsStatus() map[string]interface{} {
-	eventsStatus := make(map[string]interface{})
-	if !task.GetEventsStatus() {
-		eventsStatus["healthy"] = false
-		eventsStatus["message"] = "Cannot reach Events service"
-	} else {
-		eventsStatus["healthy"] = true
-		eventsStatus["message"] = "Events service working as expected"
-	}
-	return eventsStatus
+	status["healthy"] = false
+	status["message"] = "Cannot reach " + value
+	return status
 }
 
 // HealthCheck returns the service status
 func HealthCheck(c *gin.Context) {
 	status := make(map[string]interface{})
-	sdkStatus := getSdkStatus()
-	eventsStatus := getEventsStatus()
-
-	// Producer service
 	status["healthy"] = true
 
 	if appcontext.ExecutionMode() == appcontext.ProxyMode {
 		status["message"] = "Proxy service working as expected"
+		eventsOK, sdkOK := task.CheckProxyStatus()
+		eventsStatus := parseStatus(eventsOK, "Events")
+		sdkStatus := parseStatus(sdkOK, "SDK")
 		if sdkStatus["healthy"].(bool) && eventsStatus["healthy"].(bool) {
 			c.JSON(http.StatusOK, gin.H{"proxy": status, "sdk": sdkStatus, "events": eventsStatus, "healthySince": task.GetHealthySince()})
 		} else {
@@ -164,24 +151,11 @@ func HealthCheck(c *gin.Context) {
 		status["message"] = "Synchronizer service working as expected"
 
 		// Storage service
-		storageStatus := make(map[string]interface{})
-		splitStorage, exists := c.Get("SplitStorage")
-		if exists {
-			st, ok := splitStorage.(storage.SplitStorage)
-			if ok {
-				if !task.GetStorageStatus(st) {
-					storageStatus["healthy"] = false
-					storageStatus["message"] = "Could not access to SplitStorage"
-				} else {
-					storageStatus["healthy"] = true
-					storageStatus["message"] = "Storage service working as expected"
-				}
-			} else {
-				storageStatus["healthy"] = false
-				storageStatus["message"] = "Could not access to SplitStorage"
-			}
-
-		}
+		splitStorage, _ := c.Get("SplitStorage")
+		eventsOK, sdkOK, storageOk := task.CheckProducerStatus(splitStorage)
+		eventsStatus := parseStatus(eventsOK, "Events")
+		sdkStatus := parseStatus(sdkOK, "SDK")
+		storageStatus := parseStatus(storageOk, "Storage")
 
 		if storageStatus["healthy"].(bool) && sdkStatus["healthy"].(bool) && eventsStatus["healthy"].(bool) {
 			c.JSON(http.StatusOK, gin.H{"sync": status, "storage": storageStatus, "sdk": sdkStatus, "events": eventsStatus, "healthySince": task.GetHealthySince()})

@@ -27,8 +27,6 @@ type mockStorage struct {
 	shouldFail bool
 }
 
-var succeed time.Time
-
 func TestTaskCheckEnvirontmentStatusWithSomeFail(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
 	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
@@ -66,7 +64,7 @@ func TestTaskCheckEnvirontmentStatusWithSomeFail(t *testing.T) {
 				t.Error("Recovered task", r)
 			}
 		}()
-		taskCheckEnvirontmentStatus(splitStorageAdapter)
+		CheckProducerStatus(splitStorageAdapter)
 		if !healthySince.IsZero() {
 			t.Error("It should not write healthySince")
 		}
@@ -104,11 +102,10 @@ func TestTaskCheckEnvirontmentStatus(t *testing.T) {
 			}
 		}()
 		check := time.Now()
-		taskCheckEnvirontmentStatus(splitStorageAdapter)
+		CheckProducerStatus(splitStorageAdapter)
 		if check.After(healthySince) {
 			t.Error("It should succeed")
 		}
-		succeed = healthySince
 	}()
 }
 
@@ -149,9 +146,9 @@ func TestTaskCheckEnvirontmentStatusWithSomeFailAndSince(t *testing.T) {
 				t.Error("Recovered task", r)
 			}
 		}()
-		taskCheckEnvirontmentStatus(splitStorageAdapter)
-		if healthySince != succeed {
-			t.Error("It should not write new healthySince")
+		CheckProducerStatus(splitStorageAdapter)
+		if !healthySince.IsZero() {
+			t.Error("It should be zero")
 		}
 	}()
 }
