@@ -64,8 +64,8 @@ func parseTLSConfig(opt conf.RedisSection) (*tls.Config, error) {
 
 	if opt.TLSClientKey != "" && opt.TLSClientCertificate != "" {
 		certPair, err := tls.LoadX509KeyPair(
-			"/Users/martinredolatti/go/src/github.com/square/ghostunnel/test-keys/client-combined.pem",
-			"/Users/martinredolatti/go/src/github.com/square/ghostunnel/test-keys/client-combined.pem",
+			opt.TLSClientCertificate,
+			opt.TLSClientKey,
 		)
 
 		if err != nil {
