@@ -14,6 +14,7 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/stats"
 	"github.com/splitio/split-synchronizer/splitio/storage"
 	"github.com/splitio/split-synchronizer/splitio/storage/redis"
+	"github.com/splitio/split-synchronizer/splitio/task"
 	"github.com/splitio/split-synchronizer/splitio/web/dashboard/HTMLtemplates"
 )
 
@@ -231,11 +232,17 @@ func (d *Dashboard) HTML() string {
 	// Queue data
 	impressionsQueueSize := ""
 	eventsQueueSize := ""
+	eventStatus := true
+	sdkStatus := true
+	storageStatus := true
 	runningMode := "Running as Proxy Mode"
 	if !d.proxy {
 		impressionsQueueSize = d.parseImpressionSize()
 		eventsQueueSize = d.parseEventsSize()
 		runningMode = "Running as Synchronizer Mode"
+		eventStatus, sdkStatus, storageStatus = task.CheckProducerStatus(d.splitStorage)
+	} else {
+		eventStatus, sdkStatus = task.CheckProxyStatus()
 	}
 
 	//Parsing main menu
@@ -275,6 +282,11 @@ func (d *Dashboard) HTML() string {
 			SegmentRows:                 cachedSegments,
 			ImpressionsQueueSize:        impressionsQueueSize,
 			EventsQueueSize:             eventsQueueSize,
+			EventServerStatus:           eventStatus,
+			SDKServerStatus:             sdkStatus,
+			StorageStatus:               storageStatus,
+			Sync:                        true,
+			HealthySince:                task.GetHealthySinceTimestamp(),
 		})
 
 	return d.mainMenuTpl
