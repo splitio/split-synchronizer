@@ -58,7 +58,6 @@ func TestCounter(t *testing.T) {
 		}
 
 		rBody, _ := ioutil.ReadAll(r.Body)
-		fmt.Println(string(rBody))
 		var countersInPost []api.CounterDTO
 		err := json.Unmarshal(rBody, &countersInPost)
 		if err != nil {
@@ -83,16 +82,6 @@ func TestCounter(t *testing.T) {
 		if counterForMetricB.Count != expectedB {
 			t.Errorf("Expected count to be %d, got %d", expectedB, counterForMetricB.Count)
 		}
-		/*
-			if countersInPost[0].MetricName != counterA ||
-				countersInPost[0].Count != expectedA ||
-				countersInPost[1].MetricName != counterB ||
-				countersInPost[1].Count != expectedB {
-				t.Error("Posted counters arrived mal-formed")
-			}
-
-			fmt.Fprintln(w, "ok!!")
-		*/
 	}))
 	defer ts.Close()
 
