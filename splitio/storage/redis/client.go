@@ -52,12 +52,12 @@ func parseTLSConfig(opt conf.RedisSection) (*tls.Config, error) {
 		for _, cacert := range opt.TLSCACertificates {
 			pemData, err := ioutil.ReadFile(cacert)
 			if err != nil {
-				fmt.Println("Failed to load Root CA certificate ", cacert)
+				log.Error.Println(fmt.Sprintf("Failed to load Root CA certificate: %s", cacert))
 				return nil, err
 			}
 			ok := certPool.AppendCertsFromPEM(pemData)
 			if !ok {
-				fmt.Printf("Failed to add certificate %s to the TLS configuration", cacert)
+				log.Error.Println(fmt.Sprintf("Failed to add certificate %s to the TLS configuration", cacert))
 				return nil, fmt.Errorf("Couldn't add certificate %s to redis TLS configuration", cacert)
 			}
 		}
@@ -73,14 +73,14 @@ func parseTLSConfig(opt conf.RedisSection) (*tls.Config, error) {
 		)
 
 		if err != nil {
-			fmt.Println("Unable to load client certificate and private key")
+			log.Error.Println("Unable to load client certificate and private key")
 			return nil, err
 		}
 
 		cfg.Certificates = []tls.Certificate{certPair}
 	} else if opt.TLSClientKey != opt.TLSClientCertificate {
 		// If they aren't both set, and they aren't equal, it means that only one is set, which is invalid.
-		return nil, fmt.Errorf("You must provide either both client certificate and client private key, or none")
+		return nil, errors.New("You must provide either both client certificate and client private key, or none")
 	}
 
 	return &cfg, nil
