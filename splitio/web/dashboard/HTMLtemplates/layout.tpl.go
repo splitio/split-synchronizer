@@ -200,13 +200,13 @@ var LayoutTPL = `
             <div class="col-md-3">
               <div class="gray1Box metricBox">
                 <h4>Uptime</h4>
-                <h1 class="centerText">{{.Uptime}}</h1>
+                <h1 id="uptime" class="centerText">{{.Uptime}}</h1>
               </div>
             </div>
             <div class="col-md-3">
               <div class="gray1Box metricBox">
                 <h4>Healthy Since</h4>
-                <h1 class="centerText">{{.HealthySince}}</h1>
+                <h1 id="healthy_since" class="centerText">{{.HealthySince}}</h1>
               </div>
             </div>
             <div class="col-md-3">
@@ -269,51 +269,42 @@ var LayoutTPL = `
                   <h1 id="events_queue_value" class="centerText">{{.EventsQueueSize}}</h1>
                 </div>
               </div>
-              {{if .SDKServerStatus}} 
-              <div class="col-md-2">
+              <div id="sdk_server_div_ok" class="col-md-2">
                 <div class="green1Box metricBox">
                   <h4>SDK Server</h4>
                   <h1 id="sdk_server" class="centerText">OK</h1>
                 </div>
               </div>
-              {{else}}
-              <div class="col-md-2">
+              <div id="sdk_server_div_error" class="col-md-2 hidden">
                 <div class="red1Box metricBox">
                   <h4>SDK Server</h4>
                   <h1 id="sdk_server" class="centerText">ERROR</h1>
                 </div>
               </div>
-              {{end}}
-              {{if .EventServerStatus}} 
-              <div class="col-md-2">
+              <div id="event_server_div_ok" class="col-md-2">
                 <div class="green1Box metricBox">
                   <h4>Events Server</h4>
                   <h1 id="event_server" class="centerText">OK</h1>
                 </div>
               </div>
-              {{else}}
-              <div class="col-md-2">
+              <div id="event_server_div_error" class="col-md-2 hidden">
                 <div class="red1Box metricBox">
                   <h4>Events Server</h4>
                   <h1 id="event_server" class="centerText">ERROR</h1>
                 </div>
               </div>
-              {{end}}
-              {{if .StorageStatus}} 
-              <div class="col-md-2">
+              <div id="storage_div_ok" class="col-md-2">
                 <div class="green1Box metricBox">
                   <h4>Storage</h4>
                   <h1 id="storage" class="centerText">OK</h1>
                 </div>
               </div>
-              {{else}}
-              <div class="col-md-2">
+              <div id="storage_div_error" class="col-md-2 hidden">
                 <div class="red1Box metricBox">
                   <h4>Storage</h4>
                   <h1 id="storage" class="centerText">ERROR</h1>
                 </div>
               </div>
-              {{end}}
               <div class="col-md-2">
                 <div class="green1Box metricBox">
                   <h4>Sync</h4>
@@ -323,36 +314,30 @@ var LayoutTPL = `
             </div>
           {{else}}
             <div class="row">
-              {{if .SDKServerStatus}} 
-                <div class="col-md-4">
-                  <div class="green1Box metricBox">
-                    <h4>SDK Server</h4>
-                    <h1 id="sdk_server" class="centerText">OK</h1>
-                  </div>
+              <div id="sdk_server_div_ok" class="col-md-4">
+                <div class="green1Box metricBox">
+                  <h4>SDK Server</h4>
+                  <h1 id="sdk_server" class="centerText">OK</h1>
                 </div>
-              {{else}}
-                <div class="col-md-4">
-                  <div class="red1Box metricBox">
-                    <h4>SDK Server</h4>
-                    <h1 id="sdk_server" class="centerText">ERROR</h1>
-                  </div>
+              </div>
+              <div id="sdk_server_div_error" class="col-md-4 hidden">
+                <div class="red1Box metricBox">
+                  <h4>SDK Server</h4>
+                  <h1 id="sdk_server" class="centerText">ERROR</h1>
                 </div>
-              {{end}}
-              {{if .EventServerStatus}} 
-                <div class="col-md-4">
-                  <div class="green1Box metricBox">
-                    <h4>Events Server</h4>
-                    <h1 id="event_server" class="centerText">OK</h1>
-                  </div>
+              </div>
+              <div id="event_server_div_ok" class="col-md-4">
+                <div class="green1Box metricBox">
+                  <h4>Events Server</h4>
+                  <h1 id="event_server" class="centerText">OK</h1>
                 </div>
-              {{else}}
-                <div class="col-md-4">
-                  <div class="red1Box metricBox">
-                    <h4>Events Server</h4>
-                    <h1 id="event_server" class="centerText">ERROR</h1>
-                  </div>
+              </div>
+              <div id="event_server_div_error" class="col-md-4 hidden">
+                <div class="red1Box metricBox">
+                  <h4>Events Server</h4>
+                  <h1 id="event_server" class="centerText">ERROR</h1>
                 </div>
-              {{end}}
+              </div>
               <div class="col-md-4">
                 <div class="green1Box metricBox">
                   <h4>Sync</h4>
@@ -755,11 +740,11 @@ var LayoutTPL = `
         url: "impressions/queueSize",
         cache: false,
         success: function(response) {
-            $('#impressions_queue_value').text(response.queueSize);
-            $('#impressions_queue_value_section').text(response.queueSize);
-            setTimeout(function() {
-              refreshImpressionsSize();
-            }, 8000);
+          $('#impressions_queue_value').text(response.queueSize);
+          $('#impressions_queue_value_section').text(response.queueSize);
+          setTimeout(function() {
+            refreshImpressionsSize();
+          }, 8000);
         }
     });
   };
@@ -769,11 +754,11 @@ var LayoutTPL = `
           url: "events/queueSize",
           cache: false,
           success: function(response) {
-              $('#events_queue_value').text(response.queueSize);
-              $('#events_queue_value_section').text(response.queueSize);
-              setTimeout(function() {
-                refreshEventsSize();
-              }, 8000);
+            $('#events_queue_value').text(response.queueSize);
+            $('#events_queue_value_section').text(response.queueSize);
+            setTimeout(function() {
+              refreshEventsSize();
+            }, 8000);
           }
       });
   };
@@ -784,8 +769,10 @@ var LayoutTPL = `
 
   $(document).ready(function () {
     if (document.getElementById("eventsSize")) {
-      refreshImpressionsSize();
-      refreshEventsSize();
+      setTimeout(function() {
+        refreshImpressionsSize();
+        refreshEventsSize();
+      }, 8000);
     }
   });
 
@@ -843,6 +830,93 @@ var LayoutTPL = `
       }
   });
 {{end}}
+
+function handleHealthcheck(response) {
+  $('#healthy_since').text(response.healthySince.time);
+  $('#uptime').text(response.uptime);
+
+  if (response.sdk.healthy) {
+    $('#sdk_server_div_error').addClass('hidden')
+    $('#sdk_server_div_ok').removeClass('hidden')
+  } else {
+    $('#sdk_server_div_ok').addClass('hidden')
+    $('#sdk_server_div_error').removeClass('hidden')
+  }
+
+  if (response.events.healthy) {
+    $('#event_server_div_error').addClass('hidden')
+    $('#event_server_div_ok').removeClass('hidden')
+  } else {
+    $('#event_server_div_ok').addClass('hidden')
+    $('#event_server_div_error').removeClass('hidden')
+  }
+
+  if (response.sync) {
+    if (response.storage.healthy) {
+      $('#storage_div_error').addClass('hidden')
+      $('#storage_div_ok').removeClass('hidden')
+    } else {
+      $('#storage_div_ok').addClass('hidden')
+      $('#storage_div_error').removeClass('hidden')
+    }
+  }
+
+  setTimeout(function() {
+    refreshHealthcheck();
+  }, 8000);
+}
+
+function refreshHealthcheck() {
+  $.ajax({
+    url: "healthcheck",
+    cache: false,
+    dataType: "json",
+    success: function(response) {
+      handleHealthcheck(response)
+    },
+    error: function(response) {
+      if (response.status == 500 && response.responseJSON && response.responseJSON.sdk) {
+        handleHealthcheck(response.responseJSON)
+      }
+    }
+  });
+};
+
+$(document).ready(function () {
+  if (document.getElementById("uptime")) {
+    const isProxyMode = {{.ProxyMode}}
+    const isSDKServerStatus = {{.SDKServerStatus}}
+    const isEventServerStatus = {{.EventServerStatus}}
+
+    if (isSDKServerStatus) {
+      $('#sdk_server_div_error').addClass('hidden')
+    } else {
+      $('#sdk_server_div_ok').addClass('hidden')
+      $('#sdk_server_div_ok').removeClass('hidden')
+    }
+
+    if (isEventServerStatus) {
+      $('#event_server_div_error').addClass('hidden')
+    } else {
+      $('#event_server_div_ok').addClass('hidden')
+      $('#event_server_div_error').removeClass('hidden')
+    }
+
+    if (!isProxyMode) {
+      const isStorageStatus = {{.StorageStatus}}
+      if (isStorageStatus) {
+        $('#storage_div_error').addClass('hidden')
+      } else {
+        $('#storage_div_ok').addClass('hidden')
+        $('#storage_div_error').removeClass('hidden')
+      }
+    }
+
+    setTimeout(function() {
+      refreshHealthcheck();
+    }, 8000);
+  }
+});
 
 // BACKEND STATS
 

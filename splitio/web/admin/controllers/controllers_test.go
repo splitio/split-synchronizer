@@ -30,13 +30,19 @@ type itemStatus struct {
 	Message string `json:"message"`
 }
 
+type date struct {
+	Date string `json:"date"`
+	Time string `json:"time"`
+}
+
 type globalStatus struct {
 	Sync         itemStatus  `json:"sync"`
 	Storage      *itemStatus `json:"storage"`
 	Sdk          itemStatus  `json:"sdk"`
 	Events       itemStatus  `json:"events"`
 	Proxy        *itemStatus `json:"proxy,omitempty"`
-	HealthySince string      `json:"healthySince"`
+	HealthySince date        `json:"healthySince"`
+	Uptime       string      `json:"uptime"`
 }
 
 type mockStorage struct {
@@ -853,7 +859,7 @@ func TestHealthCheckEndpointSuccessful(t *testing.T) {
 	if gs.Proxy != nil {
 		t.Error("Should not be status for proxy mode")
 	}
-	if gs.HealthySince == "0" {
+	if gs.HealthySince.Date == "0" {
 		t.Error("Should be healthy")
 	}
 }
@@ -898,7 +904,7 @@ func TestHealthCheckEndpointFailure(t *testing.T) {
 	if gs.Proxy != nil {
 		t.Error("Should not be status for proxy mode")
 	}
-	if gs.HealthySince != "0" {
+	if gs.HealthySince.Date != "0" {
 		t.Error("It should not write since")
 	}
 }
@@ -954,7 +960,7 @@ func TestHealthCheckEndpointSDKFail(t *testing.T) {
 	if gs.Proxy != nil {
 		t.Error("Should not be status for proxy mode")
 	}
-	if gs.HealthySince != "0" {
+	if gs.HealthySince.Date != "0" {
 		t.Error("It should not write since")
 	}
 }
@@ -1010,7 +1016,7 @@ func TestHealthCheckEndpointEventsFail(t *testing.T) {
 	if gs.Proxy != nil {
 		t.Error("Should not be status for proxy mode")
 	}
-	if gs.HealthySince != "0" {
+	if gs.HealthySince.Date != "0" {
 		t.Error("Should be 0")
 	}
 }
@@ -1059,7 +1065,7 @@ func TestHealtcheckEndpointProxy(t *testing.T) {
 	if gs.Storage != nil {
 		t.Error("Should not be status for producer mode")
 	}
-	if gs.HealthySince == "0" {
-		t.Error("It should have a date")
+	if gs.HealthySince.Date == "0" {
+		t.Error("It should have a date", gs.HealthySince.Date)
 	}
 }
