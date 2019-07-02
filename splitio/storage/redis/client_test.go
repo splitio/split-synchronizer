@@ -399,4 +399,15 @@ func TestTLSConfigProcessing(t *testing.T) {
 		t.Error("There should be 1 certificate loaded.")
 		return
 	}
+
+	redisConfig.SentinelReplication = true
+	parsed, err = parseTLSConfig(redisConfig)
+	if parsed != nil {
+		t.Error("No client shoud have been returned when using TLS + Sentinel")
+		return
+	}
+	if err == nil {
+		t.Error("An error should have been returned indicating that you cannot use sentinel or cluster with TLS")
+		return
+	}
 }
