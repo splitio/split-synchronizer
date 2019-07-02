@@ -4,6 +4,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/splitio/split-synchronizer/splitio/util"
+
 	"github.com/splitio/split-synchronizer/appcontext"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/api"
@@ -120,6 +122,5 @@ func GetHealthySinceTimestamp() string {
 	if healthySince.IsZero() {
 		return "0"
 	}
-	subs := (time.Now()).Sub(healthySince)
-	return time.Time{}.Add(subs).Format("15:04:05")
+	return util.ParseTime(healthySince)
 }
