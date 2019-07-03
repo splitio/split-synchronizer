@@ -114,3 +114,12 @@ func GetHealthySince() string {
 	}
 	return healthySince.Format("01-02-2006 15:04:05")
 }
+
+// GetHealthySinceTimestamp returns timestamp of the last healthceck that was ok
+func GetHealthySinceTimestamp() string {
+	if healthySince.IsZero() {
+		return "0"
+	}
+	subs := (time.Now()).Sub(healthySince)
+	return time.Time{}.Add(subs).Format("15:04:05")
+}
