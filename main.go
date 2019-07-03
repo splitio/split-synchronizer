@@ -40,6 +40,47 @@ var sigs = make(chan os.Signal, 1)
 // Go Initialization
 //------------------------------------------------------------------------------
 
+func checkDeprecatedConfigParameters() []string {
+	deprecatedMessages := make([]string, 0)
+
+	if conf.Data.ImpressionsConsumerThreads > 0 {
+		deprecatedMessages = append(deprecatedMessages, "The cli parameter 'impressions-consumer-threads' will be deprecated soon in favor of 'impressions-threads'. Mapping to replacement: 'impressions-threads'.")
+		if conf.Data.ImpressionsThreads == 1 {
+			conf.Data.ImpressionsThreads = conf.Data.ImpressionsConsumerThreads
+		}
+	}
+
+	if conf.Data.EventsConsumerReadSize > 0 {
+		deprecatedMessages = append(deprecatedMessages, "The parameter 'eventsConsumerReadSize' and 'events-consumer-read-size' will be deprecated soon in favor of 'eventsPerPost' or 'events-per-post'. Mapping to replacement: 'eventsPerPost'/'events-per-post'.")
+		if conf.Data.EventsPerPost == 10000 {
+			conf.Data.EventsPerPost = conf.Data.EventsConsumerReadSize
+		}
+	}
+
+	if conf.Data.EventsPushRate > 0 {
+		deprecatedMessages = append(deprecatedMessages, "The parameter 'eventsPushRate' and 'events-push-rate' will be deprecated soon in favor of 'eventsPostRate' or 'events-post-rate'. Mapping to replacement: 'eventsPostRate'/'events-post-rate'.")
+		if conf.Data.EventsPostRate == 60 {
+			conf.Data.EventsPostRate = conf.Data.EventsPushRate
+		}
+	}
+
+	if conf.Data.ImpressionsRefreshRate > 0 {
+		deprecatedMessages = append(deprecatedMessages, "The parameter 'impressionsRefreshRate' will be deprecated soon in favor of 'impressionsPostRate'. Mapping to replacement: 'impressionsPostRate'.")
+		if conf.Data.ImpressionsPostRate == 20 {
+			conf.Data.ImpressionsPostRate = conf.Data.ImpressionsRefreshRate
+		}
+	}
+
+	if conf.Data.EventsConsumerThreads > 0 {
+		deprecatedMessages = append(deprecatedMessages, "The parameter 'eventsConsumerThreads' and 'events-consumer-threads' will be deprecated soon in favor of 'eventsThreads' or 'events-threads'. Mapping to replacement 'eventsThreads'/'events-threads'.")
+		if conf.Data.EventsThreads == 1 {
+			conf.Data.EventsThreads = conf.Data.EventsConsumerThreads
+		}
+	}
+
+	return deprecatedMessages
+}
+
 func init() {
 	//reading command line options
 	parseFlags()
@@ -56,7 +97,6 @@ func init() {
 
 	//writing a default configuration file if it is required by user
 	if *writeDefaultConfigFile != "" {
-		fmt.Println("DEFAULT CONFIG FILE HAS BEEN WRITTEN:", *writeDefaultConfigFile)
 		conf.WriteDefaultConfigFile(*writeDefaultConfigFile)
 		os.Exit(splitio.SuccessfulOperation)
 	}
@@ -67,6 +107,14 @@ func init() {
 		os.Exit(splitio.ExitInvalidConfiguration)
 	}
 	loadLogger()
+
+	deprecatedMessages := checkDeprecatedConfigParameters()
+	if len(deprecatedMessages) > 0 {
+		for _, msg := range deprecatedMessages {
+			log.Warning.Println(msg)
+		}
+	}
+
 	api.Initialize()
 	stats.Initialize()
 
