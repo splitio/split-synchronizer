@@ -38,6 +38,12 @@ _testmain.go
 !/test/dataset/test.conf.error3.json
 !/test/dataset/test.conf.error4.json
 !/test/dataset/test.conf.error5.json
+!/test/dataset/test.conf.json
+!/test/dataset/test.conf.warning1.json
+!/test/dataset/test.conf.warning2.json
+!/test/dataset/test.conf.warning3.json
+!/test/dataset/test.conf.warning4.json
+!/test/dataset/test.conf.warning5.json
 
 # vim backup files
 *.swp
