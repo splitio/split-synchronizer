@@ -3,10 +3,10 @@
 
 	"splitsRefreshRate":5,
 	"segmentsRefreshRate":10,
-	"impressionsRefreshRate":80,
+	"impressionsPostRate":80,
 	"impressionsPerPost":56000,
 	"impressionsThreads": 1,
-	"metricsRefreshRate":60,
+	"metricsPostRate":60,
 
 	"redisError": {
     "hostError":"localhost",
