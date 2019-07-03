@@ -38,7 +38,7 @@ func gracefulShutdownProducer(sigs chan os.Signal, gracefulShutdownWaitingGroup 
 	task.StopPostMetrics()
 
 	// Events - Emit task stop signal
-	for i := 0; i < conf.Data.EventsConsumerThreads; i++ {
+	for i := 0; i < conf.Data.EventsThreads; i++ {
 		fmt.Println(" -> Sending STOP to post_events goroutine")
 		task.StopPostEvents()
 	}
@@ -88,7 +88,7 @@ func startLoop(loopTime int64) {
 // Start initialize the producer mode
 func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 
-	task.InitializeEvents(conf.Data.EventsConsumerThreads)
+	task.InitializeEvents(conf.Data.EventsThreads)
 	task.InitializeImpressions(conf.Data.ImpressionsThreads)
 
 	//Producer mode - graceful shutdown
@@ -141,11 +141,11 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	metricsRecorder := recorder.MetricsHTTPRecorder{}
 	go task.PostMetrics(metricsRecorder, metricsStorage, conf.Data.MetricsPostRate, gracefulShutdownWaitingGroup)
 
-	for i := 0; i < conf.Data.EventsConsumerThreads; i++ {
+	for i := 0; i < conf.Data.EventsThreads; i++ {
 		eventsStorage := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 		eventsRecorder := recorder.EventsHTTPRecorder{}
-		go task.PostEvents(i, eventsRecorder, eventsStorage, conf.Data.EventsPushRate,
-			conf.Data.EventsConsumerReadSize, gracefulShutdownWaitingGroup)
+		go task.PostEvents(i, eventsRecorder, eventsStorage, conf.Data.EventsPostRate,
+			conf.Data.EventsPerPost, gracefulShutdownWaitingGroup)
 	}
 
 	go task.CheckEnvirontmentStatus(gracefulShutdownWaitingGroup, splitStorage)

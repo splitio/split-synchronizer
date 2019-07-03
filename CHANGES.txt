@@ -1,4 +1,6 @@
-2.3.1 (Jun , 2019)
+2.3.1 ()
+ - Updated config parameters to have consistency between them. Several parameters will be deprecated in future versions.
+ - Accept true, "on" and "yes" as values for enabling options in docker environment variables.
  - Merged controllers for web admin dashboard.
  - Added label in Sync Dashboard to indicate on which mode it started (Synchronizer or Proxy).
  - Added task to check Sync environtment and added healthySince property to healtheck endpoint.
