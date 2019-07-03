@@ -34,24 +34,31 @@
 #    - SPLIT_SYNC_PROXY_EVENTS_MAX_SIZE        Max size, in bytes, to send events in proxy mode
 #
 #   Producer vars:
-#    - SPLIT_SYNC_REDIS_HOST                   Redis server hostname
-#    - SPLIT_SYNC_REDIS_PORT                   Redis Server port
-#    - SPLIT_SYNC_REDIS_DB                     Redis DB number
-#    - SPLIT_SYNC_REDIS_PASS                   Redis password
-#    - SPLIT_SYNC_REDIS_PREFIX                 Redis key prefix
-#    - SPLIT_SYNC_IMPRESSIONS_PER_POST         Number of impressions to send in a POST request
-#    - SPLIT_SYNC_IMPRESSIONS_THREADS          Number of impressions recorder threads
-#    - SPLIT_SYNC_ADMIN_USER                   HTTP basic auth username for admin endpoints
-#    - SPLIT_SYNC_ADMIN_PASS                   HTTP basic auth password for admin endpoints
-#    - SPLIT_SYNC_DASHBOARD_TITLE              Title to be shown in admin dashboard
-#    - SPLIT_SYNC_EVENTS_PER_POST              Number of events to send in a POST request
-#    - SPLIT_SYNC_EVENTS_THREADS               Number of events recorder threads
-#    - SPLIT_SYNC_REDIS_SENTINEL_REPLICATION   Flag to signal that redis sentinel replication will be used
-#    - SPLIT_SYNC_REDIS_SENTINEL_MASTER        Name of the master node of sentinel cluster
-#    - SPLIT_SYNC_REDIS_SENTINEL_ADDRESSES     Comma-separated list of <HOST:PORT> addresses of redis sentinels
-#    - SPLIT_SYNC_REDIS_CLUSTER_MODE           Flag to signal that redis cluster mode will be used
-#    - SPLIT_SYNC_REDIS_CLUSTER_NODES          Comma-separated list of <HOST:PORT> nodes of redis cluster
-#    - SPLIT_SYNC_REDIS_CLUSTER_KEYHASHTAG     String keyHashTag for redis cluster
+#    - SPLIT_SYNC_REDIS_HOST                        Redis server hostname
+#    - SPLIT_SYNC_REDIS_PORT                        Redis Server port
+#    - SPLIT_SYNC_REDIS_DB                          Redis DB number
+#    - SPLIT_SYNC_REDIS_PASS                        Redis password
+#    - SPLIT_SYNC_REDIS_PREFIX                      Redis key prefix
+#    - SPLIT_SYNC_IMPRESSIONS_PER_POST              Number of impressions to send in a POST request
+#    - SPLIT_SYNC_IMPRESSIONS_THREADS               Number of impressions recorder threads
+#    - SPLIT_SYNC_ADMIN_USER                        HTTP basic auth username for admin endpoints
+#    - SPLIT_SYNC_ADMIN_PASS                        HTTP basic auth password for admin endpoints
+#    - SPLIT_SYNC_DASHBOARD_TITLE                   Title to be shown in admin dashboard
+#    - SPLIT_SYNC_EVENTS_PER_POST                   Number of events to send in a POST request
+#    - SPLIT_SYNC_EVENTS_THREADS                    Number of events recorder threads
+#    - SPLIT_SYNC_REDIS_SENTINEL_REPLICATION        Flag to signal that redis sentinel replication will be used
+#    - SPLIT_SYNC_REDIS_SENTINEL_MASTER             Name of the master node of sentinel cluster
+#    - SPLIT_SYNC_REDIS_SENTINEL_ADDRESSES          Comma-separated list of <HOST:PORT> addresses of redis sentinels
+#    - SPLIT_SYNC_REDIS_CLUSTER_MODE                Flag to signal that redis cluster mode will be used
+#    - SPLIT_SYNC_REDIS_CLUSTER_NODES               Comma-separated list of <HOST:PORT> nodes of redis cluster
+#    - SPLIT_SYNC_REDIS_CLUSTER_KEYHASHTAG          String keyHashTag for redis cluster
+#    - SPLIT_SYNC_REDIS_TLS                         Enable TLS Encryption for redis connections
+#    - SPLIT_SYNC_REDIS_TLS_SERVER_NAME             Name of the redis server as it appears in the server certificate (defaults to the host)
+#    - SPLIT_SYNC_REDIS_TLS_SKIP_NAME_VALIDATION    Don't check the server name in the received certificate
+#    - SPLIT_SYNC_REDIS_TLS_CA_ROOT_CERTS           Comma-separated list of CA root certificate file names.
+#    - SPLIT_SYNC_REDIS_TLS_CLIENT_KEY              Path to the client's PEM-encoded private key
+#    - SPLIT_SYNC_REDIS_TLS_CLIENT_CERTIFICATE      Path to the client's certificate with a signed public key.
+
 
 # Accepted values for options
 is_true() {
@@ -226,6 +233,33 @@ else
       PARAMETERS="${PARAMETERS} -redis-cluster-key-hashtag=${SPLIT_SYNC_REDIS_CLUSTER_KEYHASHTAG}"
     fi
   fi
+
+  # TLS specific config
+  if is_true "$SPLIT_SYNC_REDIS_TLS"; then
+    PARAMETERS="${PARAMETERS} -redis-tls"
+
+    if [ ! -z ${SPLIT_SYNC_REDIS_TLS_SERVER_NAME+x} ]; then
+        PARAMETERS="${PARAMETERS} -redis-tls-server-name ${SPLIT_SYNC_REDIS_TLS_SERVER_NAME}"
+    fi
+
+    if is_true "$SPLIT_SYNC_REDIS_TLS_SKIP_NAME_VALIDATION"; then
+        PARAMETERS="${PARAMETERS} -redis-tls-skip-name-validation"
+    fi
+
+    if [ ! -z ${SPLIT_SYNC_REDIS_TLS_CA_ROOT_CERTS+x} ]; then
+        PARAMETERS="${PARAMETERS} -redis-tls-ca-certs ${SPLIT_SYNC_REDIS_TLS_CA_ROOT_CERTS}"
+    fi
+
+    if [ ! -z ${SPLIT_SYNC_REDIS_TLS_CLIENT_KEY+x} ]; then
+        PARAMETERS="${PARAMETERS} -redis-tls-client-key ${SPLIT_SYNC_REDIS_TLS_CLIENT_KEY}"
+    fi
+
+    if [ ! -z ${SPLIT_SYNC_REDIS_TLS_CLIENT_CERTIFICATE+x} ]; then
+        PARAMETERS="${PARAMETERS} -redis-tls-client-certificate ${SPLIT_SYNC_REDIS_TLS_CLIENT_CERTIFICATE}"
+    fi
+  fi
+    
+  
 
   if [ ! -z ${SPLIT_SYNC_IMPRESSIONS_PER_POST+x} ]; then
     PARAMETERS="${PARAMETERS} -impressions-per-post=${SPLIT_SYNC_IMPRESSIONS_PER_POST}"
