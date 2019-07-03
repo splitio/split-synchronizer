@@ -120,6 +120,6 @@ func TestCounter(t *testing.T) {
 	}
 
 	//Delaying test to let PostCounterWorker timeout do its work!
-	time.Sleep(time.Duration(10) * time.Second)
+	time.Sleep(time.Duration(20) * time.Second)
 
 }
