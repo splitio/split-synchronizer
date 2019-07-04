@@ -60,7 +60,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	)
 	controllers.InitializeEventWorkers(
 		conf.Data.Proxy.EventsMaxSize,
-		int64(conf.Data.EventsPushRate),
+		int64(conf.Data.EventsPostRate),
 		gracefulShutdownWaitingGroup,
 	)
 

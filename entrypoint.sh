@@ -6,9 +6,9 @@
 #    - SPLIT_SYNC_API_KEY                      Split service API-KEY grabbed from webconsole
 #    - SPLIT_SYNC_SPLITS_REFRESH_RATE          Refresh rate of splits fetcher
 #    - SPLIT_SYNC_SEGMENTS_REFRESH_RATE        Refresh rate of segments fetcher
-#    - SPLIT_SYNC_IMPRESSIONS_REFRESH_RATE     Refresh rate of impressions recorder
-#    - SPLIT_SYNC_EVENTS_REFRESH_RATE          Refresh rate of events recorder
-#    - SPLIT_SYNC_METRICS_REFRESH_RATE         Refresh rate of metrics recorder
+#    - SPLIT_SYNC_IMPRESSIONS_POST_RATE        Post rate of impressions recorder
+#    - SPLIT_SYNC_EVENTS_POST_RATE             Post rate of events recorder
+#    - SPLIT_SYNC_METRICS_POST_RATE            Post rate of metrics recorder
 #    - SPLIT_SYNC_HTTP_TIMEOUT                 Timeout specifies a time limit for requests
 #    - SPLIT_SYNC_LOG_DEBUG                    Enable debug mode: Set as 'on'
 #    - SPLIT_SYNC_LOG_VERBOSE                  Enable verbose mode: Set as 'on'
@@ -53,6 +53,18 @@
 #    - SPLIT_SYNC_REDIS_CLUSTER_NODES          Comma-separated list of <HOST:PORT> nodes of redis cluster
 #    - SPLIT_SYNC_REDIS_CLUSTER_KEYHASHTAG     String keyHashTag for redis cluster
 
+# Accepted values for options
+is_true() {
+    case $1 in
+        TRUE|true|ON|on|YES|yes)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
 # COMMON PARAMETERS
 PARAMETERS="-api-key=${SPLIT_SYNC_API_KEY}"
 
@@ -64,31 +76,49 @@ if [ ! -z ${SPLIT_SYNC_SEGMENTS_REFRESH_RATE+x} ]; then
   PARAMETERS="${PARAMETERS} -segment-refresh-rate=${SPLIT_SYNC_SEGMENTS_REFRESH_RATE}"
 fi
 
+# Backwards compatibility
 if [ ! -z ${SPLIT_SYNC_IMPRESSIONS_REFRESH_RATE+x} ]; then
+  printf "\033[33mWARNING: The environment variable 'SPLIT_SYNC_IMPRESSIONS_REFRESH_RATE' will be deprecated soon in favor of 'SPLIT_SYNC_IMPRESSIONS_POST_RATE'. Mapping to replacement: 'SPLIT_SYNC_IMPRESSIONS_POST_RATE'\n\033[0m"
   PARAMETERS="${PARAMETERS} -impressions-post-rate=${SPLIT_SYNC_IMPRESSIONS_REFRESH_RATE}"
 fi
 
-if [ ! -z ${SPLIT_SYNC_EVENTS_REFRESH_RATE+x} ]; then
-  PARAMETERS="${PARAMETERS} -events-push-rate=${SPLIT_SYNC_EVENTS_REFRESH_RATE}"
+if [ ! -z ${SPLIT_SYNC_IMPRESSIONS_POST_RATE+x} ]; then
+  PARAMETERS="${PARAMETERS} -impressions-post-rate=${SPLIT_SYNC_IMPRESSIONS_POST_RATE}"
 fi
 
+# Backwards compatibility
+if [ ! -z ${SPLIT_SYNC_EVENTS_REFRESH_RATE+x} ]; then
+  printf "\033[33mWARNING: The environment variable 'SPLIT_SYNC_EVENTS_REFRESH_RATE' will be deprecated soon in favor of 'SPLIT_SYNC_EVENTS_POST_RATE'. Mapping to replacement: 'SPLIT_SYNC_EVENTS_POST_RATE'\n\033[0m"
+  PARAMETERS="${PARAMETERS} -events-post-rate=${SPLIT_SYNC_EVENTS_REFRESH_RATE}"
+fi
+
+if [ ! -z ${SPLIT_SYNC_EVENTS_POST_RATE+x} ]; then
+  PARAMETERS="${PARAMETERS} -events-post-rate=${SPLIT_SYNC_EVENTS_POST_RATE}"
+fi
+
+# Backwards compatibility
 if [ ! -z ${SPLIT_SYNC_METRICS_REFRESH_RATE+x} ]; then
+  printf "\033[33mWARNING: The environment variable 'SPLIT_SYNC_METRICS_REFRESH_RATE' will be deprecated soon in favor of 'SPLIT_SYNC_METRICS_POST_RATE'. Mapping to replacement: 'SPLIT_SYNC_METRICS_POST_RATE'\n\033[0m"
   PARAMETERS="${PARAMETERS} -metrics-post-rate=${SPLIT_SYNC_METRICS_REFRESH_RATE}"
+fi
+
+if [ ! -z ${SPLIT_SYNC_METRICS_POST_RATE+x} ]; then
+  PARAMETERS="${PARAMETERS} -metrics-post-rate=${SPLIT_SYNC_METRICS_POST_RATE}"
 fi
 
 if [ ! -z ${SPLIT_SYNC_HTTP_TIMEOUT+x} ]; then
   PARAMETERS="${PARAMETERS} -http-timeout=${SPLIT_SYNC_HTTP_TIMEOUT}"
 fi
 
-if [ "$SPLIT_SYNC_LOG_DEBUG" = "on" ]; then
+if is_true "$SPLIT_SYNC_LOG_DEBUG"; then
   PARAMETERS="${PARAMETERS} -log-debug"
 fi
 
-if [ "$SPLIT_SYNC_LOG_VERBOSE" = "on" ]; then
+if is_true "$SPLIT_SYNC_LOG_VERBOSE"; then
   PARAMETERS="${PARAMETERS} -log-verbose"
 fi
 
-if [ "$SPLIT_SYNC_LOG_STDOUT" = "on" ]; then
+if is_true "$SPLIT_SYNC_LOG_STDOUT"; then
   PARAMETERS="${PARAMETERS} -log-stdout"
 fi
 
@@ -118,9 +148,9 @@ fi
 
 
 # PROXY MODE ON
-if [ "$SPLIT_SYNC_PROXY" = "on" ];
+if is_true "$SPLIT_SYNC_PROXY";
 then
-  echo "Running in PROXY mode"
+  printf "Running in PROXY mode"
   PARAMETERS="${PARAMETERS} -proxy"
 
   if [ ! -z ${SPLIT_SYNC_PROXY_SDK_APIKEYS+x} ]; then
@@ -149,9 +179,9 @@ then
 
 #PRODUCER MODE ON
 else
-  echo "Running in PRODUCER mode"
+  printf "Running in PRODUCER mode"
 
-  if [ "$SPLIT_SYNC_REDIS_DISABLE_LEGACY_IMPRESSIONS" = "on" ]; then
+  if is_true "$SPLIT_SYNC_REDIS_DISABLE_LEGACY_IMPRESSIONS"; then
     PARAMETERS="${PARAMETERS} -redis-disable-legacy-impressions"
   fi
 
@@ -176,7 +206,7 @@ else
   fi
 
   # redis sentinel config
-  if [ "$SPLIT_SYNC_REDIS_SENTINEL_REPLICATION" = "on" ]; then
+  if is_true "$SPLIT_SYNC_REDIS_SENTINEL_REPLICATION"; then
     PARAMETERS="${PARAMETERS} -redis-sentinel-replication"
     if [ ! -z ${SPLIT_SYNC_REDIS_SENTINEL_MASTER+x} ]; then
       PARAMETERS="${PARAMETERS} -redis-sentinel-master=${SPLIT_SYNC_REDIS_SENTINEL_MASTER}"
@@ -187,7 +217,7 @@ else
   fi
 
   # redis cluster config
-  if [ "$SPLIT_SYNC_REDIS_CLUSTER_MODE" = "on" ]; then
+  if is_true "$SPLIT_SYNC_REDIS_CLUSTER_MODE"; then
     PARAMETERS="${PARAMETERS} -redis-cluster-mode"
     if [ ! -z ${SPLIT_SYNC_REDIS_CLUSTER_NODES+x} ]; then
       PARAMETERS="${PARAMETERS} -redis-cluster-nodes=${SPLIT_SYNC_REDIS_CLUSTER_NODES}"
@@ -202,7 +232,7 @@ else
   fi
 
   if [ ! -z ${SPLIT_SYNC_IMPRESSIONS_THREADS+x} ]; then
-    PARAMETERS="${PARAMETERS} -impressions-recorder-threads=${SPLIT_SYNC_IMPRESSIONS_THREADS}"
+    PARAMETERS="${PARAMETERS} -impressions-threads=${SPLIT_SYNC_IMPRESSIONS_THREADS}"
   fi
 
   if [ ! -z ${SPLIT_SYNC_ADMIN_USER+x} ]; then
@@ -218,11 +248,11 @@ else
   fi
 
   if [ ! -z ${SPLIT_SYNC_EVENTS_PER_POST+x} ]; then
-    PARAMETERS="${PARAMETERS} -events-consumer-read-size=${SPLIT_SYNC_EVENTS_PER_POST}"
+    PARAMETERS="${PARAMETERS} -events-per-post=${SPLIT_SYNC_EVENTS_PER_POST}"
   fi
 
   if [ ! -z ${SPLIT_SYNC_EVENTS_THREADS+x} ]; then
-    PARAMETERS="${PARAMETERS} -events-consumer-threads=${SPLIT_SYNC_EVENTS_THREADS}"
+    PARAMETERS="${PARAMETERS} -events-threads=${SPLIT_SYNC_EVENTS_THREADS}"
   fi
 
 fi

@@ -25,7 +25,7 @@ var metricsJobsWaitingGroup sync.WaitGroup
 //PostMetrics post metrics to Split Events server
 func PostMetrics(metricsRecorderAdapter recorder.MetricsRecorder,
 	metricsStorageAdapter storage.MetricsStorage,
-	metricsRefreshRate int, wg *sync.WaitGroup) {
+	metricsPostRate int, wg *sync.WaitGroup) {
 
 	wg.Add(1)
 	keepLoop := true
@@ -44,7 +44,7 @@ func PostMetrics(metricsRecorderAdapter recorder.MetricsRecorder,
 				log.Debug.Println("Stopping task: post_metrics")
 				keepLoop = false
 			}
-		case <-time.After(time.Duration(metricsRefreshRate) * time.Second):
+		case <-time.After(time.Duration(metricsPostRate) * time.Second):
 		}
 
 	}
