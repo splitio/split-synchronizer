@@ -125,8 +125,8 @@ func Uptime() time.Duration {
 	return time.Since(startTime)
 }
 
-// UptimeFormated formats uptime for humman read
-func UptimeFormated() string {
+// UptimeFormatted formats uptime for humman read
+func UptimeFormatted() string {
 	return util.ParseTime(startTime)
 }
 
