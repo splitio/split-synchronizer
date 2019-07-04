@@ -18,12 +18,13 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/storage"
 	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 	"github.com/splitio/split-synchronizer/splitio/task"
+	"github.com/splitio/split-synchronizer/splitio/web"
 	"github.com/splitio/split-synchronizer/splitio/web/dashboard"
 )
 
 // Uptime returns the service uptime
 func Uptime(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"uptime": stats.UptimeFormated()})
+	c.JSON(http.StatusOK, gin.H{"uptime": stats.UptimeFormatted()})
 }
 
 // Version returns the service version
@@ -138,7 +139,7 @@ func HealthCheck(c *gin.Context) {
 	status["healthy"] = true
 	healthy := make(map[string]interface{})
 
-	uptime := stats.UptimeFormated()
+	uptime := stats.UptimeFormatted()
 
 	if appcontext.ExecutionMode() == appcontext.ProxyMode {
 		status["message"] = "Proxy service working as expected"
@@ -229,7 +230,6 @@ func createDashboard(splitStorage interface{}, segmentStorage interface{}) *dash
 
 // Dashboard returns a dashboard
 func Dashboard(c *gin.Context) {
-
 	// Storage service
 	splitStorage, _ := c.Get("SplitStorage")
 	segmentStorage, _ := c.Get("SegmentStorage")
@@ -366,4 +366,15 @@ func FlushImpressions(c *gin.Context) {
 		return
 	}
 	c.String(http.StatusOK, "%s", "Impressions flushed")
+}
+
+// GetMetrics returns stats for dashboard
+func GetMetrics(c *gin.Context) {
+	// Storage service
+	splitStorage, _ := c.Get("SplitStorage")
+	segmentStorage, _ := c.Get("SegmentStorage")
+
+	stats := web.GetMetrics(splitStorage.(storage.SplitStorage), segmentStorage.(storage.SegmentStorage))
+
+	c.JSON(http.StatusOK, stats)
 }
