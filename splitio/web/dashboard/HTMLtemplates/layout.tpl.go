@@ -33,6 +33,7 @@ type LayoutTPLVars struct {
 	StorageStatus                bool
 	Sync                         bool
 	HealthySince                 string
+	RefreshTime                  int64
 }
 
 // LayoutTPL template
@@ -895,7 +896,7 @@ function handleHealthcheck(response) {
 
   setTimeout(function() {
     refreshHealthcheck();
-  }, 8000);
+  }, {{.RefreshTime}});
 }
 
 function refreshHealthcheck() {
@@ -967,7 +968,7 @@ function refreshMetrics() {
 
       setTimeout(function() {
         refreshMetrics();
-      }, 8000);
+      }, {{.RefreshTime}});
     },
     error: function(response) {
       console.log("GET METRICS IS FAILING")
@@ -1008,7 +1009,7 @@ $(document).ready(function () {
     setTimeout(function() {
       refreshHealthcheck();
       refreshMetrics();
-    }, 8000);
+    }, {{.RefreshTime}});
   }
 });
 
