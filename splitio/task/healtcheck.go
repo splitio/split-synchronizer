@@ -4,12 +4,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/splitio/split-synchronizer/splitio/util"
-
 	"github.com/splitio/split-synchronizer/appcontext"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/api"
 	"github.com/splitio/split-synchronizer/splitio/storage"
+	"github.com/splitio/split-synchronizer/splitio/util"
 )
 
 var healtcheck = make(chan string, 1)

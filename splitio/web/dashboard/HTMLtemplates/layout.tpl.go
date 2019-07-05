@@ -732,7 +732,7 @@ var LayoutTPL = `
 <script>
 // SDKs charts
 function renderSDKChart(latenciesGroupData) {
-  var ctxL = document.getElementById("LatencyBucket").getContext('2d');
+  const ctxL = document.getElementById("LatencyBucket").getContext('2d');
 
   let datasets = []
   if (typeof latenciesGroupData === 'string' || latenciesGroupData instanceof String) {
