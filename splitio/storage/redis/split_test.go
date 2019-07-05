@@ -88,6 +88,16 @@ func TestSplitStorageAdapter(t *testing.T) {
 		return
 	}
 
+	exist, _ := redisStorageAdapter.splitExists("DEMO_MURMUR2")
+	if !exist {
+		t.Error("It should exist")
+	}
+
+	notExist, _ := redisStorageAdapter.splitExists("DEMO_MURMUR2_")
+	if notExist {
+		t.Error("It should not exist")
+	}
+
 	//err = redisStorageAdapter.Remove(splitChangesDtoFromMock.Splits[0])
 	err = redisStorageAdapter.Remove([]byte(splitMock))
 	if err != nil {
