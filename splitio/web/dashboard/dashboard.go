@@ -85,6 +85,7 @@ func (d *Dashboard) HTML() string {
 			StorageStatus:                storageStatus,
 			Sync:                         true,
 			HealthySince:                 task.GetHealthySinceTimestamp(),
+			RefreshTime:                  15000,
 		},
 	)
 
