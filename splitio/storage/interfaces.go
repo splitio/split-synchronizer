@@ -14,6 +14,7 @@ type SplitStorage interface {
 	ChangeNumber() (int64, error)
 	SplitsNames() ([]string, error)
 	RawSplits() ([]string, error)
+	CleanTrafficTypes() error
 }
 
 // SegmentStorage interface defines the segments data storage actions
@@ -54,12 +55,4 @@ type MetricsStorage interface {
 type EventStorage interface {
 	//returns the first N elements from events queue
 	PopN(n int64) ([]api.RedisStoredEventDTO, error)
-}
-
-// TrafficTypeStorage interface defines trafficType storage actions
-type TrafficTypeStorage interface {
-	// Save trafficType
-	Incr(trafficType string) error
-	Decr(trafficType string) error
-	Clean() error
 }
