@@ -65,8 +65,8 @@ func getValues(split []byte) (string, string, error) {
 
 // Save an split object
 func (r SplitStorageAdapter) Save(split interface{}) error {
-	r.mutext.RLock()
-	defer r.mutext.RUnlock()
+	r.mutext.Lock()
+	defer r.mutext.Unlock()
 
 	if _, ok := split.([]byte); !ok {
 		return errors.New("Expecting []byte type, Invalid format given")
@@ -96,8 +96,8 @@ func (r SplitStorageAdapter) Save(split interface{}) error {
 
 //Remove removes split item from redis
 func (r SplitStorageAdapter) Remove(split interface{}) error {
-	r.mutext.RLock()
-	defer r.mutext.RUnlock()
+	r.mutext.Lock()
+	defer r.mutext.Unlock()
 
 	if _, ok := split.([]byte); !ok {
 		return errors.New("Expecting []byte type, Invalid format given")
