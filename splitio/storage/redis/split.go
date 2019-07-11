@@ -72,22 +72,26 @@ func (r SplitStorageAdapter) Save(split interface{}) error {
 		return errors.New("Expecting []byte type, Invalid format given")
 	}
 
-	key, tt, err := getValues(split.([]byte))
+	splitName, trafficType, err := getValues(split.([]byte))
 	if err != nil {
 		log.Error.Println("Split Name & TrafficType couldn't be fetched", err)
 		return err
 	}
 
-	alreadyExists, err := r.splitExists(key)
-	if !alreadyExists {
-		err = r.incr(tt)
+	existing := r.getSplit(splitName)
+	if existing != nil {
+		// If it's an update, we decrement the traffic type count of the existing split,
+		// and then add the updated one (as part of the normal flow), in case it's different.
+		r.decr(existing.TrafficTypeName)
 	}
 
-	err = r.client.Set(r.splitNamespace(key), string(split.([]byte)), 0).Err()
+	r.incr(trafficType)
+
+	err = r.client.Set(r.splitNamespace(splitName), string(split.([]byte)), 0).Err()
 	if err != nil {
-		log.Error.Println("Error saving item", key, "in Redis:", err)
+		log.Error.Println("Error saving item", splitName, "in Redis:", err)
 	} else {
-		log.Verbose.Println("Item saved at key:", key)
+		log.Verbose.Println("Item saved at key:", splitName)
 	}
 
 	return err
@@ -170,17 +174,20 @@ func (r SplitStorageAdapter) RawSplits() ([]string, error) {
 	return toReturn, nil
 }
 
-// splitExists check if split exists
-func (r SplitStorageAdapter) splitExists(splitName string) (bool, error) {
-	exists, err := r.client.Exists(r.splitNamespace(splitName)).Result()
+// getSplit grabs split
+func (r SplitStorageAdapter) getSplit(splitName string) *api.SplitDTO {
+	raw, err := r.client.Get(r.splitNamespace(splitName)).Bytes()
 	if err != nil {
-		return false, err
+		log.Error.Println(err)
+		return nil
 	}
-	if exists == int64(1) {
-		return true, nil
+	var splitDTO *api.SplitDTO
+	if err := json.Unmarshal(raw, &splitDTO); err != nil {
+		log.Error.Println(err)
+		return nil
 	}
 
-	return false, nil
+	return splitDTO
 }
 
 // incr stores/increments trafficType in Redis
