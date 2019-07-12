@@ -85,7 +85,7 @@ func (r SplitStorageAdapter) Save(split interface{}) error {
 		r.decr(existing.TrafficTypeName)
 	}
 
-	_ = r.incr(trafficType)
+	r.incr(trafficType)
 
 	err = r.client.Set(r.splitNamespace(splitName), string(split.([]byte)), 0).Err()
 	if err != nil {
@@ -113,7 +113,7 @@ func (r SplitStorageAdapter) Remove(split interface{}) error {
 		return err
 	}
 
-	_ = r.decr(tt)
+	r.decr(tt)
 	return r.remove(key)
 }
 
