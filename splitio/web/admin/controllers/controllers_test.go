@@ -56,7 +56,6 @@ func (m mockStorage) RegisterSegment(name string) error        { return nil }
 func (m mockStorage) SetChangeNumber(changeNumber int64) error { return nil }
 func (m mockStorage) SplitsNames() ([]string, error)           { return nil, nil }
 func (m mockStorage) RawSplits() ([]string, error)             { return nil, nil }
-func (m mockStorage) CleanTrafficTypes() error                 { return nil }
 
 func performRequest(r http.Handler, method, path string) *httptest.ResponseRecorder {
 	req, _ := http.NewRequest(method, path, nil)

@@ -14,7 +14,6 @@ type SplitStorage interface {
 	ChangeNumber() (int64, error)
 	SplitsNames() ([]string, error)
 	RawSplits() ([]string, error)
-	CleanTrafficTypes() error
 }
 
 // SegmentStorage interface defines the segments data storage actions
