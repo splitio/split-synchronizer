@@ -77,8 +77,8 @@ func TestNamespaces(t *testing.T) {
 		t.Error("Split till namespace mal-formed")
 	}
 
-	trafficTypeNamespace := prefixAdapter.trafficTypeNamespace()
-	if trafficTypeNamespace != "SPLITIO.trafficType" {
+	trafficTypeNamespace := prefixAdapter.trafficTypeNamespace("tt")
+	if trafficTypeNamespace != "SPLITIO.trafficType.tt" {
 		t.Error("Traffic Type namespace mal-formed")
 	}
 }
