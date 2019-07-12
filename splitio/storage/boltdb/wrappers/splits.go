@@ -78,8 +78,3 @@ func (s *SplitChangesWrapper) RawSplits() ([]string, error) {
 
 	return toReturn, nil
 }
-
-// CleanTrafficTypes erase all the trafficTypes
-func (s *SplitChangesWrapper) CleanTrafficTypes() error {
-	return nil
-}

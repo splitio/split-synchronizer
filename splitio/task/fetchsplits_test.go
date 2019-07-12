@@ -112,7 +112,6 @@ func (h testSplitStorage) SetChangeNumber(changeNumber int64) error { return nil
 func (h testSplitStorage) ChangeNumber() (int64, error)             { return -1, nil }
 func (h testSplitStorage) SplitsNames() ([]string, error)           { return nil, nil }
 func (h testSplitStorage) RawSplits() ([]string, error)             { return nil, nil }
-func (h testSplitStorage) CleanTrafficTypes() error                 { return nil }
 
 func TestFetchSplits(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
