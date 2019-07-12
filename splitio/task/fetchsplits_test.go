@@ -193,8 +193,8 @@ func TestTrafficTypes(t *testing.T) {
 		taskFetchSplits(splitFetcherAdapterArchived, redisStorageAdapter)
 	}()
 
-	if redis.Client.Get(testKey).Val() != "0" {
-		t.Error("It should be 0")
+	if redis.Client.Get(testKey).Val() != "" {
+		t.Error("It should not exist")
 	}
 }
 

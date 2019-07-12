@@ -205,15 +205,7 @@ func (r SplitStorageAdapter) incr(trafficType string) error {
 // decr decrements trafficType count in Redis
 func (r SplitStorageAdapter) decr(trafficType string) error {
 	trafficTypeToDecr := r.trafficTypeNamespace(trafficType)
-	v, _ := r.client.Get(trafficTypeToDecr).Int()
-	if v > 0 {
-		err := r.client.Decr(trafficTypeToDecr).Err()
-		if err != nil {
-			log.Error.Println(fmt.Sprintf("Error storing trafficType %s in redis", trafficType))
-			log.Error.Println(err)
-			return errors.New("Error decrementing trafficType")
-		}
-	} else {
+	if r.client.Decr(trafficTypeToDecr).Val() <= 0 {
 		err := r.client.Del(trafficTypeToDecr).Err()
 		if err != nil {
 			log.Verbose.Println(fmt.Sprintf("Error removing trafficType %s in redis", trafficType))
