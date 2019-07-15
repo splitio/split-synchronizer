@@ -135,11 +135,13 @@ func parseStatus(ok bool, value string) map[string]interface{} {
 
 // HealthCheck returns the service status
 func HealthCheck(c *gin.Context) {
+	response := make(map[string]interface{})
 	status := make(map[string]interface{})
 	status["healthy"] = true
 	healthy := make(map[string]interface{})
 
 	uptime := stats.UptimeFormatted()
+	response["uptime"] = uptime
 
 	if appcontext.ExecutionMode() == appcontext.ProxyMode {
 		status["message"] = "Proxy service working as expected"
@@ -148,22 +150,16 @@ func HealthCheck(c *gin.Context) {
 		healthy["time"] = task.GetHealthySinceTimestamp()
 		eventsStatus := parseStatus(eventsOK, "Events")
 		sdkStatus := parseStatus(sdkOK, "SDK")
+
+		response["proxy"] = status
+		response["sdk"] = sdkStatus
+		response["events"] = eventsStatus
+		response["healthySince"] = healthy
+
 		if sdkStatus["healthy"].(bool) && eventsStatus["healthy"].(bool) {
-			c.JSON(http.StatusOK, gin.H{
-				"proxy":        status,
-				"sdk":          sdkStatus,
-				"events":       eventsStatus,
-				"healthySince": healthy,
-				"uptime":       uptime,
-			})
+			c.JSON(http.StatusOK, response)
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"proxy":        status,
-				"sdk":          sdkStatus,
-				"events":       eventsStatus,
-				"healthySince": healthy,
-				"uptime":       uptime,
-			})
+			c.JSON(http.StatusInternalServerError, response)
 		}
 	} else {
 		status["message"] = "Synchronizer service working as expected"
@@ -177,24 +173,16 @@ func HealthCheck(c *gin.Context) {
 		sdkStatus := parseStatus(sdkOK, "SDK")
 		storageStatus := parseStatus(storageOk, "Storage")
 
+		response["sync"] = status
+		response["storage"] = storageStatus
+		response["sdk"] = sdkStatus
+		response["events"] = eventsStatus
+		response["healthySince"] = healthy
+
 		if storageStatus["healthy"].(bool) && sdkStatus["healthy"].(bool) && eventsStatus["healthy"].(bool) {
-			c.JSON(http.StatusOK, gin.H{
-				"sync":         status,
-				"storage":      storageStatus,
-				"sdk":          sdkStatus,
-				"events":       eventsStatus,
-				"healthySince": healthy,
-				"uptime":       uptime,
-			})
+			c.JSON(http.StatusOK, response)
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"sync":         status,
-				"storage":      storageStatus,
-				"sdk":          sdkStatus,
-				"events":       eventsStatus,
-				"healthySince": healthy,
-				"uptime":       uptime,
-			})
+			c.JSON(http.StatusInternalServerError, response)
 		}
 	}
 }

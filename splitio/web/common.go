@@ -72,11 +72,8 @@ func formatNumber(n int64) string {
 	}
 
 	//Quadrillion
-	//if n < 999999999999999999 {
 	q := float64(n) / float64(1000000000000000)
 	return fmt.Sprintf("%.2f P", q)
-	//}
-
 }
 
 func toRGBAString(r int, g int, b int, a float32) string {
@@ -234,7 +231,7 @@ func parseCachedSegments(segmentStorage storage.SegmentStorage) string {
 	}
 
 	return ParseTemplate(
-		"CachedSegemtns",
+		"CachedSegments",
 		HTMLtemplates.CachedSegmentsTPL,
 		HTMLtemplates.CachedSegmentsTPLVars{Segments: toRender})
 }
