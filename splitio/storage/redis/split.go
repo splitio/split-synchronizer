@@ -3,7 +3,9 @@ package redis
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/api"
@@ -14,13 +16,14 @@ import (
 // SplitStorageAdapter implements SplitStorage interface
 type SplitStorageAdapter struct {
 	*BaseStorageAdapter
+	mutext *sync.RWMutex
 }
 
 // NewSplitStorageAdapter returns an instance of SplitStorageAdapter
 func NewSplitStorageAdapter(clientInstance redis.UniversalClient, prefix string) *SplitStorageAdapter {
 	prefixAdapter := &prefixAdapter{prefix: prefix}
 	adapter := &BaseStorageAdapter{prefixAdapter, clientInstance}
-	client := SplitStorageAdapter{adapter}
+	client := SplitStorageAdapter{adapter, &sync.RWMutex{}}
 	return &client
 }
 
@@ -48,35 +51,47 @@ func (r SplitStorageAdapter) remove(key string) error {
 	return nil
 }
 
-func getKey(split []byte) (string, error) {
+func getValues(split []byte) (string, string, error) {
 	var tmpSplit map[string]interface{}
 	err := json.Unmarshal(split, &tmpSplit)
 	if err != nil {
-		log.Error.Println("Split Name couldn't be fetched", err)
-		return "", err
+		log.Error.Println("Split Values couldn't be fetched", err)
+		return "", "", err
 	}
 	key := tmpSplit["name"].(string)
-	return key, nil
+	trafficTypeName := tmpSplit["trafficTypeName"].(string)
+	return key, trafficTypeName, nil
 }
 
 // Save an split object
 func (r SplitStorageAdapter) Save(split interface{}) error {
+	r.mutext.Lock()
+	defer r.mutext.Unlock()
 
 	if _, ok := split.([]byte); !ok {
 		return errors.New("Expecting []byte type, Invalid format given")
 	}
 
-	key, err := getKey(split.([]byte))
+	splitName, trafficType, err := getValues(split.([]byte))
 	if err != nil {
-		log.Error.Println("Split Name couldn't be fetched", err)
+		log.Error.Println("Split Name & TrafficType couldn't be fetched", err)
 		return err
 	}
 
-	err = r.client.Set(r.splitNamespace(key), string(split.([]byte)), 0).Err()
+	existing := r.getSplit(splitName)
+	if existing != nil {
+		// If it's an update, we decrement the traffic type count of the existing split,
+		// and then add the updated one (as part of the normal flow), in case it's different.
+		r.decr(existing.TrafficTypeName)
+	}
+
+	r.incr(trafficType)
+
+	err = r.client.Set(r.splitNamespace(splitName), string(split.([]byte)), 0).Err()
 	if err != nil {
-		log.Error.Println("Error saving item", key, "in Redis:", err)
+		log.Error.Println("Error saving item", splitName, "in Redis:", err)
 	} else {
-		log.Verbose.Println("Item saved at key:", key)
+		log.Verbose.Println("Item saved at key:", splitName)
 	}
 
 	return err
@@ -85,17 +100,20 @@ func (r SplitStorageAdapter) Save(split interface{}) error {
 
 //Remove removes split item from redis
 func (r SplitStorageAdapter) Remove(split interface{}) error {
+	r.mutext.Lock()
+	defer r.mutext.Unlock()
 
 	if _, ok := split.([]byte); !ok {
 		return errors.New("Expecting []byte type, Invalid format given")
 	}
 
-	key, err := getKey(split.([]byte))
+	key, tt, err := getValues(split.([]byte))
 	if err != nil {
-		log.Error.Println("Split Name couldn't be fetched", err)
+		log.Error.Println("Split Name & TrafficType couldn't be fetched", err)
 		return err
 	}
 
+	r.decr(tt)
 	return r.remove(key)
 }
 
@@ -154,4 +172,44 @@ func (r SplitStorageAdapter) RawSplits() ([]string, error) {
 	}
 
 	return toReturn, nil
+}
+
+// getSplit grabs split
+func (r SplitStorageAdapter) getSplit(splitName string) *api.SplitDTO {
+	raw, err := r.client.Get(r.splitNamespace(splitName)).Bytes()
+	if err != nil {
+		return nil
+	}
+	var splitDTO *api.SplitDTO
+	if err := json.Unmarshal(raw, &splitDTO); err != nil {
+		log.Error.Println(err)
+		return nil
+	}
+
+	return splitDTO
+}
+
+// incr stores/increments trafficType in Redis
+func (r SplitStorageAdapter) incr(trafficType string) error {
+	trafficTypeToIncr := r.trafficTypeNamespace(trafficType)
+
+	err := r.client.Incr(trafficTypeToIncr).Err()
+	if err != nil {
+		log.Error.Println(fmt.Sprintf("Error storing trafficType %s in redis", trafficType))
+		log.Error.Println(err)
+		return errors.New("Error incrementing trafficType")
+	}
+	return nil
+}
+
+// decr decrements trafficType count in Redis
+func (r SplitStorageAdapter) decr(trafficType string) error {
+	trafficTypeToDecr := r.trafficTypeNamespace(trafficType)
+	if r.client.Decr(trafficTypeToDecr).Val() <= 0 {
+		err := r.client.Del(trafficTypeToDecr).Err()
+		if err != nil {
+			log.Verbose.Println(fmt.Sprintf("Error removing trafficType %s in redis", trafficType))
+		}
+	}
+	return nil
 }

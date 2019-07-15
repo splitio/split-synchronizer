@@ -46,22 +46,22 @@ func (c *Counter) Counts(name string) (int64, error) {
 // Increment a counter +1 for the given metric name
 func (c *Counter) Increment(name string) {
 	c.cmutex.Lock()
+	defer c.cmutex.Unlock()
 	c.counts[name]++
-	c.cmutex.Unlock()
 }
 
 // Decrement a counter -1 for the given metric name
 func (c *Counter) Decrement(name string) {
 	c.cmutex.Lock()
+	defer c.cmutex.Unlock()
 	c.counts[name]--
-	c.cmutex.Unlock()
 }
 
 // IncrementN a counter +N for the given metric name
 func (c *Counter) IncrementN(name string, inc int64) {
 	c.cmutex.Lock()
+	defer c.cmutex.Unlock()
 	c.counts[name] += inc
-	c.cmutex.Unlock()
 }
 
 // DecrementN a counter -N for the given metric name

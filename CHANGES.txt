@@ -6,6 +6,7 @@
  - Added task to check Sync environtment and added healthySince property to healtheck endpoint.
  - Added healthcheck into Sync Dashboard.
  - Added logic to refresh all the metrics in Dashboard without charging again it.
+ - Fixed counter for trafficTypes when a particular split is updated.
 2.3.0 (May 30, 2019)
  - Added support for track properties
  - Added cache overlay on top of redis for fetching events
