@@ -1,4 +1,5 @@
-2.3.1 ()
+2.4.0 ()
+ - Added support for TLS connections to redis
  - Updated config parameters to have consistency between them. Several parameters will be deprecated in future versions.
  - Accept true, "on" and "yes" as values for enabling options in docker environment variables.
  - Merged controllers for web admin dashboard.
