@@ -43,9 +43,15 @@ type RedisSection struct {
 	SentinelMaster           string `json:"sentinelMaster" split-default-value:"" split-cli-option:"redis-sentinel-master" split-cli-description:"Name of master"`
 
 	// Redis cluster replication support
-	ClusterMode       bool   `json:"clusterMode" split-default-value:"false" split-cli-option:"redis-cluster-mode" split-cli-description:"Redis cluster enabled."`
-	ClusterNodes      string `json:"clusterNodes" split-default-value:"" split-cli-option:"redis-cluster-nodes" split-cli-description:"List of redis cluster nodes."`
-	ClusterKeyHashTag string `json:"keyHashTag" split-default-value:"" split-cli-option:"redis-cluster-key-hashtag" split-cli-description:"keyHashTag for redis cluster."`
+	ClusterMode           bool     `json:"clusterMode" split-default-value:"false" split-cli-option:"redis-cluster-mode" split-cli-description:"Redis cluster enabled."`
+	ClusterNodes          string   `json:"clusterNodes" split-default-value:"" split-cli-option:"redis-cluster-nodes" split-cli-description:"List of redis cluster nodes."`
+	ClusterKeyHashTag     string   `json:"keyHashTag" split-default-value:"" split-cli-option:"redis-cluster-key-hashtag" split-cli-description:"keyHashTag for redis cluster."`
+	TLS                   bool     `json:"enableTLS" split-default-value:"false" split-cli-option:"redis-tls" split-cli-description:"Use SSL/TLS for connecting to redis"`
+	TLSServerName         string   `json:"tlsServerName" split-default-value:"" split-cli-option:"redis-tls-server-name" split-cli-description:"Server name to use when validating a server-side SSL/TLS certificate."`
+	TLSCACertificates     []string `json:"caCertificates" split-default-value:"" split-cli-option:"redis-tls-ca-certs" split-cli-description:"Root CA certificates filenames to use when connecting to a redis server via SSL/TLS"`
+	TLSSkipNameValidation bool     `json:"tlsSkipNameValidation" split-default-value:"false" split-cli-option:"redis-tls-skip-name-validation" split-cli-description:"Accept server's public key without validanting againsta a CA."`
+	TLSClientCertificate  string   `json:"tlsClientCertificate" split-default-value:"" split-cli-option:"redis-tls-client-certificate" split-cli-description:"Client certificate filename signed by a server-recognized CA"`
+	TLSClientKey          string   `json:"tlsClientKey" split-default-value:"" split-cli-option:"redis-tls-client-key" split-cli-description:"Client private key matching the certificate."`
 }
 
 // LogSection log instance configuration

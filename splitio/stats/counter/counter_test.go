@@ -2,6 +2,7 @@ package counter
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -17,6 +18,15 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/api"
 	"github.com/splitio/split-synchronizer/splitio/stats"
 )
+
+func getCounterByName(countersInPost []api.CounterDTO, name string) (*api.CounterDTO, error) {
+	for _, c := range countersInPost {
+		if c.MetricName == name {
+			return &c, nil
+		}
+	}
+	return nil, errors.New("Counter not found")
+}
 
 func TestCounter(t *testing.T) {
 
@@ -48,7 +58,6 @@ func TestCounter(t *testing.T) {
 		}
 
 		rBody, _ := ioutil.ReadAll(r.Body)
-		//fmt.Println(string(rBody))
 		var countersInPost []api.CounterDTO
 		err := json.Unmarshal(rBody, &countersInPost)
 		if err != nil {
@@ -56,14 +65,23 @@ func TestCounter(t *testing.T) {
 			return
 		}
 
-		if countersInPost[0].MetricName != counterA ||
-			countersInPost[0].Count != expectedA ||
-			countersInPost[1].MetricName != counterB ||
-			countersInPost[1].Count != expectedB {
-			t.Error("Posted counters arrived mal-formed")
+		counterForMetricA, err := getCounterByName(countersInPost, counterA)
+		if err != nil {
+			t.Error("Did not recieve counters for metric A")
 		}
 
-		fmt.Fprintln(w, "ok!!")
+		counterForMetricB, err := getCounterByName(countersInPost, counterB)
+		if err != nil {
+			t.Error("Did not recieve counters for metric B")
+		}
+
+		if counterForMetricA.Count != expectedA {
+			t.Errorf("Expected count to be %d, got %d", expectedA, counterForMetricA.Count)
+		}
+
+		if counterForMetricB.Count != expectedB {
+			t.Errorf("Expected count to be %d, got %d", expectedB, counterForMetricB.Count)
+		}
 	}))
 	defer ts.Close()
 
