@@ -60,6 +60,7 @@ func newWebAdminServer(options *WebAdminOptions, splitStorage storage.SplitStora
 	server.Router().GET("/admin/healthcheck", controllers.HealthCheck)
 	server.Router().GET("/admin/dashboard", controllers.Dashboard)
 	server.Router().GET("/admin/dashboard/segmentKeys/:segment", controllers.DashboardSegmentKeys)
+	server.Router().GET("/admin/metrics", controllers.GetMetrics)
 
 	if appcontext.ExecutionMode() == appcontext.ProducerMode {
 		server.Router().GET("/admin/events/queueSize", controllers.GetEventsQueueSize)
