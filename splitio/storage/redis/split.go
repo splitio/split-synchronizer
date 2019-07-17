@@ -115,6 +115,7 @@ func (r SplitStorageAdapter) Remove(split interface{}) error {
 
 	existing := r.getSplit(splitName)
 	if existing == nil {
+		log.Info.Println("Split couldn't be fetched", splitName)
 		return nil
 	}
 	r.decr(trafficType)
