@@ -114,10 +114,10 @@ func (r SplitStorageAdapter) Remove(split interface{}) error {
 	}
 
 	existing := r.getSplit(splitName)
-	if existing != nil {
-		r.decr(trafficType)
+	if existing == nil {
+		return nil
 	}
-
+	r.decr(trafficType)
 	return r.remove(splitName)
 }
 
