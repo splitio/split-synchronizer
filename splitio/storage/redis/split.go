@@ -107,14 +107,19 @@ func (r SplitStorageAdapter) Remove(split interface{}) error {
 		return errors.New("Expecting []byte type, Invalid format given")
 	}
 
-	key, tt, err := getValues(split.([]byte))
+	splitName, trafficType, err := getValues(split.([]byte))
 	if err != nil {
 		log.Error.Println("Split Name & TrafficType couldn't be fetched", err)
 		return err
 	}
 
-	r.decr(tt)
-	return r.remove(key)
+	existing := r.getSplit(splitName)
+	if existing == nil {
+		log.Info.Println("Tried to delete split " + splitName + " which doesn't exist. ignoring")
+		return nil
+	}
+	r.decr(trafficType)
+	return r.remove(splitName)
 }
 
 //RegisterSegment add the segment name into redis set
