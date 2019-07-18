@@ -7,8 +7,8 @@ import (
 
 // SplitStorage interface defines the split data storage actions
 type SplitStorage interface {
-	Save(split interface{}) error
-	Remove(split interface{}) error
+	Save(split []byte) error
+	Remove(split []byte) error
 	RegisterSegment(name string) error
 	SetChangeNumber(changeNumber int64) error
 	ChangeNumber() (int64, error)
