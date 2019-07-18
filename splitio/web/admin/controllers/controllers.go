@@ -240,20 +240,14 @@ func DashboardSegmentKeys(c *gin.Context) {
 		c.String(http.StatusOK, "%s", toReturn)
 		return
 	}
-	c.String(http.StatusInternalServerError, "%s", nil)
+	c.String(http.StatusInternalServerError, "%s", "Could not fetch storage")
 }
 
-func createDashboard(splitStorage interface{}, segmentStorage interface{}) *dashboard.Dashboard {
+func createDashboard(splitStorage storage.SplitStorage, segmentStorage storage.SegmentStorage) *dashboard.Dashboard {
 	if appcontext.ExecutionMode() == appcontext.ProxyMode {
-		return dashboard.NewDashboard(conf.Data.Proxy.Title, true,
-			splitStorage.(storage.SplitStorage),
-			segmentStorage.(storage.SegmentStorage),
-		)
+		return dashboard.NewDashboard(conf.Data.Proxy.Title, true, splitStorage, segmentStorage)
 	}
-	return dashboard.NewDashboard(conf.Data.Producer.Admin.Title, false,
-		splitStorage.(storage.SplitStorage),
-		segmentStorage.(storage.SegmentStorage),
-	)
+	return dashboard.NewDashboard(conf.Data.Producer.Admin.Title, false, splitStorage, segmentStorage)
 }
 
 // Dashboard returns a dashboard
@@ -270,7 +264,7 @@ func Dashboard(c *gin.Context) {
 		c.Writer.Write([]byte(dash.HTML()))
 		return
 	}
-	c.String(http.StatusInternalServerError, "%s", nil)
+	c.String(http.StatusInternalServerError, "%s", "Could not fetch storage")
 }
 
 // GetEventsQueueSize returns events queue size
@@ -401,10 +395,13 @@ func FlushImpressions(c *gin.Context) {
 // GetMetrics returns stats for dashboard
 func GetMetrics(c *gin.Context) {
 	// Storage service
-	splitStorage, _ := c.Get("SplitStorage")
-	segmentStorage, _ := c.Get("SegmentStorage")
+	splitStorage := getSplitStorage(c.Get("SplitStorage"))
+	segmentStorage := getSegmentStorage(c.Get("SegmentStorage"))
 
-	stats := web.GetMetrics(splitStorage.(storage.SplitStorage), segmentStorage.(storage.SegmentStorage))
-
-	c.JSON(http.StatusOK, stats)
+	if splitStorage != nil && segmentStorage != nil {
+		stats := web.GetMetrics(splitStorage, segmentStorage)
+		c.JSON(http.StatusOK, stats)
+		return
+	}
+	c.String(http.StatusInternalServerError, "%s", "Could not fetch storage")
 }
