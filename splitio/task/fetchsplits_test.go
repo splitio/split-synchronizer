@@ -105,8 +105,8 @@ func (h testSplitFetcher) Fetch(changeNumber int64) (*api.SplitChangesDTO, error
 /* SplitStorage for testing*/
 type testSplitStorage struct{}
 
-func (h testSplitStorage) Save(split interface{}) error             { return nil }
-func (h testSplitStorage) Remove(split interface{}) error           { return nil }
+func (h testSplitStorage) Save(split []byte) error                  { return nil }
+func (h testSplitStorage) Remove(split []byte) error                { return nil }
 func (h testSplitStorage) RegisterSegment(name string) error        { return nil }
 func (h testSplitStorage) SetChangeNumber(changeNumber int64) error { return nil }
 func (h testSplitStorage) ChangeNumber() (int64, error)             { return -1, nil }

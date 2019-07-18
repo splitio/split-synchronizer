@@ -21,13 +21,13 @@ func NewSplitChangesWrapper() *SplitChangesWrapper {
 }
 
 // Save not implemented due this wrapper is only for dashboard
-func (s *SplitChangesWrapper) Save(split interface{}) error {
+func (s *SplitChangesWrapper) Save(split []byte) error {
 	return errSplitStorageNotImplementedMethod
 
 }
 
 // Remove not implemented due this wrapper is only for dashboard
-func (s *SplitChangesWrapper) Remove(split interface{}) error {
+func (s *SplitChangesWrapper) Remove(split []byte) error {
 	return errSplitStorageNotImplementedMethod
 }
 
