@@ -145,7 +145,7 @@ func HealthCheck(c *gin.Context) {
 
 	if appcontext.ExecutionMode() == appcontext.ProxyMode {
 		status["message"] = "Proxy service working as expected"
-		eventsOK, sdkOK := task.CheckProxyStatus()
+		eventsOK, sdkOK := task.CheckEventsSdkStatus()
 		healthy["date"] = task.GetHealthySince()
 		healthy["time"] = task.GetHealthySinceTimestamp()
 		eventsStatus := parseStatus(eventsOK, "Events")
@@ -162,11 +162,17 @@ func HealthCheck(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, response)
 		}
 	} else {
-		status["message"] = "Synchronizer service working as expected"
 
+		status["message"] = "Synchronizer service working as expected"
+		eventsOK, sdkOK := task.CheckEventsSdkStatus()
+		storageOk := false
 		// Storage service
-		splitStorage, _ := c.Get("SplitStorage")
-		eventsOK, sdkOK, storageOk := task.CheckProducerStatus(splitStorage)
+		splitStorage := getSplitStorage(c.Get("SplitStorage"))
+		if splitStorage != nil {
+			storageOk = task.GetStorageStatus(splitStorage)
+		} else {
+			log.Warning.Println("Storage Status could not be fetched")
+		}
 		healthy["date"] = task.GetHealthySince()
 		healthy["time"] = task.GetHealthySinceTimestamp()
 		eventsStatus := parseStatus(eventsOK, "Events")
@@ -187,48 +193,78 @@ func HealthCheck(c *gin.Context) {
 	}
 }
 
+func getSplitStorage(splitStorage interface{}, exists bool) storage.SplitStorage {
+	if !exists {
+		return nil
+	}
+	if splitStorage == nil {
+		log.Warning.Println("SplitStorage could not be fetched")
+		return nil
+	}
+	st, ok := splitStorage.(storage.SplitStorage)
+	if !ok {
+		log.Warning.Println("SplitStorage could not be fetched")
+		return nil
+	}
+	return st
+}
+
+func getSegmentStorage(segmentStorage interface{}, exists bool) storage.SegmentStorage {
+	if !exists {
+		return nil
+	}
+	if segmentStorage == nil {
+		log.Warning.Println("SegmentStorage could not be fetched")
+		return nil
+	}
+	st, ok := segmentStorage.(storage.SegmentStorage)
+	if !ok {
+		log.Warning.Println("SegmentStorage could not be fetched")
+		return nil
+	}
+	return st
+}
+
 // DashboardSegmentKeys returns a keys for a given segment
 func DashboardSegmentKeys(c *gin.Context) {
 
 	segmentName := c.Param("segment")
 
 	// Storage service
-	splitStorage, _ := c.Get("SplitStorage")
-	segmentStorage, _ := c.Get("SegmentStorage")
+	splitStorage := getSplitStorage(c.Get("SplitStorage"))
+	segmentStorage := getSegmentStorage(c.Get("SegmentStorage"))
 
-	dash := createDashboard(splitStorage, segmentStorage)
-
-	var toReturn = dash.HTMLSegmentKeys(segmentName)
-
-	c.String(http.StatusOK, "%s", toReturn)
+	if splitStorage != nil && segmentStorage != nil {
+		dash := createDashboard(splitStorage, segmentStorage)
+		var toReturn = dash.HTMLSegmentKeys(segmentName)
+		c.String(http.StatusOK, "%s", toReturn)
+		return
+	}
+	c.String(http.StatusInternalServerError, "%s", "Could not fetch storage")
 }
 
-func createDashboard(splitStorage interface{}, segmentStorage interface{}) *dashboard.Dashboard {
+func createDashboard(splitStorage storage.SplitStorage, segmentStorage storage.SegmentStorage) *dashboard.Dashboard {
 	if appcontext.ExecutionMode() == appcontext.ProxyMode {
-		return dashboard.NewDashboard(conf.Data.Proxy.Title, true,
-			splitStorage.(storage.SplitStorage),
-			segmentStorage.(storage.SegmentStorage),
-		)
+		return dashboard.NewDashboard(conf.Data.Proxy.Title, true, splitStorage, segmentStorage)
 	}
-	return dashboard.NewDashboard(conf.Data.Producer.Admin.Title, false,
-		splitStorage.(storage.SplitStorage),
-		segmentStorage.(storage.SegmentStorage),
-	)
+	return dashboard.NewDashboard(conf.Data.Producer.Admin.Title, false, splitStorage, segmentStorage)
 }
 
 // Dashboard returns a dashboard
 func Dashboard(c *gin.Context) {
 	// Storage service
-	splitStorage, _ := c.Get("SplitStorage")
-	segmentStorage, _ := c.Get("SegmentStorage")
+	splitStorage := getSplitStorage(c.Get("SplitStorage"))
+	segmentStorage := getSegmentStorage(c.Get("SegmentStorage"))
 
-	dash := createDashboard(splitStorage, segmentStorage)
-
-	//Write your 200 header status (or other status codes, but only WriteHeader once)
-	c.Writer.WriteHeader(http.StatusOK)
-	//Convert your cached html string to byte array
-	c.Writer.Write([]byte(dash.HTML()))
-	return
+	if splitStorage != nil && segmentStorage != nil {
+		dash := createDashboard(splitStorage, segmentStorage)
+		//Write your 200 header status (or other status codes, but only WriteHeader once)
+		c.Writer.WriteHeader(http.StatusOK)
+		//Convert your cached html string to byte array
+		c.Writer.Write([]byte(dash.HTML()))
+		return
+	}
+	c.String(http.StatusInternalServerError, "%s", "Could not fetch storage")
 }
 
 // GetEventsQueueSize returns events queue size
@@ -359,10 +395,13 @@ func FlushImpressions(c *gin.Context) {
 // GetMetrics returns stats for dashboard
 func GetMetrics(c *gin.Context) {
 	// Storage service
-	splitStorage, _ := c.Get("SplitStorage")
-	segmentStorage, _ := c.Get("SegmentStorage")
+	splitStorage := getSplitStorage(c.Get("SplitStorage"))
+	segmentStorage := getSegmentStorage(c.Get("SegmentStorage"))
 
-	stats := web.GetMetrics(splitStorage.(storage.SplitStorage), segmentStorage.(storage.SegmentStorage))
-
-	c.JSON(http.StatusOK, stats)
+	if splitStorage != nil && segmentStorage != nil {
+		stats := web.GetMetrics(splitStorage, segmentStorage)
+		c.JSON(http.StatusOK, stats)
+		return
+	}
+	c.String(http.StatusInternalServerError, "%s", "Could not fetch storage")
 }

@@ -103,13 +103,13 @@ func TestSplitStorageAdapter(t *testing.T) {
 		return
 	}
 
-	err = redisStorageAdapter.Save("invalid split")
+	err = redisStorageAdapter.Save([]byte("invalid split"))
 	if err == nil {
 		t.Error(err)
 		return
 	}
 
-	err = redisStorageAdapter.Remove("invalid split")
+	err = redisStorageAdapter.Remove([]byte("invalid split"))
 	if err == nil {
 		t.Error(err)
 		return

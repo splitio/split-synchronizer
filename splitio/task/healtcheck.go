@@ -40,15 +40,9 @@ func getEventsStatus() bool {
 	return true
 }
 
-func getStorageStatus(splitStorage interface{}) bool {
-	if splitStorage == nil {
-		return false
-	}
-	st, ok := splitStorage.(storage.SplitStorage)
-	if !ok {
-		return false
-	}
-	_, err := st.ChangeNumber()
+// GetStorageStatus checks status for split storage
+func GetStorageStatus(splitStorage storage.SplitStorage) bool {
+	_, err := splitStorage.ChangeNumber()
 	if err != nil {
 		log.Debug.Println(err.Error())
 		return false
@@ -56,8 +50,8 @@ func getStorageStatus(splitStorage interface{}) bool {
 	return true
 }
 
-// CheckProxyStatus checks proxy status
-func CheckProxyStatus() (bool, bool) {
+// CheckEventsSdkStatus checks status for event and sdk
+func CheckEventsSdkStatus() (bool, bool) {
 	eventStatus := getEventsStatus()
 	sdkStatus := getSdkStatus()
 	if healthySince.IsZero() && eventStatus && sdkStatus {
@@ -71,10 +65,9 @@ func CheckProxyStatus() (bool, bool) {
 }
 
 // CheckProducerStatus checks producer status
-func CheckProducerStatus(splitStorage interface{}) (bool, bool, bool) {
-	eventStatus := getEventsStatus()
-	sdkStatus := getSdkStatus()
-	storageStatus := getStorageStatus(splitStorage)
+func CheckProducerStatus(splitStorage storage.SplitStorage) (bool, bool, bool) {
+	eventStatus, sdkStatus := CheckEventsSdkStatus()
+	storageStatus := GetStorageStatus(splitStorage)
 	if healthySince.IsZero() && eventStatus && sdkStatus && storageStatus {
 		healthySince = time.Now()
 	} else {
@@ -93,7 +86,7 @@ func CheckEnvirontmentStatus(wg *sync.WaitGroup, splitStorage storage.SplitStora
 		if appcontext.ExecutionMode() == appcontext.ProducerMode {
 			CheckProducerStatus(splitStorage)
 		} else {
-			CheckProxyStatus()
+			CheckEventsSdkStatus()
 		}
 
 		select {

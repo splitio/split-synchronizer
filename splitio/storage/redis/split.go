@@ -64,15 +64,11 @@ func getValues(split []byte) (string, string, error) {
 }
 
 // Save an split object
-func (r SplitStorageAdapter) Save(split interface{}) error {
+func (r SplitStorageAdapter) Save(split []byte) error {
 	r.mutext.Lock()
 	defer r.mutext.Unlock()
 
-	if _, ok := split.([]byte); !ok {
-		return errors.New("Expecting []byte type, Invalid format given")
-	}
-
-	splitName, trafficType, err := getValues(split.([]byte))
+	splitName, trafficType, err := getValues(split)
 	if err != nil {
 		log.Error.Println("Split Name & TrafficType couldn't be fetched", err)
 		return err
@@ -87,7 +83,7 @@ func (r SplitStorageAdapter) Save(split interface{}) error {
 
 	r.incr(trafficType)
 
-	err = r.client.Set(r.splitNamespace(splitName), string(split.([]byte)), 0).Err()
+	err = r.client.Set(r.splitNamespace(splitName), string(split), 0).Err()
 	if err != nil {
 		log.Error.Println("Error saving item", splitName, "in Redis:", err)
 	} else {
@@ -99,15 +95,11 @@ func (r SplitStorageAdapter) Save(split interface{}) error {
 }
 
 //Remove removes split item from redis
-func (r SplitStorageAdapter) Remove(split interface{}) error {
+func (r SplitStorageAdapter) Remove(split []byte) error {
 	r.mutext.Lock()
 	defer r.mutext.Unlock()
 
-	if _, ok := split.([]byte); !ok {
-		return errors.New("Expecting []byte type, Invalid format given")
-	}
-
-	splitName, trafficType, err := getValues(split.([]byte))
+	splitName, trafficType, err := getValues(split)
 	if err != nil {
 		log.Error.Println("Split Name & TrafficType couldn't be fetched", err)
 		return err

@@ -40,7 +40,7 @@ func (d *Dashboard) HTML() string {
 		runningMode = "Running as Synchronizer Mode"
 		eventStatus, sdkStatus, storageStatus = task.CheckProducerStatus(d.splitStorage)
 	} else {
-		eventStatus, sdkStatus = task.CheckProxyStatus()
+		eventStatus, sdkStatus = task.CheckEventsSdkStatus()
 	}
 
 	//Parsing main menu
