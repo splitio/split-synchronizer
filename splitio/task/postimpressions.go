@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/splitio/split-synchronizer/appcontext"
+
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/api"
 	"github.com/splitio/split-synchronizer/splitio/recorder"
@@ -54,7 +56,6 @@ func taskPostImpressions(
 	legacyDisabled bool,
 	impressionListenerEnabled bool,
 ) {
-
 	mutex.Lock()
 	beforeHitRedis := time.Now().UnixNano()
 	impressionsToSend, err := impressionStorageAdapter.RetrieveImpressions(impressionsPerPost, legacyDisabled)
@@ -70,11 +71,22 @@ func taskPostImpressions(
 		for metadata, impressions := range impressionsToSend {
 			log.Debug.Printf("Posting impressions for metadata: %+v ", metadata)
 			beforePostServer := time.Now().UnixNano()
+			if appcontext.ExecutionMode() == appcontext.ProducerMode {
+				impressionsToFlush := 0
+				for _, impressionsForSplit := range impressions {
+					impressionsToFlush += len(impressionsForSplit.KeyImpressions)
+				}
+				fmt.Println("TO EXECUTE StoreDataFlushed")
+				fmt.Println("beforePostServer", beforePostServer)
+				fmt.Println("impressionsToFlush", impressionsToFlush)
+				fmt.Println("size", impressionStorageAdapter.Size())
+				StoreDataFlushed(beforePostServer, impressionsToFlush, impressionStorageAdapter.Size(), "impressions")
+
+			}
 			startTime := testImpressionsLatencies.StartMeasuringLatency()
 			err = impressionsRecorderAdapter.Post(impressions, metadata)
 			if err != nil {
 				log.Error.Println("Error posting impressions to split backend", err.Error())
-
 				if _, ok := err.(*api.HttpError); ok {
 					testImpressionsLocalCounters.Increment("backend::request.error")
 					testImpressionsCounters.Increment(fmt.Sprintf("testImpressions.status.%d", err.(*api.HttpError).Code))
