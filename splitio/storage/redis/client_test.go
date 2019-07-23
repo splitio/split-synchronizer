@@ -2,6 +2,7 @@
 package redis
 
 import (
+	"bytes"
 	"encoding/json"
 	"io/ioutil"
 	"testing"
@@ -318,4 +319,95 @@ func TestEventsDrop(t *testing.T) {
 	}
 
 	Client.Del(prefixAdapter.eventsListNamespace())
+}
+
+func TestTLSConfigProcessing(t *testing.T) {
+	redisConfig := conf.RedisSection{}
+	parsed, err := parseTLSConfig(redisConfig)
+
+	if err != nil {
+		t.Error("There should not have been an error when parsing the config.")
+		return
+	}
+
+	if parsed != nil {
+		t.Error("TLS Configuration should be nil if it wasn't set in the config.")
+	}
+
+	redisConfig.TLS = true
+	redisConfig.Host = "123.123.123.123"
+	parsed, err = parseTLSConfig(redisConfig)
+	if err != nil {
+		t.Error("There should not have been an error when parsing the config.")
+		return
+	}
+
+	if parsed == nil {
+		t.Error("TLS configuration should not be nil if EnableTLS is true")
+	}
+
+	if parsed.ServerName != "123.123.123.123" {
+		t.Error("TLS Server name should be 123.123.123.123")
+	}
+
+	if parsed.InsecureSkipVerify {
+		t.Error("TLS Name validation should be enabled by default")
+	}
+
+	redisConfig.TLSSkipNameValidation = true
+	parsed, err = parseTLSConfig(redisConfig)
+	if err != nil {
+		t.Error("There should not have been an error when parsing the config.")
+		return
+	}
+
+	if !parsed.InsecureSkipVerify {
+		t.Error("TLS Name validation should be disabled if specified in the configuration")
+	}
+
+	redisConfig.TLSCACertificates = []string{"../../../test/certs/root-cert.pem"}
+	parsed, err = parseTLSConfig(redisConfig)
+	if err != nil {
+		t.Error("There should not have been an error when parsing the config.")
+		t.Error(err)
+		return
+	}
+
+	if parsed.RootCAs == nil {
+		t.Error("There should be a root certificate pool.")
+	}
+
+	// Split the DER encoded subject by a horizontal tab and grab the CN
+	subjectAsBytes := bytes.Split(parsed.RootCAs.Subjects()[0], []byte{9})[1]
+	if string(subjectAsBytes) != "localhost" {
+		t.Error(
+			"The root certificate should have an entry for CN localhost. Have ",
+			string(subjectAsBytes),
+		)
+	}
+
+	redisConfig.TLSClientCertificate = "../../../test/certs/client-cert.pem"
+	redisConfig.TLSClientKey = "../../../test/certs/client-key.pem"
+	parsed, err = parseTLSConfig(redisConfig)
+	if err != nil {
+		t.Error("There should not have been an error when parsing the config.")
+		t.Error(err)
+		return
+	}
+
+	if len(parsed.Certificates) != 1 {
+		t.Error("There should be 1 certificate loaded.")
+		return
+	}
+
+	redisConfig.SentinelReplication = true
+	parsed, err = parseTLSConfig(redisConfig)
+	if parsed != nil {
+		t.Error("No client shoud have been returned when using TLS + Sentinel")
+		return
+	}
+	if err == nil {
+		t.Error("An error should have been returned indicating that you cannot use sentinel or cluster with TLS")
+		return
+	}
 }
