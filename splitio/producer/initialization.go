@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio"
@@ -16,7 +15,6 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 	"github.com/splitio/split-synchronizer/splitio/task"
 	"github.com/splitio/split-synchronizer/splitio/web/admin"
-	producerControllers "github.com/splitio/split-synchronizer/splitio/web/admin/controllers/producer"
 )
 
 func gracefulShutdownProducer(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
@@ -40,7 +38,7 @@ func gracefulShutdownProducer(sigs chan os.Signal, gracefulShutdownWaitingGroup 
 	task.StopPostMetrics()
 
 	// Events - Emit task stop signal
-	for i := 0; i < conf.Data.EventsConsumerThreads; i++ {
+	for i := 0; i < conf.Data.EventsThreads; i++ {
 		fmt.Println(" -> Sending STOP to post_events goroutine")
 		task.StopPostEvents()
 	}
@@ -50,6 +48,10 @@ func gracefulShutdownProducer(sigs chan os.Signal, gracefulShutdownWaitingGroup 
 		fmt.Println(" -> Sending STOP to post_impressions goroutine")
 		task.StopPostImpressions()
 	}
+
+	// Healthcheck - Emit task stop signal
+	fmt.Println(" -> Sending STOP to healthcheck goroutine")
+	task.StopHealtcheck()
 
 	fmt.Println(" * Waiting goroutines stop")
 	gracefulShutdownWaitingGroup.Wait()
@@ -73,10 +75,6 @@ func segmentStorageFactory() storage.SegmentStorageFactory {
 	return storage.SegmentStorageMainFactory{}
 }
 
-func trafficTypeStorageFactory() storage.TrafficTypeStorage {
-	return redis.NewTrafficTypeStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-}
-
 func startLoop(loopTime int64) {
 	for {
 		time.Sleep(time.Duration(loopTime) * time.Millisecond)
@@ -86,7 +84,7 @@ func startLoop(loopTime int64) {
 // Start initialize the producer mode
 func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 
-	task.InitializeEvents(conf.Data.EventsConsumerThreads)
+	task.InitializeEvents(conf.Data.EventsThreads)
 	task.InitializeImpressions(conf.Data.ImpressionsThreads)
 
 	//Producer mode - graceful shutdown
@@ -98,38 +96,17 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	segmentFetcher := segmentFetcherFactory()
 	segmentStorage := segmentStorageFactory()
 
-	trafficTypeStorage := trafficTypeStorageFactory()
+	// WebAdmin configuration
+	waOptions := &admin.WebAdminOptions{
+		Port:          conf.Data.Producer.Admin.Port,
+		AdminUsername: conf.Data.Producer.Admin.Username,
+		AdminPassword: conf.Data.Producer.Admin.Password,
+		DebugOn:       conf.Data.Logger.DebugOn,
+	}
+	// Run WebAdmin Server
+	admin.StartAdminWebAdmin(waOptions, splitStorage, segmentStorage.NewInstance())
 
-	go func() {
-		// WebAdmin configuration
-		waOptions := &admin.WebAdminOptions{
-			Port:          conf.Data.Producer.Admin.Port,
-			AdminUsername: conf.Data.Producer.Admin.Username,
-			AdminPassword: conf.Data.Producer.Admin.Password,
-			DebugOn:       conf.Data.Logger.DebugOn,
-		}
-
-		waServer := admin.NewWebAdminServer(waOptions)
-
-		waServer.Router().Use(func(c *gin.Context) {
-			c.Set("SplitStorage", splitStorage)
-			c.Set("SegmentStorage", segmentStorage.NewInstance())
-		})
-
-		waServer.Router().GET("/admin/healthcheck", producerControllers.HealthCheck)
-		waServer.Router().GET("/admin/dashboard", producerControllers.Dashboard)
-		waServer.Router().GET("/admin/dashboard/segmentKeys/:segment", producerControllers.DashboardSegmentKeys)
-		waServer.Router().GET("/admin/events/queueSize", producerControllers.GetEventsQueueSize)
-		waServer.Router().GET("/admin/impressions/queueSize", producerControllers.GetImpressionsQueueSize)
-		waServer.Router().POST("/admin/events/drop/*size", producerControllers.DropEvents)
-		waServer.Router().POST("/admin/impressions/drop/*size", producerControllers.DropImpressions)
-		waServer.Router().POST("/admin/events/flush/*size", producerControllers.FlushEvents)
-		waServer.Router().POST("/admin/impressions/flush/*size", producerControllers.FlushImpressions)
-
-		waServer.Run()
-	}()
-
-	go task.FetchSplits(splitFetcher, splitStorage, conf.Data.SplitsFetchRate, gracefulShutdownWaitingGroup, trafficTypeStorage)
+	go task.FetchSplits(splitFetcher, splitStorage, conf.Data.SplitsFetchRate, gracefulShutdownWaitingGroup)
 
 	go task.FetchSegments(segmentFetcher, segmentStorage, conf.Data.SegmentFetchRate, gracefulShutdownWaitingGroup)
 
@@ -158,12 +135,14 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	metricsRecorder := recorder.MetricsHTTPRecorder{}
 	go task.PostMetrics(metricsRecorder, metricsStorage, conf.Data.MetricsPostRate, gracefulShutdownWaitingGroup)
 
-	for i := 0; i < conf.Data.EventsConsumerThreads; i++ {
+	for i := 0; i < conf.Data.EventsThreads; i++ {
 		eventsStorage := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 		eventsRecorder := recorder.EventsHTTPRecorder{}
-		go task.PostEvents(i, eventsRecorder, eventsStorage, conf.Data.EventsPushRate,
-			conf.Data.EventsConsumerReadSize, gracefulShutdownWaitingGroup)
+		go task.PostEvents(i, eventsRecorder, eventsStorage, conf.Data.EventsPostRate,
+			conf.Data.EventsPerPost, gracefulShutdownWaitingGroup)
 	}
+
+	go task.CheckEnvirontmentStatus(gracefulShutdownWaitingGroup, splitStorage)
 
 	//Keeping service alive
 	startLoop(500)

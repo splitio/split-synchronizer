@@ -43,9 +43,15 @@ type RedisSection struct {
 	SentinelMaster           string `json:"sentinelMaster" split-default-value:"" split-cli-option:"redis-sentinel-master" split-cli-description:"Name of master"`
 
 	// Redis cluster replication support
-	ClusterMode       bool   `json:"clusterMode" split-default-value:"false" split-cli-option:"redis-cluster-mode" split-cli-description:"Redis cluster enabled."`
-	ClusterNodes      string `json:"clusterNodes" split-default-value:"" split-cli-option:"redis-cluster-nodes" split-cli-description:"List of redis cluster nodes."`
-	ClusterKeyHashTag string `json:"keyHashTag" split-default-value:"" split-cli-option:"redis-cluster-key-hashtag" split-cli-description:"keyHashTag for redis cluster."`
+	ClusterMode           bool     `json:"clusterMode" split-default-value:"false" split-cli-option:"redis-cluster-mode" split-cli-description:"Redis cluster enabled."`
+	ClusterNodes          string   `json:"clusterNodes" split-default-value:"" split-cli-option:"redis-cluster-nodes" split-cli-description:"List of redis cluster nodes."`
+	ClusterKeyHashTag     string   `json:"keyHashTag" split-default-value:"" split-cli-option:"redis-cluster-key-hashtag" split-cli-description:"keyHashTag for redis cluster."`
+	TLS                   bool     `json:"enableTLS" split-default-value:"false" split-cli-option:"redis-tls" split-cli-description:"Use SSL/TLS for connecting to redis"`
+	TLSServerName         string   `json:"tlsServerName" split-default-value:"" split-cli-option:"redis-tls-server-name" split-cli-description:"Server name to use when validating a server-side SSL/TLS certificate."`
+	TLSCACertificates     []string `json:"caCertificates" split-default-value:"" split-cli-option:"redis-tls-ca-certs" split-cli-description:"Root CA certificates filenames to use when connecting to a redis server via SSL/TLS"`
+	TLSSkipNameValidation bool     `json:"tlsSkipNameValidation" split-default-value:"false" split-cli-option:"redis-tls-skip-name-validation" split-cli-description:"Accept server's public key without validanting againsta a CA."`
+	TLSClientCertificate  string   `json:"tlsClientCertificate" split-default-value:"" split-cli-option:"redis-tls-client-certificate" split-cli-description:"Client certificate filename signed by a server-recognized CA"`
+	TLSClientKey          string   `json:"tlsClientKey" split-default-value:"" split-cli-option:"redis-tls-client-key" split-cli-description:"Client private key matching the certificate."`
 }
 
 // LogSection log instance configuration
@@ -62,22 +68,28 @@ type LogSection struct {
 
 // ConfigData main configuration container
 type ConfigData struct {
-	APIKey                 string             `json:"apiKey" split-cli-option:"api-key" split-default-value:"YOUR API KEY" split-cli-description:"Your Split API-KEY"`
-	Proxy                  InMemorySection    `json:"proxy" split-cli-option-group:"true"`
-	Redis                  RedisSection       `json:"redis" split-cli-option-group:"true"`
-	Producer               ProducerSection    `json:"sync" split-cli-option-group:"true"`
-	Logger                 LogSection         `json:"log" split-cli-option-group:"true"`
-	ImpressionListener     ImpressionListener `json:"impressionListener" split-cli-option-group:"true"`
-	SplitsFetchRate        int                `json:"splitsRefreshRate" split-cli-option:"split-refresh-rate" split-default-value:"5" split-cli-description:"Refresh rate of splits fetcher"`
-	SegmentFetchRate       int                `json:"segmentsRefreshRate" split-default-value:"60" split-cli-option:"segment-refresh-rate" split-cli-description:"Refresh rate of segments fetcher"`
-	ImpressionsPostRate    int                `json:"impressionsRefreshRate" split-default-value:"20" split-cli-option:"impressions-post-rate" split-cli-description:"Post rate of impressions recorder"`
-	ImpressionsPerPost     int64              `json:"impressionsPerPost" split-cli-option:"impressions-per-post" split-default-value:"50000" split-cli-description:"Number of impressions to send in a POST request"`
-	ImpressionsThreads     int                `json:"impressionsThreads" split-default-value:"1" split-cli-option:"impressions-recorder-threads" split-cli-description:"Number of impressions recorder threads"`
-	EventsPushRate         int                `json:"eventsPushRate" split-default-value:"60" split-cli-option:"events-push-rate" split-cli-description:"Post rate of event recorder (seconds)"`
-	EventsConsumerReadSize int                `json:"eventsConsumerReadSize" split-default-value:"10000" split-cli-option:"events-consumer-read-size" split-cli-description:"Events queue read size"`
-	EventsConsumerThreads  int                `json:"eventsConsumerThreads" split-default-value:"1" split-cli-option:"events-consumer-threads" split-cli-description:"Number of events consumer threads"`
-	MetricsPostRate        int                `json:"metricsRefreshRate" split-default-value:"60" split-cli-option:"metrics-post-rate" split-cli-description:"Post rate of metrics recorder"`
-	HTTPTimeout            int64              `json:"httpTimeout" split-default-value:"60" split-cli-option:"http-timeout" split-cli-description:"Timeout specifies a time limit for requests"`
+	APIKey                     string             `json:"apiKey" split-cli-option:"api-key" split-default-value:"YOUR API KEY" split-cli-description:"Your Split API-KEY"`
+	Proxy                      InMemorySection    `json:"proxy" split-cli-option-group:"true"`
+	Redis                      RedisSection       `json:"redis" split-cli-option-group:"true"`
+	Producer                   ProducerSection    `json:"sync" split-cli-option-group:"true"`
+	Logger                     LogSection         `json:"log" split-cli-option-group:"true"`
+	ImpressionListener         ImpressionListener `json:"impressionListener" split-cli-option-group:"true"`
+	SplitsFetchRate            int                `json:"splitsRefreshRate" split-cli-option:"split-refresh-rate" split-default-value:"5" split-cli-description:"Refresh rate of splits fetcher"`
+	SegmentFetchRate           int                `json:"segmentsRefreshRate" split-default-value:"60" split-cli-option:"segment-refresh-rate" split-cli-description:"Refresh rate of segments fetcher"`
+	ImpressionsPostRate        int                `json:"impressionsPostRate" split-default-value:"20" split-cli-option:"impressions-post-rate" split-cli-description:"Post rate of impressions recorder"`
+	ImpressionsRefreshRate     int                `json:"impressionsRefreshRate"` // Lives only for backwards compatibility. It will be removed soon.
+	ImpressionsPerPost         int64              `json:"impressionsPerPost" split-cli-option:"impressions-per-post" split-default-value:"50000" split-cli-description:"Number of impressions to send in a POST request"`
+	ImpressionsThreads         int                `json:"impressionsThreads" split-default-value:"1" split-cli-option:"impressions-threads" split-cli-description:"Number of impressions recorder threads"`
+	ImpressionsConsumerThreads int                `json:"impressionsConsumerThreads" split-default-value:"0" split-cli-option:"impressions-consumer-threads" split-cli-description:"Number of impressions recorder threads"`
+	EventsPushRate             int                `json:"eventsPushRate" split-default-value:"0" split-cli-option:"events-push-rate" split-cli-description:"Post rate of event recorder (seconds)"` // Lives only for backwards compatibility. It will be removed soon.
+	EventsPostRate             int                `json:"eventsPostRate" split-default-value:"60" split-cli-option:"events-post-rate" split-cli-description:"Post rate of event recorder (seconds)"`
+	EventsConsumerReadSize     int                `json:"eventsConsumerReadSize" split-default-value:"0" split-cli-option:"events-consumer-read-size" split-cli-description:"Events queue read size"`
+	EventsPerPost              int                `json:"eventsPerPost" split-default-value:"10000" split-cli-option:"events-per-post" split-cli-description:"Number of events to send in a POST request"`
+	EventsConsumerThreads      int                `json:"eventsConsumerThreads" split-default-value:"0" split-cli-option:"events-consumer-threads" split-cli-description:"Number of events consumer threads"`
+	EventsThreads              int                `json:"eventsThreads" split-default-value:"1" split-cli-option:"events-threads" split-cli-description:"Number of events threads"`
+	MetricsPostRate            int                `json:"metricsPostRate" split-default-value:"60" split-cli-option:"metrics-post-rate" split-cli-description:"Post rate of metrics recorder,-"`
+	MetricsRefreshRate         int                `json:"metricsRefreshRate" split-default-value:"0" split-cli-option:"metrics-refresh-rate" split-cli-description:"Post rate of metrics recorder,-"`
+	HTTPTimeout                int64              `json:"httpTimeout" split-default-value:"60" split-cli-option:"http-timeout" split-cli-description:"Timeout specifies a time limit for requests"`
 }
 
 //MarshalBinary exports ConfigData to JSON string

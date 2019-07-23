@@ -202,7 +202,7 @@ func TestPopNLimitedBySize(t *testing.T) {
 	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 	conf.Initialize()
 	Initialize(conf.Data.Redis)
-	prefixAdapter := &prefixAdapter{prefix: ""}
+	prefixAdapter := &prefixAdapter{prefix: "TestPopNLimitedBySize"}
 	Client.Del(prefixAdapter.eventsListNamespace())
 
 	metadata := api.SdkMetadata{
@@ -245,10 +245,10 @@ func TestPopNLimitedBySize(t *testing.T) {
 		)
 	}
 
-	eventsStorageAdapter := NewEventStorageAdapter(Client, "")
+	eventsStorageAdapter := NewEventStorageAdapter(Client, "TestPopNLimitedBySize")
 	size := eventsStorageAdapter.Size()
 	if size != 300 {
-		t.Error("Size is not the expected one. Expected 50. Actual:", size)
+		t.Error("Size is not the expected one. Expected 300. Actual:", size)
 	}
 
 	retrieved, err := eventsStorageAdapter.PopN(300)
@@ -259,6 +259,6 @@ func TestPopNLimitedBySize(t *testing.T) {
 		t.Error("It should have fetched 160 events. Fetched: ", len(retrieved))
 	}
 
-	Client.Del(prefixAdapter.eventsListNamespace())
+	Client.Del("TestPopNLimitedBySize.SPLITIO.events")
 
 }

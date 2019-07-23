@@ -113,7 +113,7 @@ func PostImpressions(
 	tid int,
 	impressionsRecorderAdapter recorder.ImpressionsRecorder,
 	impressionStorageAdapter storage.ImpressionStorage,
-	impressionsRefreshRate int,
+	impressionsPostRate int,
 	legacyDisabled bool,
 	impressionListenerEnabled bool,
 	impressionsPerPost int64,
@@ -143,7 +143,7 @@ func PostImpressions(
 				log.Debug.Println("Stopping task: post_impressions")
 				keepLoop = false
 			}
-		case <-time.After(time.Duration(impressionsRefreshRate) * time.Second):
+		case <-time.After(time.Duration(impressionsPostRate) * time.Second):
 		}
 	}
 	wg.Done()

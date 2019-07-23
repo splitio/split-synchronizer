@@ -7,8 +7,8 @@ import (
 
 // SplitStorage interface defines the split data storage actions
 type SplitStorage interface {
-	Save(split interface{}) error
-	Remove(split interface{}) error
+	Save(split []byte) error
+	Remove(split []byte) error
 	RegisterSegment(name string) error
 	SetChangeNumber(changeNumber int64) error
 	ChangeNumber() (int64, error)
@@ -54,12 +54,4 @@ type MetricsStorage interface {
 type EventStorage interface {
 	//returns the first N elements from events queue
 	PopN(n int64) ([]api.RedisStoredEventDTO, error)
-}
-
-// TrafficTypeStorage interface defines trafficType storage actions
-type TrafficTypeStorage interface {
-	// Save trafficType
-	Incr(trafficType string) error
-	Decr(trafficType string) error
-	Clean() error
 }

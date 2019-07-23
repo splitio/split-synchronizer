@@ -29,17 +29,12 @@ var splitChangesCounters = counter.NewCounter()
 var splitChangesLocalCounters = counter.NewLocalCounter()
 
 func taskFetchSplits(splitFetcherAdapter fetcher.SplitFetcher,
-	splitStorageAdapter storage.SplitStorage,
-	trafficTypeStorageAdapter storage.TrafficTypeStorage) {
+	splitStorageAdapter storage.SplitStorage) {
 
 	lastChangeNumber, err := splitStorageAdapter.ChangeNumber()
 	if err != nil {
 		log.Debug.Printf("Fetching change number: %s\n", err.Error())
 		lastChangeNumber = -1
-	}
-
-	if lastChangeNumber == -1 {
-		trafficTypeStorageAdapter.Clean()
 	}
 
 	startTime := splitChangesLatencies.StartMeasuringLatency()
@@ -76,7 +71,6 @@ func taskFetchSplits(splitFetcherAdapter fetcher.SplitFetcher,
 			}
 			jsonD, _ := rawSplits[i].MarshalJSON()
 			if splitDTO.Status == "ACTIVE" {
-				trafficTypeStorageAdapter.Incr(splitDTO.TrafficTypeName)
 				if err := splitStorageAdapter.Save(jsonD); err == nil {
 					savedItems++
 					totalConditions := len(splitDTO.Conditions)
@@ -94,7 +88,6 @@ func taskFetchSplits(splitFetcherAdapter fetcher.SplitFetcher,
 				}
 			} else {
 				if err := splitStorageAdapter.Remove(jsonD); err == nil {
-					trafficTypeStorageAdapter.Decr(splitDTO.TrafficTypeName)
 					deletedItems++
 				}
 			}
@@ -106,12 +99,11 @@ func taskFetchSplits(splitFetcherAdapter fetcher.SplitFetcher,
 // FetchSplits task to retrieve split changes from Split servers
 func FetchSplits(splitFetcherAdapter fetcher.SplitFetcher,
 	splitStorageAdapter storage.SplitStorage,
-	splitsRefreshRate int, wg *sync.WaitGroup,
-	trafficTypeStorageAdapter storage.TrafficTypeStorage) {
+	splitsRefreshRate int, wg *sync.WaitGroup) {
 	wg.Add(1)
 	keepLoop := true
 	for keepLoop {
-		taskFetchSplits(splitFetcherAdapter, splitStorageAdapter, trafficTypeStorageAdapter)
+		taskFetchSplits(splitFetcherAdapter, splitStorageAdapter)
 
 		select {
 		case msg := <-splitsIncoming:
