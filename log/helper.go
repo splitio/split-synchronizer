@@ -61,16 +61,16 @@ func PostShutdownMessageToSlack(kill bool) {
 		}
 		attachs := append(make([]SlackMessageAttachment, 0), attach)
 		if kill {
-			PostMessageToSlack("*[KILL]* <!here> Force shutdown signal sent", attachs)
+			PostMessageToSlack("*[KILL]* Force shutdown signal sent", attachs)
 		} else {
-			PostMessageToSlack("*[IMPORTANT]* <!here> Starting Graceful Shutdown", attachs)
+			PostMessageToSlack("*[IMPORTANT]* Starting Graceful Shutdown", attachs)
 		}
 
 	} else {
 		if kill {
-			PostMessageToSlack("*[KILL]* <!here> Force shutdown signal sent - see you soon!", nil)
+			PostMessageToSlack("*[KILL]* Force shutdown signal sent - see you soon!", nil)
 		} else {
-			PostMessageToSlack("*[IMPORTANT]* <!here> Shutting Split-Sync down - see you soon!", nil)
+			PostMessageToSlack("*[IMPORTANT]* Shutting Split-Sync down - see you soon!", nil)
 		}
 
 	}
