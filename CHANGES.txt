@@ -1,5 +1,5 @@
 2.4.1 (July 25, 2019)
- - Removed `@here` in slack messages.
+ - Removed '@here' in slack messages.
 2.4.0 (July 23, 2019)
  - Added support for TLS connections to redis.
  - Updated config parameters to have consistency between them. Several parameters will be deprecated in future versions.
