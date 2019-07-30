@@ -12,25 +12,28 @@ type record struct {
 	DataInStorage int64
 }
 
-var eventsFlushingStats []record
-var eventsMaxLength int
-var eventsMutex sync.RWMutex
-var eventsλ float64
-var eventsBehind int64
-var impressionsFlushingStats []record
-var impressionsMaxLength int
-var impressionsMutex sync.RWMutex
-var impressionsλ float64
-var impressionsBehind int64
+type monitor struct {
+	FlushingStats []record
+	MaxLength     int
+	Mutex         sync.RWMutex
+	Delta         float64
+}
+
+var eventsMonitor monitor
+var impressionsMonitor monitor
 
 // InitializeEvictionCalculator initializes the eviction calculator module
 func InitializeEvictionCalculator() {
-	eventsFlushingStats = make([]record, 0)
-	eventsMaxLength = int(100) * conf.Data.EventsThreads
-	eventsλ = 0
-	impressionsFlushingStats = make([]record, 0)
-	impressionsMaxLength = int(100) * conf.Data.ImpressionsThreads
-	impressionsλ = 0
+	eventsMonitor = monitor{
+		FlushingStats: make([]record, 0),
+		MaxLength:     int(100) * conf.Data.EventsThreads,
+		Delta:         0,
+	}
+	impressionsMonitor = monitor{
+		FlushingStats: make([]record, 0),
+		MaxLength:     int(100) * conf.Data.ImpressionsThreads,
+		Delta:         0,
+	}
 }
 
 func storeRecord(stats record, records *[]record, maxLength int) {
@@ -48,7 +51,7 @@ func calculateAmountFlushed(records []record) int {
 	return amountFlushed
 }
 
-func calculateλ(records []record) float64 {
+func calculateDelta(records []record) float64 {
 	t := int64(calculateAmountFlushed(records))
 
 	dataInT1 := records[0].DataInStorage
@@ -66,24 +69,24 @@ func StoreDataFlushed(timestamp int64, countFlushed int, countInStorage int64, o
 		DataInStorage: countInStorage,
 	}
 	if operation == "events" {
-		eventsMutex.Lock()
-		storeRecord(newInformation, &eventsFlushingStats, eventsMaxLength)
-		eventsλ = calculateλ(eventsFlushingStats)
-		eventsMutex.Unlock()
+		eventsMonitor.Mutex.Lock()
+		storeRecord(newInformation, &eventsMonitor.FlushingStats, eventsMonitor.MaxLength)
+		eventsMonitor.Delta = calculateDelta(eventsMonitor.FlushingStats)
+		eventsMonitor.Mutex.Unlock()
 	} else {
-		impressionsMutex.Lock()
-		storeRecord(newInformation, &impressionsFlushingStats, impressionsMaxLength)
-		impressionsλ = calculateλ(impressionsFlushingStats)
-		impressionsMutex.Unlock()
+		impressionsMonitor.Mutex.Lock()
+		storeRecord(newInformation, &impressionsMonitor.FlushingStats, impressionsMonitor.MaxLength)
+		impressionsMonitor.Delta = calculateDelta(impressionsMonitor.FlushingStats)
+		impressionsMonitor.Mutex.Unlock()
 	}
 }
 
-// GetImpressionsλ returns eviction factor for impressions
-func GetImpressionsλ() float64 {
-	return impressionsλ
+// GetImpressionsDelta returns eviction factor for impressions
+func GetImpressionsDelta() float64 {
+	return impressionsMonitor.Delta
 }
 
-// GetEventsλ returns eviction factor for events
-func GetEventsλ() float64 {
-	return eventsλ
+// GetEventsDelta returns eviction factor for events
+func GetEventsDelta() float64 {
+	return eventsMonitor.Delta
 }

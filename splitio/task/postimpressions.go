@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/splitio/split-synchronizer/appcontext"
-
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/api"
 	"github.com/splitio/split-synchronizer/splitio/recorder"

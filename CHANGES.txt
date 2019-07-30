@@ -1,5 +1,5 @@
 2.4.1 (, 2019)
- - Added λ calculation for Events and Impressions.
+ - Added delta calculation for Events and Impressions.
 2.4.0 (July 22, 2019)
  - Added support for TLS connections to redis
  - Updated config parameters to have consistency between them. Several parameters will be deprecated in future versions.
