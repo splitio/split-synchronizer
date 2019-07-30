@@ -50,10 +50,12 @@ func calculateAmountFlushed(records []record) int {
 
 func calculateλ(records []record) float64 {
 	t := int64(calculateAmountFlushed(records))
+
 	dataInT1 := records[0].DataInStorage
 	dataInT2 := records[len(records)-1].DataInStorage
-	amountFlushed := int64(calculateAmountFlushed(records))
-	return float64(t) / float64(dataInT2-dataInT1+amountFlushed)
+	amountGeneratedBetweenT1andT2 := float64(dataInT2 - dataInT1 + t)
+
+	return float64(t) / amountGeneratedBetweenT1andT2
 }
 
 // StoreDataFlushed stores data flushed
