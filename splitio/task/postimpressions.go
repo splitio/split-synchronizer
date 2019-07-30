@@ -76,12 +76,7 @@ func taskPostImpressions(
 				for _, impressionsForSplit := range impressions {
 					impressionsToFlush += len(impressionsForSplit.KeyImpressions)
 				}
-				fmt.Println("TO EXECUTE StoreDataFlushed")
-				fmt.Println("beforePostServer", beforePostServer)
-				fmt.Println("impressionsToFlush", impressionsToFlush)
-				fmt.Println("size", impressionStorageAdapter.Size())
 				StoreDataFlushed(beforePostServer, impressionsToFlush, impressionStorageAdapter.Size(), "impressions")
-
 			}
 			startTime := testImpressionsLatencies.StartMeasuringLatency()
 			err = impressionsRecorderAdapter.Post(impressions, metadata)

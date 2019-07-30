@@ -55,4 +55,5 @@ type MetricsStorage interface {
 type EventStorage interface {
 	//returns the first N elements from events queue
 	PopN(n int64) ([]api.RedisStoredEventDTO, error)
+	Size() int64
 }
