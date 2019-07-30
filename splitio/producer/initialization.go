@@ -126,7 +126,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 			conf.Data.ImpressionsPostRate,
 			conf.Data.Redis.DisableLegacyImpressions,
 			conf.Data.ImpressionListener.Endpoint != "",
-			300,
+			conf.Data.ImpressionsPerPost,
 			gracefulShutdownWaitingGroup,
 		)
 

@@ -23,12 +23,8 @@ var impressionsMutex sync.RWMutex
 var impressionsλ float64
 var impressionsBehind int64
 
-// InitializeEvictionCalculator appcontext module
+// InitializeEvictionCalculator initializes the eviction calculator module
 func InitializeEvictionCalculator() {
-	eventsMutex.Lock()
-	impressionsMutex.Lock()
-	defer eventsMutex.Unlock()
-	defer impressionsMutex.Unlock()
 	eventsFlushingStats = make([]record, 0)
 	eventsMaxLength = int(100) * conf.Data.EventsThreads
 	eventsλ = 0
