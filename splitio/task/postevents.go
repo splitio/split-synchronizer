@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/splitio/split-synchronizer/appcontext"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/api"
 	"github.com/splitio/split-synchronizer/splitio/nethelper"
@@ -90,6 +91,10 @@ func taskPostEvents(tid int,
 				var err = errors.New("") // forcing error to start "for" attempts
 				attemps := 0
 				for err != nil && attemps < totalPostAttemps {
+					if appcontext.ExecutionMode() == appcontext.ProducerMode && attemps == 0 {
+						beforePostServer := time.Now().UnixNano()
+						StoreDataFlushed(beforePostServer, len(bulk), storageAdapter.Size(), "events")
+					}
 					startTime := postEventsLatencies.StartMeasuringLatency()
 					err = recorderAdapter.Post(bulk, s, i, n)
 					if err != nil {
