@@ -297,7 +297,7 @@ var LayoutTPL = `
             <div class="row">
               <div class="col-md-2">
                 <div class="gray1Box metricBox">
-                  <i class="glyphicon glyphicon-question-sign"
+                  <i class="popovers glyphicon glyphicon-question-sign"
                     style="float: right;"
                     data-toggle="popover-impressions"
                     title="Delta Impressions Eviction Calculation"
@@ -309,7 +309,7 @@ var LayoutTPL = `
               </div>
               <div class="col-md-2">
                 <div class="gray1Box metricBox">
-                  <i class="glyphicon glyphicon-question-sign"
+                  <i class="popovers glyphicon glyphicon-question-sign"
                     style="float: right;"
                     data-toggle="popover-events"
                     title="Delta Events Eviction Calculation"
@@ -1062,6 +1062,14 @@ function refreshMetrics() {
   });
 };
 
+$(document).on('click', function (e) {
+  $('.popovers').each(function () {
+      if (!$(this).is(e.target) && $(this).has(e.target).length === 0 && $('.popover').has(e.target).length === 0) {                
+          (($(this).popover('hide').data('bs.popover')||{}).inState||{}).click = false
+      }
+  });
+});
+
 $(document).ready(function () {
   const popOverData = {
     container: 'body',
@@ -1071,6 +1079,7 @@ $(document).ready(function () {
   };
   $('[data-toggle="popover-impressions"]').popover(popOverData);
   $('[data-toggle="popover-events"]').popover(popOverData);
+
   if (document.getElementById("uptime")) {
     const isProxyMode = {{.ProxyMode}}
     const isSDKServerStatus = {{.SDKServerStatus}}
