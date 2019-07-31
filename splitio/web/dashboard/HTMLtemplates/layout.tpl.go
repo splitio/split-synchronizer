@@ -172,6 +172,17 @@ var LayoutTPL = `
   .nav-pills>li>a:hover {color: #fff; border-radius:0px; background-color: rgb(65,77,91);}
 
   .split-nav-title {color:rgba(107,200,253,1); margin:0;}
+
+  .popover-inner {
+    width: 500px !important;
+    max-width:500px !important;
+    color: black;
+ }
+ .popover {
+    width: 500px !important;
+    max-width:500px !important;
+    color: black;
+ }
   </style>
 </head>
 
@@ -286,12 +297,24 @@ var LayoutTPL = `
             <div class="row">
               <div class="col-md-2">
                 <div class="gray1Box metricBox">
+                  <i class="glyphicon glyphicon-question-sign"
+                    style="float: right;"
+                    data-toggle="popover-impressions"
+                    title="Delta Impressions Eviction Calculation"
+                  >
+                  </i>
                   <h4>Impressions Delta</h4>
                   <h1 id="impressions_delta" class="centerText">{{.ImpressionsDelta}}</h1>
                 </div>
               </div>
               <div class="col-md-2">
                 <div class="gray1Box metricBox">
+                  <i class="glyphicon glyphicon-question-sign"
+                    style="float: right;"
+                    data-toggle="popover-events"
+                    title="Delta Events Eviction Calculation"
+                  >
+                  </i>
                   <h4>Events Delta</h4>
                   <h1 id="events_delta" class="centerText">{{.EventsDelta}}</h1>
                 </div>
@@ -524,14 +547,13 @@ var LayoutTPL = `
             <hr>
             <ul>
               <li>
-                <p class="mb-0">If <span style="font-weight:bold;">ℷ >= 1 (delta)</span>: the current configuration is processing Events or Impressions without keeping elements in the stack. In other words, eviction rate >= generation rate. Split Synchronizer is able flush data as it arrives to the system from the SDKs.</p>
+                <p class="mb-0">If <b>ℷ >= 1 (delta)</b>: the current configuration is processing Events or Impressions without keeping elements in the stack. In other words, eviction rate >= generation rate. Split Synchronizer is able flush data as it arrives to the system from the SDKs.</p>
               </li>
               <li>
-                <p class="mb-0">If <span style="font-weight:bold;">ℷ < 1 (delta)</span>: the current configuration may not be enough to process all the data coming in, and over time it may produce an always-increasing memory footprint. Recommendation: increase the number of threads or reduce the frequency for evicting elements. We recommend increasing the number of threads if they are still using the default value of 1, and to not exceed the number of cores. On the other hand, when reducing the frequency of element eviction (flush operation), decrease the value in a conservative manner by increments of ten or twenty percent each time.</p>
+                <p class="mb-0">If <b>ℷ < 1 (delta)</b>: the current configuration may not be enough to process all the data coming in, and over time it may produce an always-increasing memory footprint. Recommendation: increase the number of threads or reduce the frequency for evicting elements. We recommend increasing the number of threads if they are still using the default value of 1, and to not exceed the number of cores. On the other hand, when reducing the frequency of element eviction (flush operation), decrease the value in a conservative manner by increments of ten or twenty percent each time.</p>
               </li>
             </ul>
-            <p>For further information you can visit <a href="https://help.split.io/hc/en-us/articles/360018343391-Split-Synchronizer-Runbook" class="alert-link">Split Synchronizer Runbook</a>.
-            
+            <p>For further information you can visit <a href="https://help.split.io/hc/en-us/articles/360018343391-Split-Synchronizer-Runbook" class="alert-link">Split Synchronizer Runbook</a>.</p>
           </div>
         </div>
     {{end}}
@@ -1041,6 +1063,14 @@ function refreshMetrics() {
 };
 
 $(document).ready(function () {
+  const popOverData = {
+    container: 'body',
+    content: "<div><ul><li>If <b>ℷ >= 1 (delta)</b>: the current configuration is processing Events or Impressions without keeping elements in the stack. In other words,eviction rate >= generation rate. Split Synchronizer is able flush data as it arrives to the system from the SDKs.</li><li>If <b>ℷ >= 1 (delta)</b>: the current configuration is processing Events or Impressions without keeping elements in the stack. In other words,eviction rate >= generation rate. Split Synchronizer is able flush data as it arrives to the system from the SDKs.</li></ul><p>For further information you can visit <a href='https://help.split.io/hc/en-us/articles/360018343391-Split-Synchronizer-Runbook'>Split Synchronizer Runbook</a>.</p></div>",
+    html: true,
+    placement: "auto",
+  };
+  $('[data-toggle="popover-impressions"]').popover(popOverData);
+  $('[data-toggle="popover-events"]').popover(popOverData);
   if (document.getElementById("uptime")) {
     const isProxyMode = {{.ProxyMode}}
     const isSDKServerStatus = {{.SDKServerStatus}}
