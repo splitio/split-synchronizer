@@ -6,12 +6,14 @@ import (
 	"github.com/splitio/split-synchronizer/conf"
 )
 
+// record struct that has all the required information of one flushing process
 type record struct {
 	Timestamp     int64
 	DataFlushed   int
 	DataInStorage int64
 }
 
+// monitor struct that will has a window of statistics for eviction delta calculation
 type monitor struct {
 	FlushingStats []record
 	MaxLength     int
@@ -36,6 +38,7 @@ func InitializeEvictionCalculator() {
 	}
 }
 
+// storeRecord stores a record depending on the length. It will add one more element if the array is not full or shift the array one place
 func storeRecord(stats record, records *[]record, maxLength int) {
 	if len(*records) >= maxLength {
 		*records = (*records)[1:maxLength]
@@ -54,14 +57,17 @@ func calculateAmountFlushed(records []record) int {
 func calculateDelta(records []record) float64 {
 	t := int64(calculateAmountFlushed(records))
 
+	// grabs the quantity of elements for the first record
 	dataInT1 := records[0].DataInStorage
+	// grabs the quantity of elements for the last record
 	dataInT2 := records[len(records)-1].DataInStorage
+	// calculates the total amount of elements generated between T1 and T2
 	amountGeneratedBetweenT1andT2 := float64(dataInT2 - dataInT1 + t)
 
 	return float64(t) / amountGeneratedBetweenT1andT2
 }
 
-// StoreDataFlushed stores data flushed
+// StoreDataFlushed stores data flushed into the monitor
 func StoreDataFlushed(timestamp int64, countFlushed int, countInStorage int64, operation string) {
 	var newInformation = record{
 		Timestamp:     timestamp,
