@@ -1,12 +1,16 @@
-2.4.1 (, 2019)
+2.4.2 (, 2019)
  - Added delta calculation for Events and Impressions.
-2.4.0 (July 22, 2019)
- - Added support for TLS connections to redis
+ - Added delta metric in Dashboard when Sync is running as Producer mode.
+ - Moved Sync version to the top-right and removed card that displayed it.
+2.4.1 (July 25, 2019)
+ - Removed '@here' in slack messages.
+2.4.0 (July 23, 2019)
+ - Added support for TLS connections to redis.
  - Updated config parameters to have consistency between them. Several parameters will be deprecated in future versions.
  - Accept true, "on" and "yes" as values for enabling options in docker environment variables.
  - Merged controllers for web admin dashboard.
  - Added label in Sync Dashboard to indicate on which mode it started (Synchronizer or Proxy).
- - Added task to check Sync environtment and added healthySince property to healtheck endpoint.
+ - Added task to check Sync environment and added healthySince property to healtheck endpoint.
  - Added healthcheck into Sync Dashboard.
  - Added logic to refresh all the metrics in Dashboard without loading again it.
  - Fixed counter for trafficTypes when a particular split is updated.

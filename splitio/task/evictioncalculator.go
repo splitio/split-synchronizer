@@ -27,12 +27,12 @@ func InitializeEvictionCalculator() {
 	eventsMonitor = monitor{
 		FlushingStats: make([]record, 0),
 		MaxLength:     int(100) * conf.Data.EventsThreads,
-		Delta:         0,
+		Delta:         1,
 	}
 	impressionsMonitor = monitor{
 		FlushingStats: make([]record, 0),
 		MaxLength:     int(100) * conf.Data.ImpressionsThreads,
-		Delta:         0,
+		Delta:         1,
 	}
 }
 
