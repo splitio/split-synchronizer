@@ -1,3 +1,5 @@
+2.5.0 (, 2019)
+ - Added slack notification when Sync is started
 2.4.1 (July 25, 2019)
  - Removed '@here' in slack messages.
 2.4.0 (July 23, 2019)
