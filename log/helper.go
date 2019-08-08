@@ -1,11 +1,12 @@
 package log
 
 import (
+	"fmt"
 	"net/url"
 
 	"github.com/splitio/split-synchronizer/appcontext"
-
 	"github.com/splitio/split-synchronizer/conf"
+	"github.com/splitio/split-synchronizer/splitio"
 )
 
 // PostMessageToSlack post a message to Slack Channel
@@ -65,13 +66,50 @@ func PostShutdownMessageToSlack(kill bool) {
 		} else {
 			PostMessageToSlack("*[IMPORTANT]* Starting Graceful Shutdown", attachs)
 		}
-
 	} else {
 		if kill {
 			PostMessageToSlack("*[KILL]* Force shutdown signal sent - see you soon!", nil)
 		} else {
 			PostMessageToSlack("*[IMPORTANT]* Shutting Split-Sync down - see you soon!", nil)
 		}
-
 	}
+}
+
+// PostStartedMessageToSlack post the started message to slack channel
+func PostStartedMessageToSlack() {
+	title := "Split-Sync"
+	mode := ""
+
+	if appcontext.ExecutionMode() == appcontext.ProxyMode {
+		mode = "Proxy Mode"
+		if conf.Data.Proxy.Title != "" {
+			title = conf.Data.Proxy.Title
+		}
+	} else {
+		mode = "Synchronizer Mode"
+		if conf.Data.Producer.Admin.Title != "" {
+			title = conf.Data.Producer.Admin.Title
+		}
+	}
+
+	fields := make([]SlackMessageAttachmentFields, 0)
+	fields = append(fields, SlackMessageAttachmentFields{
+		Title: fmt.Sprintf("%s started", title),
+		Short: false,
+	})
+	fields = append(fields, SlackMessageAttachmentFields{
+		Title: fmt.Sprintf("Version: %s", splitio.Version),
+		Short: false,
+	})
+	fields = append(fields, SlackMessageAttachmentFields{
+		Title: fmt.Sprintf("Running as: %s", mode),
+		Short: false,
+	})
+	attach := SlackMessageAttachment{
+		Fallback: "Split-Sync started",
+		Color:    "good",
+		Fields:   fields,
+	}
+	attachs := append(make([]SlackMessageAttachment, 0), attach)
+	PostMessageToSlack("*[IMPORTANT]* Split-Sync started", attachs)
 }
