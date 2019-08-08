@@ -86,6 +86,8 @@ func (d *Dashboard) HTML() string {
 			Sync:                         true,
 			HealthySince:                 task.GetHealthySinceTimestamp(),
 			RefreshTime:                  15000,
+			EventsDelta:                  metrics.EventsDelta,
+			ImpressionsDelta:             metrics.ImpressionsDelta,
 		},
 	)
 
