@@ -1,3 +1,7 @@
+2.4.2 (, 2019)
+ - Added delta calculation for Events and Impressions.
+ - Added delta metric in Dashboard when Sync is running as Producer mode.
+ - Moved Sync version to the top-right and removed card that displayed it.
 2.4.1 (July 25, 2019)
  - Removed '@here' in slack messages.
 2.4.0 (July 23, 2019)
