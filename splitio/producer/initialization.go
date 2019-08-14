@@ -86,6 +86,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 
 	task.InitializeEvents(conf.Data.EventsThreads)
 	task.InitializeImpressions(conf.Data.ImpressionsThreads)
+	task.InitializeEvictionCalculator()
 
 	//Producer mode - graceful shutdown
 	go gracefulShutdownProducer(sigs, gracefulShutdownWaitingGroup)

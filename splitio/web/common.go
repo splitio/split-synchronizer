@@ -14,6 +14,7 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/stats"
 	"github.com/splitio/split-synchronizer/splitio/storage"
 	"github.com/splitio/split-synchronizer/splitio/storage/redis"
+	"github.com/splitio/split-synchronizer/splitio/task"
 	"github.com/splitio/split-synchronizer/splitio/web/dashboard/HTMLtemplates"
 )
 
@@ -39,6 +40,8 @@ type Metrics struct {
 	RequestError                 string   `json:"requestError"`
 	ImpressionsQueueSize         string   `json:"impressionsQueueSize"`
 	EventsQueueSize              string   `json:"eventsQueueSize"`
+	EventsDelta                  string   `json:"eventsDelta"`
+	ImpressionsDelta             string   `json:"impressionsDelta"`
 }
 
 func formatNumber(n int64) string {
@@ -262,6 +265,28 @@ func parseImpressionSize() string {
 	return impressionsSize
 }
 
+func parseEventsDelta() string {
+	if appcontext.ExecutionMode() == appcontext.ProxyMode {
+		return "0"
+	}
+	delta := task.GetEventsDelta()
+	if delta > 10 {
+		delta = 10
+	}
+	return strconv.FormatFloat(delta, 'f', 2, 64)
+}
+
+func parseImpressionsDelta() string {
+	if appcontext.ExecutionMode() == appcontext.ProxyMode {
+		return "0"
+	}
+	delta := task.GetImpressionsDelta()
+	if delta > 10 {
+		delta = 10
+	}
+	return strconv.FormatFloat(delta, 'f', 2, 64)
+}
+
 // GetMetrics data
 func GetMetrics(splitStorage storage.SplitStorage, segmentStorage storage.SegmentStorage) Metrics {
 	splitNames, err := splitStorage.SplitsNames()
@@ -298,5 +323,7 @@ func GetMetrics(splitStorage storage.SplitStorage, segmentStorage storage.Segmen
 		RequestError:                 strconv.Itoa(int(counters["request.error"])),
 		EventsQueueSize:              parseEventsSize(),
 		ImpressionsQueueSize:         parseImpressionSize(),
+		EventsDelta:                  parseEventsDelta(),
+		ImpressionsDelta:             parseImpressionsDelta(),
 	}
 }
