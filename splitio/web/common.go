@@ -40,8 +40,8 @@ type Metrics struct {
 	RequestError                 string   `json:"requestError"`
 	ImpressionsQueueSize         string   `json:"impressionsQueueSize"`
 	EventsQueueSize              string   `json:"eventsQueueSize"`
-	EventsDelta                  string   `json:"eventsDelta"`
-	ImpressionsDelta             string   `json:"impressionsDelta"`
+	EventsLambda                 string   `json:"eventsLambda"`
+	ImpressionsLambda            string   `json:"impressionsLambda"`
 }
 
 func formatNumber(n int64) string {
@@ -265,26 +265,26 @@ func parseImpressionSize() string {
 	return impressionsSize
 }
 
-func parseEventsDelta() string {
+func parseEventsLambda() string {
 	if appcontext.ExecutionMode() == appcontext.ProxyMode {
 		return "0"
 	}
-	delta := task.GetEventsDelta()
-	if delta > 10 {
-		delta = 10
+	lambda := task.GetEventsLambda()
+	if lambda > 10 {
+		lambda = 10
 	}
-	return strconv.FormatFloat(delta, 'f', 2, 64)
+	return strconv.FormatFloat(lambda, 'f', 2, 64)
 }
 
-func parseImpressionsDelta() string {
+func parseImpressionsLambda() string {
 	if appcontext.ExecutionMode() == appcontext.ProxyMode {
 		return "0"
 	}
-	delta := task.GetImpressionsDelta()
-	if delta > 10 {
-		delta = 10
+	lambda := task.GetImpressionsLambda()
+	if lambda > 10 {
+		lambda = 10
 	}
-	return strconv.FormatFloat(delta, 'f', 2, 64)
+	return strconv.FormatFloat(lambda, 'f', 2, 64)
 }
 
 // GetMetrics data
@@ -323,7 +323,7 @@ func GetMetrics(splitStorage storage.SplitStorage, segmentStorage storage.Segmen
 		RequestError:                 strconv.Itoa(int(counters["request.error"])),
 		EventsQueueSize:              parseEventsSize(),
 		ImpressionsQueueSize:         parseImpressionSize(),
-		EventsDelta:                  parseEventsDelta(),
-		ImpressionsDelta:             parseImpressionsDelta(),
+		EventsLambda:                 parseEventsLambda(),
+		ImpressionsLambda:            parseImpressionsLambda(),
 	}
 }
