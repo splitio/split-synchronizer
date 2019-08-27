@@ -4,7 +4,6 @@ import (
 	"sync"
 	"time"
 
-	"fmt"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/api"
 	"github.com/splitio/split-synchronizer/splitio/recorder"
@@ -36,7 +35,6 @@ func PostMetrics(metricsRecorderAdapter recorder.MetricsRecorder,
 		go sendLatencies(metricsRecorderAdapter, metricsStorageAdapter)
 		go sendCounters(metricsRecorderAdapter, metricsStorageAdapter)
 		go sendGauges(metricsRecorderAdapter, metricsStorageAdapter)
-		fmt.Println("Tareas de metricas corriendo")
 		metricsJobsWaitingGroup.Wait()
 
 		select {
@@ -59,9 +57,7 @@ func sendLatencies(metricsRecorderAdapter recorder.MetricsRecorder,
 	defer metricsJobsWaitingGroup.Done()
 
 	latenciesToSend, err := metricsStorageAdapter.RetrieveLatencies()
-	fmt.Println("Latencias sacadas de redis: ", latenciesToSend)
 	if err != nil {
-		fmt.Println("Error", err.Error())
 		log.Error.Println(err.Error())
 	} else {
 		log.Verbose.Println("Latencies to send", latenciesToSend)
