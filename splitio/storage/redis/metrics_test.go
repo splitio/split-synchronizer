@@ -3,7 +3,6 @@ package redis
 
 import (
 	"io/ioutil"
-	//"strconv"
 	"testing"
 
 	"github.com/splitio/split-synchronizer/conf"

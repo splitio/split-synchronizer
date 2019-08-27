@@ -2,7 +2,6 @@ package redis
 
 import (
 	"github.com/go-redis/redis"
-
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/storageDTOs"
 )
