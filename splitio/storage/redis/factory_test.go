@@ -1,9 +1,7 @@
-package storage
+package redis
 
 import (
 	"testing"
-
-	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 )
 
 func TestSegmentStorageFactory(t *testing.T) {
@@ -11,7 +9,7 @@ func TestSegmentStorageFactory(t *testing.T) {
 
 	redisInstance := segmentStorageFactory.NewInstance()
 
-	_, ok := redisInstance.(*redis.SegmentStorageAdapter)
+	_, ok := redisInstance.(*SegmentStorageAdapter)
 	if !ok {
 		t.Error("Type Error")
 	}

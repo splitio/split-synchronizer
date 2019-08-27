@@ -44,11 +44,11 @@ type ImpressionStorage interface {
 // MetricsStorage interface defines the metrics data storage actions
 type MetricsStorage interface {
 	//returns [sdkNameAndVersion][machineIP][metricName] = int64
-	RetrieveCounters() (map[string]map[string]map[string]int64, error)
+	RetrieveCounters() (*CounterDataBulk, error)
 	//returns [sdkNameAndVersion][machineIP][metricName] = [0,0,0,0,0,0,0,0,0,0,0 ... ]
-	RetrieveLatencies() (map[string]map[string]map[string][]int64, error)
+	RetrieveLatencies() (*LatencyDataBulk, error)
 	//returns [sdkNameAndVersion][machineIP][metricName] = float64
-	RetrieveGauges() (map[string]map[string]map[string]float64, error)
+	RetrieveGauges() (*GaugeDataBulk, error)
 }
 
 // EventStorage interface defines events storage actions

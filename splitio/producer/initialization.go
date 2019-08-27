@@ -72,7 +72,7 @@ func segmentFetcherFactory() fetcher.SegmentFetcherFactory {
 }
 
 func segmentStorageFactory() storage.SegmentStorageFactory {
-	return storage.SegmentStorageMainFactory{}
+	return redis.SegmentStorageMainFactory{}
 }
 
 func startLoop(loopTime int64) {

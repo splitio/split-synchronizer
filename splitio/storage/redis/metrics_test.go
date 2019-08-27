@@ -3,7 +3,7 @@ package redis
 
 import (
 	"io/ioutil"
-	"strconv"
+	//"strconv"
 	"testing"
 
 	"github.com/splitio/split-synchronizer/conf"
@@ -30,84 +30,122 @@ func TestMetricsRedisStorageAdapter(t *testing.T) {
 	/* Metric Counters */
 	counterKey := prefixAdapter.metricsCounterNamespace(languageAndVersion, instanceID, metricName)
 	Client.Set(counterKey, 5, 0)
+	if Client.Exists(counterKey).Val() != 1 {
+		t.Error("Counter key should be present.")
+	}
 
 	retrievedCounters, err := metricsStorageAdapter.RetrieveCounters()
 	if err != nil {
 		t.Error(err)
 	}
 
-	_, ok1 := retrievedCounters[languageAndVersion]
-	if !ok1 {
-		t.Error("Error retrieving counters by language and version")
-	}
-	_, ok2 := retrievedCounters[languageAndVersion][instanceID]
-	if !ok2 {
-		t.Error("Error retrieving counters by instance ID ")
-	}
-	_, ok3 := retrievedCounters[languageAndVersion][instanceID][metricName]
-	if !ok3 {
-		t.Error("Error retrieving counter by name ")
-	}
+	executions := 0
+	retrievedCounters.ForEach(func(sdk string, ip string, metrics map[string]int64) {
+		if sdk != languageAndVersion {
+			t.Error("Wrong SDK language/version")
+		}
 
-	if retrievedCounters[languageAndVersion][instanceID][metricName] != 5 {
-		t.Error("Error retrieving counter value")
+		if ip != instanceID {
+			t.Error("Wrong IP Address")
+		}
+
+		value, ok := metrics[metricName]
+		if !ok {
+			t.Error("Wrong metric name")
+		}
+
+		if value != 5 {
+			t.Error("Wrong metric value")
+		}
+		executions++
+	})
+	if executions != 1 {
+		t.Error("Should have run once for counters")
 	}
 
 	/* Metric Gauges */
 	gaugeKey := prefixAdapter.metricsGaugeNamespace(languageAndVersion, instanceID, metricName)
 	Client.Set(gaugeKey, 3.24, 0)
+	if Client.Exists(gaugeKey).Val() != 1 {
+		t.Error("Gaguge key should be present")
+	}
 
 	retrievedGauges, errg := metricsStorageAdapter.RetrieveGauges()
 	if errg != nil {
 		t.Error(errg)
 	}
 
-	_, ok1 = retrievedGauges[languageAndVersion]
-	if !ok1 {
-		t.Error("Error retrieving gauges by language and version")
-	}
-	_, ok2 = retrievedGauges[languageAndVersion][instanceID]
-	if !ok2 {
-		t.Error("Error retrieving gauges by instance ID ")
-	}
-	_, ok3 = retrievedGauges[languageAndVersion][instanceID][metricName]
-	if !ok3 {
-		t.Error("Error retrieving gauges by name ")
-	}
+	executions = 0
+	retrievedGauges.ForEach(func(sdk string, ip string, name string, value float64) {
+		if sdk != languageAndVersion {
+			t.Error("Wrong SDK language/version")
+		}
 
-	if retrievedGauges[languageAndVersion][instanceID][metricName] != 3.24 {
-		t.Error("Error retrieving gauge value")
+		if ip != instanceID {
+			t.Error("Wrong IP Address")
+		}
+
+		if name != metricName {
+			t.Error("Wrong name")
+		}
+
+		if value != 3.24 {
+			t.Error("Wrong value")
+		}
+		executions++
+	})
+	if executions != 1 {
+		t.Error("Should have run once for gauges")
 	}
 
 	/* Metric Latencies */
 	latencyKey := prefixAdapter.metricsLatencyNamespace(languageAndVersion, instanceID, metricName, bucketNumber)
 	Client.Set(latencyKey, 1234, 0)
+	if Client.Exists(latencyKey).Val() != 1 {
+		t.Error("Latency key should be present")
+	}
 
 	retrievedLatencies, errl := metricsStorageAdapter.RetrieveLatencies()
 	if errl != nil {
 		t.Error(errl)
 	}
 
-	_, ok1 = retrievedLatencies[languageAndVersion]
-	if !ok1 {
-		t.Error("Error retrieving latencies by language and version")
-	}
-	_, ok2 = retrievedLatencies[languageAndVersion][instanceID]
-	if !ok2 {
-		t.Error("Error retrieving latencies by instance ID ")
-	}
-	_, ok3 = retrievedLatencies[languageAndVersion][instanceID][metricName]
-	if !ok3 {
-		t.Error("Error retrieving latencies by name ")
-	}
-	bucketNumberInt, _ := strconv.Atoi(bucketNumber)
-	if retrievedLatencies[languageAndVersion][instanceID][metricName][bucketNumberInt] != 1234 {
-		t.Error("Error retrieving latencie value")
+	executions = 0
+	retrievedLatencies.ForEach(func(sdk string, ip string, metrics map[string][]int64) {
+		if sdk != languageAndVersion {
+			t.Error("Wrong SDK language/version")
+		}
+
+		if ip != instanceID {
+			t.Error("Wrong IP Address")
+		}
+
+		buckets, ok := metrics[metricName]
+		if !ok {
+			t.Error("Wrong metric name")
+		}
+
+		if buckets[4] != 1234 {
+			t.Error("Wrong metric value")
+		}
+		executions++
+	})
+	if executions != 1 {
+		t.Error("Should have run once for latencies")
 	}
 
-	metricsStorageAdapter.client.Del("metricstest.SPLITIO/test-2.0/127.0.0.1/gauge.some_metric")
-	metricsStorageAdapter.client.Del("metricstest.SPLITIO/test-2.0/127.0.0.1/latency.some_metric.bucket.4")
-	metricsStorageAdapter.client.Del("metricstest.SPLITIO/test-2.0/127.0.0.1/count.some_metric")
+	// Assert that the keys no longer exist
+	if Client.Exists(latencyKey).Val() != 0 {
+		t.Error("Latency key should have been removed!")
+	}
+
+	if Client.Exists(counterKey).Val() != 0 {
+		t.Error("Latency key should have been removed!")
+	}
+
+	if Client.Exists(gaugeKey).Val() != 0 {
+		t.Error("Latency key should have been removed!")
+	}
 }
 
 func TestThatMalformedLatencyKeysDoNotPanic(t *testing.T) {
