@@ -8,9 +8,8 @@ import (
 
 	"github.com/go-redis/redis"
 	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/storage"
 )
-
-const maxBuckets = 23
 
 // MetricsRedisStorageAdapter implements MetricsStorage interface
 type MetricsRedisStorageAdapter struct {
@@ -90,123 +89,143 @@ func parseLatencyKey(key string) (string, string, string, int, error) {
 	return sdkNameAndVersion, machineIP, metricName, bucketNumber, nil
 }
 
-// RetrieveGauges returns gauges values saved in Redis by SDKs
-func (s MetricsRedisStorageAdapter) RetrieveGauges() (map[string]map[string]map[string]float64, error) {
-	_keys, err := s.client.Keys(s.metricsGaugeNamespace("*", "*", "*")).Result()
+func (s *MetricsRedisStorageAdapter) popByPattern(pattern string, useTransaction bool) (map[string]interface{}, error) {
+	keys, err := s.client.Keys(pattern).Result()
 	if err != nil {
 		log.Error.Println(err.Error())
 		return nil, err
 	}
 
-	gaugesToReturn := make(map[string]map[string]map[string]float64)
-	for _, key := range _keys {
+	if len(keys) == 0 {
+		return map[string]interface{}{}, nil
+	}
+
+	values, err := s.client.MGet(keys...).Result()
+	if err != nil {
+		log.Error.Println(err.Error())
+		return nil, err
+	}
+	_, err = s.client.Del(keys...).Result()
+	if err != nil {
+		// if we failed to delete the keys, log an error and continue working.
+		log.Error.Println(err.Error())
+	}
+
+	toReturn := make(map[string]interface{})
+	for index := range keys {
+		if index >= len(keys) || index >= len(values) {
+			break
+		}
+		toReturn[keys[index]] = values[index]
+	}
+	return toReturn, nil
+
+}
+
+func parseIntRedisValue(s interface{}) (int64, error) {
+	asStr, ok := s.(string)
+	if !ok {
+		return 0, fmt.Errorf("%+v is not a string", s)
+	}
+
+	asInt64, err := strconv.ParseInt(asStr, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	return asInt64, nil
+}
+
+func parseFloatRedisValue(s interface{}) (float64, error) {
+	asStr, ok := s.(string)
+	if !ok {
+		return 0, fmt.Errorf("%+v is not a string", s)
+	}
+
+	asFloat64, err := strconv.ParseFloat(asStr, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	return asFloat64, nil
+}
+
+// RetrieveGauges returns gauges values saved in Redis by SDKs
+func (s *MetricsRedisStorageAdapter) RetrieveGauges() (*storage.GaugeDataBulk, error) {
+	data, err := s.popByPattern(s.metricsGaugeNamespace("*", "*", "*"), false)
+	if err != nil {
+		log.Error.Println(err.Error())
+		return nil, err
+	}
+
+	gaugesToReturn := storage.NewGaugeDataBulk()
+	for key, value := range data {
 		sdkNameAndVersion, machineIP, metricName, err := parseMetricKey("gauge", key)
 		if err != nil {
 			log.Error.Printf("Unable to parse key %s. Skipping", key)
-			s.client.Del(key)
 			continue
 		}
-		value, err := s.client.GetSet(key, 0).Float64()
+		asFloat, err := parseFloatRedisValue(value)
 		if err != nil {
-			log.Error.Println(err.Error())
-			// continue next key
+			log.Error.Printf("Unable to parse value %+v. Skipping", value)
 			continue
 		}
-
-		if _, ok := gaugesToReturn[sdkNameAndVersion]; !ok {
-			gaugesToReturn[sdkNameAndVersion] = make(map[string]map[string]float64)
-		}
-
-		if _, ok := gaugesToReturn[sdkNameAndVersion][machineIP]; !ok {
-			gaugesToReturn[sdkNameAndVersion][machineIP] = make(map[string]float64)
-		}
-
-		gaugesToReturn[sdkNameAndVersion][machineIP][metricName] = value
-
+		gaugesToReturn.PutGauge(sdkNameAndVersion, machineIP, metricName, asFloat)
 	}
 
 	return gaugesToReturn, nil
 }
 
 // RetrieveCounters returns counter values saved in Redis by SDKs
-func (s MetricsRedisStorageAdapter) RetrieveCounters() (map[string]map[string]map[string]int64, error) {
-	_keys, err := s.client.Keys(s.metricsCounterNamespace("*", "*", "*")).Result()
+func (s MetricsRedisStorageAdapter) RetrieveCounters() (*storage.CounterDataBulk, error) {
+	data, err := s.popByPattern(s.metricsCounterNamespace("*", "*", "*"), false)
 	if err != nil {
 		log.Error.Println(err.Error())
 		return nil, err
 	}
 
-	countersToReturn := make(map[string]map[string]map[string]int64)
-	for _, key := range _keys {
+	countersToReturn := storage.NewCounterDataBulk()
+	for key, value := range data {
 		sdkNameAndVersion, machineIP, metricName, err := parseMetricKey("count", key)
 		if err != nil {
 			log.Error.Printf("Unable to parse key %s. Skipping", key)
-			s.client.Del(key)
 			continue
 		}
-		value, err := s.client.GetSet(key, 0).Int64()
+		asInt, err := parseIntRedisValue(value)
 		if err != nil {
 			log.Error.Println(err.Error())
-			// continue next key
 			continue
 		}
 
-		if _, ok := countersToReturn[sdkNameAndVersion]; !ok {
-			countersToReturn[sdkNameAndVersion] = make(map[string]map[string]int64)
-		}
-
-		if _, ok := countersToReturn[sdkNameAndVersion][machineIP]; !ok {
-			countersToReturn[sdkNameAndVersion][machineIP] = make(map[string]int64)
-		}
-
-		countersToReturn[sdkNameAndVersion][machineIP][metricName] = value
-
+		countersToReturn.PutCounter(sdkNameAndVersion, machineIP, metricName, asInt)
 	}
 
 	return countersToReturn, nil
 }
 
 // RetrieveLatencies returns latency values saved in Redis by SDKs
-func (s MetricsRedisStorageAdapter) RetrieveLatencies() (map[string]map[string]map[string][]int64, error) {
+func (s MetricsRedisStorageAdapter) RetrieveLatencies() (*storage.LatencyDataBulk, error) {
 	//(\w+.)?SPLITIO\/([^\/]+)\/([^\/]+)\/latency.([^\/]+).bucket.([0-9]*)
 
-	_keys, err := s.client.Keys(s.metricsLatencyNamespace("*", "*", "*", "*")).Result()
+	data, err := s.popByPattern(s.metricsLatencyNamespace("*", "*", "*", "*"), false)
 	if err != nil {
 		log.Error.Println(err.Error())
 		return nil, err
 	}
 
-	// [sdkNameAndVersion][machineIP][metricName] = [0,0,0,0,0,0,0,0,0,0,0 ... ]
-	latenciesToReturn := make(map[string]map[string]map[string][]int64)
-
-	for _, key := range _keys {
+	latenciesToReturn := storage.NewLatencyDataBulk()
+	for key, value := range data {
+		value, err := parseIntRedisValue(value)
+		if err != nil {
+			log.Warning.Printf("Unable to parse value of key %s. Skipping", key)
+			continue
+		}
 		sdkNameAndVersion, machineIP, metricName, bucketNumber, err := parseLatencyKey(key)
 		if err != nil {
-			log.Warning.Printf("Unable to parse key %s. Removing it", key)
-			s.client.Del(key)
+			log.Warning.Printf("Unable to parse key %s. Skipping", key)
 			continue
 		}
-
-		value, err := s.client.GetSet(key, 0).Int64()
-		if err != nil {
-			log.Error.Println(err.Error())
-			// continue next key
-			continue
-		}
-
-		if _, ok := latenciesToReturn[sdkNameAndVersion]; !ok {
-			latenciesToReturn[sdkNameAndVersion] = make(map[string]map[string][]int64)
-		}
-
-		if _, ok := latenciesToReturn[sdkNameAndVersion][machineIP]; !ok {
-			latenciesToReturn[sdkNameAndVersion][machineIP] = make(map[string][]int64)
-		}
-
-		if _, ok := latenciesToReturn[sdkNameAndVersion][machineIP][metricName]; !ok {
-			latenciesToReturn[sdkNameAndVersion][machineIP][metricName] = make([]int64, maxBuckets)
-		}
-
-		latenciesToReturn[sdkNameAndVersion][machineIP][metricName][bucketNumber] = value
+		latenciesToReturn.PutLatency(sdkNameAndVersion, machineIP, metricName, bucketNumber, value)
 	}
 	log.Verbose.Println(latenciesToReturn)
 	return latenciesToReturn, nil
