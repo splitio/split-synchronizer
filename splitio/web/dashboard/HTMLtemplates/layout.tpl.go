@@ -34,8 +34,8 @@ type LayoutTPLVars struct {
 	Sync                         bool
 	HealthySince                 string
 	RefreshTime                  int64
-	EventsDelta                  string
-	ImpressionsDelta             string
+	EventsLambda                 string
+	ImpressionsLambda            string
 }
 
 // LayoutTPL template
@@ -300,11 +300,11 @@ var LayoutTPL = `
                   <i class="popovers glyphicon glyphicon-question-sign"
                     style="float: right;"
                     data-toggle="popover-impressions"
-                    title="Delta Impressions Eviction Calculation"
+                    title="Lambda Impressions Eviction Calculation"
                   >
                   </i>
-                  <h4>Impressions Delta</h4>
-                  <h1 id="impressions_delta" class="centerText">{{.ImpressionsDelta}}</h1>
+                  <h4>Impressions Lambda</h4>
+                  <h1 id="impressions_lambda" class="centerText">{{.ImpressionsLambda}}</h1>
                 </div>
               </div>
               <div class="col-md-2">
@@ -312,11 +312,11 @@ var LayoutTPL = `
                   <i class="popovers glyphicon glyphicon-question-sign"
                     style="float: right;"
                     data-toggle="popover-events"
-                    title="Delta Events Eviction Calculation"
+                    title="Lambda Events Eviction Calculation"
                   >
                   </i>
-                  <h4>Events Delta</h4>
-                  <h1 id="events_delta" class="centerText">{{.EventsDelta}}</h1>
+                  <h4>Events Lambda</h4>
+                  <h1 id="events_lambda" class="centerText">{{.EventsLambda}}</h1>
                 </div>
               </div>
               <div id="sdk_server_div_ok" class="col-md-2">
@@ -472,14 +472,14 @@ var LayoutTPL = `
           <div class="row">
             <div class="col-md-6">
               <div class="gray1Box metricBox">
-                <h4>Impressions Delta</h4>
-                <h1 id="impressions_delta_section" class="centerText">{{.ImpressionsDelta}}</h1>
+                <h4>Impressions Lambda</h4>
+                <h1 id="impressions_lambda_section" class="centerText">{{.ImpressionsLambda}}</h1>
               </div>
             </div>
             <div class="col-md-6">
               <div class="gray1Box metricBox">
-                <h4>Events Delta</h4>
-                <h1 id="events_delta_section" class="centerText">{{.EventsDelta}}</h1>
+                <h4>Events lambda</h4>
+                <h1 id="events_lambda_section" class="centerText">{{.EventsLambda}}</h1>
               </div>
             </div>
           </div>
@@ -542,15 +542,15 @@ var LayoutTPL = `
           </br>
           </br>
           <div class="alert alert-info" role="alert">
-            <h3 class="alert-heading">Delta Eviction Calculation</h3>
-            <p>Delta calculation measures the capacity of the Synchronizer to process and fine tuning it if the default settings are not sufficient.</p>
+            <h3 class="alert-heading">Lambda Eviction Calculation</h3>
+            <p>Lambda calculation measures the capacity of the Synchronizer to process and fine tuning it if the default settings are not sufficient.</p>
             <hr>
             <ul>
               <li>
-                <p class="mb-0">If <b>ℷ >= 1 (delta)</b>: the current configuration is processing Events or Impressions without keeping elements in the stack. In other words, eviction rate >= generation rate. Split Synchronizer is able flush data as it arrives to the system from the SDKs.</p>
+                <p class="mb-0">If <b>ℷ >= 1 (lambda)</b>: the current configuration is processing Events or Impressions without keeping elements in the stack. In other words, eviction rate >= generation rate. Split Synchronizer is able flush data as it arrives to the system from the SDKs.</p>
               </li>
               <li>
-                <p class="mb-0">If <b>ℷ < 1 (delta)</b>: the current configuration may not be enough to process all the data coming in, and over time it may produce an always-increasing memory footprint. Recommendation: increase the number of threads or reduce the frequency for evicting elements. We recommend increasing the number of threads if they are still using the default value of 1, and to not exceed the number of cores. On the other hand, when reducing the frequency of element eviction (flush operation), decrease the value in a conservative manner by increments of ten or twenty percent each time.</p>
+                <p class="mb-0">If <b>ℷ < 1 (lambda)</b>: the current configuration may not be enough to process all the data coming in, and over time it may produce an always-increasing memory footprint. Recommendation: increase the number of threads or reduce the frequency for evicting elements. We recommend increasing the number of threads if they are still using the default value of 1, and to not exceed the number of cores. On the other hand, when reducing the frequency of element eviction (flush operation), decrease the value in a conservative manner by increments of ten or twenty percent each time.</p>
               </li>
             </ul>
             <p>For further information you can visit <a href="https://help.split.io/hc/en-us/articles/360018343391-Split-Synchronizer-Runbook" class="alert-link">Split Synchronizer Runbook</a>.</p>
@@ -1044,12 +1044,12 @@ function refreshMetrics() {
       } else {
         $('#impressions_queue_value').text(response.impressionsQueueSize);
         $('#impressions_queue_value_section').text(response.impressionsQueueSize);
-        $('#impressions_delta').text(response.impressionsDelta);
-        $('#impressions_delta_section').text(response.impressionsDelta);
+        $('#impressions_lambda').text(response.impressionsLambda);
+        $('#impressions_lambda_section').text(response.impressionsLambda);
         $('#events_queue_value').text(response.eventsQueueSize);
         $('#events_queue_value_section').text(response.eventsQueueSize);
-        $('#events_delta').text(response.eventsDelta);
-        $('#events_delta_section').text(response.eventsDelta);
+        $('#events_lambda').text(response.eventsLambda);
+        $('#events_lambda_section').text(response.eventsLambda);
       }
 
       setTimeout(function() {
@@ -1073,7 +1073,7 @@ $(document).on('click', function (e) {
 $(document).ready(function () {
   const popOverData = {
     container: 'body',
-    content: "<div><ul><li>If <b>ℷ >= 1 (delta)</b>: the current configuration is processing Events or Impressions without keeping elements in the stack. In other words,eviction rate >= generation rate. Split Synchronizer is able flush data as it arrives to the system from the SDKs.</li><li>If <b>ℷ >= 1 (delta)</b>: the current configuration is processing Events or Impressions without keeping elements in the stack. In other words,eviction rate >= generation rate. Split Synchronizer is able flush data as it arrives to the system from the SDKs.</li></ul><p>For further information you can visit <a href='https://help.split.io/hc/en-us/articles/360018343391-Split-Synchronizer-Runbook'>Split Synchronizer Runbook</a>.</p></div>",
+    content: "<div><ul><li>If <b>ℷ >= 1 (lambda)</b>: the current configuration is processing Events or Impressions without keeping elements in the stack. In other words,eviction rate >= generation rate. Split Synchronizer is able flush data as it arrives to the system from the SDKs.</li><li>If <b>ℷ < 1 (lambda)</b>: the current configuration may not be enough to process all the data coming in, and over time it may produce an always-increasing memory footprint. Recommendation: increase the number of threads or reduce the frequency for evicting elements. We recommend increasing the number of threads if they are still using the default value of 1, and to not exceed the number of cores. On the other hand, when reducing the frequency of element eviction (flush operation), decrease the value in a conservative manner by increments of ten or twenty percent each time.</li></ul><p>For further information you can visit <a href='https://help.split.io/hc/en-us/articles/360018343391-Split-Synchronizer-Runbook'>Split Synchronizer Runbook</a>.</p></div>",
     html: true,
     placement: "auto",
   };

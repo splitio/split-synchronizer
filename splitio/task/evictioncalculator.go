@@ -13,12 +13,12 @@ type record struct {
 	DataInStorage int64
 }
 
-// monitor struct that will has a window of statistics for eviction delta calculation
+// monitor struct that will has a window of statistics for eviction lambda calculation
 type monitor struct {
 	FlushingStats []record
 	MaxLength     int
 	Mutex         sync.RWMutex
-	Delta         float64
+	Lambda        float64
 }
 
 var eventsMonitor monitor
@@ -29,12 +29,12 @@ func InitializeEvictionCalculator() {
 	eventsMonitor = monitor{
 		FlushingStats: make([]record, 0),
 		MaxLength:     int(100) * conf.Data.EventsThreads,
-		Delta:         1,
+		Lambda:        1,
 	}
 	impressionsMonitor = monitor{
 		FlushingStats: make([]record, 0),
 		MaxLength:     int(100) * conf.Data.ImpressionsThreads,
-		Delta:         1,
+		Lambda:        1,
 	}
 }
 
@@ -54,7 +54,7 @@ func calculateAmountFlushed(records []record) int {
 	return amountFlushed
 }
 
-func calculateDelta(records []record) float64 {
+func calculateLambda(records []record) float64 {
 	t := int64(calculateAmountFlushed(records))
 
 	// grabs the quantity of elements for the first record
@@ -77,22 +77,22 @@ func StoreDataFlushed(timestamp int64, countFlushed int, countInStorage int64, o
 	if operation == "events" {
 		eventsMonitor.Mutex.Lock()
 		storeRecord(newInformation, &eventsMonitor.FlushingStats, eventsMonitor.MaxLength)
-		eventsMonitor.Delta = calculateDelta(eventsMonitor.FlushingStats)
+		eventsMonitor.Lambda = calculateLambda(eventsMonitor.FlushingStats)
 		eventsMonitor.Mutex.Unlock()
 	} else {
 		impressionsMonitor.Mutex.Lock()
 		storeRecord(newInformation, &impressionsMonitor.FlushingStats, impressionsMonitor.MaxLength)
-		impressionsMonitor.Delta = calculateDelta(impressionsMonitor.FlushingStats)
+		impressionsMonitor.Lambda = calculateLambda(impressionsMonitor.FlushingStats)
 		impressionsMonitor.Mutex.Unlock()
 	}
 }
 
-// GetImpressionsDelta returns eviction factor for impressions
-func GetImpressionsDelta() float64 {
-	return impressionsMonitor.Delta
+// GetImpressionsLambda returns eviction factor for impressions
+func GetImpressionsLambda() float64 {
+	return impressionsMonitor.Lambda
 }
 
-// GetEventsDelta returns eviction factor for events
-func GetEventsDelta() float64 {
-	return eventsMonitor.Delta
+// GetEventsLambda returns eviction factor for events
+func GetEventsLambda() float64 {
+	return eventsMonitor.Lambda
 }
