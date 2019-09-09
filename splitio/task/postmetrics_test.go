@@ -8,6 +8,7 @@ import (
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/api"
+	"github.com/splitio/split-synchronizer/splitio/storage"
 )
 
 /* MetricsRecorder for testing*/
@@ -27,31 +28,24 @@ func (r testMetricsRecorder) PostGauge(gauge api.GaugeDTO, sdkVersion string, ma
 type testMetricsStorage struct{}
 
 //returns [sdkNameAndVersion][machineIP][metricName] = int64
-func (r testMetricsStorage) RetrieveCounters() (map[string]map[string]map[string]int64, error) {
-	toReturn := make(map[string]map[string]map[string]int64, 0)
-	toReturn["test-2.0"] = make(map[string]map[string]int64, 0)
-	toReturn["test-2.0"]["127.0.0.1"] = make(map[string]int64, 0)
-	toReturn["test-2.0"]["127.0.0.1"]["some_counter"] = 124
+func (r testMetricsStorage) RetrieveCounters() (*storage.CounterDataBulk, error) {
+	toReturn := storage.NewCounterDataBulk()
+	toReturn.PutCounter("test-2.0", "127.0.0.1", "some_counter", 124)
 	return toReturn, nil
 }
 
 //returns [sdkNameAndVersion][machineIP][metricName] = [0,0,0,0,0,0,0,0,0,0,0 ... ]
-func (r testMetricsStorage) RetrieveLatencies() (map[string]map[string]map[string][]int64, error) {
-	toReturn := make(map[string]map[string]map[string][]int64, 0)
-	toReturn["test-2.0"] = make(map[string]map[string][]int64, 0)
-	toReturn["test-2.0"]["127.0.0.1"] = make(map[string][]int64, 0)
-	toReturn["test-2.0"]["127.0.0.1"]["some_counter"] = make([]int64, 23)
-	toReturn["test-2.0"]["127.0.0.1"]["some_counter"][1] = 111
-	toReturn["test-2.0"]["127.0.0.1"]["some_counter"][2] = 222
+func (r testMetricsStorage) RetrieveLatencies() (*storage.LatencyDataBulk, error) {
+	toReturn := storage.NewLatencyDataBulk()
+	toReturn.PutLatency("test-2.0", "127.0.0.1", "some_counter", 1, 111)
+	toReturn.PutLatency("test-2.0", "127.0.0.1", "some_counter", 2, 222)
 	return toReturn, nil
 }
 
 //returns [sdkNameAndVersion][machineIP][metricName] = float64
-func (r testMetricsStorage) RetrieveGauges() (map[string]map[string]map[string]float64, error) {
-	toReturn := make(map[string]map[string]map[string]float64, 0)
-	toReturn["test-2.0"] = make(map[string]map[string]float64, 0)
-	toReturn["test-2.0"]["127.0.0.1"] = make(map[string]float64, 0)
-	toReturn["test-2.0"]["127.0.0.1"]["some_gauge"] = 1.23
+func (r testMetricsStorage) RetrieveGauges() (*storage.GaugeDataBulk, error) {
+	toReturn := storage.NewGaugeDataBulk()
+	toReturn.PutGauge("test-2.0", "127.0.0.1", "some_gauge", 1.23)
 	return toReturn, nil
 }
 

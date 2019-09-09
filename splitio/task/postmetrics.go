@@ -35,7 +35,6 @@ func PostMetrics(metricsRecorderAdapter recorder.MetricsRecorder,
 		go sendLatencies(metricsRecorderAdapter, metricsStorageAdapter)
 		go sendCounters(metricsRecorderAdapter, metricsStorageAdapter)
 		go sendGauges(metricsRecorderAdapter, metricsStorageAdapter)
-
 		metricsJobsWaitingGroup.Wait()
 
 		select {
@@ -63,17 +62,13 @@ func sendLatencies(metricsRecorderAdapter recorder.MetricsRecorder,
 	} else {
 		log.Verbose.Println("Latencies to send", latenciesToSend)
 
-		for sdkVersion, latenciesByMachineIP := range latenciesToSend {
-			for machineIP, latencies := range latenciesByMachineIP {
-				log.Debug.Println("Posting latencies from ", sdkVersion, machineIP)
-
-				var latenciesDataSet []api.LatenciesDTO
-				for metricName, latencyValues := range latencies {
-					latenciesDataSet = append(latenciesDataSet, api.LatenciesDTO{MetricName: metricName, Latencies: latencyValues})
-				}
-				metricsRecorderAdapter.PostLatencies(latenciesDataSet, sdkVersion, machineIP)
+		latenciesToSend.ForEach(func(sdk string, ip string, latencies map[string][]int64) {
+			latenciesDataSet := make([]api.LatenciesDTO, 0)
+			for name, buckets := range latencies {
+				latenciesDataSet = append(latenciesDataSet, api.LatenciesDTO{MetricName: name, Latencies: buckets})
 			}
-		}
+			metricsRecorderAdapter.PostLatencies(latenciesDataSet, sdk, ip)
+		})
 	}
 }
 
@@ -89,17 +84,13 @@ func sendCounters(metricsRecorderAdapter recorder.MetricsRecorder,
 	} else {
 		log.Verbose.Println("Counters to send", countersToSend)
 
-		for sdkVersion, countersByMachineIP := range countersToSend {
-			for machineIP, counters := range countersByMachineIP {
-				log.Debug.Println("Posting counters from ", sdkVersion, machineIP)
-
-				var countersDataSet []api.CounterDTO
-				for metricName, count := range counters {
-					countersDataSet = append(countersDataSet, api.CounterDTO{MetricName: metricName, Count: count})
-				}
-				metricsRecorderAdapter.PostCounters(countersDataSet, sdkVersion, machineIP)
+		countersToSend.ForEach(func(sdk string, ip string, counters map[string]int64) {
+			countersDataSet := make([]api.CounterDTO, 0)
+			for metricName, count := range counters {
+				countersDataSet = append(countersDataSet, api.CounterDTO{MetricName: metricName, Count: count})
 			}
-		}
+			metricsRecorderAdapter.PostCounters(countersDataSet, sdk, ip)
+		})
 	}
 }
 
@@ -114,17 +105,9 @@ func sendGauges(metricsRecorderAdapter recorder.MetricsRecorder,
 		log.Error.Println(err.Error())
 	} else {
 		log.Verbose.Println("Gauges to send", gaugesToSend)
-
-		for sdkVersion, gaugesByMachineIP := range gaugesToSend {
-			for machineIP, gauges := range gaugesByMachineIP {
-				log.Debug.Println("Posting gauges from ", sdkVersion, machineIP)
-
-				for metricName, value := range gauges {
-					gauge := api.GaugeDTO{MetricName: metricName, Gauge: value}
-					log.Debug.Println("Posting gauge:", gauge)
-					metricsRecorderAdapter.PostGauge(gauge, sdkVersion, machineIP)
-				}
-			}
-		}
+		gaugesToSend.ForEach(func(sdk string, ip string, metricName string, value float64) {
+			log.Debug.Println("Posting gauge:", metricName, value)
+			metricsRecorderAdapter.PostGauge(api.GaugeDTO{MetricName: metricName, Gauge: value}, sdk, ip)
+		})
 	}
 }
