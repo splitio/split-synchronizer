@@ -1,10 +1,13 @@
-FROM golang:1-buster
+FROM golang:1-alpine
 
 WORKDIR /go/src/github.com/splitio/split-synchronizer
 
 COPY . .
 
-RUN wget https://github.com/golang/dep/releases/download/v0.3.2/dep-linux-amd64
+RUN apk update && \
+    apk add --no-cache git
+
+RUN wget https://github.com/golang/dep/releases/download/v0.5.4/dep-linux-amd64
 RUN chmod +x dep-linux-amd64
 RUN ./dep-linux-amd64 ensure
 
