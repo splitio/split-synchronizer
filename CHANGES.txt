@@ -1,5 +1,5 @@
 2.5.2 (September 25, 2019)
- - Update docker base image to fix patch securitpatch security vulnerabilities
+ - Update docker base image to fix patch security vulnerabilities
 2.5.1 (September 9, 2019)
  - Fixed issue with metrics keys not properly deleted.
 2.5.0 (August 14, 2019)
