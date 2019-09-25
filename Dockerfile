@@ -1,4 +1,5 @@
-FROM golang:1-alpine
+# Build stage
+FROM golang:1-alpine AS builder
 
 WORKDIR /go/src/github.com/splitio/split-synchronizer
 
@@ -13,7 +14,12 @@ RUN ./dep-linux-amd64 ensure
 
 RUN go build -o split-sync
 
-RUN cp split-sync /usr/bin/split-sync
+# Runner stage
+FROM alpine:latest AS runner
+
+COPY entrypoint.sh .
+
+COPY --from=builder /go/src/github.com/splitio/split-synchronizer/split-sync /usr/bin/
 
 EXPOSE 3000 3010
 
