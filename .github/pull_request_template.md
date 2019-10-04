@@ -1,18 +1,7 @@
-# Synchronizer
-
-## Tickets covered:
-* 
+# Split Synchronizer
 
 ## What did you accomplish?
-* Bullet 1
-* Bullet 2
 
-## How to test new changes?
-* Run command `go test ./...`
+## How do we test the changes introduced in this PR?
 
 ## Extra Notes
-* Bullet 1
-* Bullet 2
-
-## Version Release
-* Version
