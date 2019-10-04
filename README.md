@@ -1,89 +1,72 @@
-Split Synchronizer [ ![Codeship Status for splitio/split-synchronizer](https://app.codeship.com/projects/ce54acf0-1c95-0135-d754-16467d9e760e/status?branch=master)](https://app.codeship.com/projects/220048)
-===
- > **split-sync** A background service to synchronize Split information with your SDK
+# Split Synchronizer 
+[![Build Status](https://api.travis-ci.com/splitio/split-synchronizer.svg?branch=master)](https://api.travis-ci.com/splitio/split-synchronizer)
 
-Split synchronizer is able to run in 2 different modes.
- - **Producer mode** (default): coordinates the sending and receiving of data to a **remote datastore** that all of your processes can share to pull data for the evaluation of treatments.
- - **Proxy mode**: keep synchronized SDKs connecting they with split-sync proxy to reduce connection latencies and letting the proxy receive information and post impressions to Split servers.
+## Overview
+By default, Split’s SDKs keep segment and split data synchronized as users navigate across disparate systems, treatments, and conditions. However, some languages, do not have a native capability to keep a shared local cache of this data to properly serve treatments. For these cases, we built the Split Synchronizer.
 
- For further information check the official documentation at: [https://docs.split.io/docs/split-synchronizer](https://docs.split.io/docs/split-synchronizer)
+[![Twitter Follow](https://img.shields.io/twitter/follow/splitsoftware.svg?style=social&label=Follow&maxAge=1529000)](https://twitter.com/intent/follow?screen_name=splitsoftware)
 
-## Docker
-The Docker image has been created to run the split-sync command in both modes, `producer or proxy`, setting different environment vars described below.
-The image exposes 2 ports 3000 and 3010 that are opened in proxy mode to listen SDKs connections `port 3000` and `port 3010` to listen admin connections.
+## Compatibility
+Split Synchronizer supports Go version 1.8 or higher.
 
-#### Creating the image
- The following command creates the Docker image tagged with the branch build version
- ```
- docker build -t splitsoftware/split-synchronizer:$(tail -n 1 ./splitio/version.go | awk '{print $4}' | tr -d '"') .
- ```
+## Getting started
+Below is a simple example that describes the instantiation of Split Synchronizer:
 
- Additionally the image can be pulled from **Docker Hub:**
- ```
- docker pull splitsoftware/split-synchronizer
- ```
+### Usage via Go
+1. Install dependencies via `dep ensure`
+2. Then, execute `go run main.go -api-key "<YOUR_SDK_TYPE_API_KEY>" -redis-host "<YOUR_REDIS_HOST>" -redis-port <YOUR_REDIS_PORT> -redis-prefix "<YOUR_PREFIX>"`
 
-#### Running the container
-The container can be run on both modes (producer and proxy). To run it, different environment variables are available to be tuned.
-```
- Environment vars:
+### Docker
+1. You can pull the Docker image from [Docker Hub](https://hub.docker.com/r/splitsoftware/split-synchronizer) and run it into your container environment.
 
-   Common vars:
-    - SPLIT_SYNC_API_KEY                     Split service API-KEY grabbed from webconsole
-    - SPLIT_SYNC_SPLITS_REFRESH_RATE         Refresh rate of splits fetcher
-    - SPLIT_SYNC_SEGMENTS_REFRESH_RATE       Refresh rate of segments fetcher
-    - SPLIT_SYNC_IMPRESSIONS_REFRESH_RATE    Refresh rate of impressions recorder
-    - SPLIT_SYNC_EVENTS_REFRESH_RATE         Refresh rate of events recorder
-    - SPLIT_SYNC_METRICS_REFRESH_RATE        Refresh rate of metrics recorder
-    - SPLIT_SYNC_HTTP_TIMEOUT                Timeout specifies a time limit for requests
-    - SPLIT_SYNC_LOG_DEBUG                   Enable debug mode: Set as 'on'
-    - SPLIT_SYNC_LOG_VERBOSE                 Enable verbose mode: Set as 'on'
-    - SPLIT_SYNC_LOG_STDOUT                  Enable standard output: Set as 'on'
-    - SPLIT_SYNC_LOG_FILE                    Set the log file
-    - SPLIT_SYNC_LOG_FILE_MAX_SIZE           Max file log size in bytes
-    - SPLIT_SYNC_LOG_BACKUP_COUNT            Number of last log files to keep in filesystem
-    - SPLIT_SYNC_LOG_SLACK_CHANNEL           Set the Slack channel or user
-    - SPLIT_SYNC_LOG_SLACK_WEBHOOK           Set the Slack webhook url
-
-    - SPLIT_SYNC_ADVANCED_PARAMETERS         Set custom parameters that are not configured via provided Env vars.
-                                             Sample:
-                                               SPLIT_SYNC_ADVANCED_PARAMETERS="-redis-read-timeout=20 -redis-max-retries=10"
-
-   Proxy vars:
-    - SPLIT_SYNC_PROXY                       Enables the proxy mode: Set as 'on'
-    - SPLIT_SYNC_PROXY_SDK_APIKEYS           List of custom API-KEYs for your SDKs (Comma separated string)
-    - SPLIT_SYNC_PROXY_ADMIN_USER            HTTP basic auth username for admin endpoints
-    - SPLIT_SYNC_PROXY_ADMIN_PASS            HTTP basic auth password for admin endpoints
-    - SPLIT_SYNC_PROXY_DASHBOARD_TITLE        Title to be shown in admin dashboard
-    - SPLIT_SYNC_PROXY_IMPRESSIONS_MAX_SIZE  Max size, in bytes, to send impressions in proxy mode
-
-   Producer vars:
-    - SPLIT_SYNC_REDIS_HOST                  Redis server hostname
-    - SPLIT_SYNC_REDIS_PORT                  Redis Server port
-    - SPLIT_SYNC_REDIS_DB                    Redis DB number
-    - SPLIT_SYNC_REDIS_PASS                  Redis password
-    - SPLIT_SYNC_REDIS_PREFIX                Redis key prefix
-    - SPLIT_SYNC_IMPRESSIONS_PER_POST        Number of impressions to send in a POST request
-    - SPLIT_SYNC_IMPRESSIONS_THREADS         Number of impressions recorder threads
-    - SPLIT_SYNC_ADMIN_USER                  HTTP basic auth username for admin endpoints
-    - SPLIT_SYNC_ADMIN_PASS                  HTTP basic auth password for admin endpoints
-    - SPLIT_SYNC_DASHBOARD_TITLE              Title to be shown in admin dashboard
-    - SPLIT_SYNC_EVENTS_PER_POST             Number of events to send in a POST request
-    - SPLIT_SYNC_EVENTS_THREADS              Number of events recorder threads
-
-
+```shell
+docker pull splitsoftware/split-synchronizer:latest
 ```
 
-For instance the following command run the ***split-sync*** as proxy:
-```
-docker run --rm --name split-synchronizer-proxy \
-  -p 3000:3000 \
-  -p 3010:3010 \
-  -e SPLIT_SYNC_API_KEY="your-api-key" \
-  -e SPLIT_SYNC_PROXY="on" \
-  -e SPLIT_SYNC_PROXY_SDK_APIKEYS="123456,qwerty" \
-  -e SPLIT_SYNC_LOG_STDOUT="on" \
-  -e SPLIT_SYNC_HTTP_TIMEOUT=120 \
-  splitsoftware/split-synchronizer:1.1.0
+2. Run the image:
 
+```shell
+docker run --rm --name split-synchronizer \
+ -p 3010:3010 \
+ -e SPLIT_SYNC_API_KEY=<YOUR_SDK_TYPE_API_KEY> \
+ -e SPLIT_SYNC_REDIS_HOST=<YOUR_REDIS_HOST> \
+ -e SPLIT_SYNC_REDIS_PORT=<YOUR_REDIS_PORT> \
+ -e SPLIT_SYNC_REDIS_PREFIX=<YOUR_PREFIX> \
+ splitsoftware/split-synchronizer
 ```
+
+Please refer to [our official docs](https://help.split.io/hc/en-us/articles/360019686092-Split-Synchronizer-Proxy) to learn about all the functionality provided by Split Synchronizer and the configuration options available for tailoring it to your current application setup.
+
+## Submitting issues 
+The Split team monitors all issues submitted to this [issue tracker](https://github.com/splitio/split-synchronizer/issues). We encourage you to use this issue tracker to submit any bug reports, feedback, and feature enhancements. We'll do our best to respond in a timely manner.
+
+## Contributing
+Please see [Contributors Guide](CONTRIBUTORS-GUIDE.md) to find all you need to submit a Pull Request (PR).
+
+## License
+Licensed under the Apache License, Version 2.0. See: [Apache License](http://www.apache.org/licenses/).
+
+## About Split
+
+Split is the leading Feature Delivery Platform for engineering teams that want to confidently deploy features as fast as they can develop them. Split’s fine-grained management, real-time monitoring, and data-driven experimentation ensure that new features will improve the customer experience without breaking or degrading performance. Companies like Twilio, Salesforce, GoDaddy and WePay trust Split to power their feature delivery.
+
+To learn more about Split, contact hello@split.io, or get started with feature flags for free at https://www.split.io/signup.
+
+Split has built and maintains SDKs for:
+
+* Java [Github](https://github.com/splitio/java-client) [Docs](https://help.split.io/hc/en-us/articles/360020405151-Java-SDK)
+* Javascript [Github](https://github.com/splitio/javascript-client) [Docs](https://help.split.io/hc/en-us/articles/360020448791-JavaScript-SDK)
+* Node [Github](https://github.com/splitio/javascript-client) [Docs](https://help.split.io/hc/en-us/articles/360020564931-Node-js-SDK)
+* .NET [Github](https://github.com/splitio/.net-core-client) [Docs](https://help.split.io/hc/en-us/articles/360020240172--NET-SDK)
+* Ruby [Github](https://github.com/splitio/ruby-client) [Docs](https://help.split.io/hc/en-us/articles/360020673251-Ruby-SDK)
+* PHP [Github](https://github.com/splitio/php-client) [Docs](https://help.split.io/hc/en-us/articles/360020350372-PHP-SDK)
+* Python [Github](https://github.com/splitio/python-client) [Docs](https://help.split.io/hc/en-us/articles/360020359652-Python-SDK)
+* GO [Github](https://github.com/splitio/go-client) [Docs](https://help.split.io/hc/en-us/articles/360020093652-Go-SDK)
+* Android [Github](https://github.com/splitio/android-client) [Docs](https://help.split.io/hc/en-us/articles/360020343291-Android-SDK)
+* IOS [Github](https://github.com/splitio/ios-client) [Docs](https://help.split.io/hc/en-us/articles/360020401491-iOS-SDK)
+
+For a comprehensive list of opensource projects visit our [Github page](https://github.com/splitio?utf8=%E2%9C%93&query=%20only%3Apublic%20).
+
+**Learn more about Split:**
+
+Visit [split.io/product](https://www.split.io/product) for an overview of Split, or visit our documentation at [docs.split.io](https://help.split.io/hc/en-us) for more detailed information.
