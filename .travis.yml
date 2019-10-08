@@ -72,4 +72,4 @@ stages:
   - name: test
   - name: build
   - name: xray
-    if: (branch = development OR branch = master OR branch = INFRA-1540) OR (type = cron)
+    if: (branch = master) OR (type = cron)
