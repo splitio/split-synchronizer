@@ -6,6 +6,10 @@ jobs:
         - 1.9.x
       services:
         - redis-server
+      before_install:
+        - curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
+      install:
+        - dep ensure
       script:
         - go test -v -cover $(go list ./... | grep -v /vendor/)
 
