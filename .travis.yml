@@ -29,7 +29,6 @@ jobs:
       script:
         - cd ${TRAVIS_BUILD_DIR}/release
         - sh build.sh
-      before_deploy:
         - cd ${TRAVIS_BUILD_DIR}/release
         - cat versions.pre.html versions.html versions.pos.html > deploy/synchronizer/versions.html
         - cp install_linux_*.bin deploy/synchronizer/${BUILD_VERSION}/
