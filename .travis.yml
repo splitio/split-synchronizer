@@ -1,59 +1,73 @@
-language: go
+jobs:
+  include:
+    - stage: test
+      language: go
+      go:
+        - 1.8.x
+        - 1.13.x
+      services:
+        - redis-server
+      script:
+        - go test -v -cover $(go list ./... | grep -v /vendor/)
 
-go:
-  - 1.9.x
-
-services:
-  - docker
-  - redis-server
-
-before_script:
-  - BUILD_VERSION=$(tail -n 1 splitio/version.go | awk '{print $4}' | tr -d '"')
-  - mkdir -p release/deploy/synchronizer/${BUILD_VERSION}
-
-script:
-  - go test -v -cover $(go list ./... | grep -v /vendor/)
-
-before_install:                                                                 
-  - curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-  
-install:
-  - dep ensure
-
-after_success:
-  - docker build -t splitsoftware/split-synchronizer:${BUILD_VERSION} -t splitsoftware/split-synchronizer:latest .
-  - cd ${TRAVIS_BUILD_DIR}/release
-  - sh build.sh
-
-before_deploy:
-  # Move files
-  - cd ${TRAVIS_BUILD_DIR}/release
-  - cat versions.pre.html versions.html versions.pos.html > deploy/synchronizer/versions.html
-  - cp install_linux_*.bin deploy/synchronizer/${BUILD_VERSION}
-  - cp install_osx_*.bin deploy/synchronizer/${BUILD_VERSION}
-  - cp split-sync-win_*.zip deploy/synchronizer/${BUILD_VERSION}
-  # Create copies
-  - cd deploy/synchronizer/${BUILD_VERSION}
-  - cp install_linux_*.bin ../install_linux.bin
-  - cp install_osx_*.bin ../install_osx.bin
-  - cp split-sync-win_*.zip ../split-sync-win.zip
-  # List files
-  - cd ${TRAVIS_BUILD_DIR}
-  - ls -R release/deploy
-
-deploy:
-  - provider: s3
-    access_key_id: ${AWS_ACCESS_KEY_ID}
-    secret_access_key: ${AWS_SECRET_ACCESS_KEY}
-    bucket: downloads.split.io
-    region: us-east-1
-    local_dir: ${TRAVIS_BUILD_DIR}/release/deploy
-    skip_cleanup: true
-    acl: public_read
-    on:
-      branch: master
-  - provider: script
-    script: bash docker_push
-    skip_cleanup: true
-    on:
-      branch: master
+#####################
+#
+# language: go
+#
+# go:
+#   - 1.9.x
+#
+# services:
+#   - docker
+#   - redis-server
+#
+# before_script:
+#   - BUILD_VERSION=$(tail -n 1 splitio/version.go | awk '{print $4}' | tr -d '"')
+#   - mkdir -p release/deploy/synchronizer/${BUILD_VERSION}
+#
+# script:
+#   - go test -v -cover $(go list ./... | grep -v /vendor/)
+#
+# before_install:
+#   - curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
+#
+# install:
+#   - dep ensure
+#
+# after_success:
+#   - docker build -t splitsoftware/split-synchronizer:${BUILD_VERSION} -t splitsoftware/split-synchronizer:latest .
+#   - cd ${TRAVIS_BUILD_DIR}/release
+#   - sh build.sh
+#
+# before_deploy:
+#   # Move files
+#   - cd ${TRAVIS_BUILD_DIR}/release
+#   - cat versions.pre.html versions.html versions.pos.html > deploy/synchronizer/versions.html
+#   - cp install_linux_*.bin deploy/synchronizer/${BUILD_VERSION}
+#   - cp install_osx_*.bin deploy/synchronizer/${BUILD_VERSION}
+#   - cp split-sync-win_*.zip deploy/synchronizer/${BUILD_VERSION}
+#   # Create copies
+#   - cd deploy/synchronizer/${BUILD_VERSION}
+#   - cp install_linux_*.bin ../install_linux.bin
+#   - cp install_osx_*.bin ../install_osx.bin
+#   - cp split-sync-win_*.zip ../split-sync-win.zip
+#   # List files
+#   - cd ${TRAVIS_BUILD_DIR}
+#   - ls -R release/deploy
+#
+# deploy:
+#   - provider: s3
+#     access_key_id: ${AWS_ACCESS_KEY_ID}
+#     secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+#     bucket: downloads.split.io
+#     region: us-east-1
+#     local_dir: ${TRAVIS_BUILD_DIR}/release/deploy
+#     skip_cleanup: true
+#     acl: public_read
+#     on:
+#       branch: master
+#   - provider: script
+#     script: bash docker_push
+#     skip_cleanup: true
+#     on:
+#       branch: master
