@@ -13,6 +13,62 @@ jobs:
       script:
         - go test -v -cover $(go list ./... | grep -v /vendor/)
 
+    - stage: build
+      language: go
+      go:
+        - 1.9.x
+      services:
+        - redis-server
+      before_install:
+        - curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
+      install:
+        - dep ensure
+      before_script:
+        - BUILD_VERSION=$(tail -n 1 splitio/version.go | awk '{print $4}' | tr -d '"')
+        - mkdir -p ${TRAVIS_BUILD_DIR}/release/deploy/synchronizer/${BUILD_VERSION}
+      script:
+        - cd ${TRAVIS_BUILD_DIR}/release
+        - sh build.sh
+      before_deploy:
+        - cd ${TRAVIS_BUILD_DIR}/release
+        - cat versions.pre.html versions.html versions.pos.html > deploy/synchronizer/versions.html
+        - cp install_linux_*.bin deploy/synchronizer/${BUILD_VERSION}/
+        - cp install_osx_*.bin deploy/synchronizer/${BUILD_VERSION}/
+        - cp split-sync-win_*.zip deploy/synchronizer/${BUILD_VERSION}/
+        - cd ${TRAVIS_BUILD_DIR}/release/deploy/synchronizer/${BUILD_VERSION}
+        - cp install_linux_*.bin ../install_linux.bin
+        - cp install_osx_*.bin ../install_osx.bin
+        - cp split-sync-win_*.zip ../split-sync-win.zip
+        # Debug
+        - cd ${TRAVIS_BUILD_DIR}
+        - ls -R release/deploy
+      deploy:
+        provider: s3
+        access_key_id: ${AWS_ACCESS_KEY_ID}
+        secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+        bucket: downloads.split.io
+        region: us-east-1
+        local_dir: ${TRAVIS_BUILD_DIR}/release/deploy
+        skip_cleanup: true
+        acl: public_read
+        on:
+          branch: master
+
+    - stage: xray
+      language: minimal
+      services:
+        - docker
+      before_script:
+        - BUILD_VERSION=$(tail -n 1 splitio/version.go | awk '{print $4}' | tr -d '"')
+      script:
+        - docker build -t ${ARTIFACTORY_REGISTRY}/split-synchronizer:${BUILD_VERSION} -t ${ARTIFACTORY_REGISTRY}/split-synchronizer:latest .
+
+stages:
+  - name: test
+  - name: build
+  - name: xray
+    if: (branch = development OR branch = master OR branch = INFRA-1540) OR (type = cron)
+
 #####################
 #
 # language: go
