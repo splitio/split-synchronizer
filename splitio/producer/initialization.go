@@ -83,6 +83,11 @@ func startLoop(loopTime int64) {
 
 // Start initialize the producer mode
 func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
+	err := redis.Initialize(conf.Data.Redis)
+	if err != nil {
+		log.Error.Println(err.Error())
+		os.Exit(splitio.ExitRedisInitializationFailed)
+	}
 
 	task.InitializeEvents(conf.Data.EventsThreads)
 	task.InitializeImpressions(conf.Data.ImpressionsThreads)
