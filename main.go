@@ -22,146 +22,42 @@ import (
 	"github.com/splitio/split-synchronizer/splitio"
 	"github.com/splitio/split-synchronizer/splitio/api"
 	"github.com/splitio/split-synchronizer/splitio/stats"
-	"github.com/splitio/split-synchronizer/splitio/storage/boltdb"
-	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 )
 
-var asProxy *bool
-var benchmarkMode *bool
-var versionInfo *bool
-var configFile *string
-var writeDefaultConfigFile *string
-var cliParametersMap map[string]interface{}
+type configMap map[string]interface{}
+type flagInformation struct {
+	configFile             *string
+	writeDefaultConfigFile *string
+	asProxy                *bool
+	benchmarkMode          *bool
+	versionInfo            *bool
+	cliParametersMap       configMap
+}
 
 var gracefulShutdownWaitingGroup = &sync.WaitGroup{}
 var sigs = make(chan os.Signal, 1)
 
-//------------------------------------------------------------------------------
-// Go Initialization
-//------------------------------------------------------------------------------
-
-func checkDeprecatedConfigParameters() []string {
-	deprecatedMessages := make([]string, 0)
-
-	if conf.Data.ImpressionsConsumerThreads > 0 {
-		deprecatedMessages = append(deprecatedMessages, "The cli parameter 'impressions-consumer-threads' will be deprecated soon in favor of 'impressions-threads'. Mapping to replacement: 'impressions-threads'.")
-		if conf.Data.ImpressionsThreads == 1 {
-			conf.Data.ImpressionsThreads = conf.Data.ImpressionsConsumerThreads
-		}
-	}
-
-	if conf.Data.EventsConsumerReadSize > 0 {
-		deprecatedMessages = append(deprecatedMessages, "The parameter 'eventsConsumerReadSize' and 'events-consumer-read-size' will be deprecated soon in favor of 'eventsPerPost' or 'events-per-post'. Mapping to replacement: 'eventsPerPost'/'events-per-post'.")
-		if conf.Data.EventsPerPost == 10000 {
-			conf.Data.EventsPerPost = conf.Data.EventsConsumerReadSize
-		}
-	}
-
-	if conf.Data.EventsPushRate > 0 {
-		deprecatedMessages = append(deprecatedMessages, "The parameter 'eventsPushRate' and 'events-push-rate' will be deprecated soon in favor of 'eventsPostRate' or 'events-post-rate'. Mapping to replacement: 'eventsPostRate'/'events-post-rate'.")
-		if conf.Data.EventsPostRate == 60 {
-			conf.Data.EventsPostRate = conf.Data.EventsPushRate
-		}
-	}
-
-	if conf.Data.ImpressionsRefreshRate > 0 {
-		deprecatedMessages = append(deprecatedMessages, "The parameter 'impressionsRefreshRate' will be deprecated soon in favor of 'impressionsPostRate'. Mapping to replacement: 'impressionsPostRate'.")
-		if conf.Data.ImpressionsPostRate == 20 {
-			conf.Data.ImpressionsPostRate = conf.Data.ImpressionsRefreshRate
-		}
-	}
-
-	if conf.Data.EventsConsumerThreads > 0 {
-		deprecatedMessages = append(deprecatedMessages, "The parameter 'eventsConsumerThreads' and 'events-consumer-threads' will be deprecated soon in favor of 'eventsThreads' or 'events-threads'. Mapping to replacement 'eventsThreads'/'events-threads'.")
-		if conf.Data.EventsThreads == 1 {
-			conf.Data.EventsThreads = conf.Data.EventsConsumerThreads
-		}
-	}
-
-	return deprecatedMessages
-}
-
-func main() {
-	//reading command line options
-	parseFlags()
-
-	//print the version
-	if *versionInfo {
-		fmt.Printf("\nSplit Synchronizer - Version: %s (%s) \n", splitio.Version, splitio.CommitVersion)
-		os.Exit(splitio.SuccessfulOperation)
-	}
-
-	//Show initial banner
-	fmt.Println(splitio.ASCILogo)
-	fmt.Printf("\nSplit Synchronizer - Version: %s (%s) \n", splitio.Version, splitio.CommitVersion)
-
-	//writing a default configuration file if it is required by user
-	if *writeDefaultConfigFile != "" {
-		conf.WriteDefaultConfigFile(*writeDefaultConfigFile)
-		os.Exit(splitio.SuccessfulOperation)
-	}
-
-	//Initialize modules
-	err := loadConfiguration()
-	if err != nil {
-		os.Exit(splitio.ExitInvalidConfiguration)
-	}
-	loadLogger()
-
-	deprecatedMessages := checkDeprecatedConfigParameters()
+func checkDeprecatedConfigParameters() {
+	deprecatedMessages := conf.ProcessDeprecatedOptions()
 	if len(deprecatedMessages) > 0 {
 		for _, msg := range deprecatedMessages {
 			log.Warning.Println(msg)
 		}
 	}
-
-	api.Initialize()
-	stats.Initialize()
-
-	if *asProxy {
-		appcontext.Initialize(appcontext.ProxyMode)
-
-		var dbpath = boltdb.InMemoryMode
-		if conf.Data.Proxy.PersistMemoryPath != "" {
-			dbpath = conf.Data.Proxy.PersistMemoryPath
-		}
-		boltdb.Initialize(dbpath, nil)
-	} else {
-		appcontext.Initialize(appcontext.ProducerMode)
-		err := redis.Initialize(conf.Data.Redis)
-		if err != nil {
-			log.Error.Println(err.Error())
-			os.Exit(splitio.ExitRedisInitializationFailed)
-		}
-	}
-
-	log.PostStartedMessageToSlack()
-
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-
-	if *asProxy {
-		// Run as proxy using boltdb as in-memoy database
-		proxy.Start(sigs, gracefulShutdownWaitingGroup)
-	} else {
-		// Run as synchronizer using Redis as cache
-		producer.Start(sigs, gracefulShutdownWaitingGroup)
-	}
 }
 
-//------------------------------------------------------------------------------
-// Initialization functions
-//------------------------------------------------------------------------------
-
-func parseFlags() {
-	configFile = flag.String("config", "splitio.agent.conf.json", "a configuration file")
-	writeDefaultConfigFile = flag.String("write-default-config", "", "write a default configuration file")
-	asProxy = flag.Bool("proxy", false, "run as split server proxy to improve sdk performance")
-	benchmarkMode = flag.Bool("benchmark", false, "Benchmark mode")
-	versionInfo = flag.Bool("version", false, "Print the version")
+func parseCLIFlags() *flagInformation {
+	cliFlags := &flagInformation{
+		configFile:             flag.String("config", "splitio.agent.conf.json", "a configuration file"),
+		writeDefaultConfigFile: flag.String("write-default-config", "", "write a default configuration file"),
+		asProxy:                flag.Bool("proxy", false, "run as split server proxy to improve sdk performance"),
+		benchmarkMode:          flag.Bool("benchmark", false, "Benchmark mode"),
+		versionInfo:            flag.Bool("version", false, "Print the version"),
+	}
 
 	// dinamically configuration parameters
 	cliParameters := conf.CliParametersToRegister()
-	cliParametersMap = make(map[string]interface{}, len(cliParameters))
+	cliParametersMap := make(configMap, len(cliParameters))
 	for _, param := range cliParameters {
 		switch param.AttributeType {
 		case "string":
@@ -182,10 +78,12 @@ func parseFlags() {
 		}
 	}
 
+	cliFlags.cliParametersMap = cliParametersMap
 	flag.Parse()
+	return cliFlags
 }
 
-func loadConfiguration() error {
+func loadConfiguration(configFile *string, cliParametersMap configMap) error {
 	//load default values
 	conf.Initialize()
 	//overwrite default values from configuration file
@@ -199,12 +97,10 @@ func loadConfiguration() error {
 	return nil
 }
 
-func loadLogger() {
+func loadLogger(benchmarkMode *bool) {
 	var err error
-
 	var commonWriter io.Writer
 	var fullWriter io.Writer
-
 	var benchmarkWriter = ioutil.Discard
 	var verboseWriter = ioutil.Discard
 	var debugWriter = ioutil.Discard
@@ -251,4 +147,49 @@ func loadLogger() {
 	}
 
 	log.Initialize(benchmarkWriter, verboseWriter, debugWriter, commonWriter, commonWriter, fullWriter)
+}
+
+func main() {
+	//reading command line options
+	cliFlags := parseCLIFlags()
+
+	//print the version
+	if *cliFlags.versionInfo {
+		fmt.Printf("\nSplit Synchronizer - Version: %s (%s) \n", splitio.Version, splitio.CommitVersion)
+		os.Exit(splitio.SuccessfulOperation)
+	}
+
+	//Show initial banner
+	fmt.Println(splitio.ASCILogo)
+	fmt.Printf("\nSplit Synchronizer - Version: %s (%s) \n", splitio.Version, splitio.CommitVersion)
+
+	//writing a default configuration file if it is required by user
+	if *cliFlags.writeDefaultConfigFile != "" {
+		conf.WriteDefaultConfigFile(*cliFlags.writeDefaultConfigFile)
+		os.Exit(splitio.SuccessfulOperation)
+	}
+
+	//Initialize modules
+	err := loadConfiguration(cliFlags.configFile, cliFlags.cliParametersMap)
+	if err != nil {
+		os.Exit(splitio.ExitInvalidConfiguration)
+	}
+
+	// These two functions rely on the config module being successfully populated
+	loadLogger(cliFlags.benchmarkMode)
+	checkDeprecatedConfigParameters()
+	api.Initialize()
+	stats.Initialize()
+
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+
+	if *cliFlags.asProxy {
+		appcontext.Initialize(appcontext.ProxyMode)
+		log.PostStartedMessageToSlack()
+		proxy.Start(sigs, gracefulShutdownWaitingGroup)
+	} else {
+		appcontext.Initialize(appcontext.ProducerMode)
+		log.PostStartedMessageToSlack()
+		producer.Start(sigs, gracefulShutdownWaitingGroup)
+	}
 }
