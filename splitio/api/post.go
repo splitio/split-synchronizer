@@ -9,11 +9,13 @@ func postToEventsServer(url string, data []byte, sdkVersion string, machineIP st
 	var _client = *EventsClient
 	_client.ResetHeaders()
 	_client.AddHeader("SplitSDKVersion", sdkVersion)
-	_client.AddHeader("SplitSDKMachineIP", machineIP)
-	if machineName == "" && machineIP != "" {
-		_client.AddHeader("SplitSDKMachineName", fmt.Sprintf("ip-%s", strings.Replace(machineIP, ".", "-", -1)))
-	} else {
-		_client.AddHeader("SplitSDKMachineName", machineName)
+	if machineName != "na" && machineName != "unknown" && machineIP != "na" && machineIP != "unknown" {
+		_client.AddHeader("SplitSDKMachineIP", machineIP)
+		if machineName == "" && machineIP != "" {
+			_client.AddHeader("SplitSDKMachineName", fmt.Sprintf("ip-%s", strings.Replace(machineIP, ".", "-", -1)))
+		} else {
+			_client.AddHeader("SplitSDKMachineName", machineName)
+		}
 	}
 
 	err := _client.Post(url, data)

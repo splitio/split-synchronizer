@@ -2,15 +2,19 @@
 package nethelper
 
 import (
-	"errors"
 	"net"
+
+	"github.com/splitio/split-synchronizer/conf"
 )
 
 // ExternalIP tries to fetch server IP
-func ExternalIP() (string, error) {
+func ExternalIP() string {
+	if !conf.Data.IPAddressesEnabled {
+		return "na"
+	}
 	ifaces, err := net.Interfaces()
 	if err != nil {
-		return "", err
+		return "unknown"
 	}
 	for _, iface := range ifaces {
 		if iface.Flags&net.FlagUp == 0 {
@@ -21,7 +25,7 @@ func ExternalIP() (string, error) {
 		}
 		addrs, err := iface.Addrs()
 		if err != nil {
-			return "", err
+			return "unknown"
 		}
 		for _, addr := range addrs {
 			var ip net.IP
@@ -38,8 +42,8 @@ func ExternalIP() (string, error) {
 			if ip == nil {
 				continue // not an ipv4 address
 			}
-			return ip.String(), nil
+			return ip.String()
 		}
 	}
-	return "", errors.New("IP could not be found")
+	return "unknown"
 }
