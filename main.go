@@ -81,7 +81,7 @@ func checkDeprecatedConfigParameters() []string {
 	return deprecatedMessages
 }
 
-func init() {
+func main() {
 	//reading command line options
 	parseFlags()
 
@@ -136,6 +136,16 @@ func init() {
 	}
 
 	log.PostStartedMessageToSlack()
+
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+
+	if *asProxy {
+		// Run as proxy using boltdb as in-memoy database
+		proxy.Start(sigs, gracefulShutdownWaitingGroup)
+	} else {
+		// Run as synchronizer using Redis as cache
+		producer.Start(sigs, gracefulShutdownWaitingGroup)
+	}
 }
 
 //------------------------------------------------------------------------------
@@ -241,22 +251,4 @@ func loadLogger() {
 	}
 
 	log.Initialize(benchmarkWriter, verboseWriter, debugWriter, commonWriter, commonWriter, fullWriter)
-}
-
-//------------------------------------------------------------------------------
-// MAIN PROGRAM
-//------------------------------------------------------------------------------
-
-func main() {
-
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-
-	if *asProxy {
-		// Run as proxy using boltdb as in-memoy database
-		proxy.Start(sigs, gracefulShutdownWaitingGroup)
-	} else {
-		// Run as synchronizer using Redis as cache
-		producer.Start(sigs, gracefulShutdownWaitingGroup)
-	}
-
 }
