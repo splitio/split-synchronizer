@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/splitio/split-synchronizer/conf"
+
 	"github.com/splitio/split-synchronizer/appcontext"
 
 	"github.com/splitio/split-synchronizer/log"
@@ -33,6 +35,9 @@ func TestCounter(t *testing.T) {
 	counterA := "COUNTER_A"
 	counterB := "COUNTER_B"
 
+	conf.Initialize()
+	conf.Data.IPAddressesEnabled = false
+
 	var expectedA int64 = 1 + 7 - 1 - 5
 	var expectedB int64 = 1 + 5 - 1 - 15
 
@@ -48,13 +53,13 @@ func TestCounter(t *testing.T) {
 			t.Error("SDK Version HEADER not match")
 		}
 
-		if sdkMachine == "" {
-			t.Error("SDK Machine HEADER not match")
+		if sdkMachine != "" {
+			t.Error("Header should not be present")
 		}
 
 		sdkMachineName := r.Header.Get("SplitSDKMachineName")
-		if sdkMachineName == "" {
-			t.Error("SDK Machine Name HEADER not match", sdkMachineName)
+		if sdkMachineName != "" {
+			t.Error("Header should not be present")
 		}
 
 		rBody, _ := ioutil.ReadAll(r.Body)

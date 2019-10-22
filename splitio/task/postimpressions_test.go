@@ -74,6 +74,14 @@ func TestFlushImpressions(t *testing.T) {
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
+		if r.Header.Get("SplitSDKMachineIP") != "127.0.0.1" {
+			t.Error("It should send Machine IP")
+		}
+
+		if r.Header.Get("SplitSDKMachineName") != "SOME_MACHINE_NAME" {
+			t.Error("It should send Machine Name")
+		}
+
 		rBody, _ := ioutil.ReadAll(r.Body)
 
 		var impressionsInPost []redis.ImpressionDTO
@@ -107,6 +115,87 @@ func TestFlushImpressions(t *testing.T) {
 	impressionListName := conf.Data.Redis.Prefix + ".SPLITIO.impressions"
 
 	impressionJSON := `{"m":{"s":"test-1.0.0","i":"127.0.0.1","n":"SOME_MACHINE_NAME"},"i":{"k":"6c4829ab-a0d8-4e72-8176-a334f596fb79","b":"bucketing","f":"feature","t":"ON","c":12345,"r":"rule","timestamp":1516310749882}}`
+
+	//Deleting previous test data
+	res := redis.Client.Del(impressionListName)
+	if res.Err() != nil {
+		t.Error(res.Err().Error())
+		return
+	}
+
+	//Pushing 5 impressions
+	for i := 0; i < itemsToAdd; i++ {
+		redis.Client.RPush(impressionListName, impressionJSON)
+	}
+	//----------------
+
+	impressionRecorderAdapter := recorder.ImpressionsHTTPRecorder{}
+	impressionStorageAdapter := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+	//Catching panic status and reporting error
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Error("Recovered task", r)
+			}
+		}()
+		count := int64(size)
+		ImpressionsFlush(impressionRecorderAdapter, impressionStorageAdapter, &count, conf.Data.Redis.DisableLegacyImpressions, true)
+		total := impressionStorageAdapter.Size()
+		if total != 1 {
+			t.Error("It should kept 1 element, but there are:", total)
+		}
+	}()
+}
+
+func TestFlushImpressionsWithoutMetadataInHeaders(t *testing.T) {
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+
+	size := 4
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		if r.Header.Get("SplitSDKMachineIP") != "" {
+			t.Error("It should not ssend Machine IP")
+		}
+
+		if r.Header.Get("SplitSDKMachineName") != "" {
+			t.Error("It should not send Machine Name")
+		}
+
+		rBody, _ := ioutil.ReadAll(r.Body)
+
+		var impressionsInPost []redis.ImpressionDTO
+		err := json.Unmarshal(rBody, &impressionsInPost)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+	}))
+
+	defer ts.Close()
+
+	os.Setenv("SPLITIO_SDK_URL", ts.URL)
+	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
+
+	// API initilization
+	api.Initialize()
+
+	//Initialize by default
+	conf.Initialize()
+
+	conf.Data.Redis.Prefix = "postimpressionsintest"
+
+	//Redis storage by default
+	redis.Initialize(conf.Data.Redis)
+
+	//INSERT MOCK DATA
+	//----------------
+	itemsToAdd := 5
+	impressionListName := conf.Data.Redis.Prefix + ".SPLITIO.impressions"
+
+	impressionJSON := `{"m":{"s":"test-1.0.0","i":"na","n":"na"},"i":{"k":"6c4829ab-a0d8-4e72-8176-a334f596fb79","b":"bucketing","f":"feature","t":"ON","c":12345,"r":"rule","timestamp":1516310749882}}`
 
 	//Deleting previous test data
 	res := redis.Client.Del(impressionListName)
