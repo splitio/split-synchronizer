@@ -17,6 +17,16 @@ import (
 // Client is a redis client with a connection pool
 var Client redis.UniversalClient
 
+const clearAllSCriptTemplate = `
+	local toDelete = redis.call('KEYS', '{KEY_NAMESPACE}')
+	local count = 0
+	for key in impkeys do
+	    redis.call('DEL', key)
+	    count = count + 1
+	end
+	return count
+`
+
 // BaseStorageAdapter basic redis storage adapter
 type BaseStorageAdapter struct {
 	*prefixAdapter

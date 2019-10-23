@@ -3,6 +3,7 @@ package producer
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -11,9 +12,9 @@ import (
 	"github.com/splitio/split-synchronizer/splitio"
 	"github.com/splitio/split-synchronizer/splitio/fetcher"
 	"github.com/splitio/split-synchronizer/splitio/recorder"
-	"github.com/splitio/split-synchronizer/splitio/storage"
 	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 	"github.com/splitio/split-synchronizer/splitio/task"
+	"github.com/splitio/split-synchronizer/splitio/util"
 	"github.com/splitio/split-synchronizer/splitio/web/admin"
 )
 
@@ -59,48 +60,80 @@ func gracefulShutdownProducer(sigs chan os.Signal, gracefulShutdownWaitingGroup 
 	os.Exit(splitio.SuccessfulOperation)
 }
 
-func splitFetcherFactory() fetcher.SplitFetcher {
-	return fetcher.NewHTTPSplitFetcher()
-}
-
-func splitStorageFactory() storage.SplitStorage {
-	return redis.NewSplitStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-}
-
-func segmentFetcherFactory() fetcher.SegmentFetcherFactory {
-	return fetcher.SegmentFetcherMainFactory{}
-}
-
-func segmentStorageFactory() storage.SegmentStorageFactory {
-	return redis.SegmentStorageMainFactory{}
-}
-
 func startLoop(loopTime int64) {
 	for {
 		time.Sleep(time.Duration(loopTime) * time.Millisecond)
 	}
 }
 
+func hashApiKey(apikey string) uint32 {
+	return util.Murmur3_32([]byte(apikey), 0)
+}
+
+func isApikeyValid(splitFetcher fetcher.HTTPSplitFetcher) bool {
+	nowInMillis := time.Now().UnixNano() / int64(time.Millisecond)
+	_, err := splitFetcher.Fetch(nowInMillis)
+	return err != nil
+}
+
+func sanitizeRedis() error {
+	miscStorage := redis.NewMiscStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+	currentHash := hashApiKey(conf.Data.APIKey)
+	currentHashAsStr := strconv.Itoa(int(currentHash))
+	defer miscStorage.SetApikeyHash(currentHashAsStr)
+
+	if conf.Data.Redis.ForceFreshStartup {
+		log.Warning.Println("Fresh startup requested. Cleaning up redis before initializing.")
+		miscStorage.ClearAll()
+	}
+
+	previousHashStr, err := miscStorage.GetApikeyHash()
+	if err != nil {
+		return err
+	}
+
+	if currentHashAsStr != previousHashStr {
+		log.Warning.Println("Previous apikey is missing/different from current one. Cleaning up redis before startup.")
+		miscStorage.ClearAll()
+	}
+	return nil
+}
+
 // Start initialize the producer mode
 func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
+
+	// Setup fetchers & recorders
+	splitFetcher := fetcher.NewHTTPSplitFetcher()
+	segmentFetcher := fetcher.SegmentFetcherMainFactory{}
+	impressionsRecorder := recorder.ImpressionsHTTPRecorder{}
+	eventsRecorder := recorder.EventsHTTPRecorder{}
+
+	// Setup storages
+	splitStorage := redis.NewSplitStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+	segmentStorage := redis.SegmentStorageMainFactory{}
+	impressionsStorage := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+	eventsStorage := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+
+	if !isApikeyValid(splitFetcher) {
+		log.Error.Println("Invalid apikey! Aborting execution.")
+		os.Exit(splitio.ExitRedisInitializationFailed)
+	}
+
+	// Initialize redis client
 	err := redis.Initialize(conf.Data.Redis)
 	if err != nil {
 		log.Error.Println(err.Error())
 		os.Exit(splitio.ExitRedisInitializationFailed)
 	}
 
-	task.InitializeEvents(conf.Data.EventsThreads)
-	task.InitializeImpressions(conf.Data.ImpressionsThreads)
-	task.InitializeEvictionCalculator()
+	err = sanitizeRedis()
+	if err != nil {
+		log.Error.Println("Failed when trying to clean up redis. Aborting execution.")
+		os.Exit(splitio.ExitRedisInitializationFailed)
+	}
 
 	//Producer mode - graceful shutdown
 	go gracefulShutdownProducer(sigs, gracefulShutdownWaitingGroup)
-
-	splitFetcher := splitFetcherFactory()
-	splitStorage := splitStorageFactory()
-
-	segmentFetcher := segmentFetcherFactory()
-	segmentStorage := segmentStorageFactory()
 
 	// WebAdmin configuration
 	waOptions := &admin.WebAdminOptions{
@@ -113,16 +146,14 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	admin.StartAdminWebAdmin(waOptions, splitStorage, segmentStorage.NewInstance())
 
 	go task.FetchSplits(splitFetcher, splitStorage, conf.Data.SplitsFetchRate, gracefulShutdownWaitingGroup)
-
 	go task.FetchSegments(segmentFetcher, segmentStorage, conf.Data.SegmentFetchRate, gracefulShutdownWaitingGroup)
 
+	task.InitializeImpressions(conf.Data.ImpressionsThreads)
+	task.InitializeEvents(conf.Data.EventsThreads)
+	task.InitializeEvictionCalculator()
 	for i := 0; i < conf.Data.ImpressionsThreads; i++ {
-		impressionsStorage := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-		impressionsRecorder := recorder.ImpressionsHTTPRecorder{}
-		if conf.Data.ImpressionListener.Endpoint != "" {
-			go task.PostImpressionsToListener(recorder.ImpressionListenerSubmitter{
-				Endpoint: conf.Data.ImpressionListener.Endpoint,
-			})
+		if ilEndpoint := conf.Data.ImpressionListener.Endpoint; ilEndpoint != "" {
+			go task.PostImpressionsToListener(recorder.ImpressionListenerSubmitter{Endpoint: ilEndpoint})
 		}
 		go task.PostImpressions(
 			i,
@@ -142,8 +173,6 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	go task.PostMetrics(metricsRecorder, metricsStorage, conf.Data.MetricsPostRate, gracefulShutdownWaitingGroup)
 
 	for i := 0; i < conf.Data.EventsThreads; i++ {
-		eventsStorage := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-		eventsRecorder := recorder.EventsHTTPRecorder{}
 		go task.PostEvents(i, eventsRecorder, eventsStorage, conf.Data.EventsPostRate,
 			conf.Data.EventsPerPost, gracefulShutdownWaitingGroup)
 	}
