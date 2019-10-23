@@ -1,10 +1,19 @@
 package redis
 
 import (
-	"strings"
-
 	"github.com/go-redis/redis"
+	"strings"
 )
+
+const clearAllSCriptTemplate = `
+	local toDelete = redis.call('KEYS', '{KEY_NAMESPACE}*')
+	local count = 0
+	for _, key in ipairs(toDelete) do
+	    redis.call('DEL', key)
+	    count = count + 1
+	end
+	return count
+`
 
 // MiscStorageAdapter provides methods to handle the synchronizer's initialization procedure
 type MiscStorageAdapter struct {
@@ -13,7 +22,7 @@ type MiscStorageAdapter struct {
 
 func (b BaseStorageAdapter) GetApikeyHash() (string, error) {
 	res := b.client.Get(b.hashNamespace())
-	return res.String(), res.Err()
+	return res.Val(), res.Err()
 }
 
 func (b BaseStorageAdapter) SetApikeyHash(newApikeyHash string) error {
@@ -22,7 +31,7 @@ func (b BaseStorageAdapter) SetApikeyHash(newApikeyHash string) error {
 }
 
 func (b BaseStorageAdapter) ClearAll() error {
-	luaCMD := strings.Replace(clearAllSCriptTemplate, "{KEY_NAMESPACE}", b.prefix+"."+"SPLITIO", 0)
+	luaCMD := strings.Replace(clearAllSCriptTemplate, "{KEY_NAMESPACE}", b.prefix+"."+"SPLITIO", 1)
 	cmd := b.client.Eval(luaCMD, nil, 0)
 	return cmd.Err()
 }

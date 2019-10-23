@@ -52,8 +52,7 @@ type RedisSection struct {
 	TLSSkipNameValidation bool     `json:"tlsSkipNameValidation" split-default-value:"false" split-cli-option:"redis-tls-skip-name-validation" split-cli-description:"Accept server's public key without validanting againsta a CA."`
 	TLSClientCertificate  string   `json:"tlsClientCertificate" split-default-value:"" split-cli-option:"redis-tls-client-certificate" split-cli-description:"Client certificate filename signed by a server-recognized CA"`
 	TLSClientKey          string   `json:"tlsClientKey" split-default-value:"" split-cli-option:"redis-tls-client-key" split-cli-description:"Client private key matching the certificate."`
-
-	ForceFreshStartup bool `json"forceFreshStartup" split-default-value:"false" split-cli-option:"force-fresh-startup" split-cli-description:"Remove any Split-related data (associated with the specified prefix if any) prior to starting the synchronizer."`
+	ForceFreshStartup     bool     `json"forceFreshStartup" split-default-value:"false" split-cli-option:"force-fresh-startup" split-cli-description:"Remove any Split-related data (associated with the specified prefix if any) prior to starting the synchronizer."`
 }
 
 // LogSection log instance configuration

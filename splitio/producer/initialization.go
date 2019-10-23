@@ -73,7 +73,7 @@ func hashApiKey(apikey string) uint32 {
 func isApikeyValid(splitFetcher fetcher.HTTPSplitFetcher) bool {
 	nowInMillis := time.Now().UnixNano() / int64(time.Millisecond)
 	_, err := splitFetcher.Fetch(nowInMillis)
-	return err != nil
+	return err == nil
 }
 
 func sanitizeRedis() error {
@@ -85,6 +85,7 @@ func sanitizeRedis() error {
 	if conf.Data.Redis.ForceFreshStartup {
 		log.Warning.Println("Fresh startup requested. Cleaning up redis before initializing.")
 		miscStorage.ClearAll()
+		return nil
 	}
 
 	previousHashStr, err := miscStorage.GetApikeyHash()
