@@ -175,7 +175,7 @@ func main() {
 		os.Exit(splitio.ExitInvalidConfiguration)
 	}
 
-	// These two functions rely on the config module being successfully populated
+	// These functions rely on the config module being successfully populated
 	loadLogger(cliFlags.benchmarkMode)
 	checkDeprecatedConfigParameters()
 	api.Initialize()
