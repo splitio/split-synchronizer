@@ -10,7 +10,7 @@ import (
 // ExternalIP tries to fetch server IP
 func ExternalIP() string {
 	if !conf.Data.IPAddressesEnabled {
-		return "na"
+		return "NA"
 	}
 	ifaces, err := net.Interfaces()
 	if err != nil {
