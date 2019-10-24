@@ -195,7 +195,7 @@ func TestFlushImpressionsWithoutMetadataInHeaders(t *testing.T) {
 	itemsToAdd := 5
 	impressionListName := conf.Data.Redis.Prefix + ".SPLITIO.impressions"
 
-	impressionJSON := `{"m":{"s":"test-1.0.0","i":"na","n":"na"},"i":{"k":"6c4829ab-a0d8-4e72-8176-a334f596fb79","b":"bucketing","f":"feature","t":"ON","c":12345,"r":"rule","timestamp":1516310749882}}`
+	impressionJSON := `{"m":{"s":"test-1.0.0","i":"NA","n":"NA"},"i":{"k":"6c4829ab-a0d8-4e72-8176-a334f596fb79","b":"bucketing","f":"feature","t":"ON","c":12345,"r":"rule","timestamp":1516310749882}}`
 
 	//Deleting previous test data
 	res := redis.Client.Del(impressionListName)

@@ -154,8 +154,8 @@ if [ ! -z ${SPLIT_SYNC_IMPRESSION_LISTENER_ENDPOINT+x} ]; then
   PARAMETERS="${PARAMETERS} -impression-listener-endpoint=${SPLIT_SYNC_IMPRESSION_LISTENER_ENDPOINT}"
 fi
 
-if [ ! -z ${SPLIT_SYNC_IP_ADDRESSES_ENABLED+x} ]; then
-  PARAMETERS="${PARAMETERS} -ip-addresses-enabled=${SPLIT_SYNC_IP_ADDRESSES_ENABLED}"
+if is_true "$SPLIT_SYNC_IP_ADDRESSES_ENABLED"; then
+  PARAMETERS="${PARAMETERS} -ip-addresses-enabled"
 fi
 
 
