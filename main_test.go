@@ -8,11 +8,9 @@ import (
 
 func TestInitializationWithProperParameters(t *testing.T) {
 	c := "test/dataset/test.conf.warning1.json"
-	configFile = &c
+	loadConfiguration(&c, nil)
 
-	loadConfiguration()
-
-	if len(checkDeprecatedConfigParameters()) > 0 {
+	if len(conf.ProcessDeprecatedOptions()) > 0 {
 		t.Error("It should not be messages to inform")
 	}
 
@@ -32,11 +30,9 @@ func TestInitializationWithProperParameters(t *testing.T) {
 
 func TestInitializationWithPassingEeventsConsumerReadSize(t *testing.T) {
 	c := "test/dataset/test.conf.warning2.json"
-	configFile = &c
+	loadConfiguration(&c, nil)
 
-	loadConfiguration()
-
-	messages := checkDeprecatedConfigParameters()
+	messages := conf.ProcessDeprecatedOptions()
 
 	if len(messages) == 0 {
 		t.Error("It should be messages to inform")
@@ -65,11 +61,9 @@ func TestInitializationWithPassingEeventsConsumerReadSize(t *testing.T) {
 
 func TestInitializationWithPassingEventsPushRate(t *testing.T) {
 	c := "test/dataset/test.conf.warning3.json"
-	configFile = &c
+	loadConfiguration(&c, nil)
 
-	loadConfiguration()
-
-	messages := checkDeprecatedConfigParameters()
+	messages := conf.ProcessDeprecatedOptions()
 
 	if len(messages) == 0 {
 		t.Error("It should be messages to inform")
@@ -97,11 +91,9 @@ func TestInitializationWithPassingEventsPushRate(t *testing.T) {
 }
 func TestInitializationWithPassingDeprecatedProperties(t *testing.T) {
 	c := "test/dataset/test.conf.warning4.json"
-	configFile = &c
+	loadConfiguration(&c, nil)
 
-	loadConfiguration()
-
-	messages := checkDeprecatedConfigParameters()
+	messages := conf.ProcessDeprecatedOptions()
 
 	if len(messages) == 0 {
 		t.Error("It should be messages to inform")
@@ -151,11 +143,9 @@ func TestInitializationWithPassingDeprecatedProperties(t *testing.T) {
 
 func TestInitializationWithPassingDeprecatedPropertiesAndNonDeprecatedProperties(t *testing.T) {
 	c := "test/dataset/test.conf.warning5.json"
-	configFile = &c
+	loadConfiguration(&c, nil)
 
-	loadConfiguration()
-
-	messages := checkDeprecatedConfigParameters()
+	messages := conf.ProcessDeprecatedOptions()
 
 	if len(messages) == 0 {
 		t.Error("It should be messages to inform")

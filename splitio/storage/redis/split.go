@@ -27,30 +27,6 @@ func NewSplitStorageAdapter(clientInstance redis.UniversalClient, prefix string)
 	return &client
 }
 
-func (r SplitStorageAdapter) save(key string, split api.SplitDTO) error {
-	err := r.client.Set(r.splitNamespace(key), split, 0).Err()
-	if err != nil {
-		log.Error.Println("Error saving item", key, "in Redis:", err)
-	} else {
-		log.Verbose.Println("Item saved at key:", key)
-	}
-
-	return err
-}
-
-func (r SplitStorageAdapter) remove(key string) error {
-	val, err := r.client.Del(r.splitNamespace(key)).Result()
-	if err != nil {
-		log.Error.Println("Error removing item", key, "in Redis:")
-		return err
-	}
-	if val <= 0 {
-		return errors.New("Split does not exist")
-	}
-	log.Verbose.Println("Split removed at key:", key)
-	return nil
-}
-
 func getValues(split []byte) (string, string, error) {
 	var tmpSplit map[string]interface{}
 	err := json.Unmarshal(split, &tmpSplit)
@@ -92,6 +68,20 @@ func (r SplitStorageAdapter) Save(split []byte) error {
 
 	return err
 
+}
+
+func (r SplitStorageAdapter) remove(keys ...string) error {
+	withNamespace := make([]string, len(keys))
+	for index, key := range keys {
+		withNamespace[index] = r.splitNamespace(key)
+	}
+	val, err := r.client.Del(withNamespace...).Result()
+	if err != nil {
+		log.Error.Println("Error removing splits in redis")
+		return err
+	}
+	log.Verbose.Println(val, " splits removed fromr redis")
+	return nil
 }
 
 //Remove removes split item from redis
