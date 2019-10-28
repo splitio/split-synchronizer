@@ -91,11 +91,7 @@ func (c *Counter) PostCounterWorker() {
 
 		if len(countersDataSet) > 0 {
 			sdkVersion := appcontext.VersionHeader()
-			machineIP, err := nethelper.ExternalIP()
-			if err != nil {
-				machineIP = "unknown"
-			}
-			errc := c.recorderAdapter.PostCounters(countersDataSet, sdkVersion, machineIP)
+			errc := c.recorderAdapter.PostCounters(countersDataSet, sdkVersion, nethelper.ExternalIP())
 			if errc != nil {
 				log.Error.Println(errc)
 			}
