@@ -103,6 +103,13 @@ func sanitizeRedis() error {
 // Start initialize the producer mode
 func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 
+	// Initialize redis client
+	err := redis.Initialize(conf.Data.Redis)
+	if err != nil {
+		log.Error.Println(err.Error())
+		os.Exit(splitio.ExitRedisInitializationFailed)
+	}
+
 	// Setup fetchers & recorders
 	splitFetcher := fetcher.NewHTTPSplitFetcher()
 	segmentFetcher := fetcher.SegmentFetcherMainFactory{}
@@ -117,13 +124,6 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 
 	if !isApikeyValid(splitFetcher) {
 		log.Error.Println("Invalid apikey! Aborting execution.")
-		os.Exit(splitio.ExitRedisInitializationFailed)
-	}
-
-	// Initialize redis client
-	err := redis.Initialize(conf.Data.Redis)
-	if err != nil {
-		log.Error.Println(err.Error())
 		os.Exit(splitio.ExitRedisInitializationFailed)
 	}
 
