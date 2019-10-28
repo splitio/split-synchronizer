@@ -30,6 +30,16 @@ const latencyPostSDKLatency = "goproxyPostSDKTime.time"
 const latencyPostSDKCount = "goproxyPostSDKCount.time"
 const latencyPostSDKGauge = "goproxyPostSDKGague.time"
 
+func validateAPIKey(keys []string, apiKey string) bool {
+	for _, key := range keys {
+		if apiKey == key {
+			return true
+		}
+	}
+
+	return false
+}
+
 //-----------------------------------------------------------------------------
 // SPLIT CHANGES
 //-----------------------------------------------------------------------------
@@ -192,6 +202,29 @@ func mySegments(c *gin.Context) {
 //-----------------------------------------------------------------
 //                 I M P R E S S I O N S
 //-----------------------------------------------------------------
+func submitImpressions(
+	impressionListenerEnabled bool,
+	sdkVersion string,
+	machineIP string,
+	machineName string,
+	data []byte,
+) {
+	if impressionListenerEnabled {
+		_ = task.QueueImpressionsForListener(&task.ImpressionBulk{
+			Data:        json.RawMessage(data),
+			SdkVersion:  sdkVersion,
+			MachineIP:   machineIP,
+			MachineName: machineName,
+		})
+	}
+
+	startTime := controllerLatencies.StartMeasuringLatency()
+	controllers.AddImpressions(data, sdkVersion, machineIP, machineName)
+	controllerLatencies.RegisterLatency(latencyAddImpressionsInBuffer, startTime)
+	controllerLocalCounters.Increment("request.ok")
+	controllerLatenciesBkt.RegisterLatency("/api/testImpressions/bulk", startTime)
+}
+
 func postImpressionBulk(impressionListenerEnabled bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		sdkVersion := c.Request.Header.Get("SplitSDKVersion")
@@ -213,12 +246,52 @@ func postImpressionBulk(impressionListenerEnabled bool) gin.HandlerFunc {
 			})
 		}
 
-		startTime := controllerLatencies.StartMeasuringLatency()
-		controllers.AddImpressions(data, sdkVersion, machineIP, machineName)
-		controllerLatencies.RegisterLatency(latencyAddImpressionsInBuffer, startTime)
-		controllerLocalCounters.Increment("request.ok")
-		controllerLatenciesBkt.RegisterLatency("/api/testImpressions/bulk", startTime)
+		submitImpressions(impressionListenerEnabled, sdkVersion, machineIP, machineName, data)
 		c.JSON(http.StatusOK, nil)
+	}
+}
+
+func postImpressionBeacon(keys []string, impressionListenerEnabled bool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.Request.Body == nil {
+			c.JSON(http.StatusBadRequest, nil)
+			return
+		}
+
+		data, err := ioutil.ReadAll(c.Request.Body)
+		if err != nil {
+			log.Error.Println(err)
+			controllerLocalCounters.Increment("request.error")
+			c.JSON(http.StatusInternalServerError, nil)
+			return
+		}
+
+		type BeaconImpressions struct {
+			Entries []api.ImpressionsDTO `json:"entries"`
+			Sdk     string               `json:"sdk"`
+			Token   string               `json:"token"`
+		}
+		var body BeaconImpressions
+		if err := json.Unmarshal([]byte(data), &body); err != nil {
+			log.Error.Println(err)
+			c.JSON(http.StatusInternalServerError, nil)
+			return
+		}
+
+		if !validateAPIKey(keys, body.Token) {
+			c.AbortWithStatus(401)
+			return
+		}
+
+		impressions, err := json.Marshal(body.Entries)
+		if err != nil {
+			log.Error.Println(err)
+			c.JSON(http.StatusInternalServerError, nil)
+			return
+		}
+
+		submitImpressions(impressionListenerEnabled, body.Sdk, "NA", "NA", impressions)
+		c.JSON(http.StatusNoContent, nil)
 	}
 }
 
@@ -292,6 +365,14 @@ func postEvent(c *gin.Context, fn func([]byte, string, string) error) {
 //-----------------------------------------------------------------------------
 // EVENTS - RESULTS
 //-----------------------------------------------------------------------------
+func submitEvents(sdkVersion string, machineIP string, machineName string, data []byte) {
+	startTime := controllerLatencies.StartMeasuringLatency()
+	controllers.AddEvents(data, sdkVersion, machineIP, machineName)
+	controllerLatencies.RegisterLatency(latencyAddEventsInBuffer, startTime)
+	controllerLocalCounters.Increment("request.ok")
+	controllerLatenciesBkt.RegisterLatency("/api/events/bulk", startTime)
+}
+
 func postEvents(c *gin.Context) {
 	sdkVersion := c.Request.Header.Get("SplitSDKVersion")
 	machineIP := c.Request.Header.Get("SplitSDKMachineIP")
@@ -304,10 +385,50 @@ func postEvents(c *gin.Context) {
 		return
 	}
 
-	startTime := controllerLatencies.StartMeasuringLatency()
-	controllers.AddEvents(data, sdkVersion, machineIP, machineName)
-	controllerLatencies.RegisterLatency(latencyAddEventsInBuffer, startTime)
-	controllerLocalCounters.Increment("request.ok")
-	controllerLatenciesBkt.RegisterLatency("/api/events/bulk", startTime)
+	submitEvents(sdkVersion, machineIP, machineName, data)
 	c.JSON(http.StatusOK, nil)
+}
+
+func postEventsBeacon(keys []string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.Request.Body == nil {
+			c.JSON(http.StatusBadRequest, nil)
+			return
+		}
+
+		data, err := ioutil.ReadAll(c.Request.Body)
+		if err != nil {
+			log.Error.Println(err)
+			controllerLocalCounters.Increment("request.error")
+			c.JSON(http.StatusInternalServerError, nil)
+			return
+		}
+
+		type BeaconEvents struct {
+			Entries []api.EventDTO `json:"entries"`
+			Sdk     string         `json:"sdk"`
+			Token   string         `json:"token"`
+		}
+		var body BeaconEvents
+		if err := json.Unmarshal([]byte(data), &body); err != nil {
+			log.Error.Println(err)
+			c.JSON(http.StatusInternalServerError, nil)
+			return
+		}
+
+		if !validateAPIKey(keys, body.Token) {
+			c.AbortWithStatus(401)
+			return
+		}
+
+		events, err := json.Marshal(body.Entries)
+		if err != nil {
+			log.Error.Println(err)
+			c.JSON(http.StatusInternalServerError, nil)
+			return
+		}
+
+		submitEvents(body.Sdk, "NA", "NA", events)
+		c.JSON(http.StatusNoContent, nil)
+	}
 }
