@@ -18,6 +18,7 @@
 #    - SPLIT_SYNC_LOG_BACKUP_COUNT             Number of last log files to keep in filesystem
 #    - SPLIT_SYNC_LOG_SLACK_CHANNEL            Set the Slack channel or user
 #    - SPLIT_SYNC_LOG_SLACK_WEBHOOK            Set the Slack webhook url
+#    - SPLIT_SYNC_IP_ADDRESSES_ENABLED         Flag to disable IP addresses and host name from being sent to the Split backend
 #
 #    - SPLIT_SYNC_ADVANCED_PARAMETERS          Set custom parameters that are not configured via provided Env vars.
 #                                              Sample:
@@ -152,6 +153,10 @@ fi
 
 if [ ! -z ${SPLIT_SYNC_IMPRESSION_LISTENER_ENDPOINT+x} ]; then
   PARAMETERS="${PARAMETERS} -impression-listener-endpoint=${SPLIT_SYNC_IMPRESSION_LISTENER_ENDPOINT}"
+fi
+
+if is_true "$SPLIT_SYNC_IP_ADDRESSES_ENABLED"; then
+  PARAMETERS="${PARAMETERS} -ip-addresses-enabled"
 fi
 
 
