@@ -1,3 +1,8 @@
+2.6.2 (October 29, 2019)
+ - Cleanup redis before initialization if apikey differs
+ - Allow the user to for redis cleanup with a cli/json/env-var option
+ - Several misc code cleanup/reordering.
+
 2.5.2 (September 25, 2019)
  - Update docker base image to patch security vulnerabilities.
 
