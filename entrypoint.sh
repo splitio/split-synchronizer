@@ -59,6 +59,7 @@
 #    - SPLIT_SYNC_REDIS_TLS_CA_ROOT_CERTS           Comma-separated list of CA root certificate file names.
 #    - SPLIT_SYNC_REDIS_TLS_CLIENT_KEY              Path to the client's PEM-encoded private key
 #    - SPLIT_SYNC_REDIS_TLS_CLIENT_CERTIFICATE      Path to the client's certificate with a signed public key.
+#    - SPLIT_SYNC_REDIS_FORCE_CLEANUP               Cleanup redis (DB and prefix only) before starting.
 
 
 # Accepted values for options
@@ -261,6 +262,10 @@ else
 
     if [ ! -z ${SPLIT_SYNC_REDIS_TLS_CLIENT_CERTIFICATE+x} ]; then
         PARAMETERS="${PARAMETERS} -redis-tls-client-certificate ${SPLIT_SYNC_REDIS_TLS_CLIENT_CERTIFICATE}"
+    fi
+ 
+    if is_true "$SPLIT_SYNC_REDIS_FORCE_CLEANUP"; then
+        PARAMETERS="${PARAMETERS} -force-fresh-startup"
     fi
   fi
     

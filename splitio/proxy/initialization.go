@@ -11,6 +11,7 @@ import (
 	"github.com/splitio/split-synchronizer/splitio"
 	"github.com/splitio/split-synchronizer/splitio/proxy/controllers"
 	"github.com/splitio/split-synchronizer/splitio/recorder"
+	"github.com/splitio/split-synchronizer/splitio/storage/boltdb"
 	"github.com/splitio/split-synchronizer/splitio/task"
 )
 
@@ -42,6 +43,12 @@ func gracefulShutdownProxy(sigs chan os.Signal, gracefulShutdownWaitingGroup *sy
 
 // Start initialize in proxy mode
 func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
+
+	var dbpath = boltdb.InMemoryMode
+	if conf.Data.Proxy.PersistMemoryPath != "" {
+		dbpath = conf.Data.Proxy.PersistMemoryPath
+	}
+	boltdb.Initialize(dbpath, nil)
 	go gracefulShutdownProxy(sigs, gracefulShutdownWaitingGroup)
 	go task.FetchRawSplits(conf.Data.SplitsFetchRate, conf.Data.SegmentFetchRate)
 

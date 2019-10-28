@@ -81,4 +81,9 @@ func TestNamespaces(t *testing.T) {
 	if trafficTypeNamespace != "SPLITIO.trafficType.tt" {
 		t.Error("Traffic Type namespace mal-formed")
 	}
+
+	hashNamespace := prefixAdapter.hashNamespace()
+	if hashNamespace != "SPLITIO.hash" {
+		t.Error("APIKEY hash namespace malformed.")
+	}
 }
