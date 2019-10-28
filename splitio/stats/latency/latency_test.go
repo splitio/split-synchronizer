@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/splitio/split-synchronizer/appcontext"
-
+	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio"
 	"github.com/splitio/split-synchronizer/splitio/api"
@@ -20,6 +20,9 @@ import (
 func TestLatency(t *testing.T) {
 
 	latencyA := "LATENCY_A"
+
+	conf.Initialize()
+	conf.Data.IPAddressesEnabled = false
 
 	stdoutWriter := ioutil.Discard //os.Stdout
 	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
@@ -33,17 +36,17 @@ func TestLatency(t *testing.T) {
 			t.Error("SDK Version HEADER not match")
 		}
 
-		if sdkMachine == "" {
-			t.Error("SDK Machine HEADER not match")
+		if sdkMachine != "" {
+			t.Error("SDK Machine should not be present")
 		}
 
 		sdkMachineName := r.Header.Get("SplitSDKMachineName")
-		if sdkMachineName == "" {
-			t.Error("SDK Machine Name HEADER not match", sdkMachineName)
+		if sdkMachineName != "" {
+			t.Error("SDK Machine Name should not be present")
 		}
 
 		rBody, _ := ioutil.ReadAll(r.Body)
-		//fmt.Println(string(rBody))
+
 		var latenciesInPost []api.LatenciesDTO
 		err := json.Unmarshal(rBody, &latenciesInPost)
 		if err != nil {
@@ -99,6 +102,8 @@ func TestLatencyBucket(t *testing.T) {
 
 	latencyA := "LATENCY_BKT"
 
+	conf.Initialize()
+
 	stdoutWriter := ioutil.Discard //os.Stdout
 	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 
@@ -121,7 +126,7 @@ func TestLatencyBucket(t *testing.T) {
 		}
 
 		rBody, _ := ioutil.ReadAll(r.Body)
-		//fmt.Println(string(rBody))
+
 		var latenciesInPost []api.LatenciesDTO
 		err := json.Unmarshal(rBody, &latenciesInPost)
 		if err != nil {
