@@ -1,9 +1,13 @@
 package redis
 
 import (
-	"github.com/go-redis/redis"
+	"errors"
 	"strings"
+
+	"github.com/go-redis/redis"
 )
+
+const ErrorHashNotPresent = "hash-not-present"
 
 const clearAllSCriptTemplate = `
 	local toDelete = redis.call('KEYS', '{KEY_NAMESPACE}*')
@@ -22,6 +26,9 @@ type MiscStorageAdapter struct {
 
 func (b BaseStorageAdapter) GetApikeyHash() (string, error) {
 	res := b.client.Get(b.hashNamespace())
+	if res.Err() != nil && res.Err().Error() == "redis: nil" {
+		return "", errors.New(ErrorHashNotPresent)
+	}
 	return res.Val(), res.Err()
 }
 
@@ -31,7 +38,7 @@ func (b BaseStorageAdapter) SetApikeyHash(newApikeyHash string) error {
 }
 
 func (b BaseStorageAdapter) ClearAll() error {
-	luaCMD := strings.Replace(clearAllSCriptTemplate, "{KEY_NAMESPACE}", b.prefix+"."+"SPLITIO", 1)
+	luaCMD := strings.Replace(clearAllSCriptTemplate, "{KEY_NAMESPACE}", b.prefixAdapter.baseNamespace(), 1)
 	cmd := b.client.Eval(luaCMD, nil, 0)
 	return cmd.Err()
 }
