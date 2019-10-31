@@ -274,7 +274,7 @@ func postImpressionBeacon(keys []string, impressionListenerEnabled bool) gin.Han
 		var body BeaconImpressions
 		if err := json.Unmarshal([]byte(data), &body); err != nil {
 			log.Error.Println(err)
-			c.JSON(http.StatusInternalServerError, nil)
+			c.JSON(http.StatusBadRequest, nil)
 			return
 		}
 
@@ -412,7 +412,7 @@ func postEventsBeacon(keys []string) gin.HandlerFunc {
 		var body BeaconEvents
 		if err := json.Unmarshal([]byte(data), &body); err != nil {
 			log.Error.Println(err)
-			c.JSON(http.StatusInternalServerError, nil)
+			c.JSON(http.StatusBadRequest, nil)
 			return
 		}
 
