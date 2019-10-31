@@ -89,7 +89,7 @@ func sanitizeRedis() error {
 	}
 
 	previousHashStr, err := miscStorage.GetApikeyHash()
-	if err != nil {
+	if err != nil && err.Error() != redis.ErrorHashNotPresent { // Missing hash is not considered an error
 		return err
 	}
 
@@ -102,6 +102,13 @@ func sanitizeRedis() error {
 
 // Start initialize the producer mode
 func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
+
+	// Initialize redis client
+	err := redis.Initialize(conf.Data.Redis)
+	if err != nil {
+		log.Error.Println(err.Error())
+		os.Exit(splitio.ExitRedisInitializationFailed)
+	}
 
 	// Setup fetchers & recorders
 	splitFetcher := fetcher.NewHTTPSplitFetcher()
@@ -120,16 +127,10 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		os.Exit(splitio.ExitRedisInitializationFailed)
 	}
 
-	// Initialize redis client
-	err := redis.Initialize(conf.Data.Redis)
-	if err != nil {
-		log.Error.Println(err.Error())
-		os.Exit(splitio.ExitRedisInitializationFailed)
-	}
-
 	err = sanitizeRedis()
 	if err != nil {
 		log.Error.Println("Failed when trying to clean up redis. Aborting execution.")
+		log.Error.Println(err.Error())
 		os.Exit(splitio.ExitRedisInitializationFailed)
 	}
 

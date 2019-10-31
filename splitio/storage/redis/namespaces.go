@@ -51,6 +51,10 @@ func (p prefixAdapter) setPrefixPattern(pattern string) string {
 	return pattern
 }
 
+func (p prefixAdapter) baseNamespace() string {
+	return fmt.Sprintf(p.setPrefixPattern("SPLITIO"))
+}
+
 func (p prefixAdapter) hashNamespace() string {
 	return fmt.Sprintf(p.setPrefixPattern(_splitApiKeyHashNamespace))
 }
