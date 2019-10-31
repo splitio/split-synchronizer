@@ -89,7 +89,7 @@ func sanitizeRedis() error {
 	}
 
 	previousHashStr, err := miscStorage.GetApikeyHash()
-	if err != nil {
+	if err != nil && err.Error() != redis.ErrorHashNotPresent { // Missing hash is not considered an error
 		return err
 	}
 
@@ -130,6 +130,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	err = sanitizeRedis()
 	if err != nil {
 		log.Error.Println("Failed when trying to clean up redis. Aborting execution.")
+		log.Error.Println(err.Error())
 		os.Exit(splitio.ExitRedisInitializationFailed)
 	}
 
