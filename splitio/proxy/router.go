@@ -42,9 +42,7 @@ func Run(options *ProxyOptions) {
 		"Authorization"}
 	router.Use(cors.New(corsConfig))
 
-	router.Use(gzip.Gzip(gzip.DefaultCompression))
 	router.Use(middleware.Logger())
-	router.Use(middleware.ValidateAPIKeys(options.APIKeys))
 
 	// WebAdmin configuration
 	waOptions := &admin.WebAdminOptions{
@@ -56,8 +54,17 @@ func Run(options *ProxyOptions) {
 
 	admin.StartAdminWebAdmin(waOptions, wrappers.NewSplitChangesWrapper(), wrappers.NewSegmentChangesWrapper())
 
+	// Beacon routes
+	beacon := router.Group("/api")
+	{
+		beacon.POST("/testImpressions/beacon", postImpressionBeacon(options.APIKeys, options.ImpressionListenerEnabled))
+		beacon.POST("/events/beacon", postEventsBeacon(options.APIKeys))
+	}
+
 	// API routes
 	api := router.Group("/api")
+	router.Use(middleware.ValidateAPIKeys(options.APIKeys))
+	router.Use(gzip.Gzip(gzip.DefaultCompression))
 	{
 		api.GET("/splitChanges", splitChanges)
 		api.GET("/segmentChanges/:name", segmentChanges)
