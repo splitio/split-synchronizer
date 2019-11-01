@@ -284,6 +284,8 @@ func TestPostImpressionsBeacon(t *testing.T) {
 		t.Error("Should returned 204")
 	}
 
+	time.Sleep(time.Duration(1) * time.Second)
+
 	res = performRequest(
 		router,
 		"POST",
