@@ -233,5 +233,6 @@ func getDefaultConfigData() ConfigData {
 	configData.Proxy.Auth.APIKeys = append(configData.Proxy.Auth.APIKeys, "SDK_API_KEY")
 	var configDataReflection = reflect.ValueOf(&configData).Elem()
 	loadDefaultValuesRecursiveChildren(configDataReflection)
+	configData.IPAddressesEnabled = true
 	return configData
 }

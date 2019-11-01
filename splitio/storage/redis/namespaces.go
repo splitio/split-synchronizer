@@ -5,6 +5,9 @@ import (
 	"strings"
 )
 
+//Apikey Hash
+const _splitApiKeyHashNamespace = "SPLITIO.hash"
+
 //Splits
 const _splitNamespace = "SPLITIO.split.%s"
 const _splitsTillNamespace = "SPLITIO.splits.till"
@@ -46,6 +49,14 @@ func (p prefixAdapter) setPrefixPattern(pattern string) string {
 		return strings.Join([]string{p.prefix, pattern}, ".")
 	}
 	return pattern
+}
+
+func (p prefixAdapter) baseNamespace() string {
+	return fmt.Sprintf(p.setPrefixPattern("SPLITIO"))
+}
+
+func (p prefixAdapter) hashNamespace() string {
+	return fmt.Sprintf(p.setPrefixPattern(_splitApiKeyHashNamespace))
 }
 
 func (p prefixAdapter) splitNamespace(name string) string {

@@ -53,11 +53,6 @@ func taskFetchSplits(splitFetcherAdapter fetcher.SplitFetcher,
 		splitChangesLocalCounters.Increment("backend::request.ok")
 		log.Verbose.Println(data)
 
-		till := data.Till
-		if errTill := splitStorageAdapter.SetChangeNumber(till); errTill != nil {
-			log.Error.Println("Error saving till value into storage adapter.", errTill)
-		}
-
 		rawSplits := data.RawSplits
 		totalItemsRaw := len(data.RawSplits)
 		savedItems := 0
@@ -92,6 +87,12 @@ func taskFetchSplits(splitFetcherAdapter fetcher.SplitFetcher,
 				}
 			}
 		}
+
+		till := data.Till
+		if errTill := splitStorageAdapter.SetChangeNumber(till); errTill != nil {
+			log.Error.Println("Error saving till value into storage adapter.", errTill)
+		}
+
 		log.Debug.Println("Saved splits:", savedItems, "Removed splits:", deletedItems, "of Total items: ", totalItemsRaw)
 	}
 }

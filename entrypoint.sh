@@ -18,6 +18,7 @@
 #    - SPLIT_SYNC_LOG_BACKUP_COUNT             Number of last log files to keep in filesystem
 #    - SPLIT_SYNC_LOG_SLACK_CHANNEL            Set the Slack channel or user
 #    - SPLIT_SYNC_LOG_SLACK_WEBHOOK            Set the Slack webhook url
+#    - SPLIT_SYNC_IP_ADDRESSES_ENABLED         Flag to disable IP addresses and host name from being sent to the Split backend
 #
 #    - SPLIT_SYNC_ADVANCED_PARAMETERS          Set custom parameters that are not configured via provided Env vars.
 #                                              Sample:
@@ -58,6 +59,7 @@
 #    - SPLIT_SYNC_REDIS_TLS_CA_ROOT_CERTS           Comma-separated list of CA root certificate file names.
 #    - SPLIT_SYNC_REDIS_TLS_CLIENT_KEY              Path to the client's PEM-encoded private key
 #    - SPLIT_SYNC_REDIS_TLS_CLIENT_CERTIFICATE      Path to the client's certificate with a signed public key.
+#    - SPLIT_SYNC_REDIS_FORCE_CLEANUP               Cleanup redis (DB and prefix only) before starting.
 
 
 # Accepted values for options
@@ -151,6 +153,10 @@ fi
 
 if [ ! -z ${SPLIT_SYNC_IMPRESSION_LISTENER_ENDPOINT+x} ]; then
   PARAMETERS="${PARAMETERS} -impression-listener-endpoint=${SPLIT_SYNC_IMPRESSION_LISTENER_ENDPOINT}"
+fi
+
+if is_true "$SPLIT_SYNC_IP_ADDRESSES_ENABLED"; then
+  PARAMETERS="${PARAMETERS} -ip-addresses-enabled"
 fi
 
 
@@ -256,6 +262,10 @@ else
 
     if [ ! -z ${SPLIT_SYNC_REDIS_TLS_CLIENT_CERTIFICATE+x} ]; then
         PARAMETERS="${PARAMETERS} -redis-tls-client-certificate ${SPLIT_SYNC_REDIS_TLS_CLIENT_CERTIFICATE}"
+    fi
+ 
+    if is_true "$SPLIT_SYNC_REDIS_FORCE_CLEANUP"; then
+        PARAMETERS="${PARAMETERS} -force-fresh-startup"
     fi
   fi
     
