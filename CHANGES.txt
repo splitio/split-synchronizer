@@ -1,4 +1,4 @@
-2.6.0 (October XX, 2019)
+2.6.0 (Nov 1, 2019)
  - Cleanup redis before initialization if apikey differs
  - Allow the user to for redis cleanup with a cli/json/env-var option
  - Several misc code cleanup/reordering.
