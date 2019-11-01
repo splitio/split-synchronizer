@@ -52,6 +52,7 @@ type RedisSection struct {
 	TLSSkipNameValidation bool     `json:"tlsSkipNameValidation" split-default-value:"false" split-cli-option:"redis-tls-skip-name-validation" split-cli-description:"Accept server's public key without validanting againsta a CA."`
 	TLSClientCertificate  string   `json:"tlsClientCertificate" split-default-value:"" split-cli-option:"redis-tls-client-certificate" split-cli-description:"Client certificate filename signed by a server-recognized CA"`
 	TLSClientKey          string   `json:"tlsClientKey" split-default-value:"" split-cli-option:"redis-tls-client-key" split-cli-description:"Client private key matching the certificate."`
+	ForceFreshStartup     bool     `json:"forceFreshStartup" split-default-value:"false" split-cli-option:"force-fresh-startup" split-cli-description:"Remove any Split-related data (associated with the specified prefix if any) prior to starting the synchronizer."`
 }
 
 // LogSection log instance configuration
@@ -87,9 +88,10 @@ type ConfigData struct {
 	EventsPerPost              int                `json:"eventsPerPost" split-default-value:"10000" split-cli-option:"events-per-post" split-cli-description:"Number of events to send in a POST request"`
 	EventsConsumerThreads      int                `json:"eventsConsumerThreads" split-default-value:"0" split-cli-option:"events-consumer-threads" split-cli-description:"Number of events consumer threads"`
 	EventsThreads              int                `json:"eventsThreads" split-default-value:"1" split-cli-option:"events-threads" split-cli-description:"Number of events threads"`
-	MetricsPostRate            int                `json:"metricsPostRate" split-default-value:"60" split-cli-option:"metrics-post-rate" split-cli-description:"Post rate of metrics recorder,-"`
-	MetricsRefreshRate         int                `json:"metricsRefreshRate" split-default-value:"0" split-cli-option:"metrics-refresh-rate" split-cli-description:"Post rate of metrics recorder,-"`
+	MetricsPostRate            int                `json:"metricsPostRate" split-default-value:"60" split-cli-option:"metrics-post-rate" split-cli-description:"Post rate of metrics recorder"`
+	MetricsRefreshRate         int                `json:"metricsRefreshRate" split-default-value:"0" split-cli-option:"metrics-refresh-rate" split-cli-description:"Post rate of metrics recorder"`
 	HTTPTimeout                int64              `json:"httpTimeout" split-default-value:"60" split-cli-option:"http-timeout" split-cli-description:"Timeout specifies a time limit for requests"`
+	IPAddressesEnabled         bool               `json:"IPAddressesEnabled" split-default-value:"true" split-cli-option:"ip-addresses-enabled" split-cli-description:"Flag to disable IP addresses and host name from being sent to the Split backend"`
 }
 
 //MarshalBinary exports ConfigData to JSON string

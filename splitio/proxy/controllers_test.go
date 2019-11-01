@@ -1,10 +1,22 @@
 package proxy
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/api"
+	"github.com/splitio/split-synchronizer/splitio/proxy/controllers"
 	"github.com/splitio/split-synchronizer/splitio/storage/boltdb"
 	"github.com/splitio/split-synchronizer/splitio/storage/boltdb/collections"
 )
@@ -153,4 +165,223 @@ func inSegmentArray(keys []string, key string) bool {
 		}
 	}
 	return false
+}
+
+func TestAPIKeyValidator(t *testing.T) {
+	if validateAPIKey(make([]string, 0), "something") {
+		t.Error("It should be invalid")
+	}
+
+	if validateAPIKey([]string{"something"}, "some") {
+		t.Error("It should be invalid")
+	}
+
+	if !validateAPIKey([]string{"something"}, "something") {
+		t.Error("It should be valid")
+	}
+
+	if !validateAPIKey([]string{"some", "something"}, "something") {
+		t.Error("It should be valid")
+	}
+}
+
+func performRequest(r http.Handler, method, path string, body string) *httptest.ResponseRecorder {
+	var data io.ReadCloser
+	if body != "" {
+		data = ioutil.NopCloser(bytes.NewReader([]byte(body)))
+	}
+	req, _ := http.NewRequest(method, path, data)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	return w
+}
+
+func checkHeaders(t *testing.T, r *http.Request) {
+	sdkVersion := r.Header.Get("SplitSDKVersion")
+	sdkMachineName := r.Header.Get("SplitSDKMachineName")
+	sdkMachine := r.Header.Get("SplitSDKMachineIP")
+
+	if sdkVersion != "something" {
+		t.Error("SDK Version HEADER not match")
+	}
+
+	if sdkMachine != "" {
+		t.Error("SDK Machine HEADER not match")
+	}
+
+	if sdkMachineName != "" {
+		t.Error("SDK Machine Name HEADER not match", sdkMachineName)
+	}
+}
+
+func TestPostImpressionsBeacon(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		checkHeaders(t, r)
+
+		rBody, _ := ioutil.ReadAll(r.Body)
+
+		var impressionsInPost []api.ImpressionsDTO
+		err := json.Unmarshal(rBody, &impressionsInPost)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		if impressionsInPost[0].TestName != "some_test" ||
+			impressionsInPost[0].KeyImpressions[0].KeyName != "some_key_1" ||
+			impressionsInPost[0].KeyImpressions[1].KeyName != "some_key_2" {
+			t.Error("Posted impressions arrived mal-formed")
+		}
+
+		fmt.Fprintln(w, "ok!!")
+	}))
+	defer ts.Close()
+
+	os.Setenv("SPLITIO_SDK_URL", ts.URL)
+	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
+
+	wg := &sync.WaitGroup{}
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+
+	api.Initialize()
+	controllers.InitializeImpressionWorkers(200, 2, wg)
+
+	gin.SetMode(gin.TestMode)
+	router := gin.Default()
+	router.POST("/noBody", func(c *gin.Context) {
+		postImpressionBeacon([]string{"something"}, false)(c)
+	})
+
+	res := performRequest(router, "POST", "/noBody", "")
+	if res.Code != http.StatusBadRequest {
+		t.Error("Should returned 400")
+	}
+
+	router.POST("/badApiKey", func(c *gin.Context) {
+		postImpressionBeacon([]string{"something"}, false)(c)
+	})
+	res = performRequest(router, "POST", "/badApiKey", "{\"entries\":[],\"token\":\"some\",\"sdk\":\"test\"}")
+	if res.Code != http.StatusUnauthorized {
+		t.Error("Should returned 401")
+	}
+
+	router.POST("/ok", func(c *gin.Context) {
+		postImpressionBeacon([]string{"something"}, false)(c)
+	})
+	res = performRequest(router, "POST", "/ok", "{\"entries\":[],\"token\":\"something\",\"sdk\":\"something\"}")
+	if res.Code != http.StatusNoContent {
+		t.Error("Should returned 204")
+	}
+
+	res = performRequest(
+		router,
+		"POST",
+		"/ok",
+		"{\"entries\": [{\"testName\":\"some_test\",\"keyImpressions\": [{\"keyName\": \"some_key_1\",\"treatment\": \"off\",\"time\": 1572026609000,\"changeNumber\": 1567008715937,\"label\": \"default rule\"}]}],\"token\":\"something\",\"sdk\":\"something\"}",
+	)
+	if res.Code != http.StatusNoContent {
+		t.Error("Should returned 204")
+	}
+
+	time.Sleep(time.Duration(1) * time.Second)
+
+	res = performRequest(
+		router,
+		"POST",
+		"/ok",
+		"{\"entries\": [{\"testName\":\"some_test\",\"keyImpressions\": [{\"keyName\": \"some_key_2\",\"treatment\": \"off\",\"time\": 1572026609000,\"changeNumber\": 1567008715937,\"label\": \"default rule\"}]}],\"token\":\"something\",\"sdk\":\"something\"}",
+	)
+	if res.Code != http.StatusNoContent {
+		t.Error("Should returned 204")
+	}
+
+	// Lets async function post impressions
+	time.Sleep(time.Duration(4) * time.Second)
+}
+
+func TestPostEventsBeacon(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		checkHeaders(t, r)
+
+		rBody, _ := ioutil.ReadAll(r.Body)
+
+		var eventsInPost []api.EventDTO
+		err := json.Unmarshal(rBody, &eventsInPost)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		if eventsInPost[0].Key != "some_key" ||
+			eventsInPost[0].EventTypeID != "some_event" ||
+			eventsInPost[0].TrafficTypeName != "some_traffic_type" {
+			t.Error("Posted events arrived mal-formed")
+		}
+
+		fmt.Fprintln(w, "ok!!")
+	}))
+	defer ts.Close()
+
+	os.Setenv("SPLITIO_SDK_URL", ts.URL)
+	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
+
+	wg := &sync.WaitGroup{}
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+
+	api.Initialize()
+	controllers.InitializeEventWorkers(200, 2, wg)
+
+	gin.SetMode(gin.TestMode)
+	router := gin.Default()
+	router.POST("/noBody", func(c *gin.Context) {
+		postEventsBeacon([]string{"something"})(c)
+	})
+
+	res := performRequest(router, "POST", "/noBody", "")
+	if res.Code != http.StatusBadRequest {
+		t.Error("Should returned 400")
+	}
+
+	router.POST("/badApiKey", func(c *gin.Context) {
+		postEventsBeacon([]string{"something"})(c)
+	})
+
+	res = performRequest(router, "POST", "/badApiKey", "{\"entries\":[],\"token\":\"some\",\"sdk\":\"test\"}")
+	if res.Code != http.StatusUnauthorized {
+		t.Error("Should returned 401")
+	}
+
+	router.POST("/ok", func(c *gin.Context) {
+		postEventsBeacon([]string{"something"})(c)
+	})
+	res = performRequest(router, "POST", "/ok", "{\"entries\":[],\"token\":\"something\",\"sdk\":\"something\"}")
+	if res.Code != http.StatusNoContent {
+		t.Error("Should returned 204")
+	}
+
+	res = performRequest(
+		router,
+		"POST",
+		"/ok",
+		"{\"entries\":[{\"eventTypeId\":\"some_event\",\"trafficTypeName\":\"some_traffic_type\",\"value\":null,\"timestamp\":1572017717747,\"key\":\"some_key\",\"properties\":null}],\"token\":\"something\",\"sdk\":\"something\"}",
+	)
+	if res.Code != http.StatusNoContent {
+		t.Error("Should returned 204")
+	}
+
+	res = performRequest(
+		router,
+		"POST",
+		"/ok",
+		"{\"entries\":[{\"eventTypeId\":\"some_event\",\"trafficTypeName\":\"some_traffic_type\",\"value\":null,\"timestamp\":1572017717747,\"key\":\"some_key\",\"properties\":null}],\"token\":\"something\",\"sdk\":\"something\"}",
+	)
+	if res.Code != http.StatusNoContent {
+		t.Error("Should returned 204")
+	}
+
+	// Lets async function post impressions
+	time.Sleep(time.Duration(4) * time.Second)
 }

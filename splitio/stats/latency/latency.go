@@ -97,13 +97,8 @@ func (l *Latency) PostLatenciesWorker(f stats.LatencyStorageAddFunc) {
 
 		l.lmutex.Unlock()
 		sdkVersion := appcontext.VersionHeader()
-		machineIP, err := nethelper.ExternalIP()
-		if err != nil {
-			machineIP = "unknown"
-		}
-
 		if len(latenciesDataSet) > 0 {
-			errp := l.recorderAdapter.PostLatencies(latenciesDataSet, sdkVersion, machineIP)
+			errp := l.recorderAdapter.PostLatencies(latenciesDataSet, sdkVersion, nethelper.ExternalIP())
 			if errp != nil {
 				log.Error.Println("Go-proxy latencies worker:", errp)
 			}
