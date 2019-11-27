@@ -1,3 +1,6 @@
+2.6.1 (Nov 27, 2019)
+ - Pin gin-gonic framework version to remain compatible with go <= 1.9.
+
 2.6.0 (Nov 1, 2019)
  - Cleanup redis before initialization if apikey differs
     * If the apikey supplied is incorrect the synchronizer will now fail-fast, letting the user know about the issue.
