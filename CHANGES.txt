@@ -1,5 +1,5 @@
 2.6.1 (Nov 27, 2019)
- - Point to specific version of gin-gonic due of deprecation of go 1.8, 1.9 in gin 1.5.0.
+ - Pin gin-gonic framework version to remain compatible with go <= 1.9.
 
 2.6.0 (Nov 1, 2019)
  - Cleanup redis before initialization if apikey differs
