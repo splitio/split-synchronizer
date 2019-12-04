@@ -1,3 +1,6 @@
+2.6.2 (Coming soon)
+ - Fixed warnings fetching segments.
+
 2.6.1 (Nov 27, 2019)
  - Pin gin-gonic framework version to remain compatible with go <= 1.9.
 
