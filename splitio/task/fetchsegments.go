@@ -73,15 +73,15 @@ func (j job) run() {
 		segmentChangeFetcherLocalCounters.Increment("backend::request.ok")
 		log.Debug.Println(">>>> Fetched segment:", segment.Name)
 
+		//updating change number
+		j.segmentStorage.SetChangeNumber(segment.Name, segment.Till)
+		
 		if lastChangeNumber >= segment.Till {
 			log.Debug.Println("Segments returned by the server are empty")
 			//Unlock channel
 			<-blocker
 			return
 		}
-
-		//updating change number
-		j.segmentStorage.SetChangeNumber(segment.Name, segment.Till)
 
 		//adding new keys to segment
 		if err := j.segmentStorage.AddToSegment(segment.Name, segment.Added); err != nil {
