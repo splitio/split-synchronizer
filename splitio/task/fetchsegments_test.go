@@ -6,16 +6,18 @@ import (
 	"fmt"
 	"io/ioutil"
 	"testing"
+	"time"
 
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/api"
 	"github.com/splitio/split-synchronizer/splitio/fetcher"
 	"github.com/splitio/split-synchronizer/splitio/storage"
+	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 	"github.com/splitio/split-synchronizer/splitio/storageDTOs"
 )
 
-var segmentMock = `
+var segmentMock1 = `
 {
   "name": "employees",
   "added": [
@@ -27,12 +29,14 @@ var segmentMock = `
 }`
 
 /* SegmentFetcher for testing */
-type testSegmentFetcher struct{}
+type testSegmentFetcher struct {
+	mockedPayload string
+}
 
 func (s testSegmentFetcher) Fetch(name string, changeNumber int64) (*api.SegmentChangesDTO, error) {
 
 	var segmentChangesDto api.SegmentChangesDTO
-	err := json.Unmarshal([]byte(segmentMock), &segmentChangesDto)
+	err := json.Unmarshal([]byte(s.mockedPayload), &segmentChangesDto)
 	if err != nil {
 		fmt.Println("Error parsing segment changes JSON for segment ", name, err)
 		return nil, err
@@ -40,10 +44,14 @@ func (s testSegmentFetcher) Fetch(name string, changeNumber int64) (*api.Segment
 	return &segmentChangesDto, nil
 }
 
-type testSegmentFetcherFactory struct{}
+type testSegmentFetcherFactory struct {
+	mockedPayload string
+}
 
 func (s testSegmentFetcherFactory) NewInstance() fetcher.SegmentFetcher {
-	return testSegmentFetcher{}
+	return testSegmentFetcher{
+		mockedPayload: s.mockedPayload,
+	}
 }
 
 /* SegmentStorage for testing */
@@ -83,7 +91,7 @@ func TestTaskFetchSegments(t *testing.T) {
 	// worker to fetch jobs and run it.
 	go worker()
 
-	segmentFetcherAdapter := testSegmentFetcherFactory{}
+	segmentFetcherAdapter := testSegmentFetcherFactory{mockedPayload: segmentMock1}
 	storageAdapterFactory := testSegmentStorageFactory{}
 
 	segmentsNames, _ := storageAdapterFactory.NewInstance().RegisteredSegmentNames()
@@ -98,4 +106,57 @@ func TestTaskFetchSegments(t *testing.T) {
 		taskFetchSegments(jobsPool, segmentsNames, segmentFetcherAdapter, storageAdapterFactory)
 	}()
 
+}
+
+func TestTaskFetchSegmentsSaveTillSegment(t *testing.T) {
+	var segmentMock2 = `
+	{
+		"name": "without_users",
+	  	"added": [],
+	  	"removed": [],
+	  	"since": -1,
+	  	"till": -1
+	}`
+
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+
+	//Initialize by default
+	//config := conf.NewInitializedConfigData()
+	conf.Initialize()
+	conf.Data.Redis.Prefix = "taskFetchSegment"
+	redis.Initialize(conf.Data.Redis)
+
+	//Initialize fetch segment task
+	blocker = make(chan bool, 10)
+
+	jobs = make(chan job)
+	var jobsPool = make(map[string]*job)
+
+	// worker to fetch jobs and run it.
+	go worker()
+
+	segmentsNames := []string{"without_users"}
+	segmentFetcherAdapter := testSegmentFetcherFactory{mockedPayload: segmentMock2}
+	storageAdapterFactory := redis.SegmentStorageMainFactory{}
+
+	//Catching panic status and reporting error
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Error("Recovered task", r)
+			}
+		}()
+		taskFetchSegments(jobsPool, segmentsNames, segmentFetcherAdapter, storageAdapterFactory)
+	}()
+
+	time.Sleep(1 * time.Second)
+
+	testKey := "taskFetchSegment.SPLITIO.segment.without_users.till"
+
+	if redis.Client.Get(testKey).Val() != "-1" {
+		t.Error("It should be -1")
+	}
+
+	redis.Client.Del(testKey)
 }
