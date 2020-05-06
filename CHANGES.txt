@@ -1,5 +1,6 @@
-2.6.2 (Coming soon)
+2.6.2 (May, 2020)
  - Fixed warnings fetching segments.
+ - Added placeholder auth for proxy to avoid unexpected issues.
 
 2.6.1 (Nov 27, 2019)
  - Pin gin-gonic framework version to remain compatible with go <= 1.9.
