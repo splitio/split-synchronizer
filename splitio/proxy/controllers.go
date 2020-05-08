@@ -434,5 +434,5 @@ func postEventsBeacon(keys []string) gin.HandlerFunc {
 }
 
 func auth(c *gin.Context) {
-	c.JSON(http.StatusOK, map[string]interface{}{"pushEnabled": false, "token": ""})
+	c.JSON(http.StatusOK, gin.H{"pushEnabled": false, "token": ""})
 }
