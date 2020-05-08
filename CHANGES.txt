@@ -1,3 +1,7 @@
+2.6.2 (May 8, 2020)
+ - Fixed warnings fetching segments.
+ - Added no-op auth for proxy.
+
 2.6.1 (Nov 27, 2019)
  - Pin gin-gonic framework version to remain compatible with go <= 1.9.
 
