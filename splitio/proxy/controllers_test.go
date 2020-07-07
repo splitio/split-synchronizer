@@ -385,3 +385,32 @@ func TestPostEventsBeacon(t *testing.T) {
 	// Lets async function post impressions
 	time.Sleep(time.Duration(4) * time.Second)
 }
+
+func TestAuth(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "ok!!")
+	}))
+	defer ts.Close()
+
+	os.Setenv("SPLITIO_SDK_URL", ts.URL)
+	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
+
+	stdoutWriter := ioutil.Discard //os.Stdout
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+
+	api.Initialize()
+
+	gin.SetMode(gin.TestMode)
+	router := gin.Default()
+	router.GET("/auth", func(c *gin.Context) {
+		auth(c)
+	})
+
+	res := performRequest(router, "GET", "/auth", "")
+	if res.Code != http.StatusOK {
+		t.Error("Should returned 200")
+	}
+	if res.Body.String() != "{\"pushEnabled\":false,\"token\":\"\"}" {
+		t.Error("Unexpected response")
+	}
+}
