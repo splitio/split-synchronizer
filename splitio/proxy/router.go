@@ -76,6 +76,7 @@ func Run(options *ProxyOptions) {
 		api.POST("/metrics/time", postMetricsTime)
 		api.POST("/metrics/counter", postMetricsCounter)
 		api.POST("/events/bulk", postEvents)
+		api.GET("/auth", auth)
 	}
 	router.Run(options.Port)
 }
