@@ -20,4 +20,4 @@
   
 [[constraint]]
   name = "github.com/splitio/go-toolkit"
-  version = "1.1.0"
+  branch = "features/murmur128_int64cache"

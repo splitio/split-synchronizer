@@ -337,7 +337,7 @@ func TestFlushImpressionsInBatches(t *testing.T) {
 	itemsToAdd := 10003
 	impressionListName := conf.Data.Redis.Prefix + ".SPLITIO.impressions"
 
-	impressionJSON := `{"m":{"s":"test-1.0.0","i":"127.0.0.1","n":"SOME_MACHINE_NAME"},"i":{"k":"6c4829ab-a0d8-4e72-8176-a334f596fb79","b":"bucketing","f":"feature","t":"ON","c":12345,"r":"rule","timestamp":1516310749882}}`
+	impressionJSON := `{"m":{"s":"test-1.0.0","i":"127.0.0.1","n":"SOME_MACHINE_NAME"},"i":{"k":"6c4829ab-a0d8-4e72-8176-a334f596fb79","b":"bucketing","f":"feature","t":"ON","c":12345,"r":"rule","m":1516310749882}}`
 
 	//Deleting previous test data
 	res := redis.Client.Del(impressionListName)
@@ -352,7 +352,8 @@ func TestFlushImpressionsInBatches(t *testing.T) {
 	}
 	//----------------
 
-	impressionRecorderAdapter := recorder.ImpressionsHTTPRecorder{}
+	//	impressionRecorderAdapter := recorder.ImpressionsHTTPRecorder{}
+	impressionRecorderAdapter := &mockRecorderAdapter{}
 	impressionStorageAdapter := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 	//Catching panic status and reporting error
 	func() {
@@ -367,7 +368,31 @@ func TestFlushImpressionsInBatches(t *testing.T) {
 		if total != 2 {
 			t.Error("It should kept 2 element, but there are:", total)
 		}
+
+		// verify Pt
+		for tii, testImpressions := range impressionRecorderAdapter.accum {
+			for kii, keyImpression := range testImpressions.KeyImpressions {
+				if tii == 0 && kii == 0 { // the first impression added should have Pt = 0, because it was never seen before
+					if keyImpression.Pt != 0 {
+						t.Error("the timestamp of the first imrpession should be 0")
+					}
+				} else {
+					if keyImpression.Pt != 1516310749882 {
+						t.Error("invalid timstamp. Got: ", keyImpression.Pt)
+					}
+				}
+			}
+		}
 	}()
 
 	redis.Client.Del("postimpressionsintest.SPLITIO.impressions")
+}
+
+type mockRecorderAdapter struct {
+	accum []api.ImpressionsDTO
+}
+
+func (m *mockRecorderAdapter) Post(impressions []api.ImpressionsDTO, metadata api.SdkMetadata) error {
+	m.accum = append(m.accum, impressions...)
+	return nil
 }
