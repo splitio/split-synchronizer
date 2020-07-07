@@ -153,6 +153,8 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	task.InitializeImpressions(conf.Data.ImpressionsThreads)
 	task.InitializeEvents(conf.Data.EventsThreads)
 	task.InitializeEvictionCalculator()
+
+	// Setup impression cache
 	for i := 0; i < conf.Data.ImpressionsThreads; i++ {
 		if ilEndpoint := conf.Data.ImpressionListener.Endpoint; ilEndpoint != "" {
 			go task.PostImpressionsToListener(recorder.ImpressionListenerSubmitter{Endpoint: ilEndpoint})

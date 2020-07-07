@@ -122,6 +122,7 @@ type ImpressionDTO struct {
 	ChangeNumber int64  `json:"changeNumber"`
 	Label        string `json:"label"`
 	BucketingKey string `json:"bucketingKey,omitempty"`
+	Pt           int64  `json:"pt,omitempty"`
 }
 
 // MarshalBinary exports ImpressionDTO to JSON string
