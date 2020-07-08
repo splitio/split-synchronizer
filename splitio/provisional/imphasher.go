@@ -6,7 +6,7 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/api"
 )
 
-const hashKeyTemplate = "%s:%s:%s:%d"
+const hashKeyTemplate = "%s:%s:%s:%s:%d"
 
 func unknownIfEmpty(s string) string {
 	if s == "" {
@@ -32,6 +32,7 @@ func (h *ImpressionHasherImpl) Process(featureName string, keyImpression *api.Im
 	toHash := fmt.Sprintf(hashKeyTemplate,
 		unknownIfEmpty(keyImpression.KeyName),
 		unknownIfEmpty(featureName),
+		unknownIfEmpty(keyImpression.Treatment),
 		unknownIfEmpty(keyImpression.Label),
 		keyImpression.ChangeNumber)
 

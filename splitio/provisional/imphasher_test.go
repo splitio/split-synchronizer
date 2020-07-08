@@ -52,9 +52,16 @@ func TestHasher(t *testing.T) {
 		t.Error("different hashes should increase the size of the map")
 	}
 
-	h, _ = hasher.Process("someOtherFeature", &imp)
+	imp.Treatment = "someOtherTreatment"
+	h, _ = hasher.Process("someFeature", &imp)
 	seen[h] = struct{}{}
 	if len(seen) != 5 {
+		t.Error("different hashes should increase the size of the map")
+	}
+
+	h, _ = hasher.Process("someOtherFeature", &imp)
+	seen[h] = struct{}{}
+	if len(seen) != 6 {
 		t.Error("different hashes should increase the size of the map")
 	}
 
