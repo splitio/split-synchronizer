@@ -2,6 +2,8 @@ package provisional
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/splitio/go-toolkit/provisional/hashing"
 	"github.com/splitio/split-synchronizer/splitio/api"
 )
@@ -9,7 +11,7 @@ import (
 const hashKeyTemplate = "%s:%s:%s:%s:%d"
 
 func unknownIfEmpty(s string) string {
-	if s == "" {
+	if len(strings.TrimSpace(s)) == 0 {
 		return "UNKNOWN"
 	}
 	return s
