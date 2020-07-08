@@ -352,7 +352,6 @@ func TestFlushImpressionsInBatches(t *testing.T) {
 	}
 	//----------------
 
-	//	impressionRecorderAdapter := recorder.ImpressionsHTTPRecorder{}
 	impressionRecorderAdapter := &mockRecorderAdapter{}
 	impressionStorageAdapter := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 	//Catching panic status and reporting error
