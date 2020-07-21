@@ -4,7 +4,6 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/split-synchronizer/splitio/storage/boltdb/wrappers"
 	"github.com/splitio/split-synchronizer/splitio/web/admin"
 	"github.com/splitio/split-synchronizer/splitio/web/middleware"
 )
@@ -52,7 +51,8 @@ func Run(options *ProxyOptions) {
 		DebugOn:       options.DebugOn,
 	}
 
-	admin.StartAdminWebAdmin(waOptions, wrappers.NewSplitChangesWrapper(), wrappers.NewSegmentChangesWrapper())
+	admin.StartAdminWebAdmin(waOptions, nil, nil, nil, nil)
+	// admin.StartAdminWebAdmin(waOptions, wrappers.NewSplitChangesWrapper(), wrappers.NewSegmentChangesWrapper())
 
 	// Beacon routes
 	beacon := router.Group("/api")

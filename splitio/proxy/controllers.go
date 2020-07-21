@@ -14,7 +14,6 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/stats/latency"
 	"github.com/splitio/split-synchronizer/splitio/storage/boltdb"
 	"github.com/splitio/split-synchronizer/splitio/storage/boltdb/collections"
-	"github.com/splitio/split-synchronizer/splitio/task"
 )
 
 var controllerLatenciesBkt = latency.NewLatencyBucket()
@@ -209,20 +208,22 @@ func submitImpressions(
 	machineName string,
 	data []byte,
 ) {
-	if impressionListenerEnabled {
-		_ = task.QueueImpressionsForListener(&task.ImpressionBulk{
-			Data:        json.RawMessage(data),
-			SdkVersion:  sdkVersion,
-			MachineIP:   machineIP,
-			MachineName: machineName,
-		})
-	}
+	/*
+		if impressionListenerEnabled {
+			_ = task.QueueImpressionsForListener(&task.ImpressionBulk{
+				Data:        json.RawMessage(data),
+				SdkVersion:  sdkVersion,
+				MachineIP:   machineIP,
+				MachineName: machineName,
+			})
+		}
 
-	startTime := controllerLatencies.StartMeasuringLatency()
-	controllers.AddImpressions(data, sdkVersion, machineIP, machineName)
-	controllerLatencies.RegisterLatency(latencyAddImpressionsInBuffer, startTime)
-	controllerLocalCounters.Increment("request.ok")
-	controllerLatenciesBkt.RegisterLatency("/api/testImpressions/bulk", startTime)
+		startTime := controllerLatencies.StartMeasuringLatency()
+		controllers.AddImpressions(data, sdkVersion, machineIP, machineName)
+		controllerLatencies.RegisterLatency(latencyAddImpressionsInBuffer, startTime)
+		controllerLocalCounters.Increment("request.ok")
+		controllerLatenciesBkt.RegisterLatency("/api/testImpressions/bulk", startTime)
+	*/
 }
 
 func postImpressionBulk(impressionListenerEnabled bool) gin.HandlerFunc {
@@ -238,12 +239,14 @@ func postImpressionBulk(impressionListenerEnabled bool) gin.HandlerFunc {
 			return
 		}
 		if impressionListenerEnabled {
-			err = task.QueueImpressionsForListener(&task.ImpressionBulk{
-				Data:        json.RawMessage(data),
-				SdkVersion:  sdkVersion,
-				MachineIP:   machineIP,
-				MachineName: machineName,
-			})
+			/*
+				err = task.QueueImpressionsForListener(&task.ImpressionBulk{
+					Data:        json.RawMessage(data),
+					SdkVersion:  sdkVersion,
+					MachineIP:   machineIP,
+					MachineName: machineName,
+				})
+			*/
 		}
 
 		submitImpressions(impressionListenerEnabled, sdkVersion, machineIP, machineName, data)

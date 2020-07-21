@@ -84,8 +84,8 @@ type ConfigData struct {
 	ImpressionsConsumerThreads int                `json:"impressionsConsumerThreads" split-default-value:"0" split-cli-option:"impressions-consumer-threads" split-cli-description:"Number of impressions recorder threads"`
 	EventsPushRate             int                `json:"eventsPushRate" split-default-value:"0" split-cli-option:"events-push-rate" split-cli-description:"Post rate of event recorder (seconds)"` // Lives only for backwards compatibility. It will be removed soon.
 	EventsPostRate             int                `json:"eventsPostRate" split-default-value:"60" split-cli-option:"events-post-rate" split-cli-description:"Post rate of event recorder (seconds)"`
-	EventsConsumerReadSize     int                `json:"eventsConsumerReadSize" split-default-value:"0" split-cli-option:"events-consumer-read-size" split-cli-description:"Events queue read size"`
-	EventsPerPost              int                `json:"eventsPerPost" split-default-value:"10000" split-cli-option:"events-per-post" split-cli-description:"Number of events to send in a POST request"`
+	EventsConsumerReadSize     int64              `json:"eventsConsumerReadSize" split-default-value:"0" split-cli-option:"events-consumer-read-size" split-cli-description:"Events queue read size"`
+	EventsPerPost              int64              `json:"eventsPerPost" split-default-value:"10000" split-cli-option:"events-per-post" split-cli-description:"Number of events to send in a POST request"`
 	EventsConsumerThreads      int                `json:"eventsConsumerThreads" split-default-value:"0" split-cli-option:"events-consumer-threads" split-cli-description:"Number of events consumer threads"`
 	EventsThreads              int                `json:"eventsThreads" split-default-value:"1" split-cli-option:"events-threads" split-cli-description:"Number of events threads"`
 	MetricsPostRate            int                `json:"metricsPostRate" split-default-value:"60" split-cli-option:"metrics-post-rate" split-cli-description:"Post rate of metrics recorder"`
