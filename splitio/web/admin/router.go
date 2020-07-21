@@ -4,8 +4,8 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/splitio/go-split-commons/storage"
 	"github.com/splitio/split-synchronizer/appcontext"
-	"github.com/splitio/split-synchronizer/splitio/storage"
 	"github.com/splitio/split-synchronizer/splitio/web/admin/controllers"
 	"github.com/splitio/split-synchronizer/splitio/web/middleware"
 )
@@ -25,14 +25,14 @@ type WebAdminServer struct {
 }
 
 // StartAdminWebAdmin starts new webserver
-func StartAdminWebAdmin(options *WebAdminOptions, splitStorage storage.SplitStorage, segmentStorage storage.SegmentStorage) {
+func StartAdminWebAdmin(options *WebAdminOptions, splitStorage storage.SplitStorage, segmentStorage storage.SegmentStorage, eventStorage storage.EventsStorage, impressionStorage storage.ImpressionStorage) {
 	go func() {
-		server := newWebAdminServer(options, splitStorage, segmentStorage)
+		server := newWebAdminServer(options, splitStorage, segmentStorage, eventStorage, impressionStorage)
 		server.Run()
 	}()
 }
 
-func newWebAdminServer(options *WebAdminOptions, splitStorage storage.SplitStorage, segmentStorage storage.SegmentStorage) *WebAdminServer {
+func newWebAdminServer(options *WebAdminOptions, splitStorage storage.SplitStorage, segmentStorage storage.SegmentStorage, eventStorage storage.EventsStorage, impressionStorage storage.ImpressionStorage) *WebAdminServer {
 	if !options.DebugOn {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -48,6 +48,8 @@ func newWebAdminServer(options *WebAdminOptions, splitStorage storage.SplitStora
 	server.Router().Use(func(c *gin.Context) {
 		c.Set("SplitStorage", splitStorage)
 		c.Set("SegmentStorage", segmentStorage)
+		c.Set("EventStorage", eventStorage)
+		c.Set("ImpressionStorage", impressionStorage)
 	})
 
 	// Admin routes

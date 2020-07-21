@@ -2,18 +2,8 @@
 package task
 
 import (
-	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"testing"
-	"time"
-
-	"github.com/gin-gonic/gin"
-	"github.com/splitio/split-synchronizer/conf"
-	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio/api"
 )
 
 func performRequest(r http.Handler, method, path string) *httptest.ResponseRecorder {
@@ -27,6 +17,7 @@ type mockStorage struct {
 	shouldFail bool
 }
 
+/*
 func TestTaskCheckEnvirontmentStatusWithSomeFail(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
 	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
@@ -152,3 +143,4 @@ func TestTaskCheckEnvirontmentStatusWithSomeFailAndSince(t *testing.T) {
 		}
 	}()
 }
+*/

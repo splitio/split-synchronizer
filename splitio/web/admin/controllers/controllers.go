@@ -8,15 +8,13 @@ import (
 	"syscall"
 
 	"github.com/gin-gonic/gin"
+	"github.com/splitio/go-split-commons/storage"
 	"github.com/splitio/split-synchronizer/appcontext"
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio"
 	"github.com/splitio/split-synchronizer/splitio/api"
-	"github.com/splitio/split-synchronizer/splitio/recorder"
 	"github.com/splitio/split-synchronizer/splitio/stats"
-	"github.com/splitio/split-synchronizer/splitio/storage"
-	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 	"github.com/splitio/split-synchronizer/splitio/task"
 	"github.com/splitio/split-synchronizer/splitio/web"
 	"github.com/splitio/split-synchronizer/splitio/web/dashboard"
@@ -193,6 +191,38 @@ func HealthCheck(c *gin.Context) {
 	}
 }
 
+func getImpressionStorage(impressionStorage interface{}, exists bool) storage.ImpressionStorage {
+	if !exists {
+		return nil
+	}
+	if impressionStorage == nil {
+		log.Warning.Println("ImpressionStorage could not be fetched")
+		return nil
+	}
+	st, ok := impressionStorage.(storage.ImpressionStorage)
+	if !ok {
+		log.Warning.Println("ImpressionStorage could not be fetched")
+		return nil
+	}
+	return st
+}
+
+func getEventStorage(eventStorage interface{}, exists bool) storage.EventsStorage {
+	if !exists {
+		return nil
+	}
+	if eventStorage == nil {
+		log.Warning.Println("EventStorage could not be fetched")
+		return nil
+	}
+	st, ok := eventStorage.(storage.EventsStorage)
+	if !ok {
+		log.Warning.Println("EventStorage could not be fetched")
+		return nil
+	}
+	return st
+}
+
 func getSplitStorage(splitStorage interface{}, exists bool) storage.SplitStorage {
 	if !exists {
 		return nil
@@ -233,9 +263,11 @@ func DashboardSegmentKeys(c *gin.Context) {
 	// Storage service
 	splitStorage := getSplitStorage(c.Get("SplitStorage"))
 	segmentStorage := getSegmentStorage(c.Get("SegmentStorage"))
+	eventStorage := getEventStorage(c.Get("EventStorage"))
+	impressionStorage := getImpressionStorage(c.Get("ImpressionStorage"))
 
 	if splitStorage != nil && segmentStorage != nil {
-		dash := createDashboard(splitStorage, segmentStorage)
+		dash := createDashboard(splitStorage, segmentStorage, eventStorage, impressionStorage)
 		var toReturn = dash.HTMLSegmentKeys(segmentName)
 		c.String(http.StatusOK, "%s", toReturn)
 		return
@@ -243,11 +275,11 @@ func DashboardSegmentKeys(c *gin.Context) {
 	c.String(http.StatusInternalServerError, "%s", "Could not fetch storage")
 }
 
-func createDashboard(splitStorage storage.SplitStorage, segmentStorage storage.SegmentStorage) *dashboard.Dashboard {
+func createDashboard(splitStorage storage.SplitStorage, segmentStorage storage.SegmentStorage, eventStorage storage.EventsStorage, impressionStorage storage.ImpressionStorage) *dashboard.Dashboard {
 	if appcontext.ExecutionMode() == appcontext.ProxyMode {
-		return dashboard.NewDashboard(conf.Data.Proxy.Title, true, splitStorage, segmentStorage)
+		return dashboard.NewDashboard(conf.Data.Proxy.Title, true, splitStorage, segmentStorage, nil, nil)
 	}
-	return dashboard.NewDashboard(conf.Data.Producer.Admin.Title, false, splitStorage, segmentStorage)
+	return dashboard.NewDashboard(conf.Data.Producer.Admin.Title, false, splitStorage, segmentStorage, eventStorage, impressionStorage)
 }
 
 // Dashboard returns a dashboard
@@ -255,9 +287,11 @@ func Dashboard(c *gin.Context) {
 	// Storage service
 	splitStorage := getSplitStorage(c.Get("SplitStorage"))
 	segmentStorage := getSegmentStorage(c.Get("SegmentStorage"))
+	eventStorage := getEventStorage(c.Get("EventStorage"))
+	impressionStorage := getImpressionStorage(c.Get("ImpressionStorage"))
 
-	if splitStorage != nil && segmentStorage != nil {
-		dash := createDashboard(splitStorage, segmentStorage)
+	if splitStorage != nil && segmentStorage != nil && eventStorage != nil && impressionStorage != nil {
+		dash := createDashboard(splitStorage, segmentStorage, eventStorage, impressionStorage)
 		//Write your 200 header status (or other status codes, but only WriteHeader once)
 		c.Writer.WriteHeader(http.StatusOK)
 		//Convert your cached html string to byte array
@@ -269,23 +303,15 @@ func Dashboard(c *gin.Context) {
 
 // GetEventsQueueSize returns events queue size
 func GetEventsQueueSize(c *gin.Context) {
-	if !conf.Data.Redis.DisableLegacyImpressions {
-		log.Warning.Println("DisableLegacyImpressions is false: The size of events will only consider the events from the queue.")
-	}
-
-	eventsStorageAdapter := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-	queueSize := eventsStorageAdapter.Size()
+	eventStorage := getEventStorage(c.Get("EventStorage"))
+	queueSize := eventStorage.Count()
 	c.JSON(http.StatusOK, gin.H{"queueSize": queueSize})
 }
 
 // GetImpressionsQueueSize returns impressions queue size
 func GetImpressionsQueueSize(c *gin.Context) {
-	if !conf.Data.Redis.DisableLegacyImpressions {
-		log.Warning.Println("DisableLegacyImpressions is false: The size of impressions will only consider the impressions from the queue.")
-	}
-
-	impressionsStorageAdapter := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-	queueSize := impressionsStorageAdapter.Size()
+	impressionStorage := getImpressionStorage(c.Get("ImpressionStorage"))
+	queueSize := impressionStorage.Count()
 	c.JSON(http.StatusOK, gin.H{"queueSize": queueSize})
 }
 
@@ -313,13 +339,13 @@ func DropEvents(c *gin.Context) {
 		return
 	}
 
-	eventsStorageAdapter := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+	eventStorage := getEventStorage(c.Get("EventStorage"))
 	size, err := getIntegerParameterFromQuery(c, "size")
 	if err != nil {
 		c.String(http.StatusBadRequest, "%s", err.Error())
 		return
 	}
-	err = eventsStorageAdapter.Drop(size)
+	err = eventStorage.Drop(size)
 	if err == nil {
 		c.String(http.StatusOK, "%s", "Events dropped")
 		return
@@ -336,13 +362,13 @@ func DropImpressions(c *gin.Context) {
 		return
 	}
 
-	impressionsStorageAdapter := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+	impressionStorage := getImpressionStorage(c.Get("ImpressionStorage"))
 	size, err := getIntegerParameterFromQuery(c, "size")
 	if err != nil {
 		c.String(http.StatusBadRequest, "%s", err.Error())
 		return
 	}
-	err = impressionsStorageAdapter.Drop(size)
+	err = impressionStorage.Drop(size)
 	if err == nil {
 		c.String(http.StatusOK, "%s", "Impressions dropped")
 		return
@@ -361,13 +387,15 @@ func FlushEvents(c *gin.Context) {
 		c.String(http.StatusBadRequest, "%s", "Max Size to Flush is "+strconv.FormatInt(api.MaxSizeToFlush, 10))
 		return
 	}
-	eventsStorageAdapter := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-	eventsRecorder := recorder.EventsHTTPRecorder{}
-	err = task.EventsFlush(eventsRecorder, eventsStorageAdapter, size)
-	if err != nil {
-		c.String(http.StatusInternalServerError, "%s", err.Error())
-		return
-	}
+	/*
+		eventStorage := getEventStorage(c.Get("EventStorage"))
+		eventsRecorder := recorder.EventsHTTPRecorder{}
+		err = task.EventsFlush(eventsRecorder, eventsStorageAdapter, size)
+		if err != nil {
+			c.String(http.StatusInternalServerError, "%s", err.Error())
+			return
+		}
+	*/
 	c.String(http.StatusOK, "%s", "Events flushed")
 }
 
@@ -382,13 +410,15 @@ func FlushImpressions(c *gin.Context) {
 		c.String(http.StatusBadRequest, "%s", "Max Size to Flush is "+strconv.FormatInt(api.MaxSizeToFlush, 10))
 		return
 	}
-	impressionsStorageAdapter := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-	impressionRecorder := recorder.ImpressionsHTTPRecorder{}
-	err = task.ImpressionsFlush(impressionRecorder, impressionsStorageAdapter, size, conf.Data.Redis.DisableLegacyImpressions, true)
-	if err != nil {
-		c.String(http.StatusInternalServerError, "%s", err.Error())
-		return
-	}
+	/*
+		impressionStorage := getImpressionStorage(c.Get("ImpressionStorage"))
+		impressionRecorder := recorder.ImpressionsHTTPRecorder{}
+		err = task.ImpressionsFlush(impressionRecorder, impressionsStorageAdapter, size, conf.Data.Redis.DisableLegacyImpressions, true)
+		if err != nil {
+			c.String(http.StatusInternalServerError, "%s", err.Error())
+			return
+		}
+	*/
 	c.String(http.StatusOK, "%s", "Impressions flushed")
 }
 
@@ -397,9 +427,11 @@ func GetMetrics(c *gin.Context) {
 	// Storage service
 	splitStorage := getSplitStorage(c.Get("SplitStorage"))
 	segmentStorage := getSegmentStorage(c.Get("SegmentStorage"))
+	eventStorage := getEventStorage(c.Get("EventStorage"))
+	impressionStorage := getImpressionStorage(c.Get("ImpressionStorage"))
 
 	if splitStorage != nil && segmentStorage != nil {
-		stats := web.GetMetrics(splitStorage, segmentStorage)
+		stats := web.GetMetrics(splitStorage, segmentStorage, eventStorage, impressionStorage)
 		c.JSON(http.StatusOK, stats)
 		return
 	}

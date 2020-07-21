@@ -8,12 +8,10 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/splitio/go-split-commons/storage"
 	"github.com/splitio/split-synchronizer/appcontext"
-	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/stats"
-	"github.com/splitio/split-synchronizer/splitio/storage"
-	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 	"github.com/splitio/split-synchronizer/splitio/task"
 	"github.com/splitio/split-synchronizer/splitio/web/dashboard/HTMLtemplates"
 )
@@ -183,11 +181,7 @@ func parseBackendStats() string {
 }
 
 func parseCachedSplits(splitStorage storage.SplitStorage) string {
-	cachedSplits, err := splitStorage.RawSplits()
-	if err != nil {
-		log.Error.Println("Error fetching cached splits")
-		return ""
-	}
+	cachedSplits := splitStorage.All()
 
 	return ParseTemplate(
 		"CachedSplits",
@@ -195,25 +189,25 @@ func parseCachedSplits(splitStorage storage.SplitStorage) string {
 		HTMLtemplates.NewCachedSplitsTPLVars(cachedSplits))
 }
 
-func parseCachedSegments(segmentStorage storage.SegmentStorage) string {
-	cachedSegments, err := segmentStorage.RegisteredSegmentNames()
-	if err != nil {
-		log.Error.Println("Error fetching cached segment list")
-		return ""
-	}
+func parseCachedSegments(splitStorage storage.SplitStorage, segmentStorage storage.SegmentStorage) string {
+	cachedSegments := splitStorage.SegmentNames()
 
 	toRender := make([]*HTMLtemplates.CachedSegmentRowTPLVars, 0)
-	for _, segment := range cachedSegments {
+	for _, s := range cachedSegments.List() {
 
-		activeKeys, err := segmentStorage.CountActiveKeys(segment)
-		if err != nil {
-			log.Warning.Printf("Error counting active keys for segment %s\n", segment)
+		segment, _ := s.(string)
+		activeKeys := segmentStorage.Keys(segment)
+		size := 0
+		if activeKeys != nil {
+			size = activeKeys.Size()
 		}
 
-		removedKeys, err := segmentStorage.CountRemovedKeys(segment)
-		if err != nil {
-			log.Warning.Printf("Error counting removed keys for segment %s\n", segment)
-		}
+		/*
+			removedKeys, err := segmentStorage.CountRemovedKeys(segment)
+			if err != nil {
+				log.Warning.Printf("Error counting removed keys for segment %s\n", segment)
+			}
+		*/
 
 		// LAST MODIFIED
 		changeNumber, err := segmentStorage.ChangeNumber(segment)
@@ -226,10 +220,10 @@ func parseCachedSegments(segmentStorage storage.SegmentStorage) string {
 			&HTMLtemplates.CachedSegmentRowTPLVars{
 				ProxyMode:    appcontext.ExecutionMode() == appcontext.ProxyMode,
 				Name:         segment,
-				ActiveKeys:   strconv.Itoa(int(activeKeys)),
+				ActiveKeys:   strconv.Itoa(size),
 				LastModified: lastModified.UTC().Format(time.UnixDate),
-				RemovedKeys:  strconv.Itoa(int(removedKeys)),
-				TotalKeys:    strconv.Itoa(int(removedKeys) + int(activeKeys)),
+				RemovedKeys:  strconv.Itoa(int(0)),
+				TotalKeys:    strconv.Itoa(int(0) + size),
 			})
 	}
 
@@ -239,27 +233,23 @@ func parseCachedSegments(segmentStorage storage.SegmentStorage) string {
 		HTMLtemplates.CachedSegmentsTPLVars{Segments: toRender})
 }
 
-func parseEventsSize() string {
+func parseEventsSize(eventStorage storage.EventsStorage) string {
 	if appcontext.ExecutionMode() == appcontext.ProxyMode {
 		return "0"
 	}
 
-	eventsStorageAdapter := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-	size := eventsStorageAdapter.Size()
-
+	size := eventStorage.Count()
 	eventsSize := strconv.FormatInt(size, 10)
 
 	return eventsSize
 }
 
-func parseImpressionSize() string {
+func parseImpressionSize(impressionStorage storage.ImpressionStorage) string {
 	if appcontext.ExecutionMode() == appcontext.ProxyMode {
 		return "0"
 	}
 
-	impressionsStorageAdapter := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-	size := impressionsStorageAdapter.Size()
-
+	size := impressionStorage.Count()
 	impressionsSize := strconv.FormatInt(size, 10)
 
 	return impressionsSize
@@ -288,23 +278,16 @@ func parseImpressionsLambda() string {
 }
 
 // GetMetrics data
-func GetMetrics(splitStorage storage.SplitStorage, segmentStorage storage.SegmentStorage) Metrics {
-	splitNames, err := splitStorage.SplitsNames()
-	if err != nil {
-		log.Error.Println("Error reading splits, maybe storage has not been initialized yet")
-	}
-
-	segmentNames, err := segmentStorage.RegisteredSegmentNames()
-	if err != nil {
-		log.Error.Println("Error reading segments, maybe storage has not been initialized yet")
-	}
+func GetMetrics(splitStorage storage.SplitStorage, segmentStorage storage.SegmentStorage, eventStorage storage.EventsStorage, impressionStorage storage.ImpressionStorage) Metrics {
+	splitNames := splitStorage.SplitNames()
+	segmentNames := splitStorage.SegmentNames()
 
 	// Counters
 	counters := stats.Counters()
 
 	return Metrics{
 		SplitsNumber:                 strconv.Itoa(len(splitNames)),
-		SegmentsNumber:               strconv.Itoa(len(segmentNames)),
+		SegmentsNumber:               strconv.Itoa(segmentNames.Size()),
 		LoggedErrors:                 formatNumber(log.ErrorDashboard.Counts()),
 		LoggedMessages:               log.ErrorDashboard.Messages(),
 		RequestErrorFormatted:        formatNumber(counters["request.error"]),
@@ -314,15 +297,15 @@ func GetMetrics(splitStorage storage.SplitStorage, segmentStorage storage.Segmen
 		BackendRequestOkFormatted:    formatNumber(counters["backend::request.ok"]),
 		BackendRequestErrorFormatted: formatNumber(counters["backend::request.error"]),
 		SplitRows:                    parseCachedSplits(splitStorage),
-		SegmentRows:                  parseCachedSegments(segmentStorage),
+		SegmentRows:                  parseCachedSegments(splitStorage, segmentStorage),
 		LatenciesGroupDataBackend:    "[" + parseBackendStats() + "]",
 		BackendRequestOk:             strconv.Itoa(int(counters["backend::request.ok"])),
 		BackendRequestError:          strconv.Itoa(int(counters["backend::request.error"])),
 		LatenciesGroupData:           "[" + parseSDKStats() + "]",
 		RequestOk:                    strconv.Itoa(int(counters["request.ok"])),
 		RequestError:                 strconv.Itoa(int(counters["request.error"])),
-		EventsQueueSize:              parseEventsSize(),
-		ImpressionsQueueSize:         parseImpressionSize(),
+		EventsQueueSize:              parseEventsSize(eventStorage),
+		ImpressionsQueueSize:         parseImpressionSize(impressionStorage),
 		EventsLambda:                 parseEventsLambda(),
 		ImpressionsLambda:            parseImpressionsLambda(),
 	}

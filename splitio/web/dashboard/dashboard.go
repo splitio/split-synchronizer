@@ -4,10 +4,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/go-split-commons/storage"
 	"github.com/splitio/split-synchronizer/splitio"
 	"github.com/splitio/split-synchronizer/splitio/stats"
-	"github.com/splitio/split-synchronizer/splitio/storage"
 	"github.com/splitio/split-synchronizer/splitio/task"
 	"github.com/splitio/split-synchronizer/splitio/web"
 	"github.com/splitio/split-synchronizer/splitio/web/dashboard/HTMLtemplates"
@@ -15,22 +14,38 @@ import (
 
 // Dashboard represents html dashboard class
 type Dashboard struct {
-	title          string
-	proxy          bool
-	splitStorage   storage.SplitStorage
-	segmentStorage storage.SegmentStorage
-	layoutTpl      string
-	mainMenuTpl    string
+	title             string
+	proxy             bool
+	splitStorage      storage.SplitStorage
+	segmentStorage    storage.SegmentStorage
+	eventStorage      storage.EventsStorage
+	impressionStorage storage.ImpressionStorage
+	layoutTpl         string
+	mainMenuTpl       string
 }
 
 // NewDashboard returns an instance of Dashboard struct
-func NewDashboard(title string, isProxy bool, splitStorage storage.SplitStorage, segmentStorage storage.SegmentStorage) *Dashboard {
-	return &Dashboard{title: title, proxy: isProxy, splitStorage: splitStorage, segmentStorage: segmentStorage}
+func NewDashboard(
+	title string,
+	isProxy bool,
+	splitStorage storage.SplitStorage,
+	segmentStorage storage.SegmentStorage,
+	eventStorage storage.EventsStorage,
+	impressionStorage storage.ImpressionStorage,
+) *Dashboard {
+	return &Dashboard{
+		title:             title,
+		proxy:             isProxy,
+		splitStorage:      splitStorage,
+		segmentStorage:    segmentStorage,
+		eventStorage:      eventStorage,
+		impressionStorage: impressionStorage,
+	}
 }
 
 //HTML returns parsed HTML code
 func (d *Dashboard) HTML() string {
-	metrics := web.GetMetrics(d.splitStorage, d.segmentStorage)
+	metrics := web.GetMetrics(d.splitStorage, d.segmentStorage, d.eventStorage, d.impressionStorage)
 
 	eventStatus := true
 	sdkStatus := true
@@ -97,26 +112,18 @@ func (d *Dashboard) HTML() string {
 // HTMLSegmentKeys return a html representation of segment's keys list
 func (d *Dashboard) HTMLSegmentKeys(segmentName string) string {
 
-	keys, err := d.segmentStorage.Keys(segmentName)
-	if err != nil {
-		log.Error.Println("Error fetching keys for segment:", segmentName)
-		return ""
-	}
-
+	keys := d.segmentStorage.Keys(segmentName)
 	segmentKeys := make([]HTMLtemplates.CachedSegmentKeysRowTPLVars, 0)
 
-	for _, key := range keys {
-		lastModified := time.Unix(0, key.LastModified*int64(time.Millisecond))
-		var removedColor string
-		if key.Removed {
-			removedColor = "danger"
-		} else {
-			removedColor = ""
-		}
+	for _, key := range keys.List() {
+		name, _ := key.(string)
+		cn, _ := d.segmentStorage.ChangeNumber(name)
+		lastModified := time.Unix(0, cn)
+		removedColor := ""
 		segmentKeys = append(segmentKeys, HTMLtemplates.CachedSegmentKeysRowTPLVars{
-			Name:         key.Name,
+			Name:         name,
 			LastModified: lastModified.UTC().Format(time.UnixDate),
-			Removed:      strconv.FormatBool(key.Removed),
+			Removed:      strconv.FormatBool(false),
 			RemovedColor: removedColor,
 		})
 	}

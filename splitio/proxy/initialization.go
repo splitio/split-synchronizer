@@ -10,7 +10,6 @@ import (
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio"
 	"github.com/splitio/split-synchronizer/splitio/proxy/controllers"
-	"github.com/splitio/split-synchronizer/splitio/recorder"
 	"github.com/splitio/split-synchronizer/splitio/storage/boltdb"
 	"github.com/splitio/split-synchronizer/splitio/task"
 )
@@ -53,9 +52,11 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	go task.FetchRawSplits(conf.Data.SplitsFetchRate, conf.Data.SegmentFetchRate)
 
 	if conf.Data.ImpressionListener.Endpoint != "" {
-		go task.PostImpressionsToListener(recorder.ImpressionListenerSubmitter{
-			Endpoint: conf.Data.ImpressionListener.Endpoint,
-		})
+		/*
+			go task.PostImpressionsToListener(recorder.ImpressionListenerSubmitter{
+				Endpoint: conf.Data.ImpressionListener.Endpoint,
+			})
+		*/
 	}
 
 	go task.CheckEnvirontmentStatus(gracefulShutdownWaitingGroup, nil)
