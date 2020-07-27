@@ -2,7 +2,7 @@ package task
 
 import "sync"
 
-var opsMutex = sync.Mutex{}
+var opsMutex = sync.RWMutex{}
 var ops = make(map[string]bool)
 
 // EventsOperation tag to register an operation on Events
@@ -41,8 +41,8 @@ func FinishOperation(operation string) {
 
 // IsOperationRunning Indicates if the operation is running or not
 func IsOperationRunning(operation string) bool {
-	opsMutex.Lock()
-	defer opsMutex.Unlock()
+	opsMutex.RLock()
+	defer opsMutex.RUnlock()
 	opStatus, _ := ops[operation]
 	return opStatus
 }

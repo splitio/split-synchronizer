@@ -1,7 +1,9 @@
 package worker
 
 import (
-	"strings"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -12,35 +14,46 @@ import (
 	"github.com/splitio/go-split-commons/util"
 	"github.com/splitio/go-toolkit/common"
 	"github.com/splitio/go-toolkit/logging"
+	"github.com/splitio/split-synchronizer/appcontext"
+	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio"
+	"github.com/splitio/split-synchronizer/splitio/task"
 )
 
-const (
-	postImpressionsLatencies = "testImpressions.time"
-	postImpressionsCounters  = "testImpressions.status.{status}"
-)
+// ImpressionBulk struct
+type ImpressionBulk struct {
+	Data        json.RawMessage
+	SdkVersion  string
+	MachineIP   string
+	MachineName string
+	attempt     int
+}
 
 // RecorderImpressionMultiple struct for event sync
 type RecorderImpressionMultiple struct {
-	impressionStorage  storage.ImpressionStorageConsumer
-	impressionRecorder service.ImpressionsRecorder
-	metricStorage      storage.MetricsStorageProducer
-	mutext             *sync.Mutex
-	logger             logging.LoggerInterface
+	impressionStorage         storage.ImpressionStorageConsumer
+	impressionRecorder        service.ImpressionsRecorder
+	metricsWrapper            *storage.MetricWrapper
+	impressionListenerEnabled bool
+	mutext                    *sync.Mutex
+	logger                    logging.LoggerInterface
 }
 
 // NewImpressionRecordMultiple creates new event synchronizer for posting impressions
 func NewImpressionRecordMultiple(
 	impressionStorage storage.ImpressionStorageConsumer,
 	impressionRecorder service.ImpressionsRecorder,
-	metricStorage storage.MetricsStorageProducer,
+	metricsWrapper *storage.MetricWrapper,
+	impressionListenerEnabled bool,
 	logger logging.LoggerInterface,
 ) impression.ImpressionRecorder {
 	return &RecorderImpressionMultiple{
-		impressionStorage:  impressionStorage,
-		impressionRecorder: impressionRecorder,
-		metricStorage:      metricStorage,
-		mutext:             &sync.Mutex{},
-		logger:             logger,
+		impressionStorage:         impressionStorage,
+		impressionRecorder:        impressionRecorder,
+		metricsWrapper:            metricsWrapper,
+		impressionListenerEnabled: impressionListenerEnabled,
+		mutext:                    &sync.Mutex{},
+		logger:                    logger,
 	}
 }
 
@@ -53,9 +66,6 @@ func (r *RecorderImpressionMultiple) fetch(bulkSize int64) (map[dtos.Metadata][]
 		r.logger.Error("(Task) Post Events fails fetching events from storage", err.Error())
 		return nil, err
 	}
-
-	// grouping the information by instanceID/instanceIP, and then by feature name
-	// collectedData := make(map[dtos.Metadata]map[string][]dtos.ImpressionDTO)
 
 	// grouping the information by instanceID/instanceIP
 	collectedData := make(map[dtos.Metadata][]dtos.Impression)
@@ -72,45 +82,25 @@ func (r *RecorderImpressionMultiple) fetch(bulkSize int64) (map[dtos.Metadata][]
 		)
 	}
 
-	/*
-		for _, stored := range impressionsToSend {
-			_, instanceExists := collectedData[stored.Metadata]
-			if !instanceExists {
-				collectedData[stored.Metadata] = make(map[string][]dtos.ImpressionDTO)
-			}
-
-			_, featureExists := collectedData[stored.Metadata][stored.Impression.FeatureName]
-			if !featureExists {
-				collectedData[stored.Metadata][stored.Impression.FeatureName] = make([]dtos.ImpressionDTO, 0)
-			}
-
-			collectedData[stored.Metadata][stored.Impression.FeatureName] = append(
-				collectedData[stored.Metadata][stored.Impression.FeatureName],
-				dtos.ImpressionDTO{
-					BucketingKey: stored.Impression.BucketingKey,
-					ChangeNumber: stored.Impression.ChangeNumber,
-					KeyName:      stored.Impression.KeyName,
-					Label:        stored.Impression.Label,
-					Time:         stored.Impression.Time,
-					Treatment:    stored.Impression.Treatment,
-				},
-			)
-		}
-	*/
-
 	return collectedData, nil
 }
 
-// SynchronizeImpressions syncs impressions
-func (r *RecorderImpressionMultiple) SynchronizeImpressions(bulkSize int64) error {
+func (r *RecorderImpressionMultiple) synchronizeImpressions(bulkSize int64) error {
+	// r.logger.Info("SynchronizeImpressions")
 	impressionsToSend, err := r.fetch(bulkSize)
 	if err != nil {
 		return err
 	}
+	fmt.Println(bulkSize)
+	// r.logger.Info(fmt.Sprintf("impressionsToSend: %v", impressionsToSend))
 
 	for metadata, impressions := range impressionsToSend {
 		before := time.Now()
+		if appcontext.ExecutionMode() == appcontext.ProducerMode {
+			task.StoreDataFlushed(before.UnixNano(), len(impressions), r.impressionStorage.Count(), "impressions")
+		}
 		err := common.WithAttempts(3, func() error {
+			r.logger.Info("impressionsToSend: ", len(impressions))
 			err := r.impressionRecorder.Record(impressions, metadata)
 			if err != nil {
 				r.logger.Error("Error posting impressions")
@@ -120,18 +110,68 @@ func (r *RecorderImpressionMultiple) SynchronizeImpressions(bulkSize int64) erro
 		})
 		if err != nil {
 			if _, ok := err.(*dtos.HTTPError); ok {
-				r.metricStorage.IncCounter(strings.Replace(postImpressionsCounters, "{status}", string(err.(*dtos.HTTPError).Code), 1))
+				r.metricsWrapper.StoreCounters(storage.TestImpressionsCounter, string(err.(*dtos.HTTPError).Code))
 			}
 			return err
 		}
+		if r.impressionListenerEnabled {
+			rawImpressions, err := json.Marshal(impressions)
+			if err != nil {
+				r.logger.Error("JSON encoding failed for the following impressions", impressions)
+				continue
+			}
+			err = QueueImpressionsForListener(&ImpressionBulk{
+				Data:        json.RawMessage(rawImpressions),
+				SdkVersion:  metadata.SDKVersion,
+				MachineIP:   metadata.MachineIP,
+				MachineName: metadata.MachineName,
+			})
+			if err != nil {
+				log.Error.Println(err)
+			}
+		}
 		bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-		r.metricStorage.IncLatency(postImpressionsLatencies, bucket)
-		r.metricStorage.IncCounter(strings.Replace(postImpressionsCounters, "{status}", "200", 1))
+		r.metricsWrapper.StoreLatencies(storage.TestImpressionsLatency, bucket)
+		r.metricsWrapper.StoreCounters(storage.TestImpressionsCounter, "ok")
 	}
 	return nil
 }
 
+// SynchronizeImpressions syncs impressions
+func (r *RecorderImpressionMultiple) SynchronizeImpressions(bulkSize int64) error {
+	if task.IsOperationRunning(task.ImpressionsOperation) {
+		r.logger.Debug("Another task executed by the user is performing operations on Impressions. Skipping.")
+		return nil
+	}
+
+	return r.synchronizeImpressions(bulkSize)
+}
+
 // FlushImpressions flushes impressions
 func (r *RecorderImpressionMultiple) FlushImpressions(bulkSize int64) error {
+	if task.RequestOperation(task.ImpressionsOperation) {
+		defer task.FinishOperation(task.ImpressionsOperation)
+	} else {
+		fmt.Println("ERROR")
+		r.logger.Debug("Cannot execute flush. Another operation is performing operations on Impressions.")
+		return errors.New("Cannot execute flush. Another operation is performing operations on Impressions")
+	}
+	elementsToFlush := splitio.MaxSizeToFlush
+
+	if bulkSize != 0 {
+		elementsToFlush = bulkSize
+	}
+
+	for elementsToFlush > 0 && r.impressionStorage.Count() > 0 {
+		maxSize := splitio.DefaultSize
+		if elementsToFlush < splitio.DefaultSize {
+			maxSize = elementsToFlush
+		}
+		err := r.synchronizeImpressions(maxSize)
+		if err != nil {
+			return err
+		}
+		elementsToFlush = elementsToFlush - splitio.DefaultSize
+	}
 	return nil
 }

@@ -4,8 +4,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/splitio/go-split-commons/storage"
 	"github.com/splitio/split-synchronizer/splitio"
+	"github.com/splitio/split-synchronizer/splitio/common"
 	"github.com/splitio/split-synchronizer/splitio/stats"
 	"github.com/splitio/split-synchronizer/splitio/task"
 	"github.com/splitio/split-synchronizer/splitio/web"
@@ -14,38 +14,32 @@ import (
 
 // Dashboard represents html dashboard class
 type Dashboard struct {
-	title             string
-	proxy             bool
-	splitStorage      storage.SplitStorage
-	segmentStorage    storage.SegmentStorage
-	eventStorage      storage.EventsStorage
-	impressionStorage storage.ImpressionStorage
-	layoutTpl         string
-	mainMenuTpl       string
+	title       string
+	proxy       bool
+	storages    common.Storages
+	httpClients common.HTTPClients
+	layoutTpl   string
+	mainMenuTpl string
 }
 
 // NewDashboard returns an instance of Dashboard struct
 func NewDashboard(
 	title string,
 	isProxy bool,
-	splitStorage storage.SplitStorage,
-	segmentStorage storage.SegmentStorage,
-	eventStorage storage.EventsStorage,
-	impressionStorage storage.ImpressionStorage,
+	storages common.Storages,
+	httpClients common.HTTPClients,
 ) *Dashboard {
 	return &Dashboard{
-		title:             title,
-		proxy:             isProxy,
-		splitStorage:      splitStorage,
-		segmentStorage:    segmentStorage,
-		eventStorage:      eventStorage,
-		impressionStorage: impressionStorage,
+		title:       title,
+		proxy:       isProxy,
+		storages:    storages,
+		httpClients: httpClients,
 	}
 }
 
 //HTML returns parsed HTML code
 func (d *Dashboard) HTML() string {
-	metrics := web.GetMetrics(d.splitStorage, d.segmentStorage, d.eventStorage, d.impressionStorage)
+	metrics := web.GetMetrics(d.storages)
 
 	eventStatus := true
 	sdkStatus := true
@@ -53,9 +47,9 @@ func (d *Dashboard) HTML() string {
 	runningMode := "Running as Proxy Mode"
 	if !d.proxy {
 		runningMode = "Running as Synchronizer Mode"
-		eventStatus, sdkStatus, storageStatus = task.CheckProducerStatus(d.splitStorage)
+		eventStatus, sdkStatus, storageStatus = task.CheckProducerStatus(d.storages.SplitStorage, d.httpClients.SdkClient, d.httpClients.EventsClient)
 	} else {
-		eventStatus, sdkStatus = task.CheckEventsSdkStatus()
+		eventStatus, sdkStatus = task.CheckEventsSdkStatus(d.httpClients.SdkClient, d.httpClients.EventsClient)
 	}
 
 	//Parsing main menu
@@ -111,13 +105,12 @@ func (d *Dashboard) HTML() string {
 
 // HTMLSegmentKeys return a html representation of segment's keys list
 func (d *Dashboard) HTMLSegmentKeys(segmentName string) string {
-
-	keys := d.segmentStorage.Keys(segmentName)
+	keys := d.storages.SegmentStorage.Keys(segmentName)
 	segmentKeys := make([]HTMLtemplates.CachedSegmentKeysRowTPLVars, 0)
 
 	for _, key := range keys.List() {
 		name, _ := key.(string)
-		cn, _ := d.segmentStorage.ChangeNumber(name)
+		cn, _ := d.storages.SegmentStorage.ChangeNumber(name)
 		lastModified := time.Unix(0, cn)
 		removedColor := ""
 		segmentKeys = append(segmentKeys, HTMLtemplates.CachedSegmentKeysRowTPLVars{

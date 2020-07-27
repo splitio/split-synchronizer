@@ -15,13 +15,10 @@ import (
 
 	"github.com/splitio/split-synchronizer/appcontext"
 	"github.com/splitio/split-synchronizer/splitio/producer"
-	"github.com/splitio/split-synchronizer/splitio/proxy"
 
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio"
-	"github.com/splitio/split-synchronizer/splitio/api"
-	"github.com/splitio/split-synchronizer/splitio/stats"
 )
 
 type configMap map[string]interface{}
@@ -36,15 +33,6 @@ type flagInformation struct {
 
 var gracefulShutdownWaitingGroup = &sync.WaitGroup{}
 var sigs = make(chan os.Signal, 1)
-
-func checkDeprecatedConfigParameters() {
-	deprecatedMessages := conf.ProcessDeprecatedOptions()
-	if len(deprecatedMessages) > 0 {
-		for _, msg := range deprecatedMessages {
-			log.Warning.Println(msg)
-		}
-	}
-}
 
 func parseCLIFlags() *flagInformation {
 	cliFlags := &flagInformation{
@@ -177,19 +165,17 @@ func main() {
 
 	// These functions rely on the config module being successfully populated
 	loadLogger(cliFlags.benchmarkMode)
-	checkDeprecatedConfigParameters()
-	api.Initialize()
-	stats.Initialize()
 
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
-	if *cliFlags.asProxy {
-		appcontext.Initialize(appcontext.ProxyMode)
-		log.PostStartedMessageToSlack()
-		proxy.Start(sigs, gracefulShutdownWaitingGroup)
-	} else {
-		appcontext.Initialize(appcontext.ProducerMode)
-		log.PostStartedMessageToSlack()
-		producer.Start(sigs, gracefulShutdownWaitingGroup)
-	}
+	/*
+		if *cliFlags.asProxy {
+			appcontext.Initialize(appcontext.ProxyMode)
+			log.PostStartedMessageToSlack()
+			proxy.Start(sigs, gracefulShutdownWaitingGroup)
+		} else {
+	*/
+	appcontext.Initialize(appcontext.ProducerMode)
+	log.PostStartedMessageToSlack()
+	producer.Start(sigs, gracefulShutdownWaitingGroup)
 }

@@ -4,8 +4,8 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/go-split-commons/storage"
 	"github.com/splitio/split-synchronizer/appcontext"
+	"github.com/splitio/split-synchronizer/splitio/common"
 	"github.com/splitio/split-synchronizer/splitio/web/admin/controllers"
 	"github.com/splitio/split-synchronizer/splitio/web/middleware"
 )
@@ -25,14 +25,14 @@ type WebAdminServer struct {
 }
 
 // StartAdminWebAdmin starts new webserver
-func StartAdminWebAdmin(options *WebAdminOptions, splitStorage storage.SplitStorage, segmentStorage storage.SegmentStorage, eventStorage storage.EventsStorage, impressionStorage storage.ImpressionStorage) {
+func StartAdminWebAdmin(options *WebAdminOptions, storages common.Storages, httpClients common.HTTPClients, recorders common.Recorders) {
 	go func() {
-		server := newWebAdminServer(options, splitStorage, segmentStorage, eventStorage, impressionStorage)
+		server := newWebAdminServer(options, storages, httpClients, recorders)
 		server.Run()
 	}()
 }
 
-func newWebAdminServer(options *WebAdminOptions, splitStorage storage.SplitStorage, segmentStorage storage.SegmentStorage, eventStorage storage.EventsStorage, impressionStorage storage.ImpressionStorage) *WebAdminServer {
+func newWebAdminServer(options *WebAdminOptions, storages common.Storages, httpClients common.HTTPClients, recorders common.Recorders) *WebAdminServer {
 	if !options.DebugOn {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -46,10 +46,15 @@ func newWebAdminServer(options *WebAdminOptions, splitStorage storage.SplitStora
 	}
 
 	server.Router().Use(func(c *gin.Context) {
-		c.Set("SplitStorage", splitStorage)
-		c.Set("SegmentStorage", segmentStorage)
-		c.Set("EventStorage", eventStorage)
-		c.Set("ImpressionStorage", impressionStorage)
+		c.Set("SplitStorage", storages.SplitStorage)
+		c.Set("SegmentStorage", storages.SegmentStorage)
+		c.Set("EventStorage", storages.EventStorage)
+		c.Set("ImpressionStorage", storages.ImpressionStorage)
+		c.Set("LocalMetricStorage", storages.LocalTelemetryStorage)
+		c.Set("TelemetryStorage", storages.TelemetryStorage)
+		c.Set("SdkClient", httpClients.SdkClient)
+		c.Set("EventsClient", httpClients.EventsClient)
+		c.Set("Recorders", recorders)
 	})
 
 	// Admin routes

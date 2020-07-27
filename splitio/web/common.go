@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"text/template"
 	"time"
 
 	"github.com/splitio/go-split-commons/storage"
 	"github.com/splitio/split-synchronizer/appcontext"
 	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio/stats"
+	"github.com/splitio/split-synchronizer/splitio/common"
 	"github.com/splitio/split-synchronizer/splitio/task"
 	"github.com/splitio/split-synchronizer/splitio/web/dashboard/HTMLtemplates"
 )
@@ -93,10 +94,10 @@ func ParseTemplate(name string, text string, data interface{}) string {
 	return buf.String()
 }
 
-func parseLatencySerieData(key string, label string, backgroundColor string, borderColor string) string {
+func parseLatencySerieData(key string, label string, backgroundColor string, borderColor string, localTelemetry storage.MetricsStorage) string {
 	var toReturn string
 
-	latencies := stats.Latencies()
+	latencies := localTelemetry.PeekLatencies()
 	if ldata, ok := latencies[key]; ok {
 		if serie, err := json.Marshal(ldata); err == nil {
 			toReturn = ParseTemplate(
@@ -114,68 +115,86 @@ func parseLatencySerieData(key string, label string, backgroundColor string, bor
 	return toReturn
 }
 
-func parseSDKStats() string {
+func parseSDKStats(localTelemetry storage.MetricsStorage) string {
 	var toReturn string
 
 	toReturn += parseLatencySerieData(
 		"/api/splitChanges",
 		"/api/splitChanges",
 		toRGBAString(255, 159, 64, 0.2),
-		toRGBAString(255, 159, 64, 1))
+		toRGBAString(255, 159, 64, 1),
+		localTelemetry,
+	)
 
 	toReturn += parseLatencySerieData(
 		"/api/segmentChanges/*",
 		"/api/segmentChanges/*",
 		toRGBAString(54, 162, 235, 0.2),
-		toRGBAString(54, 162, 235, 1))
+		toRGBAString(54, 162, 235, 1),
+		localTelemetry,
+	)
 
 	toReturn += parseLatencySerieData(
 		"/api/testImpressions/bulk",
 		"/api/testImpressions/bulk",
 		toRGBAString(75, 192, 192, 0.2),
-		toRGBAString(75, 192, 192, 1))
+		toRGBAString(75, 192, 192, 1),
+		localTelemetry,
+	)
 
 	toReturn += parseLatencySerieData(
 		"/api/events/bulk",
 		"/api/events/bulk",
 		toRGBAString(255, 205, 86, 0.2),
-		toRGBAString(255, 205, 86, 1))
+		toRGBAString(255, 205, 86, 1),
+		localTelemetry,
+	)
 
 	toReturn += parseLatencySerieData(
 		"/api/mySegments/*",
 		"/api/mySegments/*",
 		toRGBAString(153, 102, 255, 0.2),
-		toRGBAString(153, 102, 255, 1))
+		toRGBAString(153, 102, 255, 1),
+		localTelemetry,
+	)
 
 	return toReturn
 }
 
-func parseBackendStats() string {
+func parseBackendStats(localTelemetry storage.MetricsStorage) string {
 	var toReturn string
 
 	toReturn += parseLatencySerieData(
 		"backend::/api/splitChanges",
 		"/api/splitChanges",
 		toRGBAString(255, 159, 64, 0.2),
-		toRGBAString(255, 159, 64, 1))
+		toRGBAString(255, 159, 64, 1),
+		localTelemetry,
+	)
 
 	toReturn += parseLatencySerieData(
 		"backend::/api/segmentChanges",
 		"/api/segmentChanges/*",
 		toRGBAString(54, 162, 235, 0.2),
-		toRGBAString(54, 162, 235, 1))
+		toRGBAString(54, 162, 235, 1),
+		localTelemetry,
+	)
 
 	toReturn += parseLatencySerieData(
 		"backend::/api/testImpressions/bulk",
 		"/api/testImpressions/bulk",
 		toRGBAString(75, 192, 192, 0.2),
-		toRGBAString(75, 192, 192, 1))
+		toRGBAString(75, 192, 192, 1),
+		localTelemetry,
+	)
 
 	toReturn += parseLatencySerieData(
 		"backend::/api/events/bulk",
 		"/api/events/bulk",
 		toRGBAString(255, 205, 86, 0.2),
-		toRGBAString(255, 205, 86, 1))
+		toRGBAString(255, 205, 86, 1),
+		localTelemetry,
+	)
 
 	return toReturn
 }
@@ -278,34 +297,50 @@ func parseImpressionsLambda() string {
 }
 
 // GetMetrics data
-func GetMetrics(splitStorage storage.SplitStorage, segmentStorage storage.SegmentStorage, eventStorage storage.EventsStorage, impressionStorage storage.ImpressionStorage) Metrics {
-	splitNames := splitStorage.SplitNames()
-	segmentNames := splitStorage.SegmentNames()
+func GetMetrics(storages common.Storages) Metrics {
+	splitNames := storages.SplitStorage.SplitNames()
+	segmentNames := storages.SplitStorage.SegmentNames()
 
 	// Counters
-	counters := stats.Counters()
+	counters := storages.LocalTelemetryStorage.PeekCounters()
+	errorCount := int64(0)
+	for key, counter := range counters {
+		if key != "backend::request.ok" {
+			errorCount += counter
+		}
+	}
+
+	// SdkCounters
+	sdkCounters := int64(0)
+	sdkErrorCount := int64(0)
+	for key, counter := range storages.TelemetryStorage.PeekCounters() {
+		if !strings.Contains(key, "ok") {
+			sdkErrorCount += counter
+		}
+		sdkCounters += counter
+	}
 
 	return Metrics{
 		SplitsNumber:                 strconv.Itoa(len(splitNames)),
 		SegmentsNumber:               strconv.Itoa(segmentNames.Size()),
 		LoggedErrors:                 formatNumber(log.ErrorDashboard.Counts()),
 		LoggedMessages:               log.ErrorDashboard.Messages(),
-		RequestErrorFormatted:        formatNumber(counters["request.error"]),
-		RequestOkFormatted:           formatNumber(counters["request.ok"]),
-		SdksTotalRequests:            formatNumber(counters["request.ok"] + counters["request.error"]),
-		BackendTotalRequests:         formatNumber(counters["backend::request.ok"] + counters["backend::request.error"]),
+		RequestErrorFormatted:        formatNumber(sdkErrorCount),
+		RequestOkFormatted:           formatNumber(sdkCounters),
+		SdksTotalRequests:            formatNumber(sdkCounters + sdkErrorCount),
+		BackendTotalRequests:         formatNumber(counters["backend::request.ok"] + errorCount),
 		BackendRequestOkFormatted:    formatNumber(counters["backend::request.ok"]),
-		BackendRequestErrorFormatted: formatNumber(counters["backend::request.error"]),
-		SplitRows:                    parseCachedSplits(splitStorage),
-		SegmentRows:                  parseCachedSegments(splitStorage, segmentStorage),
-		LatenciesGroupDataBackend:    "[" + parseBackendStats() + "]",
+		BackendRequestErrorFormatted: formatNumber(errorCount),
+		SplitRows:                    parseCachedSplits(storages.SplitStorage),
+		SegmentRows:                  parseCachedSegments(storages.SplitStorage, storages.SegmentStorage),
+		LatenciesGroupDataBackend:    "[" + parseBackendStats(storages.LocalTelemetryStorage) + "]",
 		BackendRequestOk:             strconv.Itoa(int(counters["backend::request.ok"])),
-		BackendRequestError:          strconv.Itoa(int(counters["backend::request.error"])),
-		LatenciesGroupData:           "[" + parseSDKStats() + "]",
-		RequestOk:                    strconv.Itoa(int(counters["request.ok"])),
-		RequestError:                 strconv.Itoa(int(counters["request.error"])),
-		EventsQueueSize:              parseEventsSize(eventStorage),
-		ImpressionsQueueSize:         parseImpressionSize(impressionStorage),
+		BackendRequestError:          strconv.Itoa(int(errorCount)),
+		LatenciesGroupData:           "[" + parseSDKStats(storages.TelemetryStorage) + "]",
+		RequestOk:                    strconv.Itoa(int(sdkCounters)),
+		RequestError:                 strconv.Itoa(int(sdkErrorCount)),
+		EventsQueueSize:              parseEventsSize(storages.EventStorage),
+		ImpressionsQueueSize:         parseImpressionSize(storages.ImpressionStorage),
 		EventsLambda:                 parseEventsLambda(),
 		ImpressionsLambda:            parseImpressionsLambda(),
 	}

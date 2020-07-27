@@ -6,11 +6,12 @@ import (
 	"net/http"
 )
 
+// ImpressionListenerSubmitter submitter
 type ImpressionListenerSubmitter struct {
 	Endpoint string
 }
 
-// This struct is used to put together all the data posted by the impression's listener
+// ImpressionListenerPostBody This struct is used to put together all the data posted by the impression's listener
 type ImpressionListenerPostBody struct {
 	Impressions json.RawMessage `json:"impressions"`
 	SdkVersion  string          `json:"sdkVersion"`
@@ -18,10 +19,13 @@ type ImpressionListenerPostBody struct {
 	MachineName string          `json:"machineName"`
 }
 
-// Impression queue sizes
+// ImpressionListenerMainQueueSize queue sizes
 var ImpressionListenerMainQueueSize int = 10
+
+// ImpressionListenerFailedQueueSize queue sizes
 var ImpressionListenerFailedQueueSize int = 10
 
+// Post sends data
 func (r ImpressionListenerSubmitter) Post(
 	impressions json.RawMessage,
 	sdkVersion string,
