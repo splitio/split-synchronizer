@@ -4,10 +4,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/splitio/go-split-commons/service/api"
 	"github.com/splitio/go-split-commons/storage"
 	"github.com/splitio/split-synchronizer/appcontext"
 	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio/api"
 	"github.com/splitio/split-synchronizer/splitio/util"
 )
 
@@ -22,8 +22,8 @@ func StopHealtcheck() {
 	}
 }
 
-func getSdkStatus() bool {
-	_, err := api.SdkClient.Get("/version")
+func getSdkStatus(sdkClient api.Client) bool {
+	_, err := sdkClient.Get("/version")
 	if err != nil {
 		log.Debug.Println(err.Error())
 		return false
@@ -31,8 +31,8 @@ func getSdkStatus() bool {
 	return true
 }
 
-func getEventsStatus() bool {
-	_, err := api.EventsClient.Get("/version")
+func getEventsStatus(eventsClient api.Client) bool {
+	_, err := eventsClient.Get("/version")
 	if err != nil {
 		log.Debug.Println(err.Error())
 		return false
@@ -51,9 +51,9 @@ func GetStorageStatus(splitStorage storage.SplitStorage) bool {
 }
 
 // CheckEventsSdkStatus checks status for event and sdk
-func CheckEventsSdkStatus() (bool, bool) {
-	eventStatus := getEventsStatus()
-	sdkStatus := getSdkStatus()
+func CheckEventsSdkStatus(sdkClient api.Client, eventsClient api.Client) (bool, bool) {
+	eventStatus := getEventsStatus(eventsClient)
+	sdkStatus := getSdkStatus(sdkClient)
 	if healthySince.IsZero() && eventStatus && sdkStatus {
 		healthySince = time.Now()
 	} else {
@@ -65,8 +65,8 @@ func CheckEventsSdkStatus() (bool, bool) {
 }
 
 // CheckProducerStatus checks producer status
-func CheckProducerStatus(splitStorage storage.SplitStorage) (bool, bool, bool) {
-	eventStatus, sdkStatus := CheckEventsSdkStatus()
+func CheckProducerStatus(splitStorage storage.SplitStorage, sdkClient api.Client, eventsClient api.Client) (bool, bool, bool) {
+	eventStatus, sdkStatus := CheckEventsSdkStatus(sdkClient, eventsClient)
 	storageStatus := GetStorageStatus(splitStorage)
 	if healthySince.IsZero() && eventStatus && sdkStatus && storageStatus {
 		healthySince = time.Now()
@@ -79,14 +79,14 @@ func CheckProducerStatus(splitStorage storage.SplitStorage) (bool, bool, bool) {
 }
 
 // CheckEnvirontmentStatus task to check status of Synchronizer
-func CheckEnvirontmentStatus(wg *sync.WaitGroup, splitStorage storage.SplitStorage) {
+func CheckEnvirontmentStatus(wg *sync.WaitGroup, splitStorage storage.SplitStorage, sdkClient api.Client, eventsClient api.Client) {
 	wg.Add(1)
 	keepLoop := true
 	for keepLoop {
 		if appcontext.ExecutionMode() == appcontext.ProducerMode {
-			CheckProducerStatus(splitStorage)
+			CheckProducerStatus(splitStorage, sdkClient, eventsClient)
 		} else {
-			CheckEventsSdkStatus()
+			CheckEventsSdkStatus(sdkClient, eventsClient)
 		}
 
 		select {

@@ -13,6 +13,7 @@ import (
 	"github.com/splitio/go-split-commons/dtos"
 	"github.com/splitio/go-split-commons/service/api"
 	recorderMock "github.com/splitio/go-split-commons/service/mocks"
+	"github.com/splitio/go-split-commons/storage"
 	storageMock "github.com/splitio/go-split-commons/storage/mocks"
 	"github.com/splitio/go-toolkit/logging"
 )
@@ -32,7 +33,7 @@ func TestSynhronizeEventError(t *testing.T) {
 	eventSync := NewEventRecorderMultiple(
 		eventMockStorage,
 		eventMockRecorder,
-		storageMock.MockMetricStorage{},
+		storage.NewMetricWrapper(storageMock.MockMetricStorage{}, nil, nil),
 		logging.NewLogger(&logging.LoggerOptions{}),
 	)
 
@@ -62,7 +63,7 @@ func TestSynhronizeEventWithNoEvents(t *testing.T) {
 	eventSync := NewEventRecorderMultiple(
 		eventMockStorage,
 		eventMockRecorder,
-		storageMock.MockMetricStorage{},
+		storage.NewMetricWrapper(storageMock.MockMetricStorage{}, nil, nil),
 		logging.NewLogger(&logging.LoggerOptions{}),
 	)
 
@@ -156,7 +157,7 @@ func TestSynhronizeEvent(t *testing.T) {
 	eventSync := NewEventRecorderMultiple(
 		eventMockStorage,
 		eventMockRecorder,
-		storageMock.MockMetricStorage{
+		storage.NewMetricWrapper(storageMock.MockMetricStorage{
 			IncCounterCall: func(key string) {
 				if key != "events.status.200" {
 					t.Error("Unexpected counter key to increase")
@@ -167,7 +168,7 @@ func TestSynhronizeEvent(t *testing.T) {
 					t.Error("Unexpected latency key to track")
 				}
 			},
-		},
+		}, nil, nil),
 		logging.NewLogger(&logging.LoggerOptions{}),
 	)
 
@@ -275,7 +276,7 @@ func TestSynhronizeEventSync(t *testing.T) {
 	eventSync := NewEventRecorderMultiple(
 		eventMockStorage,
 		eventRecorder,
-		storageMock.MockMetricStorage{
+		storage.NewMetricWrapper(storageMock.MockMetricStorage{
 			IncCounterCall: func(key string) {
 				if key != "events.status.200" {
 					t.Error("Unexpected counter key to increase")
@@ -286,7 +287,7 @@ func TestSynhronizeEventSync(t *testing.T) {
 					t.Error("Unexpected latency key to track")
 				}
 			},
-		},
+		}, nil, nil),
 		logger,
 	)
 

@@ -6,21 +6,28 @@ import (
 	l "log"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	config "github.com/splitio/go-split-commons/conf"
 	"github.com/splitio/go-split-commons/dtos"
 	"github.com/splitio/go-split-commons/service"
+	"github.com/splitio/go-split-commons/service/api"
+	"github.com/splitio/go-split-commons/storage"
 	"github.com/splitio/go-split-commons/storage/mutexmap"
 	predis "github.com/splitio/go-split-commons/storage/redis"
 	"github.com/splitio/go-split-commons/synchronizer"
 	"github.com/splitio/go-split-commons/synchronizer/worker"
 	"github.com/splitio/go-toolkit/logging"
+	"github.com/splitio/go-toolkit/nethelpers"
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio"
+	"github.com/splitio/split-synchronizer/splitio/common"
 	multipleWorkers "github.com/splitio/split-synchronizer/splitio/producer/worker"
+	"github.com/splitio/split-synchronizer/splitio/recorder"
+	"github.com/splitio/split-synchronizer/splitio/task"
 	"github.com/splitio/split-synchronizer/splitio/util"
 	"github.com/splitio/split-synchronizer/splitio/web/admin"
 )
@@ -35,30 +42,10 @@ func gracefulShutdownProducer(sigs chan os.Signal, gracefulShutdownWaitingGroup 
 
 	syncManager.Stop()
 
-	/*
-		// Metrics - Emit task stop signal
-		fmt.Println(" -> Sending STOP to post_metrics goroutine")
-		task.StopPostMetrics()
+	// Healthcheck - Emit task stop signal
+	fmt.Println(" -> Sending STOP to healthcheck goroutine")
+	task.StopHealtcheck()
 
-		// Events - Emit task stop signal
-		for i := 0; i < conf.Data.EventsThreads; i++ {
-			fmt.Println(" -> Sending STOP to post_events goroutine")
-			task.StopPostEvents()
-		}
-
-		// Impressions - Emit task stop signal
-		for i := 0; i < conf.Data.ImpressionsThreads; i++ {
-			fmt.Println(" -> Sending STOP to post_impressions goroutine")
-			task.StopPostImpressions()
-		}
-
-		// Healthcheck - Emit task stop signal
-		fmt.Println(" -> Sending STOP to healthcheck goroutine")
-		task.StopHealtcheck()
-
-		fmt.Println(" * Waiting goroutines stop")
-		gracefulShutdownWaitingGroup.Wait()
-	*/
 	fmt.Println(" * Shutting it down - see you soon!")
 	os.Exit(splitio.SuccessfulOperation)
 }
@@ -99,12 +86,18 @@ func sanitizeRedis(miscStorage *predis.MiscStorage) error {
 	return nil
 }
 
+func isValidApikey(splitFetcher service.SplitFetcher) bool {
+	_, err := splitFetcher.Fetch(time.Now().UnixNano() / int64(time.Millisecond))
+	return err == nil
+}
+
 // Start initialize the producer mode
 func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	logger := logging.NewLogger(&logging.LoggerOptions{
 		StandardLoggerFlags: l.LUTC | l.Ldate | l.Lmicroseconds | l.Lshortfile,
 		LogLevel:            logging.LevelInfo,
 	})
+
 	advanced := config.GetDefaultAdvancedConfig()
 	advanced.EventsBulkSize = conf.Data.EventsPerPost
 	advanced.HTTPTimeout = int(conf.Data.HTTPTimeout)
@@ -128,13 +121,35 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		advanced.EventsURL = "https://events.split.io/api"
 	}
 
-	/*
-		err := api.ValidateApikey(conf.Data.APIKey, *advanced)
-		if err != nil {
-			log.Error.Println("Invalid apikey! Aborting execution.")
-			os.Exit(splitio.ExitRedisInitializationFailed)
+	instanceName := "unknown"
+	ipAddress := "unknown"
+	if conf.Data.IPAddressesEnabled {
+		ip, err := nethelpers.ExternalIP()
+		if err == nil {
+			ipAddress = ip
+			instanceName = fmt.Sprintf("ip-%s", strings.Replace(ipAddress, ".", "-", -1))
 		}
-	*/
+	}
+
+	metadata := dtos.Metadata{
+		MachineIP:   ipAddress,
+		MachineName: instanceName,
+		SDKVersion:  "split-sync-" + splitio.Version,
+	}
+
+	// Setup fetchers & recorders
+	splitAPI := service.NewSplitAPI(
+		conf.Data.APIKey,
+		advanced,
+		logger,
+		metadata,
+	)
+
+	// Check if apikey is valid
+	if !isValidApikey(splitAPI.SplitFetcher) {
+		log.Error.Println("Invalid apikey! Aborting execution.")
+		os.Exit(splitio.ExitRedisInitializationFailed)
+	}
 
 	redisClient, err := predis.NewRedisClient(&config.RedisConfig{
 		Host:   "localhost",
@@ -145,13 +160,6 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		logger.Error("Failed to instantiate redis client.")
 		os.Exit(splitio.ExitRedisInitializationFailed)
 	}
-
-	// impressionsRecorder := recorder.ImpressionsHTTPRecorder{}
-	// eventsRecorder := recorder.EventsHTTPRecorder{}
-
-	// Setup storages
-	// impressionsStorage := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-	// eventsStorage := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
 
 	miscStorage := predis.NewMiscStorage(redisClient, logger)
 	err = sanitizeRedis(miscStorage)
@@ -169,42 +177,39 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		DebugOn:       conf.Data.Logger.DebugOn,
 	}
 
-	// What should I do here?
-	// Sync is storing
-	// test-poc:.SPLITIO///count.segmentChangeFetcher.status.200
-	// test-poc:.SPLITIO///count.splitChangeFetcher.status.200
-	// test-poc:.SPLITIO///latency.segmentChangeFetcher.time.bucket.22
-	metadata := dtos.Metadata{
-		MachineIP:   "some",
-		MachineName: "some",
-		SDKVersion:  "split-synchronizer",
+	metricStorage := predis.NewMetricsStorage(redisClient, metadata, logger)
+	localTelemetryStorage := mutexmap.NewMMMetricsStorage()
+	metricsWrapper := storage.NewMetricWrapper(metricStorage, localTelemetryStorage, logger)
+	storages := common.Storages{
+		SplitStorage:          predis.NewSplitStorage(redisClient, logger),
+		SegmentStorage:        predis.NewSegmentStorage(redisClient, logger),
+		LocalTelemetryStorage: localTelemetryStorage,
+		TelemetryStorage:      metricStorage,
+		ImpressionStorage:     predis.NewImpressionStorage(redisClient, dtos.Metadata{}, logger),
+		EventStorage:          predis.NewEventsStorage(redisClient, dtos.Metadata{}, logger),
+	}
+	httpClients := common.HTTPClients{
+		SdkClient:    api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.SdkURL, logger, metadata),
+		EventsClient: api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.EventsURL, logger, metadata),
 	}
 
-	splitStorage := predis.NewSplitStorage(redisClient, logger)
-	segmentStorage := predis.NewSegmentStorage(redisClient, logger)
-	metricStorage := predis.NewMetricsStorage(redisClient, metadata, logger)
-	impressionStorage := predis.NewImpressionStorage(redisClient, dtos.Metadata{}, logger)
-	eventStorage := predis.NewEventsStorage(redisClient, dtos.Metadata{}, logger)
-	localTelemetryStorage := mutexmap.NewMMMetricsStorage()
+	impressionListenerEnabled := strings.TrimSpace(conf.Data.ImpressionListener.Endpoint) != ""
+	impressionRecorder := multipleWorkers.NewImpressionRecordMultiple(storages.ImpressionStorage, splitAPI.ImpressionRecorder, metricsWrapper, impressionListenerEnabled, logger)
+	eventRecorder := multipleWorkers.NewEventRecorderMultiple(storages.EventStorage, splitAPI.EventRecorder, metricsWrapper, logger)
+	workers := synchronizer.Workers{
+		SplitFetcher:       worker.NewSplitFetcher(storages.SplitStorage, splitAPI.SplitFetcher, metricsWrapper, logger),
+		SegmentFetcher:     worker.NewSegmentFetcher(storages.SplitStorage, storages.SegmentStorage, splitAPI.SegmentFetcher, metricsWrapper, logger),
+		EventRecorder:      eventRecorder,
+		ImpressionRecorder: impressionRecorder,
+		TelemetryRecorder:  multipleWorkers.NewMetricRecorderMultiple(metricsWrapper, splitAPI.MetricRecorder, logger),
+	}
+	recorders := common.Recorders{
+		Impression: impressionRecorder,
+		Event:      eventRecorder,
+	}
 
 	// Run WebAdmin Server
-	// admin.StartAdminWebAdmin(waOptions, splitStorage, segmentStorage.NewInstance())
-	admin.StartAdminWebAdmin(waOptions, splitStorage, segmentStorage, eventStorage, impressionStorage)
-
-	// Setup fetchers & recorders
-	splitAPI := service.NewSplitAPI(
-		conf.Data.APIKey,
-		advanced,
-		logger,
-	)
-
-	workers := synchronizer.Workers{
-		SplitFetcher:       worker.NewSplitFetcher(splitStorage, splitAPI.SplitFetcher, localTelemetryStorage, logger),
-		SegmentFetcher:     worker.NewSegmentFetcher(splitStorage, segmentStorage, splitAPI.SegmentFetcher, localTelemetryStorage, logger),
-		EventRecorder:      multipleWorkers.NewEventRecorderMultiple(eventStorage, splitAPI.EventRecorder, localTelemetryStorage, logger),
-		ImpressionRecorder: multipleWorkers.NewImpressionRecordMultiple(impressionStorage, splitAPI.ImpressionRecorder, localTelemetryStorage, logger),
-		TelemetryRecorder:  worker.NewMetricRecorder(metricStorage, splitAPI.MetricRecorder, dtos.Metadata{}),
-	}
+	admin.StartAdminWebAdmin(waOptions, storages, httpClients, recorders)
 
 	syncImpl := synchronizer.NewSynchronizer(
 		config.TaskPeriods{
@@ -228,7 +233,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		logger,
 		advanced,
 		splitAPI.AuthClient,
-		splitStorage,
+		storages.SplitStorage,
 		managerStatus,
 	)
 	if err != nil {
@@ -236,9 +241,23 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	}
 
 	go syncManager.Start()
+	select {
+	case status := <-managerStatus:
+		switch status {
+		case synchronizer.Ready:
+			logger.Info("Synchronizer tasks started")
+		case synchronizer.Error:
+			os.Exit(splitio.ExitTaskInitialization)
+		}
+	}
+	task.InitializeEvictionCalculator()
 
-	//Producer mode - graceful shutdown
+	// Producer mode - graceful shutdown
 	go gracefulShutdownProducer(sigs, gracefulShutdownWaitingGroup, syncManager)
+
+	if impressionListenerEnabled {
+		go multipleWorkers.PostImpressionsToListener(recorder.ImpressionListenerSubmitter{Endpoint: conf.Data.ImpressionListener.Endpoint})
+	}
 
 	/*
 		task.InitializeImpressions(conf.Data.ImpressionsThreads)
@@ -261,18 +280,14 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 
 		}
 
-		metricsStorage := redis.NewMetricsStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-		metricsRecorder := recorder.MetricsHTTPRecorder{}
-		go task.PostMetrics(metricsRecorder, metricsStorage, conf.Data.MetricsPostRate, gracefulShutdownWaitingGroup)
-
 		for i := 0; i < conf.Data.EventsThreads; i++ {
 			go task.PostEvents(i, eventsRecorder, eventsStorage, conf.Data.EventsPostRate,
 				int(conf.Data.EventsPerPost), gracefulShutdownWaitingGroup)
 		}
 
 	*/
-	// go task.CheckEnvirontmentStatus(gracefulShutdownWaitingGroup, splitStorage)
+	go task.CheckEnvirontmentStatus(gracefulShutdownWaitingGroup, storages.SplitStorage, httpClients.SdkClient, httpClients.EventsClient)
 
-	//Keeping service alive
+	// Keeping service alive
 	startLoop(500)
 }
