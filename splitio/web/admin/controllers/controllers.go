@@ -214,7 +214,7 @@ func DashboardSegmentKeys(c *gin.Context) {
 		EventsClient: getSdkClient(c.Get("EventsClient")),
 	}
 
-	if areValidStorages(storages) {
+	if areValidStorages(storages) && areValidAPIClient(httpClients) {
 		dash := createDashboard(storages, httpClients)
 		var toReturn = dash.HTMLSegmentKeys(segmentName)
 		c.String(http.StatusOK, "%s", toReturn)
@@ -248,7 +248,7 @@ func Dashboard(c *gin.Context) {
 		EventsClient: getSdkClient(c.Get("EventsClient")),
 	}
 
-	if areValidStorages(storages) {
+	if areValidStorages(storages) && areValidAPIClient(httpClients) {
 		dash := createDashboard(storages, httpClients)
 		//Write your 200 header status (or other status codes, but only WriteHeader once)
 		c.Writer.WriteHeader(http.StatusOK)

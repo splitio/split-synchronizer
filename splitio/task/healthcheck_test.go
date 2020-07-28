@@ -2,8 +2,20 @@
 package task
 
 import (
+	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"testing"
+	"time"
+
+	"github.com/splitio/go-split-commons/conf"
+	"github.com/splitio/go-split-commons/dtos"
+	"github.com/splitio/go-split-commons/service/api"
+	"github.com/splitio/go-split-commons/storage/mocks"
+	"github.com/splitio/go-toolkit/logging"
+	"github.com/splitio/split-synchronizer/log"
 )
 
 func performRequest(r http.Handler, method, path string) *httptest.ResponseRecorder {
@@ -13,17 +25,10 @@ func performRequest(r http.Handler, method, path string) *httptest.ResponseRecor
 	return w
 }
 
-type mockStorage struct {
-	shouldFail bool
-}
-
-/*
 func TestTaskCheckEnvirontmentStatusWithSomeFail(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
 	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
-	//Initialize by default
-	conf.Initialize()
+	logger := logging.NewLogger(&logging.LoggerOptions{})
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "ok")
@@ -40,34 +45,23 @@ func TestTaskCheckEnvirontmentStatusWithSomeFail(t *testing.T) {
 	os.Setenv("SPLITIO_SDK_URL", fail.URL)
 	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
 
-	api.Initialize()
+	failClient := api.NewHTTPClient("fail", conf.GetDefaultAdvancedConfig(), fail.URL, logger, dtos.Metadata{})
+	okClient := api.NewHTTPClient("ok", conf.GetDefaultAdvancedConfig(), ts.URL, logger, dtos.Metadata{})
 
-	router := gin.Default()
-	router.GET("/", func(c *gin.Context) {
-		c.Set("SplitStorage", mockStorage{shouldFail: false})
-	})
+	mockStorage := mocks.MockSplitStorage{
+		ChangeNumberCall: func() (int64, error) { return 0, nil },
+	}
 
-	splitStorageAdapter := testSplitStorage{}
-	//Catching panic status and reporting error
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				t.Error("Recovered task", r)
-			}
-		}()
-		CheckProducerStatus(splitStorageAdapter)
-		if !healthySince.IsZero() {
-			t.Error("It should not write healthySince")
-		}
-	}()
+	CheckProducerStatus(mockStorage, okClient, failClient)
+	if !healthySince.IsZero() {
+		t.Error("It should not write healthySince")
+	}
 }
 
 func TestTaskCheckEnvirontmentStatus(t *testing.T) {
-	stdoutWriter := ioutil.Discard //os.Stdout
+	stdoutWriter := ioutil.Discard // os.Stdout
 	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
-	//Initialize by default
-	conf.Initialize()
+	logger := logging.NewLogger(&logging.LoggerOptions{})
 
 	tsHealthcheck := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "ok")
@@ -77,35 +71,23 @@ func TestTaskCheckEnvirontmentStatus(t *testing.T) {
 	os.Setenv("SPLITIO_SDK_URL", tsHealthcheck.URL)
 	os.Setenv("SPLITIO_EVENTS_URL", tsHealthcheck.URL)
 
-	api.Initialize()
+	okClient := api.NewHTTPClient("ok", conf.GetDefaultAdvancedConfig(), tsHealthcheck.URL, logger, dtos.Metadata{})
 
-	router := gin.Default()
-	router.GET("/", func(c *gin.Context) {
-		c.Set("SplitStorage", mockStorage{shouldFail: false})
-	})
+	mockStorage := mocks.MockSplitStorage{
+		ChangeNumberCall: func() (int64, error) { return 0, nil },
+	}
 
-	splitStorageAdapter := testSplitStorage{}
-	//Catching panic status and reporting error
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				t.Error("Recovered task", r)
-			}
-		}()
-		check := time.Now()
-		CheckProducerStatus(splitStorageAdapter)
-		if check.After(healthySince) {
-			t.Error("It should succeed")
-		}
-	}()
+	check := time.Now()
+	CheckProducerStatus(mockStorage, okClient, okClient)
+	if check.After(healthySince) {
+		t.Error("It should succeed")
+	}
 }
 
 func TestTaskCheckEnvirontmentStatusWithSomeFailAndSince(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
 	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
-	//Initialize by default
-	conf.Initialize()
+	logger := logging.NewLogger(&logging.LoggerOptions{})
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "ok")
@@ -122,25 +104,15 @@ func TestTaskCheckEnvirontmentStatusWithSomeFailAndSince(t *testing.T) {
 	os.Setenv("SPLITIO_SDK_URL", fail.URL)
 	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
 
-	api.Initialize()
+	failClient := api.NewHTTPClient("fail", conf.GetDefaultAdvancedConfig(), fail.URL, logger, dtos.Metadata{})
+	okClient := api.NewHTTPClient("ok", conf.GetDefaultAdvancedConfig(), ts.URL, logger, dtos.Metadata{})
 
-	router := gin.Default()
-	router.GET("/", func(c *gin.Context) {
-		c.Set("SplitStorage", mockStorage{shouldFail: false})
-	})
+	mockStorage := mocks.MockSplitStorage{
+		ChangeNumberCall: func() (int64, error) { return 0, nil },
+	}
 
-	splitStorageAdapter := testSplitStorage{}
-	//Catching panic status and reporting error
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				t.Error("Recovered task", r)
-			}
-		}()
-		CheckProducerStatus(splitStorageAdapter)
-		if !healthySince.IsZero() {
-			t.Error("It should be zero")
-		}
-	}()
+	CheckProducerStatus(mockStorage, failClient, okClient)
+	if !healthySince.IsZero() {
+		t.Error("It should be zero")
+	}
 }
-*/
