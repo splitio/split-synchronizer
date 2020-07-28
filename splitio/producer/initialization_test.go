@@ -70,7 +70,7 @@ func TestIsApikeyValidNotOk(t *testing.T) {
 }
 
 func TestSanitizeRedisWithForcedCleanup(t *testing.T) {
-	logger := logging.NewLogger(&logging.LoggerOptions{LogLevel: logging.LevelAll})
+	logger := logging.NewLogger(&logging.LoggerOptions{})
 	conf.Initialize()
 	conf.Data.APIKey = "983564etyrudhijfgknf9i08euh"
 	conf.Data.Redis.ForceFreshStartup = true
@@ -115,7 +115,7 @@ func TestSanitizeRedisWithForcedCleanup(t *testing.T) {
 }
 
 func TestSanitizeRedisWithRedisEqualApiKey(t *testing.T) {
-	logger := logging.NewLogger(&logging.LoggerOptions{LogLevel: logging.LevelAll})
+	logger := logging.NewLogger(&logging.LoggerOptions{})
 	conf.Initialize()
 	conf.Data.APIKey = "djasghdhjasfganyr73dsah9"
 
@@ -152,7 +152,7 @@ func TestSanitizeRedisWithRedisEqualApiKey(t *testing.T) {
 }
 
 func TestSanitizeRedisWithRedisDifferentApiKey(t *testing.T) {
-	logger := logging.NewLogger(&logging.LoggerOptions{LogLevel: logging.LevelAll})
+	logger := logging.NewLogger(&logging.LoggerOptions{})
 	conf.Initialize()
 	conf.Data.APIKey = "983564etyrudhijfgknf9i08euh"
 
