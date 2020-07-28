@@ -54,7 +54,9 @@ func newWebAdminServer(options *WebAdminOptions, storages common.Storages, httpC
 		c.Set("TelemetryStorage", storages.TelemetryStorage)
 		c.Set("SdkClient", httpClients.SdkClient)
 		c.Set("EventsClient", httpClients.EventsClient)
-		c.Set("Recorders", recorders)
+		if appcontext.ExecutionMode() == appcontext.ProducerMode {
+			c.Set("Recorders", recorders)
+		}
 	})
 
 	// Admin routes

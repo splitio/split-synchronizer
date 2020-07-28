@@ -60,7 +60,7 @@ func hashAPIKey(apikey string) uint32 {
 	return util.Murmur3_32([]byte(apikey), 0)
 }
 
-func sanitizeRedis(miscStorage *predis.MiscStorage) error {
+func sanitizeRedis(miscStorage *predis.MiscStorage, logger logging.LoggerInterface) error {
 	if miscStorage == nil {
 		return errors.New("Could not sanitize redis")
 	}
@@ -69,7 +69,7 @@ func sanitizeRedis(miscStorage *predis.MiscStorage) error {
 	defer miscStorage.SetApikeyHash(currentHashAsStr)
 
 	if conf.Data.Redis.ForceFreshStartup {
-		log.Warning.Println("Fresh startup requested. Cleaning up redis before initializing.")
+		logger.Warning("Fresh startup requested. Cleaning up redis before initializing.")
 		miscStorage.ClearAll()
 		return nil
 	}
@@ -80,7 +80,7 @@ func sanitizeRedis(miscStorage *predis.MiscStorage) error {
 	}
 
 	if currentHashAsStr != previousHashStr {
-		log.Warning.Println("Previous apikey is missing/different from current one. Cleaning up redis before startup.")
+		logger.Warning("Previous apikey is missing/different from current one. Cleaning up redis before startup.")
 		miscStorage.ClearAll()
 	}
 	return nil
@@ -98,6 +98,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		LogLevel:            logging.LevelInfo,
 	})
 
+	conf.Initialize()
 	advanced := config.GetDefaultAdvancedConfig()
 	advanced.EventsBulkSize = conf.Data.EventsPerPost
 	advanced.HTTPTimeout = int(conf.Data.HTTPTimeout)
@@ -151,18 +152,19 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		os.Exit(splitio.ExitRedisInitializationFailed)
 	}
 
-	redisClient, err := predis.NewRedisClient(&config.RedisConfig{
-		Host:   "localhost",
-		Port:   6379,
-		Prefix: conf.Data.Redis.Prefix,
-	}, logger)
+	redisOptions, err := parseRedisOptions()
+	if err != nil {
+		logger.Error("Failed to instantiate redis client.")
+		os.Exit(splitio.ExitRedisInitializationFailed)
+	}
+	redisClient, err := predis.NewRedisClient(redisOptions, logger)
 	if err != nil {
 		logger.Error("Failed to instantiate redis client.")
 		os.Exit(splitio.ExitRedisInitializationFailed)
 	}
 
 	miscStorage := predis.NewMiscStorage(redisClient, logger)
-	err = sanitizeRedis(miscStorage)
+	err = sanitizeRedis(miscStorage, logger)
 	if err != nil {
 		log.Error.Println("Failed when trying to clean up redis. Aborting execution.")
 		log.Error.Println(err.Error())

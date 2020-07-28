@@ -63,7 +63,7 @@ func (r *RecorderImpressionMultiple) fetch(bulkSize int64) (map[dtos.Metadata][]
 
 	storedImpressions, err := r.impressionStorage.PopNWithMetadata(bulkSize) //PopN has a mutex, so this function can be async without issues
 	if err != nil {
-		r.logger.Error("(Task) Post Events fails fetching events from storage", err.Error())
+		r.logger.Error("(Task) Post Impressions fails fetching impressions from storage", err.Error())
 		return nil, err
 	}
 

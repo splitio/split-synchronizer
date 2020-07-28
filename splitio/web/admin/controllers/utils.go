@@ -135,6 +135,16 @@ func getRecorders(recorders interface{}, exists bool) *common.Recorders {
 	return &st
 }
 
+func areValidAPIClient(httpClients common.HTTPClients) bool {
+	if httpClients.EventsClient == nil {
+		return false
+	}
+	if httpClients.SdkClient == nil {
+		return false
+	}
+	return true
+}
+
 func areValidStorages(storages common.Storages) bool {
 	if storages.SplitStorage == nil {
 		return false

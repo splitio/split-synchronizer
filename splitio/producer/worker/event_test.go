@@ -85,8 +85,6 @@ func wrapEvent(key string) dtos.EventDTO {
 }
 
 func TestSynhronizeEvent(t *testing.T) {
-	var call int64
-
 	metadata1 := dtos.Metadata{
 		MachineIP:   "1.1.1.1",
 		MachineName: "machine1",
@@ -115,12 +113,8 @@ func TestSynhronizeEvent(t *testing.T) {
 
 	eventMockRecorder := recorderMock.MockEventRecorder{
 		RecordCall: func(events []dtos.EventDTO, metadata dtos.Metadata) error {
-			atomic.AddInt64(&call, 1)
-			switch call {
-			case 1:
-				if len(events) != 3 {
-					t.Error("Wrong length of events passed")
-				}
+			switch len(events) {
+			case 3:
 				if events[0].Key != "key1" {
 					t.Error("Wrong event received")
 				}
@@ -213,8 +207,8 @@ func TestSynhronizeEventSync(t *testing.T) {
 			return
 		}
 
-		switch requestReceived {
-		case 1:
+		switch len(events) {
+		case 3:
 			if r.Header.Get("SplitSDKVersion") != "go-1.1.1" {
 				t.Error("Unexpected version in header")
 			}

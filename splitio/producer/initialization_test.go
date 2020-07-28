@@ -1,7 +1,19 @@
 package producer
 
 import (
+	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"testing"
+
+	config "github.com/splitio/go-split-commons/conf"
+	"github.com/splitio/go-split-commons/dtos"
+	"github.com/splitio/go-split-commons/service/mocks"
+	predis "github.com/splitio/go-split-commons/storage/redis"
+	"github.com/splitio/go-toolkit/logging"
+	"github.com/splitio/split-synchronizer/conf"
 )
 
 func TestHashApiKey(t *testing.T) {
@@ -21,11 +33,7 @@ func TestHashApiKey(t *testing.T) {
 	}
 }
 
-/*
 func TestIsApikeyValidOk(t *testing.T) {
-	stdoutWriter := ioutil.Discard
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "{\"splits\": [], \"since\": -1, \"till\": -1}")
 	}))
@@ -34,19 +42,16 @@ func TestIsApikeyValidOk(t *testing.T) {
 	os.Setenv("SPLITIO_SDK_URL", ts.URL)
 	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
 
-	api.Initialize()
+	httpSplitFetcher := mocks.MockSplitFetcher{
+		FetchCall: func(changeNumber int64) (*dtos.SplitChangesDTO, error) { return nil, nil },
+	}
 
-	httpSplitFetcher := fetcher.NewHTTPSplitFetcher()
-	if !isApikeyValid(httpSplitFetcher) {
+	if !isValidApikey(httpSplitFetcher) {
 		t.Error("APIKEY should be valid.")
 	}
 }
-*/
-/*
-func TestIsApikeyValidNotOk(t *testing.T) {
-	stdoutWriter := ioutil.Discard
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 
+func TestIsApikeyValidNotOk(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error", http.StatusNotFound)
 	}))
@@ -55,122 +60,130 @@ func TestIsApikeyValidNotOk(t *testing.T) {
 	os.Setenv("SPLITIO_SDK_URL", ts.URL)
 	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
 
-	api.Initialize()
+	httpSplitFetcher := mocks.MockSplitFetcher{
+		FetchCall: func(changeNumber int64) (*dtos.SplitChangesDTO, error) { return nil, errors.New("Some") },
+	}
 
-	httpSplitFetcher := fetcher.NewHTTPSplitFetcher()
-	if isApikeyValid(httpSplitFetcher) {
+	if isValidApikey(httpSplitFetcher) {
 		t.Error("APIKEY should be invalid.")
 	}
 }
-*/
 
-/*
 func TestSanitizeRedisWithForcedCleanup(t *testing.T) {
-	stdoutWriter := ioutil.Discard
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
+	logger := logging.NewLogger(&logging.LoggerOptions{LogLevel: logging.LevelAll})
 	conf.Initialize()
 	conf.Data.APIKey = "983564etyrudhijfgknf9i08euh"
 	conf.Data.Redis.ForceFreshStartup = true
-	conf.Data.Redis.Prefix = "some_prefix"
-	conf.Data.Redis.Db = 1
-	redis.Initialize(conf.Data.Redis)
-	redis.Client.Set("some_prefix.SPLITIO.test1", "123", 0)
-	if redis.Client.Get("some_prefix.SPLITIO.test1").Val() != "123" {
+
+	redisClient, err := predis.NewRedisClient(&config.RedisConfig{
+		Host:     "localhost",
+		Port:     6379,
+		Prefix:   "some_prefix",
+		Database: 1,
+	}, logger)
+	if err != nil {
+		t.Error("It should be nil")
+	}
+
+	err = redisClient.Set("SPLITIO.test1", "123", 0)
+	if err != nil {
+		t.Error("It should be nil")
+	}
+	value, err := redisClient.Get("SPLITIO.test1")
+	if value != "123" {
 		t.Error("Value should have been set properly")
 	}
 
-	sanitizeRedis()
-	if val := redis.Client.Get("some_prefix.SPLITIO.test1").Val(); val != "" {
-		t.Error("Value should have been null, and was ", val)
+	miscStorage := predis.NewMiscStorage(redisClient, logger)
+	value, err = redisClient.Get("SPLITIO.test1")
+	err = sanitizeRedis(miscStorage, logger)
+	if err != nil {
+		t.Error("It should be nil", err)
 	}
 
-	if val := redis.Client.Get("some_prefix.SPLITIO.hash").Val(); val != "1497926959" {
-		t.Error("Incorrect apikey hash set in redis after sanitization operation.")
+	value, _ = redisClient.Get("SPLITIO.test1")
+	if value != "" {
+		t.Error("Value should have been null, and was ", value)
 	}
 
-	redis.Client.Del("some_prefix.SPLITIO.hash")
-}
-*/
-
-/*
-func TestSanitizeRedisWithRedisError(t *testing.T) {
-	stdoutWriter := ioutil.Discard
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
-	conf.Initialize()
-	conf.Data.Redis.Port = 1234
-	conf.Data.Redis.Prefix = "some_prefix"
-	conf.Data.Redis.Db = 1
-	redis.Initialize(conf.Data.Redis)
-	redis.Client.Set("some_prefix.SPLITIO.test1", "123", 0)
-
-	err := sanitizeRedis()
-	if err == nil {
-		t.Error("An error should have been returned for incorrect redis config")
+	value, err = redisClient.Get("SPLITIO.hash")
+	if value != "1497926959" {
+		t.Error("Incorrect apikey hash set in redis after sanitization operation.", value)
 	}
 
-	if val := redis.Client.Get("some_prefix.SPLITIO.hash").Val(); val != "" {
-		t.Error("Incorrect apikey hash set in redis after sanitization operation.")
-	}
-
+	redisClient.Del("SPLITIO.hash")
 }
 
 func TestSanitizeRedisWithRedisEqualApiKey(t *testing.T) {
-	stdoutWriter := ioutil.Discard
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
+	logger := logging.NewLogger(&logging.LoggerOptions{LogLevel: logging.LevelAll})
 	conf.Initialize()
 	conf.Data.APIKey = "djasghdhjasfganyr73dsah9"
-	conf.Data.Redis.Port = 6379
-	conf.Data.Redis.Prefix = "some_prefix"
-	conf.Data.Redis.Db = 1
-	redis.Initialize(conf.Data.Redis)
-	redis.Client.Set("some_prefix.SPLITIO.test1", "123", 0)
-	redis.Client.Set("some_prefix.SPLITIO.hash", "3376912823", 0)
 
-	err := sanitizeRedis()
+	redisClient, err := predis.NewRedisClient(&config.RedisConfig{
+		Host:     "localhost",
+		Port:     6379,
+		Prefix:   "some_prefix",
+		Database: 1,
+	}, logger)
+	if err != nil {
+		t.Error("It should be nil")
+	}
+
+	redisClient.Set("SPLITIO.test1", "123", 0)
+	redisClient.Set("SPLITIO.hash", "3376912823", 0)
+
+	miscStorage := predis.NewMiscStorage(redisClient, logger)
+	err = sanitizeRedis(miscStorage, logger)
 	if err != nil {
 		t.Error("No error should have occured.")
 	}
 
-	if redis.Client.Get("some_prefix.SPLITIO.test1").Val() != "123" {
+	val, _ := redisClient.Get("SPLITIO.test1")
+	if val != "123" {
 		t.Error("Value should not have been removed!")
 	}
 
-	if val := redis.Client.Get("some_prefix.SPLITIO.hash").Val(); val != "3376912823" {
+	val, _ = redisClient.Get("SPLITIO.hash")
+	if val != "3376912823" {
 		t.Error("Incorrect apikey hash set in redis after sanitization operation.")
 	}
 
-	redis.Client.Del("some_prefix.SPLITIO.test1")
+	redisClient.Del("SPLITIO.test1")
 }
 
 func TestSanitizeRedisWithRedisDifferentApiKey(t *testing.T) {
-	stdoutWriter := ioutil.Discard
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
+	logger := logging.NewLogger(&logging.LoggerOptions{LogLevel: logging.LevelAll})
 	conf.Initialize()
 	conf.Data.APIKey = "983564etyrudhijfgknf9i08euh"
-	conf.Data.Redis.Port = 6379
-	conf.Data.Redis.Prefix = "some_prefix"
-	conf.Data.Redis.Db = 1
-	redis.Initialize(conf.Data.Redis)
-	redis.Client.Set("some_prefix.SPLITIO.test1", "123", 0)
-	redis.Client.Set("some_prefix.SPLITIO.hash", "3376912823", 0)
 
-	err := sanitizeRedis()
+	redisClient, err := predis.NewRedisClient(&config.RedisConfig{
+		Host:     "localhost",
+		Port:     6379,
+		Prefix:   "some_prefix",
+		Database: 1,
+	}, logger)
+	if err != nil {
+		t.Error("It should be nil")
+	}
+
+	redisClient.Set("SPLITIO.test1", "123", 0)
+	redisClient.Set("SPLITIO.hash", "3376912823", 0)
+
+	miscStorage := predis.NewMiscStorage(redisClient, logger)
+	err = sanitizeRedis(miscStorage, logger)
 	if err != nil {
 		t.Error("No error should have occured.")
 	}
 
-	if redis.Client.Get("some_prefix.SPLITIO.test1").Val() != "" {
+	val, _ := redisClient.Get("SPLITIO.test1")
+	if val != "" {
 		t.Error("Value should have been removed!")
 	}
 
-	if val := redis.Client.Get("some_prefix.SPLITIO.hash").Val(); val != "1497926959" {
+	val, _ = redisClient.Get("SPLITIO.hash")
+	if val != "1497926959" {
 		t.Error("Incorrect apikey hash set in redis after sanitization operation.")
 	}
 
-	redis.Client.Del("some_prefix.SPLITIO.test1")
+	redisClient.Del("SPLITIO.test1")
 }
-*/
