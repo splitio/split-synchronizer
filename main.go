@@ -15,6 +15,7 @@ import (
 
 	"github.com/splitio/split-synchronizer/appcontext"
 	"github.com/splitio/split-synchronizer/splitio/producer"
+	"github.com/splitio/split-synchronizer/splitio/proxy"
 
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
@@ -168,14 +169,13 @@ func main() {
 
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
-	/*
-		if *cliFlags.asProxy {
-			appcontext.Initialize(appcontext.ProxyMode)
-			log.PostStartedMessageToSlack()
-			proxy.Start(sigs, gracefulShutdownWaitingGroup)
-		} else {
-	*/
-	appcontext.Initialize(appcontext.ProducerMode)
-	log.PostStartedMessageToSlack()
-	producer.Start(sigs, gracefulShutdownWaitingGroup)
+	if *cliFlags.asProxy {
+		appcontext.Initialize(appcontext.ProxyMode)
+		log.PostStartedMessageToSlack()
+		proxy.Start(sigs, gracefulShutdownWaitingGroup)
+	} else {
+		appcontext.Initialize(appcontext.ProducerMode)
+		log.PostStartedMessageToSlack()
+		producer.Start(sigs, gracefulShutdownWaitingGroup)
+	}
 }

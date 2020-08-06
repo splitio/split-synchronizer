@@ -12,7 +12,6 @@ type Storages struct {
 	SplitStorage          storage.SplitStorage
 	SegmentStorage        storage.SegmentStorage
 	LocalTelemetryStorage storage.MetricsStorage
-	TelemetryStorage      storage.MetricsStorage
 	EventStorage          storage.EventsStorage
 	ImpressionStorage     storage.ImpressionStorage
 }

@@ -3,7 +3,6 @@ package worker
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -19,15 +18,6 @@ import (
 	"github.com/splitio/split-synchronizer/splitio"
 	"github.com/splitio/split-synchronizer/splitio/task"
 )
-
-// ImpressionBulk struct
-type ImpressionBulk struct {
-	Data        json.RawMessage
-	SdkVersion  string
-	MachineIP   string
-	MachineName string
-	attempt     int
-}
 
 // RecorderImpressionMultiple struct for event sync
 type RecorderImpressionMultiple struct {
@@ -86,13 +76,10 @@ func (r *RecorderImpressionMultiple) fetch(bulkSize int64) (map[dtos.Metadata][]
 }
 
 func (r *RecorderImpressionMultiple) synchronizeImpressions(bulkSize int64) error {
-	// r.logger.Info("SynchronizeImpressions")
 	impressionsToSend, err := r.fetch(bulkSize)
 	if err != nil {
 		return err
 	}
-	fmt.Println(bulkSize)
-	// r.logger.Info(fmt.Sprintf("impressionsToSend: %v", impressionsToSend))
 
 	for metadata, impressions := range impressionsToSend {
 		before := time.Now()
@@ -110,7 +97,7 @@ func (r *RecorderImpressionMultiple) synchronizeImpressions(bulkSize int64) erro
 		})
 		if err != nil {
 			if _, ok := err.(*dtos.HTTPError); ok {
-				r.metricsWrapper.StoreCounters(storage.TestImpressionsCounter, string(err.(*dtos.HTTPError).Code))
+				r.metricsWrapper.StoreCounters(storage.TestImpressionsCounter, string(err.(*dtos.HTTPError).Code), false)
 			}
 			return err
 		}
@@ -120,7 +107,7 @@ func (r *RecorderImpressionMultiple) synchronizeImpressions(bulkSize int64) erro
 				r.logger.Error("JSON encoding failed for the following impressions", impressions)
 				continue
 			}
-			err = QueueImpressionsForListener(&ImpressionBulk{
+			err = task.QueueImpressionsForListener(&task.ImpressionBulk{
 				Data:        json.RawMessage(rawImpressions),
 				SdkVersion:  metadata.SDKVersion,
 				MachineIP:   metadata.MachineIP,
@@ -131,8 +118,8 @@ func (r *RecorderImpressionMultiple) synchronizeImpressions(bulkSize int64) erro
 			}
 		}
 		bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-		r.metricsWrapper.StoreLatencies(storage.TestImpressionsLatency, bucket)
-		r.metricsWrapper.StoreCounters(storage.TestImpressionsCounter, "ok")
+		r.metricsWrapper.StoreLatencies(storage.TestImpressionsLatency, bucket, false)
+		r.metricsWrapper.StoreCounters(storage.TestImpressionsCounter, "ok", false)
 	}
 	return nil
 }
@@ -152,7 +139,6 @@ func (r *RecorderImpressionMultiple) FlushImpressions(bulkSize int64) error {
 	if task.RequestOperation(task.ImpressionsOperation) {
 		defer task.FinishOperation(task.ImpressionsOperation)
 	} else {
-		fmt.Println("ERROR")
 		r.logger.Debug("Cannot execute flush. Another operation is performing operations on Impressions.")
 		return errors.New("Cannot execute flush. Another operation is performing operations on Impressions")
 	}

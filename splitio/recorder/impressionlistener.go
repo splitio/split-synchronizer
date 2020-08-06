@@ -19,12 +19,6 @@ type ImpressionListenerPostBody struct {
 	MachineName string          `json:"machineName"`
 }
 
-// ImpressionListenerMainQueueSize queue sizes
-var ImpressionListenerMainQueueSize int = 10
-
-// ImpressionListenerFailedQueueSize queue sizes
-var ImpressionListenerFailedQueueSize int = 10
-
 // Post sends data
 func (r ImpressionListenerSubmitter) Post(
 	impressions json.RawMessage,
@@ -51,9 +45,8 @@ func (r ImpressionListenerSubmitter) Post(
 	response, err := client.Do(request)
 	if err != nil {
 		return err
-	} else {
-		defer response.Body.Close()
 	}
+	defer response.Body.Close()
 
 	return nil
 }

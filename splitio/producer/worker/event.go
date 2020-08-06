@@ -92,13 +92,13 @@ func (e *RecorderEventMultiple) synchronizeEvents(bulkSize int64) error {
 		})
 		if err != nil {
 			if _, ok := err.(*dtos.HTTPError); ok {
-				e.metricsWrapper.StoreCounters(storage.PostEventsCounter, string(err.(*dtos.HTTPError).Code))
+				e.metricsWrapper.StoreCounters(storage.PostEventsCounter, string(err.(*dtos.HTTPError).Code), false)
 			}
 			return err
 		}
 		bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-		e.metricsWrapper.StoreLatencies(storage.PostEventsLatency, bucket)
-		e.metricsWrapper.StoreCounters(storage.PostEventsCounter, "ok")
+		e.metricsWrapper.StoreLatencies(storage.PostEventsLatency, bucket, false)
+		e.metricsWrapper.StoreCounters(storage.PostEventsCounter, "ok", false)
 	}
 	return nil
 }
