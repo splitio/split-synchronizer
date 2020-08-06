@@ -6,11 +6,21 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	config "github.com/splitio/go-split-commons/conf"
+	"github.com/splitio/go-split-commons/dtos"
+	"github.com/splitio/go-split-commons/service"
+	"github.com/splitio/go-split-commons/storage/redis"
+	"github.com/splitio/go-toolkit/logging"
+	"github.com/splitio/go-toolkit/nethelpers"
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio"
+	"github.com/splitio/split-synchronizer/splitio/util"
 )
 
 func parseTLSConfig(opt conf.RedisSection) (*tls.Config, error) {
@@ -99,4 +109,89 @@ func parseRedisOptions() (*config.RedisConfig, error) {
 		redisCfg.Database = conf.Data.Redis.Db
 	}
 	return redisCfg, nil
+}
+
+func isValidApikey(splitFetcher service.SplitFetcher) bool {
+	_, err := splitFetcher.Fetch(time.Now().UnixNano() / int64(time.Millisecond))
+	return err == nil
+}
+
+func getConfig() config.AdvancedConfig {
+	advanced := config.GetDefaultAdvancedConfig()
+	advanced.EventsBulkSize = conf.Data.EventsPerPost
+	advanced.HTTPTimeout = int(conf.Data.HTTPTimeout)
+	advanced.ImpressionsBulkSize = conf.Data.ImpressionsPerPost
+	// EventsQueueSize:      5000, // MISSING
+	// ImpressionsQueueSize: 5000, // MISSING
+	// SegmentQueueSize:     100,  // MISSING
+	// SegmentWorkers:       10,   // MISSING
+
+	envSdkURL := os.Getenv("SPLITIO_SDK_URL")
+	if envSdkURL != "" {
+		advanced.SdkURL = envSdkURL
+	} else {
+		advanced.SdkURL = "https://sdk.split.io/api"
+	}
+
+	envEventsURL := os.Getenv("SPLITIO_EVENTS_URL")
+	if envEventsURL != "" {
+		advanced.EventsURL = envEventsURL
+	} else {
+		advanced.EventsURL = "https://events.split.io/api"
+	}
+	return advanced
+}
+
+func startLoop(loopTime int64) {
+	for {
+		time.Sleep(time.Duration(loopTime) * time.Millisecond)
+	}
+}
+
+func hashAPIKey(apikey string) uint32 {
+	return util.Murmur3_32([]byte(apikey), 0)
+}
+
+func sanitizeRedis(miscStorage *redis.MiscStorage, logger logging.LoggerInterface) error {
+	if miscStorage == nil {
+		return errors.New("Could not sanitize redis")
+	}
+	currentHash := hashAPIKey(conf.Data.APIKey)
+	currentHashAsStr := strconv.Itoa(int(currentHash))
+	defer miscStorage.SetApikeyHash(currentHashAsStr)
+
+	if conf.Data.Redis.ForceFreshStartup {
+		logger.Warning("Fresh startup requested. Cleaning up redis before initializing.")
+		miscStorage.ClearAll()
+		return nil
+	}
+
+	previousHashStr, err := miscStorage.GetApikeyHash()
+	if err != nil && err.Error() != redis.ErrorHashNotPresent { // Missing hash is not considered an error
+		return err
+	}
+
+	if currentHashAsStr != previousHashStr {
+		logger.Warning("Previous apikey is missing/different from current one. Cleaning up redis before startup.")
+		miscStorage.ClearAll()
+	}
+	return nil
+}
+
+func getMetadata() dtos.Metadata {
+	instanceName := "unknown"
+	ipAddress := "unknown"
+	if conf.Data.IPAddressesEnabled {
+		ip, err := nethelpers.ExternalIP()
+		if err == nil {
+			ipAddress = ip
+			instanceName = fmt.Sprintf("ip-%s", strings.Replace(ipAddress, ".", "-", -1))
+		}
+	}
+
+	return dtos.Metadata{
+		MachineIP:   ipAddress,
+		MachineName: instanceName,
+		SDKVersion:  "split-sync-" + splitio.Version,
+	}
 }

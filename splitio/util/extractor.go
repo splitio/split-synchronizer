@@ -1,13 +1,17 @@
-package controllers
+package util
 
 import (
+	"fmt"
+
 	"github.com/splitio/go-split-commons/service/api"
 	"github.com/splitio/go-split-commons/storage"
+	"github.com/splitio/split-synchronizer/appcontext"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/common"
 )
 
-func getImpressionStorage(impressionStorage interface{}, exists bool) storage.ImpressionStorage {
+// GetImpressionStorage gets storage
+func GetImpressionStorage(impressionStorage interface{}, exists bool) storage.ImpressionStorage {
 	if !exists {
 		return nil
 	}
@@ -23,7 +27,8 @@ func getImpressionStorage(impressionStorage interface{}, exists bool) storage.Im
 	return st
 }
 
-func getEventStorage(eventStorage interface{}, exists bool) storage.EventsStorage {
+// GetEventStorage gets storage
+func GetEventStorage(eventStorage interface{}, exists bool) storage.EventsStorage {
 	if !exists {
 		return nil
 	}
@@ -39,7 +44,8 @@ func getEventStorage(eventStorage interface{}, exists bool) storage.EventsStorag
 	return st
 }
 
-func getSplitStorage(splitStorage interface{}, exists bool) storage.SplitStorage {
+// GetSplitStorage gets storage
+func GetSplitStorage(splitStorage interface{}, exists bool) storage.SplitStorage {
 	if !exists {
 		return nil
 	}
@@ -55,7 +61,8 @@ func getSplitStorage(splitStorage interface{}, exists bool) storage.SplitStorage
 	return st
 }
 
-func getSegmentStorage(segmentStorage interface{}, exists bool) storage.SegmentStorage {
+// GetSegmentStorage gets storage
+func GetSegmentStorage(segmentStorage interface{}, exists bool) storage.SegmentStorage {
 	if !exists {
 		return nil
 	}
@@ -71,7 +78,8 @@ func getSegmentStorage(segmentStorage interface{}, exists bool) storage.SegmentS
 	return st
 }
 
-func getTelemetryStorage(metricStorage interface{}, exists bool) storage.MetricsStorage {
+// GetTelemetryStorage gets storage
+func GetTelemetryStorage(metricStorage interface{}, exists bool) storage.MetricsStorage {
 	if !exists {
 		return nil
 	}
@@ -87,7 +95,8 @@ func getTelemetryStorage(metricStorage interface{}, exists bool) storage.Metrics
 	return st
 }
 
-func getSdkClient(sdkClient interface{}, exists bool) api.Client {
+// GetSDKClient gets client
+func GetSDKClient(sdkClient interface{}, exists bool) api.Client {
 	if !exists {
 		return nil
 	}
@@ -103,7 +112,8 @@ func getSdkClient(sdkClient interface{}, exists bool) api.Client {
 	return st
 }
 
-func getEvenntsClient(eventsClient interface{}, exists bool) api.Client {
+// GetEventsClient gets client
+func GetEventsClient(eventsClient interface{}, exists bool) api.Client {
 	if !exists {
 		return nil
 	}
@@ -119,7 +129,8 @@ func getEvenntsClient(eventsClient interface{}, exists bool) api.Client {
 	return st
 }
 
-func getRecorders(recorders interface{}, exists bool) *common.Recorders {
+// GetRecorders gets recorders
+func GetRecorders(recorders interface{}, exists bool) *common.Recorders {
 	if !exists {
 		return nil
 	}
@@ -135,34 +146,43 @@ func getRecorders(recorders interface{}, exists bool) *common.Recorders {
 	return &st
 }
 
-func areValidAPIClient(httpClients common.HTTPClients) bool {
+// AreValidAPIClient validates http clients
+func AreValidAPIClient(httpClients common.HTTPClients) bool {
 	if httpClients.EventsClient == nil {
+		fmt.Println("EventsClient")
 		return false
 	}
 	if httpClients.SdkClient == nil {
+		fmt.Println("SdkClient")
 		return false
 	}
 	return true
 }
 
-func areValidStorages(storages common.Storages) bool {
+// AreValidStorages validates storages
+func AreValidStorages(storages common.Storages) bool {
 	if storages.SplitStorage == nil {
-		return false
-	}
-	if storages.SegmentStorage == nil {
-		return false
-	}
-	if storages.EventStorage == nil {
-		return false
-	}
-	if storages.ImpressionStorage == nil {
+		fmt.Println("SplitStorage")
 		return false
 	}
 	if storages.LocalTelemetryStorage == nil {
+		fmt.Println("LocalTelemetryStorage")
 		return false
 	}
-	if storages.TelemetryStorage == nil {
+	if storages.SegmentStorage == nil {
+		fmt.Println("SegmentStorage")
 		return false
+	}
+	if appcontext.ExecutionMode() == appcontext.ProducerMode {
+
+		if storages.EventStorage == nil {
+			fmt.Println("EventStorage")
+			return false
+		}
+		if storages.ImpressionStorage == nil {
+			fmt.Println("ImpressionStorage")
+			return false
+		}
 	}
 	return true
 }
