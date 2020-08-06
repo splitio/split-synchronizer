@@ -29,10 +29,13 @@ func GetAdvancedConfig() conf.AdvancedConfig {
 	return advanced
 }
 
+// TelemetryStorage storage
+var TelemetryStorage *mutexmap.MMMetricsStorage = mutexmap.NewMMMetricsStorage()
+
 // ProxyTelemetryWrapper telemetry
 var ProxyTelemetryWrapper storage.MetricWrapper = storage.MetricWrapper{
 	LocalTelemtry: mutexmap.NewMMMetricsStorage(),
-	Telemetry:     mutexmap.NewMMMetricsStorage(),
+	Telemetry:     TelemetryStorage,
 	Logger:        nil,
 }
 

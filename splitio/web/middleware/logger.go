@@ -32,6 +32,6 @@ func Logger() gin.HandlerFunc {
 			clientIP,
 			path)
 
-		log.Debug.Println(message)
+		log.Instance.Debug(message)
 	}
 }

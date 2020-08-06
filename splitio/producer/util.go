@@ -45,12 +45,12 @@ func parseTLSConfig(opt conf.RedisSection) (*tls.Config, error) {
 		for _, cacert := range opt.TLSCACertificates {
 			pemData, err := ioutil.ReadFile(cacert)
 			if err != nil {
-				log.Error.Println(fmt.Sprintf("Failed to load Root CA certificate: %s", cacert))
+				log.Instance.Error(fmt.Sprintf("Failed to load Root CA certificate: %s", cacert))
 				return nil, err
 			}
 			ok := certPool.AppendCertsFromPEM(pemData)
 			if !ok {
-				log.Error.Println(fmt.Sprintf("Failed to add certificate %s to the TLS configuration", cacert))
+				log.Instance.Error(fmt.Sprintf("Failed to add certificate %s to the TLS configuration", cacert))
 				return nil, fmt.Errorf("Couldn't add certificate %s to redis TLS configuration", cacert)
 			}
 		}
@@ -66,7 +66,7 @@ func parseTLSConfig(opt conf.RedisSection) (*tls.Config, error) {
 		)
 
 		if err != nil {
-			log.Error.Println("Unable to load client certificate and private key")
+			log.Instance.Error("Unable to load client certificate and private key")
 			return nil, err
 		}
 

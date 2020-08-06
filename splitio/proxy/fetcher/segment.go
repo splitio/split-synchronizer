@@ -91,7 +91,7 @@ func (s *SegmentFetcherProxy) SynchronizeSegment(name string, till *int64) error
 		segmentChanges, err := s.segmentFetcher.Fetch(name, changeNumber)
 		if err != nil {
 			if _, ok := err.(*dtos.HTTPError); ok {
-				s.metricsWrapper.StoreCounters(storage.SegmentChangesCounter, string(err.(*dtos.HTTPError).Code), false)
+				s.metricsWrapper.StoreCounters(storage.SegmentChangesCounter, string(err.(*dtos.HTTPError).Code))
 			}
 			return err
 		}
@@ -138,8 +138,8 @@ func (s *SegmentFetcherProxy) SynchronizeSegment(name string, till *int64) error
 		s.segmentStorage.SetChangeNumber(segmentChanges.Name, segmentChanges.Till)
 
 		bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-		s.metricsWrapper.StoreLatencies(storage.SegmentChangesLatency, bucket, false)
-		s.metricsWrapper.StoreCounters(storage.SegmentChangesCounter, "ok", false)
+		s.metricsWrapper.StoreLatencies(storage.SegmentChangesLatency, bucket)
+		s.metricsWrapper.StoreCounters(storage.SegmentChangesCounter, "ok")
 		if segmentChanges.Till == segmentChanges.Since || (till != nil && segmentChanges.Till >= *till) {
 			return nil
 		}

@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/gin-gonic/gin"
+	"github.com/splitio/go-toolkit/logging"
 	"github.com/splitio/split-synchronizer/appcontext"
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
@@ -99,7 +100,7 @@ func GetConfiguration(c *gin.Context) {
 		config["redis"] = conf.Data.Redis
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"apiKey":              log.ObfuscateAPIKey(conf.Data.APIKey),
+		"apiKey":              logging.ObfuscateAPIKey(conf.Data.APIKey),
 		"impressionListener":  conf.Data.ImpressionListener,
 		"splitRefreshRate":    conf.Data.SplitsFetchRate,
 		"segmentsRefreshRate": conf.Data.SegmentFetchRate,
@@ -173,7 +174,7 @@ func HealthCheck(c *gin.Context) {
 		if splitStorage != nil {
 			storageOk = task.GetStorageStatus(splitStorage)
 		} else {
-			log.Warning.Println("Storage Status could not be fetched")
+			log.Instance.Warning("Storage Status could not be fetched")
 		}
 		healthy["date"] = task.GetHealthySince()
 		healthy["time"] = task.GetHealthySinceTimestamp()
@@ -219,7 +220,7 @@ func DashboardSegmentKeys(c *gin.Context) {
 		c.String(http.StatusOK, "%s", toReturn)
 		return
 	}
-	log.Error.Println("DashboardSegmentKeys: Could not fetch storages")
+	log.Instance.Error("DashboardSegmentKeys: Could not fetch storages")
 	c.String(http.StatusInternalServerError, "%s", "Could not fetch storage")
 }
 
@@ -254,7 +255,7 @@ func Dashboard(c *gin.Context) {
 		c.Writer.Write([]byte(dash.HTML()))
 		return
 	}
-	log.Error.Println("Dashboard: Could not fetch storages")
+	log.Instance.Error("Dashboard: Could not fetch storages")
 	c.String(http.StatusInternalServerError, "%s", "Could not fetch storage")
 }
 
@@ -404,6 +405,6 @@ func GetMetrics(c *gin.Context) {
 		c.JSON(http.StatusOK, stats)
 		return
 	}
-	log.Error.Println("GetMetrics: Could not fetch storages")
+	log.Instance.Error("GetMetrics: Could not fetch storages")
 	c.String(http.StatusInternalServerError, "%s", "Could not fetch storages")
 }

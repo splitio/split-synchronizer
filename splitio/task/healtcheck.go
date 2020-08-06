@@ -25,7 +25,7 @@ func StopHealtcheck() {
 func getSdkStatus(sdkClient api.Client) bool {
 	_, err := sdkClient.Get("/version")
 	if err != nil {
-		log.Debug.Println(err.Error())
+		log.Instance.Debug(err.Error())
 		return false
 	}
 	return true
@@ -34,7 +34,7 @@ func getSdkStatus(sdkClient api.Client) bool {
 func getEventsStatus(eventsClient api.Client) bool {
 	_, err := eventsClient.Get("/version")
 	if err != nil {
-		log.Debug.Println(err.Error())
+		log.Instance.Debug(err.Error())
 		return false
 	}
 	return true
@@ -44,7 +44,7 @@ func getEventsStatus(eventsClient api.Client) bool {
 func GetStorageStatus(splitStorage storage.SplitStorage) bool {
 	_, err := splitStorage.ChangeNumber()
 	if err != nil {
-		log.Debug.Println(err.Error())
+		log.Instance.Debug(err.Error())
 		return false
 	}
 	return true
@@ -92,7 +92,7 @@ func CheckEnvirontmentStatus(wg *sync.WaitGroup, splitStorage storage.SplitStora
 		select {
 		case msg := <-healtcheck:
 			if msg == "STOP" {
-				log.Debug.Println("Stopping task: healtheck")
+				log.Instance.Debug("Stopping task: healtheck")
 				keepLoop = false
 			}
 		case <-time.After(time.Duration(60) * time.Second):

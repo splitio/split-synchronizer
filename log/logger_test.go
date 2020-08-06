@@ -13,13 +13,11 @@ import (
 func TestInitialize(t *testing.T) {
 	var commonWriter = ioutil.Discard
 
-	Initialize(commonWriter, commonWriter, commonWriter, commonWriter, commonWriter, commonWriter)
+	Initialize(commonWriter, commonWriter, commonWriter, commonWriter, commonWriter)
 }
 
 func TestSlackWriter(t *testing.T) {
-
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
 		expectedJSON := `{"channel": "some-channel", "username": "Split-Sync", "text": "Some error message", "icon_emoji": ":robot_face:"}`
 		rBody, _ := ioutil.ReadAll(r.Body)
 
@@ -33,5 +31,4 @@ func TestSlackWriter(t *testing.T) {
 
 	slackWriter := &SlackWriter{WebHookURL: ts.URL, Channel: "some-channel", RefreshRate: 30}
 	slackWriter.Write([]byte("Some error message"))
-
 }

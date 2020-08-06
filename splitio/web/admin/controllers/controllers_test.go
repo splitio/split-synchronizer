@@ -496,7 +496,7 @@ func TestHealthCheckEndpointSuccessful(t *testing.T) {
 func TestHealthCheckEndpointFailure(t *testing.T) {
 	appcontext.Initialize(appcontext.ProducerMode)
 	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 	conf.Initialize()
 	redisMock := mocks.MockClient{
 		GetCall: func(key string) redis.Result {
@@ -543,7 +543,7 @@ func TestHealthCheckEndpointFailure(t *testing.T) {
 func TestHealthCheckEndpointSDKFail(t *testing.T) {
 	appcontext.Initialize(appcontext.ProducerMode)
 	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 	conf.Initialize()
 	redisMock := mocks.MockClient{
 		GetCall: func(key string) redis.Result {
@@ -596,7 +596,7 @@ func TestHealthCheckEndpointSDKFail(t *testing.T) {
 func TestHealthCheckEndpointEventsFail(t *testing.T) {
 	appcontext.Initialize(appcontext.ProducerMode)
 	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 	conf.Initialize()
 	redisMock := mocks.MockClient{
 		GetCall: func(key string) redis.Result {

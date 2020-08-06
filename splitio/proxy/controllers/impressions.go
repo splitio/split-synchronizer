@@ -7,6 +7,7 @@ import (
 
 	"github.com/splitio/go-split-commons/dtos"
 	"github.com/splitio/go-split-commons/service/api"
+	"github.com/splitio/go-split-commons/storage"
 	"github.com/splitio/go-split-commons/util"
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
@@ -100,14 +101,14 @@ func impressionConditionsWorker(postRate int64, waitingGroup *sync.WaitGroup) {
 		case msg := <-impressionPoolBufferChannel:
 			switch msg {
 			case impressionChannelMessageRelease:
-				log.Debug.Println("Releasing impressions by Size")
+				log.Instance.Debug("Releasing impressions by Size")
 			case impressionChannelMessageStop:
 				// flush impressions and finish
 				sendImpressions()
 				return
 			}
 		case <-time.After(time.Second * time.Duration(postRate)):
-			log.Debug.Println("Releasing impressions by post rate")
+			log.Instance.Debug("Releasing impressions by post rate")
 		}
 
 		sendImpressions()
@@ -171,7 +172,7 @@ func sendImpressions() {
 					var rawImpressions []json.RawMessage
 					err := json.Unmarshal(byteImpression, &rawImpressions)
 					if err != nil {
-						log.Error.Println(err)
+						log.Instance.Error(err)
 						continue
 					}
 
@@ -183,7 +184,7 @@ func sendImpressions() {
 
 				data, errl := json.Marshal(toSend)
 				if errl != nil {
-					log.Error.Println(errl)
+					log.Instance.Error(errl)
 					continue
 				}
 				before := time.Now()
@@ -193,12 +194,12 @@ func sendImpressions() {
 					MachineName: machineName,
 				})
 				if errp != nil {
-					log.Error.Println(errp)
-					interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter("backend::request.error")
+					log.Instance.Error(errp)
+					interfaces.ProxyTelemetryWrapper.StoreCounters(storage.TestImpressionsCounter, string(errp.(*dtos.HTTPError).Code))
 				} else {
 					bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-					interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncLatency("backend::/api/testImpressions/bulk", bucket)
-					interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter("backend::request.ok")
+					interfaces.ProxyTelemetryWrapper.StoreLatencies(storage.TestImpressionsLatency, bucket)
+					interfaces.ProxyTelemetryWrapper.StoreCounters(storage.TestImpressionsCounter, "ok")
 				}
 
 			}

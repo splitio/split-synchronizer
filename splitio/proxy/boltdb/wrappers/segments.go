@@ -25,7 +25,7 @@ func NewSegmentChangesWrapper() *SegmentChangesWrapper {
 func (s *SegmentChangesWrapper) RegisteredSegmentNames() ([]string, error) {
 	segments, err := s.segmentCollection.FetchAll()
 	if err != nil {
-		log.Error.Println("Error fetching segments from boldb", err)
+		log.Instance.Error("Error fetching segments from boldb", err)
 		return nil, err
 	}
 
@@ -56,7 +56,7 @@ func (s *SegmentChangesWrapper) SetChangeNumber(segmentName string, changeNumber
 func (s *SegmentChangesWrapper) ChangeNumber(segmentName string) (int64, error) {
 	segment, err := s.segmentCollection.Fetch(segmentName)
 	if err != nil {
-		log.Error.Println("Error fetching data for segment", segmentName)
+		log.Instance.Error("Error fetching data for segment", segmentName)
 		return 0, err
 	}
 
@@ -74,7 +74,7 @@ func (s *SegmentChangesWrapper) ChangeNumber(segmentName string) (int64, error) 
 func (s *SegmentChangesWrapper) CountActiveKeys(segmentName string) (int64, error) {
 	segment, err := s.segmentCollection.Fetch(segmentName)
 	if err != nil {
-		log.Error.Println("Error fetching data for segment", segmentName)
+		log.Instance.Error("Error fetching data for segment", segmentName)
 		return 0, err
 	}
 
@@ -100,7 +100,7 @@ func (s *SegmentChangesWrapper) CountActiveKeys(segmentName string) (int64, erro
 func (s *SegmentChangesWrapper) Keys(segmentName string) ([]dtos.SegmentKeyDTO, error) {
 	segment, err := s.segmentCollection.Fetch(segmentName)
 	if err != nil {
-		log.Error.Println("Error fetching data for segment", segmentName)
+		log.Instance.Error("Error fetching data for segment", segmentName)
 		return nil, err
 	}
 
@@ -121,7 +121,7 @@ func (s *SegmentChangesWrapper) Keys(segmentName string) ([]dtos.SegmentKeyDTO, 
 func (s *SegmentChangesWrapper) CountRemovedKeys(segmentName string) (int64, error) {
 	segment, err := s.segmentCollection.Fetch(segmentName)
 	if err != nil {
-		log.Error.Println("Error fetching data for segment", segmentName)
+		log.Instance.Error("Error fetching data for segment", segmentName)
 		return 0, err
 	}
 

@@ -66,7 +66,7 @@ func (c SegmentChangesCollection) Fetch(name string) (*SegmentChangesItem, error
 	var q SegmentChangesItem
 	errq := dec.Decode(&q)
 	if errq != nil {
-		log.Error.Println("decode error:", errq)
+		log.Instance.Error("decode error:", errq)
 	}
 	return &q, nil
 }
@@ -89,7 +89,7 @@ func (c SegmentChangesCollection) FetchAll() ([]SegmentChangesItem, error) {
 		decodeBuffer.Write(item)
 		errq := gob.NewDecoder(&decodeBuffer).Decode(&q)
 		if errq != nil {
-			log.Error.Println("decode error:", errq)
+			log.Instance.Error("decode error:", errq)
 			continue
 		}
 

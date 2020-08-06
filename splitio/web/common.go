@@ -119,7 +119,7 @@ func parseSDKStats(localTelemetry storage.MetricsStorage) string {
 	var toReturn string
 
 	toReturn += parseLatencySerieData(
-		"/api/splitChanges",
+		"sdk.splitChanges",
 		"/api/splitChanges",
 		toRGBAString(255, 159, 64, 0.2),
 		toRGBAString(255, 159, 64, 1),
@@ -127,7 +127,7 @@ func parseSDKStats(localTelemetry storage.MetricsStorage) string {
 	)
 
 	toReturn += parseLatencySerieData(
-		"/api/segmentChanges",
+		"sdk.segmentChanges",
 		"/api/segmentChanges",
 		toRGBAString(54, 162, 235, 0.2),
 		toRGBAString(54, 162, 235, 1),
@@ -135,7 +135,7 @@ func parseSDKStats(localTelemetry storage.MetricsStorage) string {
 	)
 
 	toReturn += parseLatencySerieData(
-		"/api/testImpressions/bulk",
+		"sdk.impressions",
 		"/api/testImpressions/bulk",
 		toRGBAString(75, 192, 192, 0.2),
 		toRGBAString(75, 192, 192, 1),
@@ -143,7 +143,7 @@ func parseSDKStats(localTelemetry storage.MetricsStorage) string {
 	)
 
 	toReturn += parseLatencySerieData(
-		"/api/events/bulk",
+		"sdk.events",
 		"/api/events/bulk",
 		toRGBAString(255, 205, 86, 0.2),
 		toRGBAString(255, 205, 86, 1),
@@ -151,7 +151,7 @@ func parseSDKStats(localTelemetry storage.MetricsStorage) string {
 	)
 
 	toReturn += parseLatencySerieData(
-		"/api/mySegments",
+		"sdk.mySegments",
 		"/api/mySegments",
 		toRGBAString(153, 102, 255, 0.2),
 		toRGBAString(153, 102, 255, 1),
@@ -231,7 +231,7 @@ func parseCachedSegments(splitStorage storage.SplitStorage, segmentStorage stora
 		// LAST MODIFIED
 		changeNumber, err := segmentStorage.ChangeNumber(segment)
 		if err != nil {
-			log.Warning.Printf("Error fetching last update for segment %s\n", segment)
+			log.Instance.Warning(fmt.Sprintf("Error fetching last update for segment %s\n", segment))
 		}
 		lastModified := time.Unix(0, changeNumber*int64(time.Millisecond))
 
@@ -304,13 +304,9 @@ func GetMetrics(storages common.Storages) Metrics {
 	// Counters
 	counters := storages.LocalTelemetryStorage.PeekCounters()
 	backendErrorCount := int64(0)
-	localErrorCount := int64(0)
 	for key, counter := range counters {
 		if strings.Contains(key, "backend::") && key != "backend::request.ok" {
 			backendErrorCount += counter
-		}
-		if !strings.Contains(key, "backend::") && key != "request.ok" {
-			localErrorCount += counter
 		}
 	}
 
@@ -319,9 +315,9 @@ func GetMetrics(storages common.Storages) Metrics {
 		SegmentsNumber:               strconv.Itoa(segmentNames.Size()),
 		LoggedErrors:                 formatNumber(log.ErrorDashboard.Counts()),
 		LoggedMessages:               log.ErrorDashboard.Messages(),
-		RequestErrorFormatted:        formatNumber(localErrorCount),
-		RequestOkFormatted:           formatNumber(counters["request.ok"]),
-		SdksTotalRequests:            formatNumber(counters["request.ok"] + localErrorCount),
+		RequestErrorFormatted:        formatNumber(counters["sdk.request.error"]),
+		RequestOkFormatted:           formatNumber(counters["sdk.request.ok"]),
+		SdksTotalRequests:            formatNumber(counters["sdk.request.ok"] + counters["sdk.request.error"]),
 		BackendTotalRequests:         formatNumber(counters["backend::request.ok"] + backendErrorCount),
 		BackendRequestOkFormatted:    formatNumber(counters["backend::request.ok"]),
 		BackendRequestErrorFormatted: formatNumber(backendErrorCount),
@@ -331,8 +327,8 @@ func GetMetrics(storages common.Storages) Metrics {
 		BackendRequestOk:             strconv.Itoa(int(counters["backend::request.ok"])),
 		BackendRequestError:          strconv.Itoa(int(backendErrorCount)),
 		LatenciesGroupData:           "[" + parseSDKStats(storages.LocalTelemetryStorage) + "]",
-		RequestOk:                    strconv.Itoa(int(counters["request.ok"])),
-		RequestError:                 strconv.Itoa(int(localErrorCount)),
+		RequestOk:                    strconv.Itoa(int(counters["sdk.request.ok"])),
+		RequestError:                 strconv.Itoa(int(counters["sdk.request.error"])),
 		EventsQueueSize:              parseEventsSize(storages.EventStorage),
 		ImpressionsQueueSize:         parseImpressionSize(storages.ImpressionStorage),
 		EventsLambda:                 parseEventsLambda(),

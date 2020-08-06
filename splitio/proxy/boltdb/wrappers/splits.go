@@ -51,7 +51,7 @@ func (s *SplitChangesWrapper) SplitsNames() ([]string, error) {
 	toReturn := make([]string, 0)
 	splits, err := s.splitCollection.FetchAll()
 	if err != nil {
-		log.Error.Println("Error fetching splits from boltdb")
+		log.Instance.Error("Error fetching splits from boltdb")
 		return nil, err
 	}
 
@@ -68,7 +68,7 @@ func (s *SplitChangesWrapper) RawSplits() ([]string, error) {
 	toReturn := make([]string, 0)
 	splits, err := s.splitCollection.FetchAll()
 	if err != nil {
-		log.Error.Println("Error fetching splits from boltdb")
+		log.Instance.Error("Error fetching splits from boltdb")
 		return nil, err
 	}
 
