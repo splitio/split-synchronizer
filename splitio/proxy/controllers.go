@@ -10,7 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/go-split-commons/dtos"
 	"github.com/splitio/go-split-commons/service/api"
-	"github.com/splitio/go-split-commons/storage"
 	"github.com/splitio/go-split-commons/util"
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
@@ -22,13 +21,18 @@ import (
 )
 
 const (
-	metricTime     = "/metrics/time"
-	metricLatency  = "/metrics/times"
-	metricCounter  = "/metrics/counter"
-	metricCounters = "/metrics/counters"
-	metricGauge    = "/metrics/gauge"
-	localAPIOK     = "request.ok"
-	localAPIError  = "request.error"
+	split          = "sdk.splitChanges"
+	segment        = "sdk.segmentChanges"
+	mySegment      = "sdk.mySegments"
+	impressions    = "sdk.impressions"
+	events         = "sdk.events"
+	metricTime     = "sdk.metrics.time"
+	metricLatency  = "sdk.metrics.times"
+	metricCounter  = "sdk.metrics.counter"
+	metricCounters = "sdk.metrics.counters"
+	metricGauge    = "sdk.metrics.gauge"
+	localAPIOK     = "sdk.request.ok"
+	localAPIError  = "sdk.request.error"
 )
 
 var metricsRecorder = api.NewHTTPMetricsRecorder(conf.Data.APIKey, interfaces.GetAdvancedConfig(), interfaces.Logger)
@@ -81,19 +85,17 @@ func splitChanges(c *gin.Context) {
 	if errf != nil {
 		switch errf {
 		case boltdb.ErrorBucketNotFound:
-			log.Warning.Println("Maybe Splits are not yet synchronized")
+			log.Instance.Warning("Maybe Splits are not yet synchronized")
 		default:
-			log.Error.Println(errf)
+			log.Instance.Error(errf)
 		}
-		interfaces.ProxyTelemetryWrapper.StoreCounters(storage.SplitChangesCounter, "500", true)
+		interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIError)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": errf.Error()})
 		return
 	}
 	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter("")
-	interfaces.ProxyTelemetryWrapper.Telemetry.IncCounter("")
-	interfaces.ProxyTelemetryWrapper.StoreLatencies(storage.SplitChangesLatency, bucket, true)
-	interfaces.ProxyTelemetryWrapper.StoreCounters(storage.SplitChangesCounter, "ok", true)
+	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncLatency(split, bucket)
+	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIOK)
 	c.JSON(http.StatusOK, gin.H{"splits": splits, "since": since, "till": till})
 }
 
@@ -111,9 +113,9 @@ func fetchSegmentsFromDB(since int, segmentName string) ([]string, []string, int
 	if err != nil {
 		switch err {
 		case boltdb.ErrorBucketNotFound:
-			log.Warning.Printf("Bucket not found for segment [%s]\n", segmentName)
+			log.Instance.Warning("Bucket not found for segment [%s]\n", segmentName)
 		default:
-			log.Error.Println(err)
+			log.Instance.Error(err)
 		}
 		return added, removed, till, err
 	}
@@ -158,13 +160,13 @@ func segmentChanges(c *gin.Context) {
 	before := time.Now()
 	added, removed, till, errf := fetchSegmentsFromDB(since, segmentName)
 	if errf != nil {
-		interfaces.ProxyTelemetryWrapper.StoreCounters(storage.SegmentChangesCounter, "500", true)
+		interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIError)
 		c.JSON(http.StatusNotFound, gin.H{"error": errf.Error()})
 		return
 	}
 	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-	interfaces.ProxyTelemetryWrapper.StoreLatencies(storage.SegmentChangesLatency, bucket, true)
-	interfaces.ProxyTelemetryWrapper.StoreCounters(storage.SegmentChangesCounter, "ok", true)
+	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncLatency(segment, bucket)
+	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIOK)
 	c.JSON(http.StatusOK, gin.H{"name": segmentName, "added": added,
 		"removed": removed, "since": since, "till": till})
 }
@@ -180,8 +182,8 @@ func mySegments(c *gin.Context) {
 	segmentCollection := collections.NewSegmentChangesCollection(boltdb.DBB)
 	segments, errs := segmentCollection.FetchAll()
 	if errs != nil {
-		log.Warning.Println(errs)
-		interfaces.ProxyTelemetryWrapper.StoreCounters(storage.MySegmentsCounter, "500", true)
+		log.Instance.Warning(errs)
+		interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIError)
 	} else {
 		for _, segment := range segments {
 			for _, skey := range segment.Keys {
@@ -194,8 +196,8 @@ func mySegments(c *gin.Context) {
 	}
 
 	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-	interfaces.ProxyTelemetryWrapper.StoreLatencies(storage.MySegmentsLatency, bucket, true)
-	interfaces.ProxyTelemetryWrapper.StoreCounters(storage.MySegmentsCounter, "ok", true)
+	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncLatency(mySegment, bucket)
+	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIOK)
 	c.JSON(http.StatusOK, gin.H{"mySegments": mysegments})
 }
 
@@ -221,8 +223,8 @@ func submitImpressions(
 	before := time.Now()
 	controllers.AddImpressions(data, sdkVersion, machineIP, machineName)
 	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-	interfaces.ProxyTelemetryWrapper.StoreLatencies(storage.TestImpressionsLatency, bucket, true)
-	interfaces.ProxyTelemetryWrapper.StoreCounters(storage.TestImpressionsCounter, "ok", true)
+	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncLatency(impressions, bucket)
+	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIOK)
 }
 
 func postImpressionBulk(impressionListenerEnabled bool) gin.HandlerFunc {
@@ -232,8 +234,8 @@ func postImpressionBulk(impressionListenerEnabled bool) gin.HandlerFunc {
 		machineName := c.Request.Header.Get("SplitSDKMachineName")
 		data, err := ioutil.ReadAll(c.Request.Body)
 		if err != nil {
-			log.Error.Println(err)
-			interfaces.ProxyTelemetryWrapper.StoreCounters(storage.TestImpressionsCounter, "500", true)
+			log.Instance.Error(err)
+			interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIError)
 			c.JSON(http.StatusInternalServerError, nil)
 			return
 		}
@@ -260,8 +262,8 @@ func postImpressionBeacon(keys []string, impressionListenerEnabled bool) gin.Han
 
 		data, err := ioutil.ReadAll(c.Request.Body)
 		if err != nil {
-			log.Error.Println(err)
-			interfaces.ProxyTelemetryWrapper.StoreCounters(storage.TestImpressionsCounter, "500", true)
+			log.Instance.Error(err)
+			interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIError)
 			c.JSON(http.StatusInternalServerError, nil)
 			return
 		}
@@ -273,7 +275,7 @@ func postImpressionBeacon(keys []string, impressionListenerEnabled bool) gin.Han
 		}
 		var body BeaconImpressions
 		if err := json.Unmarshal([]byte(data), &body); err != nil {
-			log.Error.Println(err)
+			log.Instance.Error(err)
 			c.JSON(http.StatusBadRequest, nil)
 			return
 		}
@@ -285,7 +287,7 @@ func postImpressionBeacon(keys []string, impressionListenerEnabled bool) gin.Han
 
 		impressions, err := json.Marshal(body.Entries)
 		if err != nil {
-			log.Error.Println(err)
+			log.Instance.Error(err)
 			c.JSON(http.StatusInternalServerError, nil)
 			return
 		}
@@ -300,44 +302,47 @@ func postImpressionBeacon(keys []string, impressionListenerEnabled bool) gin.Han
 //-----------------------------------------------------------------------------
 
 func postMetricsTimes(c *gin.Context) {
+	before := time.Now()
 	postEvent(c, metricLatency)
-	// startTime := controllerLatencies.StartMeasuringLatency()
-	// controllerLatencies.RegisterLatency(latencyPostSDKLatencies, startTime)
-	// controllerLocalCounters.Increment("request.ok")
-	// controllerLatenciesBkt.RegisterLatency("/api/metrics/times", startTime)
+	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
+	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncLatency(metricLatency, bucket)
+	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIOK)
 	c.JSON(http.StatusOK, "")
 }
 
 func postMetricsTime(c *gin.Context) {
+	before := time.Now()
 	postEvent(c, metricTime)
-	// startTime := controllerLatencies.StartMeasuringLatency()
-	// controllerLatencies.RegisterLatency(latencyPostSDKLatency, startTime)
-	// controllerLocalCounters.Increment("request.ok")
-	// controllerLatenciesBkt.RegisterLatency("/api/metrics/time", startTime)
+	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
+	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncLatency(metricTime, bucket)
+	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIOK)
 	c.JSON(http.StatusOK, "")
 }
 
 func postMetricsCounters(c *gin.Context) {
+	before := time.Now()
 	postEvent(c, metricCounters)
-	// controllerLatencies.RegisterLatency(latencyPostSDKCounters, startTime)
-	// controllerLocalCounters.Increment("request.ok")
-	// controllerLatenciesBkt.RegisterLatency("/api/metrics/counters", startTime)
+	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
+	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncLatency(metricCounters, bucket)
+	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIOK)
 	c.JSON(http.StatusOK, "")
 }
 
 func postMetricsCounter(c *gin.Context) {
+	before := time.Now()
 	postEvent(c, metricCounter)
-	// controllerLatencies.RegisterLatency(latencyPostSDKCount, startTime)
-	// controllerLocalCounters.Increment("request.ok")
-	// controllerLatenciesBkt.RegisterLatency("/api/metrics/counter", startTime)
+	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
+	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncLatency(metricCounter, bucket)
+	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIOK)
 	c.JSON(http.StatusOK, "")
 }
 
 func postMetricsGauge(c *gin.Context) {
+	before := time.Now()
 	postEvent(c, metricGauge)
-	// controllerLatencies.RegisterLatency(latencyPostSDKGauge, startTime)
-	// controllerLocalCounters.Increment("request.ok")
-	// controllerLatenciesBkt.RegisterLatency("/api/metrics/gauge", startTime)
+	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
+	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncLatency(metricGauge, bucket)
+	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIOK)
 	c.JSON(http.StatusOK, "")
 }
 
@@ -348,15 +353,14 @@ func postEvent(c *gin.Context, url string) {
 	}
 	data, err := ioutil.ReadAll(c.Request.Body)
 	if err != nil {
-		log.Error.Println(err)
+		log.Instance.Error(err)
 	}
 
 	go func() {
-		log.Debug.Println(metadata.SDKVersion, metadata.MachineIP, string(data))
+		log.Instance.Debug(metadata.SDKVersion, metadata.MachineIP, string(data))
 		var e = metricsRecorder.RecordRaw(url, data, metadata)
 		if e != nil {
-			log.Error.Println(e)
-			// ProxyTelemetryWrapper.StoreCounters(storage., "500")
+			log.Instance.Error(e)
 		}
 	}()
 }
@@ -368,8 +372,8 @@ func submitEvents(sdkVersion string, machineIP string, machineName string, data 
 	before := time.Now()
 	controllers.AddEvents(data, sdkVersion, machineIP, machineName)
 	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-	interfaces.ProxyTelemetryWrapper.StoreLatencies(storage.PostEventsLatency, bucket, true)
-	interfaces.ProxyTelemetryWrapper.StoreCounters(storage.PostEventsCounter, "ok", true)
+	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncLatency(events, bucket)
+	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIOK)
 }
 
 func postEvents(c *gin.Context) {
@@ -378,8 +382,8 @@ func postEvents(c *gin.Context) {
 	machineName := c.Request.Header.Get("SplitSDKMachineName")
 	data, err := ioutil.ReadAll(c.Request.Body)
 	if err != nil {
-		log.Error.Println(err)
-		interfaces.ProxyTelemetryWrapper.StoreCounters(storage.PostEventsCounter, "500", true)
+		log.Instance.Error(err)
+		interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIError)
 		c.JSON(http.StatusInternalServerError, nil)
 		return
 	}
@@ -397,8 +401,8 @@ func postEventsBeacon(keys []string) gin.HandlerFunc {
 
 		data, err := ioutil.ReadAll(c.Request.Body)
 		if err != nil {
-			log.Error.Println(err)
-			interfaces.ProxyTelemetryWrapper.StoreCounters(storage.PostEventsCounter, "500", true)
+			log.Instance.Error(err)
+			interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIError)
 			c.JSON(http.StatusInternalServerError, nil)
 			return
 		}
@@ -410,7 +414,7 @@ func postEventsBeacon(keys []string) gin.HandlerFunc {
 		}
 		var body BeaconEvents
 		if err := json.Unmarshal([]byte(data), &body); err != nil {
-			log.Error.Println(err)
+			log.Instance.Error(err)
 			c.JSON(http.StatusBadRequest, nil)
 			return
 		}
@@ -422,7 +426,7 @@ func postEventsBeacon(keys []string) gin.HandlerFunc {
 
 		events, err := json.Marshal(body.Entries)
 		if err != nil {
-			log.Error.Println(err)
+			log.Instance.Error(err)
 			c.JSON(http.StatusInternalServerError, nil)
 			return
 		}

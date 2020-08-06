@@ -33,8 +33,10 @@ func TestImpressionsBufferCounter(t *testing.T) {
 
 func TestAddImpressions(t *testing.T) {
 	wg := &sync.WaitGroup{}
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	}
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 

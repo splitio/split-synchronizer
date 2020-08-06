@@ -98,7 +98,7 @@ func (c Collection) Save(item CollectionItem) (uint64, error) {
 	})
 
 	if updateError != nil {
-		log.Error.Println(updateError)
+		log.Instance.Error(updateError)
 		return 0, updateError
 	}
 
@@ -108,7 +108,7 @@ func (c Collection) Save(item CollectionItem) (uint64, error) {
 // Update an item into collection with current item ID
 func (c Collection) Update(item CollectionItem) error {
 	if !(item.ID() > 0) {
-		log.Error.Println("Trying to update an item with ID 0")
+		log.Instance.Error("Trying to update an item with ID 0")
 		return errors.New("Invalid ID, it must be grater than zero")
 	}
 
@@ -136,7 +136,7 @@ func (c Collection) Update(item CollectionItem) error {
 	})
 
 	if updateError != nil {
-		log.Error.Println(updateError)
+		log.Instance.Error(updateError)
 		return updateError
 	}
 

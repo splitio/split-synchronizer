@@ -40,7 +40,7 @@ func queueFailedImpressions(failedQueue chan *ImpressionBulk, msg *ImpressionBul
 	select {
 	case failedQueue <- msg:
 	default:
-		log.Error.Println("Impression listener failed queue is full. " +
+		log.Instance.Error("Impression listener failed queue is full. " +
 			"Impressions will be dropped until the listener enpoint is restored.")
 	}
 }

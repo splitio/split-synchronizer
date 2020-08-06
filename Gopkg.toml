@@ -8,7 +8,7 @@
 
 [[constraint]]
   name = "github.com/gin-contrib/cors"
-  version = "1.2"
+  version = "=1.2"
 
 [[constraint]]
   name = "github.com/gin-contrib/gzip"
@@ -16,4 +16,4 @@
 
 [[constraint]]
   name = "github.com/boltdb/bolt"
-  version = "1.3.1"
+  version = "=1.3.1"

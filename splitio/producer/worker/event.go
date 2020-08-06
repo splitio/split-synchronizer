@@ -75,7 +75,6 @@ func (e *RecorderEventMultiple) synchronizeEvents(bulkSize int64) error {
 		return err
 	}
 
-	// e.logger.Info(fmt.Sprintf("eventsToSend: %v", eventsToSend))
 	for metadata, events := range eventsToSend {
 		before := time.Now()
 		if appcontext.ExecutionMode() == appcontext.ProducerMode {
@@ -92,13 +91,13 @@ func (e *RecorderEventMultiple) synchronizeEvents(bulkSize int64) error {
 		})
 		if err != nil {
 			if _, ok := err.(*dtos.HTTPError); ok {
-				e.metricsWrapper.StoreCounters(storage.PostEventsCounter, string(err.(*dtos.HTTPError).Code), false)
+				e.metricsWrapper.StoreCounters(storage.PostEventsCounter, string(err.(*dtos.HTTPError).Code))
 			}
 			return err
 		}
 		bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-		e.metricsWrapper.StoreLatencies(storage.PostEventsLatency, bucket, false)
-		e.metricsWrapper.StoreCounters(storage.PostEventsCounter, "ok", false)
+		e.metricsWrapper.StoreLatencies(storage.PostEventsLatency, bucket)
+		e.metricsWrapper.StoreCounters(storage.PostEventsCounter, "ok")
 	}
 	return nil
 }

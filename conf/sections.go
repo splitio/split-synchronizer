@@ -83,7 +83,6 @@ type ConfigData struct {
 	EventsPerPost       int64              `json:"eventsPerPost" split-default-value:"10000" split-cli-option:"events-per-post" split-cli-description:"Number of events to send in a POST request"`
 	EventsThreads       int                `json:"eventsThreads" split-default-value:"1" split-cli-option:"events-threads" split-cli-description:"Number of events threads"`
 	MetricsPostRate     int                `json:"metricsPostRate" split-default-value:"60" split-cli-option:"metrics-post-rate" split-cli-description:"Post rate of metrics recorder"`
-	MetricsRefreshRate  int                `json:"metricsRefreshRate" split-default-value:"0" split-cli-option:"metrics-refresh-rate" split-cli-description:"Post rate of metrics recorder"`
 	HTTPTimeout         int64              `json:"httpTimeout" split-default-value:"60" split-cli-option:"http-timeout" split-cli-description:"Timeout specifies a time limit for requests"`
 	IPAddressesEnabled  bool               `json:"IPAddressesEnabled" split-default-value:"true" split-cli-option:"ip-addresses-enabled" split-cli-description:"Flag to disable IP addresses and host name from being sent to the Split backend"`
 }

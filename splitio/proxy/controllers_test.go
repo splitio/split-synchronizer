@@ -242,7 +242,7 @@ func TestPostImpressionsBeacon(t *testing.T) {
 
 	wg := &sync.WaitGroup{}
 	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 
 	controllers.InitializeImpressionWorkers(200, 2, wg)
 
@@ -328,7 +328,7 @@ func TestPostEventsBeacon(t *testing.T) {
 
 	wg := &sync.WaitGroup{}
 	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 
 	controllers.InitializeEventWorkers(200, 2, wg)
 
@@ -394,7 +394,7 @@ func TestAuth(t *testing.T) {
 	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
 
 	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 
 	gin.SetMode(gin.TestMode)
 	router := gin.Default()

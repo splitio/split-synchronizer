@@ -16,12 +16,12 @@ func GetImpressionStorage(impressionStorage interface{}, exists bool) storage.Im
 		return nil
 	}
 	if impressionStorage == nil {
-		log.Warning.Println("ImpressionStorage could not be fetched")
+		log.Instance.Warning("ImpressionStorage could not be fetched")
 		return nil
 	}
 	st, ok := impressionStorage.(storage.ImpressionStorage)
 	if !ok {
-		log.Warning.Println("ImpressionStorage could not be fetched")
+		log.Instance.Warning("ImpressionStorage could not be fetched")
 		return nil
 	}
 	return st
@@ -33,12 +33,12 @@ func GetEventStorage(eventStorage interface{}, exists bool) storage.EventsStorag
 		return nil
 	}
 	if eventStorage == nil {
-		log.Warning.Println("EventStorage could not be fetched")
+		log.Instance.Warning("EventStorage could not be fetched")
 		return nil
 	}
 	st, ok := eventStorage.(storage.EventsStorage)
 	if !ok {
-		log.Warning.Println("EventStorage could not be fetched")
+		log.Instance.Warning("EventStorage could not be fetched")
 		return nil
 	}
 	return st
@@ -50,12 +50,12 @@ func GetSplitStorage(splitStorage interface{}, exists bool) storage.SplitStorage
 		return nil
 	}
 	if splitStorage == nil {
-		log.Warning.Println("SplitStorage could not be fetched")
+		log.Instance.Warning("SplitStorage could not be fetched")
 		return nil
 	}
 	st, ok := splitStorage.(storage.SplitStorage)
 	if !ok {
-		log.Warning.Println("SplitStorage could not be fetched")
+		log.Instance.Warning("SplitStorage could not be fetched")
 		return nil
 	}
 	return st
@@ -67,12 +67,12 @@ func GetSegmentStorage(segmentStorage interface{}, exists bool) storage.SegmentS
 		return nil
 	}
 	if segmentStorage == nil {
-		log.Warning.Println("SegmentStorage could not be fetched")
+		log.Instance.Warning("SegmentStorage could not be fetched")
 		return nil
 	}
 	st, ok := segmentStorage.(storage.SegmentStorage)
 	if !ok {
-		log.Warning.Println("SegmentStorage could not be fetched")
+		log.Instance.Warning("SegmentStorage could not be fetched")
 		return nil
 	}
 	return st
@@ -84,12 +84,12 @@ func GetTelemetryStorage(metricStorage interface{}, exists bool) storage.Metrics
 		return nil
 	}
 	if metricStorage == nil {
-		log.Warning.Println("MetricsStorage could not be fetched")
+		log.Instance.Warning("MetricsStorage could not be fetched")
 		return nil
 	}
 	st, ok := metricStorage.(storage.MetricsStorage)
 	if !ok {
-		log.Warning.Println("MetricsStorage could not be fetched")
+		log.Instance.Warning("MetricsStorage could not be fetched")
 		return nil
 	}
 	return st
@@ -101,12 +101,12 @@ func GetSDKClient(sdkClient interface{}, exists bool) api.Client {
 		return nil
 	}
 	if sdkClient == nil {
-		log.Warning.Println("SdkClient could not be fetched")
+		log.Instance.Warning("SdkClient could not be fetched")
 		return nil
 	}
 	st, ok := sdkClient.(api.Client)
 	if !ok {
-		log.Warning.Println("SdkClient could not be fetched")
+		log.Instance.Warning("SdkClient could not be fetched")
 		return nil
 	}
 	return st
@@ -118,12 +118,12 @@ func GetEventsClient(eventsClient interface{}, exists bool) api.Client {
 		return nil
 	}
 	if eventsClient == nil {
-		log.Warning.Println("EventsClient could not be fetched")
+		log.Instance.Warning("EventsClient could not be fetched")
 		return nil
 	}
 	st, ok := eventsClient.(api.Client)
 	if !ok {
-		log.Warning.Println("EventsClient could not be fetched")
+		log.Instance.Warning("EventsClient could not be fetched")
 		return nil
 	}
 	return st
@@ -135,12 +135,12 @@ func GetRecorders(recorders interface{}, exists bool) *common.Recorders {
 		return nil
 	}
 	if recorders == nil {
-		log.Warning.Println("Recorders could not be fetched")
+		log.Instance.Warning("Recorders could not be fetched")
 		return nil
 	}
 	st, ok := recorders.(common.Recorders)
 	if !ok {
-		log.Warning.Println("Recorders could not be fetched")
+		log.Instance.Warning("Recorders could not be fetched")
 		return nil
 	}
 	return &st

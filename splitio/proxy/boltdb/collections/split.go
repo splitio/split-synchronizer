@@ -91,7 +91,7 @@ func (c SplitChangesCollection) FetchAll() (SplitsChangesItems, error) {
 
 		errq := dec.Decode(&q)
 		if errq != nil {
-			log.Error.Println("decode error:", errq, "|", string(v))
+			log.Instance.Error("decode error:", errq, "|", string(v))
 			continue
 		}
 		toReturn = append(toReturn, q)

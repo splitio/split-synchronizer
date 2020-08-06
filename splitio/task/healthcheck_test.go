@@ -27,7 +27,7 @@ func performRequest(r http.Handler, method, path string) *httptest.ResponseRecor
 
 func TestTaskCheckEnvirontmentStatusWithSomeFail(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 	logger := logging.NewLogger(&logging.LoggerOptions{})
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -60,7 +60,7 @@ func TestTaskCheckEnvirontmentStatusWithSomeFail(t *testing.T) {
 
 func TestTaskCheckEnvirontmentStatus(t *testing.T) {
 	stdoutWriter := ioutil.Discard // os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 	logger := logging.NewLogger(&logging.LoggerOptions{})
 
 	tsHealthcheck := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -86,7 +86,7 @@ func TestTaskCheckEnvirontmentStatus(t *testing.T) {
 
 func TestTaskCheckEnvirontmentStatusWithSomeFailAndSince(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 	logger := logging.NewLogger(&logging.LoggerOptions{})
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

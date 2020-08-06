@@ -41,7 +41,6 @@ func (r *RecorderMetricMultiple) sendLatencies() {
 	if err != nil {
 		r.logger.Error(err.Error())
 	} else {
-		// r.logger.Info("Latencies to send", latenciesToSend)
 		latenciesToSend.ForEach(func(sdk string, ip string, latencies map[string][]int64) {
 			latenciesDataSet := make([]dtos.LatenciesDTO, 0)
 			for name, buckets := range latencies {
@@ -62,8 +61,6 @@ func (r *RecorderMetricMultiple) sendCounters() {
 	if err != nil {
 		r.logger.Error(err.Error())
 	} else {
-		// r.logger.Info("Counters to send", countersToSend)
-
 		countersToSend.ForEach(func(sdk string, ip string, counters map[string]int64) {
 			countersDataSet := make([]dtos.CounterDTO, 0)
 			for metricName, count := range counters {
@@ -84,7 +81,6 @@ func (r *RecorderMetricMultiple) sendGauges() {
 	if err != nil {
 		r.logger.Error(err.Error())
 	} else {
-		// r.logger.Info("Gauges to send", gaugesToSend)
 		gaugesToSend.ForEach(func(sdk string, ip string, metricName string, value float64) {
 			r.logger.Debug("Posting gauge:", metricName, value)
 			r.metricRecorder.RecordGauge(dtos.GaugeDTO{MetricName: metricName, Gauge: value}, dtos.Metadata{MachineIP: ip, SDKVersion: sdk})

@@ -2,7 +2,6 @@ package producer
 
 import (
 	"fmt"
-	l "log"
 	"os"
 	"strings"
 	"sync"
@@ -17,12 +16,11 @@ import (
 	"github.com/splitio/go-split-commons/synchronizer/worker/segment"
 	"github.com/splitio/go-split-commons/synchronizer/worker/split"
 	"github.com/splitio/go-split-commons/tasks"
-	"github.com/splitio/go-toolkit/logging"
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio"
 	"github.com/splitio/split-synchronizer/splitio/common"
-	multipleWorkers "github.com/splitio/split-synchronizer/splitio/producer/worker"
+	"github.com/splitio/split-synchronizer/splitio/producer/worker"
 	"github.com/splitio/split-synchronizer/splitio/recorder"
 	"github.com/splitio/split-synchronizer/splitio/task"
 	"github.com/splitio/split-synchronizer/splitio/web/admin"
@@ -36,6 +34,7 @@ func gracefulShutdownProducer(sigs chan os.Signal, gracefulShutdownWaitingGroup 
 	fmt.Println("\n\n * Starting graceful shutdown")
 	fmt.Println("")
 
+	// Stopping Sync Manager in charge of PeriodicFetchers and PeriodicRecorders as well as Streaming
 	syncManager.Stop()
 
 	// Healthcheck - Emit task stop signal
@@ -48,11 +47,6 @@ func gracefulShutdownProducer(sigs chan os.Signal, gracefulShutdownWaitingGroup 
 
 // Start initialize the producer mode
 func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
-	logger := logging.NewLogger(&logging.LoggerOptions{
-		StandardLoggerFlags: l.LUTC | l.Ldate | l.Lmicroseconds | l.Lshortfile,
-		LogLevel:            logging.LevelInfo,
-	})
-
 	advanced := getConfig()
 	metadata := getMetadata()
 
@@ -60,32 +54,32 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	splitAPI := service.NewSplitAPI(
 		conf.Data.APIKey,
 		advanced,
-		logger,
+		log.Instance,
 		metadata,
 	)
 
 	// Check if apikey is valid
 	if !isValidApikey(splitAPI.SplitFetcher) {
-		log.Error.Println("Invalid apikey! Aborting execution.")
+		log.Instance.Error("Invalid apikey! Aborting execution.")
 		os.Exit(splitio.ExitRedisInitializationFailed)
 	}
 
 	redisOptions, err := parseRedisOptions()
 	if err != nil {
-		logger.Error("Failed to instantiate redis client.")
+		log.Instance.Error("Failed to instantiate redis client.")
 		os.Exit(splitio.ExitRedisInitializationFailed)
 	}
-	redisClient, err := redis.NewRedisClient(redisOptions, logger)
+	redisClient, err := redis.NewRedisClient(redisOptions, log.Instance)
 	if err != nil {
-		logger.Error("Failed to instantiate redis client.")
+		log.Instance.Error("Failed to instantiate redis client.")
 		os.Exit(splitio.ExitRedisInitializationFailed)
 	}
 
-	miscStorage := redis.NewMiscStorage(redisClient, logger)
-	err = sanitizeRedis(miscStorage, logger)
+	miscStorage := redis.NewMiscStorage(redisClient, log.Instance)
+	err = sanitizeRedis(miscStorage, log.Instance)
 	if err != nil {
-		log.Error.Println("Failed when trying to clean up redis. Aborting execution.")
-		log.Error.Println(err.Error())
+		log.Instance.Error("Failed when trying to clean up redis. Aborting execution.")
+		log.Instance.Error(err.Error())
 		os.Exit(splitio.ExitRedisInitializationFailed)
 	}
 
@@ -97,30 +91,30 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		DebugOn:       conf.Data.Logger.DebugOn,
 	}
 
-	metricStorage := redis.NewMetricsStorage(redisClient, metadata, logger)
+	metricStorage := redis.NewMetricsStorage(redisClient, metadata, log.Instance)
 	localTelemetryStorage := mutexmap.NewMMMetricsStorage()
-	metricsWrapper := storage.NewMetricWrapper(metricStorage, localTelemetryStorage, logger)
+	metricsWrapper := storage.NewMetricWrapper(metricStorage, localTelemetryStorage, log.Instance)
 	storages := common.Storages{
-		SplitStorage:          redis.NewSplitStorage(redisClient, logger),
-		SegmentStorage:        redis.NewSegmentStorage(redisClient, logger),
+		SplitStorage:          redis.NewSplitStorage(redisClient, log.Instance),
+		SegmentStorage:        redis.NewSegmentStorage(redisClient, log.Instance),
 		LocalTelemetryStorage: localTelemetryStorage,
-		ImpressionStorage:     redis.NewImpressionStorage(redisClient, dtos.Metadata{}, logger),
-		EventStorage:          redis.NewEventsStorage(redisClient, dtos.Metadata{}, logger),
+		ImpressionStorage:     redis.NewImpressionStorage(redisClient, dtos.Metadata{}, log.Instance),
+		EventStorage:          redis.NewEventsStorage(redisClient, dtos.Metadata{}, log.Instance),
 	}
 	httpClients := common.HTTPClients{
-		SdkClient:    api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.SdkURL, logger, metadata),
-		EventsClient: api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.EventsURL, logger, metadata),
+		SdkClient:    api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.SdkURL, log.Instance, metadata),
+		EventsClient: api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.EventsURL, log.Instance, metadata),
 	}
 
 	impressionListenerEnabled := strings.TrimSpace(conf.Data.ImpressionListener.Endpoint) != ""
-	impressionRecorder := multipleWorkers.NewImpressionRecordMultiple(storages.ImpressionStorage, splitAPI.ImpressionRecorder, metricsWrapper, impressionListenerEnabled, logger)
-	eventRecorder := multipleWorkers.NewEventRecorderMultiple(storages.EventStorage, splitAPI.EventRecorder, metricsWrapper, logger)
+	impressionRecorder := worker.NewImpressionRecordMultiple(storages.ImpressionStorage, splitAPI.ImpressionRecorder, metricsWrapper, impressionListenerEnabled, log.Instance)
+	eventRecorder := worker.NewEventRecorderMultiple(storages.EventStorage, splitAPI.EventRecorder, metricsWrapper, log.Instance)
 	workers := synchronizer.Workers{
-		SplitFetcher:       split.NewSplitFetcher(storages.SplitStorage, splitAPI.SplitFetcher, metricsWrapper, logger),
-		SegmentFetcher:     segment.NewSegmentFetcher(storages.SplitStorage, storages.SegmentStorage, splitAPI.SegmentFetcher, metricsWrapper, logger),
+		SplitFetcher:       split.NewSplitFetcher(storages.SplitStorage, splitAPI.SplitFetcher, metricsWrapper, log.Instance),
+		SegmentFetcher:     segment.NewSegmentFetcher(storages.SplitStorage, storages.SegmentStorage, splitAPI.SegmentFetcher, metricsWrapper, log.Instance),
 		EventRecorder:      eventRecorder,
 		ImpressionRecorder: impressionRecorder,
-		TelemetryRecorder:  multipleWorkers.NewMetricRecorderMultiple(metricsWrapper, splitAPI.MetricRecorder, logger),
+		TelemetryRecorder:  worker.NewMetricRecorderMultiple(metricsWrapper, splitAPI.MetricRecorder, log.Instance),
 	}
 	recorders := common.Recorders{
 		Impression: impressionRecorder,
@@ -131,25 +125,25 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	admin.StartAdminWebAdmin(waOptions, storages, httpClients, recorders)
 
 	splitTasks := synchronizer.SplitTasks{
-		SplitSyncTask:      tasks.NewFetchSplitsTask(workers.SplitFetcher, conf.Data.SplitsFetchRate, logger),
-		SegmentSyncTask:    tasks.NewFetchSegmentsTask(workers.SegmentFetcher, conf.Data.SegmentFetchRate, advanced.SegmentWorkers, advanced.SegmentQueueSize, logger),
-		TelemetrySyncTask:  tasks.NewRecordTelemetryTask(workers.TelemetryRecorder, conf.Data.MetricsRefreshRate, logger),
-		EventSyncTask:      tasks.NewRecordEventsTasks(workers.EventRecorder, advanced.EventsBulkSize, conf.Data.EventsPostRate, logger, conf.Data.EventsThreads),
-		ImpressionSyncTask: tasks.NewRecordImpressionsTasks(workers.ImpressionRecorder, conf.Data.ImpressionsPostRate, logger, advanced.ImpressionsBulkSize, conf.Data.ImpressionsThreads),
+		SplitSyncTask:      tasks.NewFetchSplitsTask(workers.SplitFetcher, conf.Data.SplitsFetchRate, log.Instance),
+		SegmentSyncTask:    tasks.NewFetchSegmentsTask(workers.SegmentFetcher, conf.Data.SegmentFetchRate, advanced.SegmentWorkers, advanced.SegmentQueueSize, log.Instance),
+		TelemetrySyncTask:  tasks.NewRecordTelemetryTask(workers.TelemetryRecorder, conf.Data.MetricsPostRate, log.Instance),
+		EventSyncTask:      tasks.NewRecordEventsTasks(workers.EventRecorder, advanced.EventsBulkSize, conf.Data.EventsPostRate, log.Instance, conf.Data.EventsThreads),
+		ImpressionSyncTask: tasks.NewRecordImpressionsTasks(workers.ImpressionRecorder, conf.Data.ImpressionsPostRate, log.Instance, advanced.ImpressionsBulkSize, conf.Data.ImpressionsThreads),
 	}
 
 	syncImpl := synchronizer.NewSynchronizer(
 		advanced,
 		splitTasks,
 		workers,
-		logger,
+		log.Instance,
 		nil,
 	)
 
 	managerStatus := make(chan int, 1)
 	syncManager, err := synchronizer.NewSynchronizerManager(
 		syncImpl,
-		logger,
+		log.Instance,
 		advanced,
 		splitAPI.AuthClient,
 		storages.SplitStorage,
@@ -164,7 +158,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	case status := <-managerStatus:
 		switch status {
 		case synchronizer.Ready:
-			logger.Info("Synchronizer tasks started")
+			log.Instance.Info("Synchronizer tasks started")
 		case synchronizer.Error:
 			os.Exit(splitio.ExitTaskInitialization)
 		}

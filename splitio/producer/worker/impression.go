@@ -19,7 +19,7 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/task"
 )
 
-// RecorderImpressionMultiple struct for event sync
+// RecorderImpressionMultiple struct for impression sync
 type RecorderImpressionMultiple struct {
 	impressionStorage         storage.ImpressionStorageConsumer
 	impressionRecorder        service.ImpressionsRecorder
@@ -29,7 +29,7 @@ type RecorderImpressionMultiple struct {
 	logger                    logging.LoggerInterface
 }
 
-// NewImpressionRecordMultiple creates new event synchronizer for posting impressions
+// NewImpressionRecordMultiple creates new impression synchronizer for posting impressions
 func NewImpressionRecordMultiple(
 	impressionStorage storage.ImpressionStorageConsumer,
 	impressionRecorder service.ImpressionsRecorder,
@@ -51,7 +51,7 @@ func (r *RecorderImpressionMultiple) fetch(bulkSize int64) (map[dtos.Metadata][]
 	r.mutext.Lock()
 	defer r.mutext.Unlock()
 
-	storedImpressions, err := r.impressionStorage.PopNWithMetadata(bulkSize) //PopN has a mutex, so this function can be async without issues
+	storedImpressions, err := r.impressionStorage.PopNWithMetadata(bulkSize) // PopN has a mutex, so this function can be async without issues
 	if err != nil {
 		r.logger.Error("(Task) Post Impressions fails fetching impressions from storage", err.Error())
 		return nil, err
@@ -97,7 +97,7 @@ func (r *RecorderImpressionMultiple) synchronizeImpressions(bulkSize int64) erro
 		})
 		if err != nil {
 			if _, ok := err.(*dtos.HTTPError); ok {
-				r.metricsWrapper.StoreCounters(storage.TestImpressionsCounter, string(err.(*dtos.HTTPError).Code), false)
+				r.metricsWrapper.StoreCounters(storage.TestImpressionsCounter, string(err.(*dtos.HTTPError).Code))
 			}
 			return err
 		}
@@ -114,12 +114,12 @@ func (r *RecorderImpressionMultiple) synchronizeImpressions(bulkSize int64) erro
 				MachineName: metadata.MachineName,
 			})
 			if err != nil {
-				log.Error.Println(err)
+				log.Instance.Error(err)
 			}
 		}
 		bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-		r.metricsWrapper.StoreLatencies(storage.TestImpressionsLatency, bucket, false)
-		r.metricsWrapper.StoreCounters(storage.TestImpressionsCounter, "ok", false)
+		r.metricsWrapper.StoreLatencies(storage.TestImpressionsLatency, bucket)
+		r.metricsWrapper.StoreCounters(storage.TestImpressionsCounter, "ok")
 	}
 	return nil
 }

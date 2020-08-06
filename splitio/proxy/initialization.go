@@ -10,6 +10,7 @@ import (
 	"github.com/splitio/go-split-commons/service"
 	"github.com/splitio/go-split-commons/service/api"
 	"github.com/splitio/go-split-commons/synchronizer"
+	"github.com/splitio/go-split-commons/synchronizer/worker/metric"
 	"github.com/splitio/go-split-commons/tasks"
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
@@ -20,7 +21,7 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/proxy/controllers"
 	"github.com/splitio/split-synchronizer/splitio/proxy/fetcher"
 	"github.com/splitio/split-synchronizer/splitio/proxy/interfaces"
-	proxyStorage "github.com/splitio/split-synchronizer/splitio/proxy/storage"
+	"github.com/splitio/split-synchronizer/splitio/proxy/storage"
 	"github.com/splitio/split-synchronizer/splitio/recorder"
 	"github.com/splitio/split-synchronizer/splitio/task"
 )
@@ -78,17 +79,19 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	)
 
 	splitCollection := collections.NewSplitChangesCollection(boltdb.DBB)
-	splitStorage := proxyStorage.NewSplitStorage(splitCollection)
+	splitStorage := storage.NewSplitStorage(splitCollection)
 	segmentCollection := collections.NewSegmentChangesCollection(boltdb.DBB)
-	segmentStorage := proxyStorage.NewSegmentStorage(segmentCollection)
+	segmentStorage := storage.NewSegmentStorage(segmentCollection)
 
 	workers := synchronizer.Workers{
-		SplitFetcher:   fetcher.NewSplitFetcher(splitCollection, splitAPI.SplitFetcher, &interfaces.ProxyTelemetryWrapper, interfaces.Logger),
-		SegmentFetcher: fetcher.NewSegmentFetcher(segmentCollection, splitCollection, splitAPI.SegmentFetcher, &interfaces.ProxyTelemetryWrapper, interfaces.Logger),
+		SplitFetcher:      fetcher.NewSplitFetcher(splitCollection, splitAPI.SplitFetcher, &interfaces.ProxyTelemetryWrapper, interfaces.Logger),
+		SegmentFetcher:    fetcher.NewSegmentFetcher(segmentCollection, splitCollection, splitAPI.SegmentFetcher, &interfaces.ProxyTelemetryWrapper, interfaces.Logger),
+		TelemetryRecorder: metric.NewRecorderSingle(interfaces.TelemetryStorage, splitAPI.MetricRecorder, metadata),
 	}
 	splitTasks := synchronizer.SplitTasks{
-		SplitSyncTask:   tasks.NewFetchSplitsTask(workers.SplitFetcher, conf.Data.SplitsFetchRate, interfaces.Logger),
-		SegmentSyncTask: tasks.NewFetchSegmentsTask(workers.SegmentFetcher, conf.Data.SegmentFetchRate, advanced.SegmentWorkers, advanced.SegmentQueueSize, interfaces.Logger),
+		SplitSyncTask:     tasks.NewFetchSplitsTask(workers.SplitFetcher, conf.Data.SplitsFetchRate, interfaces.Logger),
+		SegmentSyncTask:   tasks.NewFetchSegmentsTask(workers.SegmentFetcher, conf.Data.SegmentFetchRate, advanced.SegmentWorkers, advanced.SegmentQueueSize, interfaces.Logger),
+		TelemetrySyncTask: tasks.NewRecordTelemetryTask(workers.TelemetryRecorder, conf.Data.MetricsPostRate, interfaces.Logger),
 	}
 	syncImpl := synchronizer.NewSynchronizer(
 		advanced,
