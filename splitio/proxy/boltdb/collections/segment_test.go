@@ -2,19 +2,22 @@ package collections
 
 import (
 	"fmt"
-	"os"
+	"io/ioutil"
 	"testing"
 	"time"
 
 	"github.com/boltdb/bolt"
+	"github.com/splitio/go-toolkit/logging"
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/proxy/boltdb"
 )
 
 func before() {
-	stdoutWriter := os.Stdout //ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
 	//Initialize by default
 	conf.Initialize()
 

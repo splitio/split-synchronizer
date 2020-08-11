@@ -26,9 +26,10 @@ func performRequest(r http.Handler, method, path string) *httptest.ResponseRecor
 }
 
 func TestTaskCheckEnvirontmentStatusWithSomeFail(t *testing.T) {
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-	logger := logging.NewLogger(&logging.LoggerOptions{})
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "ok")
@@ -45,8 +46,8 @@ func TestTaskCheckEnvirontmentStatusWithSomeFail(t *testing.T) {
 	os.Setenv("SPLITIO_SDK_URL", fail.URL)
 	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
 
-	failClient := api.NewHTTPClient("fail", conf.GetDefaultAdvancedConfig(), fail.URL, logger, dtos.Metadata{})
-	okClient := api.NewHTTPClient("ok", conf.GetDefaultAdvancedConfig(), ts.URL, logger, dtos.Metadata{})
+	failClient := api.NewHTTPClient("fail", conf.GetDefaultAdvancedConfig(), fail.URL, log.Instance, dtos.Metadata{})
+	okClient := api.NewHTTPClient("ok", conf.GetDefaultAdvancedConfig(), ts.URL, log.Instance, dtos.Metadata{})
 
 	mockStorage := mocks.MockSplitStorage{
 		ChangeNumberCall: func() (int64, error) { return 0, nil },
@@ -59,9 +60,10 @@ func TestTaskCheckEnvirontmentStatusWithSomeFail(t *testing.T) {
 }
 
 func TestTaskCheckEnvirontmentStatus(t *testing.T) {
-	stdoutWriter := ioutil.Discard // os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-	logger := logging.NewLogger(&logging.LoggerOptions{})
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
 
 	tsHealthcheck := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "ok")
@@ -71,7 +73,7 @@ func TestTaskCheckEnvirontmentStatus(t *testing.T) {
 	os.Setenv("SPLITIO_SDK_URL", tsHealthcheck.URL)
 	os.Setenv("SPLITIO_EVENTS_URL", tsHealthcheck.URL)
 
-	okClient := api.NewHTTPClient("ok", conf.GetDefaultAdvancedConfig(), tsHealthcheck.URL, logger, dtos.Metadata{})
+	okClient := api.NewHTTPClient("ok", conf.GetDefaultAdvancedConfig(), tsHealthcheck.URL, log.Instance, dtos.Metadata{})
 
 	mockStorage := mocks.MockSplitStorage{
 		ChangeNumberCall: func() (int64, error) { return 0, nil },
@@ -85,9 +87,10 @@ func TestTaskCheckEnvirontmentStatus(t *testing.T) {
 }
 
 func TestTaskCheckEnvirontmentStatusWithSomeFailAndSince(t *testing.T) {
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-	logger := logging.NewLogger(&logging.LoggerOptions{})
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "ok")
@@ -104,8 +107,8 @@ func TestTaskCheckEnvirontmentStatusWithSomeFailAndSince(t *testing.T) {
 	os.Setenv("SPLITIO_SDK_URL", fail.URL)
 	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
 
-	failClient := api.NewHTTPClient("fail", conf.GetDefaultAdvancedConfig(), fail.URL, logger, dtos.Metadata{})
-	okClient := api.NewHTTPClient("ok", conf.GetDefaultAdvancedConfig(), ts.URL, logger, dtos.Metadata{})
+	failClient := api.NewHTTPClient("fail", conf.GetDefaultAdvancedConfig(), fail.URL, log.Instance, dtos.Metadata{})
+	okClient := api.NewHTTPClient("ok", conf.GetDefaultAdvancedConfig(), ts.URL, log.Instance, dtos.Metadata{})
 
 	mockStorage := mocks.MockSplitStorage{
 		ChangeNumberCall: func() (int64, error) { return 0, nil },

@@ -1,8 +1,6 @@
 package util
 
 import (
-	"fmt"
-
 	"github.com/splitio/go-split-commons/service/api"
 	"github.com/splitio/go-split-commons/storage"
 	"github.com/splitio/split-synchronizer/appcontext"
@@ -149,11 +147,9 @@ func GetRecorders(recorders interface{}, exists bool) *common.Recorders {
 // AreValidAPIClient validates http clients
 func AreValidAPIClient(httpClients common.HTTPClients) bool {
 	if httpClients.EventsClient == nil {
-		fmt.Println("EventsClient")
 		return false
 	}
 	if httpClients.SdkClient == nil {
-		fmt.Println("SdkClient")
 		return false
 	}
 	return true
@@ -162,25 +158,20 @@ func AreValidAPIClient(httpClients common.HTTPClients) bool {
 // AreValidStorages validates storages
 func AreValidStorages(storages common.Storages) bool {
 	if storages.SplitStorage == nil {
-		fmt.Println("SplitStorage")
 		return false
 	}
 	if storages.LocalTelemetryStorage == nil {
-		fmt.Println("LocalTelemetryStorage")
 		return false
 	}
 	if storages.SegmentStorage == nil {
-		fmt.Println("SegmentStorage")
 		return false
 	}
 	if appcontext.ExecutionMode() == appcontext.ProducerMode {
 
 		if storages.EventStorage == nil {
-			fmt.Println("EventStorage")
 			return false
 		}
 		if storages.ImpressionStorage == nil {
-			fmt.Println("ImpressionStorage")
 			return false
 		}
 	}

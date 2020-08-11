@@ -16,9 +16,14 @@ import (
 	"github.com/splitio/go-split-commons/storage"
 	storageMock "github.com/splitio/go-split-commons/storage/mocks"
 	"github.com/splitio/go-toolkit/logging"
+	"github.com/splitio/split-synchronizer/log"
 )
 
 func TestSynhronizeEventError(t *testing.T) {
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
 	eventMockStorage := storageMock.MockEventStorage{
 		PopNWithMetadataCall: func(n int64) ([]dtos.QueueStoredEventDTO, error) {
 			if n != 50 {
@@ -34,7 +39,7 @@ func TestSynhronizeEventError(t *testing.T) {
 		eventMockStorage,
 		eventMockRecorder,
 		storage.NewMetricWrapper(storageMock.MockMetricStorage{}, nil, nil),
-		logging.NewLogger(&logging.LoggerOptions{}),
+		log.Instance,
 	)
 
 	err := eventSync.SynchronizeEvents(50)
@@ -44,6 +49,10 @@ func TestSynhronizeEventError(t *testing.T) {
 }
 
 func TestSynhronizeEventWithNoEvents(t *testing.T) {
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
 	eventMockStorage := storageMock.MockEventStorage{
 		PopNWithMetadataCall: func(n int64) ([]dtos.QueueStoredEventDTO, error) {
 			if n != 50 {
@@ -64,7 +73,7 @@ func TestSynhronizeEventWithNoEvents(t *testing.T) {
 		eventMockStorage,
 		eventMockRecorder,
 		storage.NewMetricWrapper(storageMock.MockMetricStorage{}, nil, nil),
-		logging.NewLogger(&logging.LoggerOptions{}),
+		log.Instance,
 	)
 
 	err := eventSync.SynchronizeEvents(50)
@@ -85,6 +94,10 @@ func wrapEvent(key string) dtos.EventDTO {
 }
 
 func TestSynhronizeEvent(t *testing.T) {
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
 	metadata1 := dtos.Metadata{
 		MachineIP:   "1.1.1.1",
 		MachineName: "machine1",
@@ -163,7 +176,7 @@ func TestSynhronizeEvent(t *testing.T) {
 				}
 			},
 		}, nil, nil),
-		logging.NewLogger(&logging.LoggerOptions{}),
+		log.Instance,
 	)
 
 	err := eventSync.SynchronizeEvents(50)
@@ -173,6 +186,10 @@ func TestSynhronizeEvent(t *testing.T) {
 }
 
 func TestSynhronizeEventSync(t *testing.T) {
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
 	var requestReceived int64
 
 	metadata1 := dtos.Metadata{
@@ -242,14 +259,13 @@ func TestSynhronizeEventSync(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	logger := logging.NewLogger(&logging.LoggerOptions{})
 	eventRecorder := api.NewHTTPEventsRecorder(
 		"",
 		conf.AdvancedConfig{
 			EventsURL: ts.URL,
 			SdkURL:    ts.URL,
 		},
-		logger,
+		log.Instance,
 	)
 
 	eventMockStorage := storageMock.MockEventStorage{
@@ -282,7 +298,7 @@ func TestSynhronizeEventSync(t *testing.T) {
 				}
 			},
 		}, nil, nil),
-		logger,
+		log.Instance,
 	)
 
 	eventSync.SynchronizeEvents(50)

@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/splitio/go-split-commons/dtos"
+	"github.com/splitio/go-toolkit/logging"
+	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 )
 
@@ -32,10 +34,10 @@ func TestImpressionsBufferCounter(t *testing.T) {
 }
 
 func TestAddImpressions(t *testing.T) {
-	wg := &sync.WaitGroup{}
+	conf.Initialize()
 	if log.Instance == nil {
 		stdoutWriter := ioutil.Discard //os.Stdout
-		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
 	}
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -75,9 +77,6 @@ func TestAddImpressions(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	os.Setenv("SPLITIO_SDK_URL", ts.URL)
-	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
-
 	imp1 := dtos.ImpressionDTO{KeyName: "some_key_1", Treatment: "on", Time: 1234567890, ChangeNumber: 9876543210, Label: "some_label_1", BucketingKey: "some_bucket_key_1"}
 	imp2 := dtos.ImpressionDTO{KeyName: "some_key_2", Treatment: "off", Time: 1234567890, ChangeNumber: 9876543210, Label: "some_label_2", BucketingKey: "some_bucket_key_2"}
 
@@ -94,7 +93,11 @@ func TestAddImpressions(t *testing.T) {
 		return
 	}
 
+	os.Setenv("SPLITIO_SDK_URL", ts.URL)
+	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
+
 	// Init Impressions controller.
+	wg := &sync.WaitGroup{}
 	InitializeImpressionWorkers(200, 2, wg)
 	AddImpressions(data, "test-1.0.0", "127.0.0.1", "SOME_MACHINE_NAME")
 

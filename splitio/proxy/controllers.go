@@ -35,7 +35,7 @@ const (
 	localAPIError  = "sdk.request.error"
 )
 
-var metricsRecorder = api.NewHTTPMetricsRecorder(conf.Data.APIKey, interfaces.GetAdvancedConfig(), interfaces.Logger)
+var metricsRecorder = api.NewHTTPMetricsRecorder(conf.Data.APIKey, interfaces.GetAdvancedConfig(), log.Instance)
 
 func validateAPIKey(keys []string, apiKey string) bool {
 	for _, key := range keys {

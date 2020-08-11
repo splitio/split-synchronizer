@@ -28,7 +28,7 @@ var eventPoolBufferChannel = make(chan int, 10)
 const eventChannelMessageRelease = 0
 const eventChannelMessageStop = 10
 
-var eventsRecorder = api.NewHTTPEventsRecorder(conf.Data.APIKey, interfaces.GetAdvancedConfig(), interfaces.Logger)
+var eventsRecorder *api.HTTPEventsRecorder
 
 //----------------------------------------------------------------
 //----------------------------------------------------------------
@@ -71,6 +71,7 @@ type eventChanMessage struct {
 
 // InitializeEventWorkers initializes event workers
 func InitializeEventWorkers(footprint int64, postRate int64, waitingGroup *sync.WaitGroup) {
+	eventsRecorder = api.NewHTTPEventsRecorder(conf.Data.APIKey, interfaces.GetAdvancedConfig(), log.Instance)
 	go eventConditionsWorker(postRate, waitingGroup)
 	for i := 0; i < eventChannelCapacity; i++ {
 		go addEventsToBufferWorker(footprint, waitingGroup)

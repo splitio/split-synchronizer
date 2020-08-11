@@ -16,9 +16,14 @@ import (
 	"github.com/splitio/go-split-commons/storage"
 	storageMock "github.com/splitio/go-split-commons/storage/mocks"
 	"github.com/splitio/go-toolkit/logging"
+	"github.com/splitio/split-synchronizer/log"
 )
 
 func TestSynchronizeImpressionError(t *testing.T) {
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
 	impressionMockStorage := storageMock.MockImpressionStorage{
 		PopNWithMetadataCall: func(n int64) ([]dtos.ImpressionQueueObject, error) {
 			if n != 50 {
@@ -35,7 +40,7 @@ func TestSynchronizeImpressionError(t *testing.T) {
 		impressionMockRecorder,
 		storage.NewMetricWrapper(storageMock.MockMetricStorage{}, nil, nil),
 		false,
-		logging.NewLogger(&logging.LoggerOptions{}),
+		log.Instance,
 	)
 
 	err := impressionSync.SynchronizeImpressions(50)
@@ -45,6 +50,10 @@ func TestSynchronizeImpressionError(t *testing.T) {
 }
 
 func TestSynhronizeImpressionWithNoImpressions(t *testing.T) {
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
 	impressionMockStorage := storageMock.MockImpressionStorage{
 		PopNWithMetadataCall: func(n int64) ([]dtos.ImpressionQueueObject, error) {
 			if n != 50 {
@@ -66,7 +75,7 @@ func TestSynhronizeImpressionWithNoImpressions(t *testing.T) {
 		impressionMockRecorder,
 		storage.NewMetricWrapper(storageMock.MockMetricStorage{}, nil, nil),
 		false,
-		logging.NewLogger(&logging.LoggerOptions{}),
+		log.Instance,
 	)
 
 	err := impressionSync.SynchronizeImpressions(50)
@@ -88,6 +97,10 @@ func wrapImpression(feature string) dtos.Impression {
 }
 
 func TestSynhronizeImpressionSync(t *testing.T) {
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
 	var requestReceived int64
 
 	metadata1 := dtos.Metadata{
@@ -156,14 +169,13 @@ func TestSynhronizeImpressionSync(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	logger := logging.NewLogger(&logging.LoggerOptions{})
 	impressionRecorder := api.NewHTTPImpressionRecorder(
 		"",
 		conf.AdvancedConfig{
 			EventsURL: ts.URL,
 			SdkURL:    ts.URL,
 		},
-		logger,
+		log.Instance,
 	)
 
 	impressionMockStorage := storageMock.MockImpressionStorage{
@@ -197,7 +209,7 @@ func TestSynhronizeImpressionSync(t *testing.T) {
 			},
 		}, nil, nil),
 		false,
-		logger,
+		log.Instance,
 	)
 
 	impressionSync.SynchronizeImpressions(50)

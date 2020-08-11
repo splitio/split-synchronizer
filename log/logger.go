@@ -100,7 +100,7 @@ func (w *SlackWriter) postMessage(msg []byte, attachements []SlackMessageAttachm
 	urlStr := w.WebHookURL
 	//Simple message by default
 	jsonStr := fmt.Sprintf(`{"channel": "%s", "username": "Split-Sync", "text": "%s", "icon_emoji": ":robot_face:"}`, w.Channel, msg)
-	if attachements != nil {
+	if attachements != nil && len(attachements) > 0 {
 		attachs, err := json.Marshal(attachements)
 		if err != nil {
 			fmt.Println("Error posting message to Slack with attachment fields")
@@ -137,15 +137,17 @@ func Initialize(
 	debugWriter io.Writer,
 	infoWriter io.Writer,
 	warningWriter io.Writer,
-	errorWriter io.Writer) {
+	errorWriter io.Writer,
+	level int) {
 
 	Instance = logging.NewLogger(&logging.LoggerOptions{
 		StandardLoggerFlags: log.Ldate | log.Ltime | log.Lshortfile,
-		Prefix:              "SPLITIO-AGENT",
+		Prefix:              "SPLITIO-AGENT ",
 		VerboseWriter:       verboseWriter,
 		DebugWriter:         debugWriter,
 		InfoWriter:          infoWriter,
 		WarningWriter:       warningWriter,
 		ErrorWriter:         errorWriter,
+		LogLevel:            level,
 	})
 }
