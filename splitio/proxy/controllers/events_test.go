@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/splitio/go-split-commons/dtos"
+	"github.com/splitio/go-toolkit/logging"
+	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 )
 
@@ -32,9 +34,11 @@ func TestEventBufferCounter(t *testing.T) {
 }
 
 func TestAddEvents(t *testing.T) {
-	wg := &sync.WaitGroup{}
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	conf.Initialize()
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
@@ -97,6 +101,7 @@ func TestAddEvents(t *testing.T) {
 	}
 
 	// Init Impressions controller.
+	wg := &sync.WaitGroup{}
 	InitializeEventWorkers(200, 2, wg)
 	AddEvents(data, "test-1.0.0", "127.0.0.1", "SOME_MACHINE_NAME")
 

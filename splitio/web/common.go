@@ -202,8 +202,6 @@ func parseBackendStats(localTelemetry storage.MetricsStorage) string {
 func parseCachedSplits(splitStorage storage.SplitStorage) string {
 	cachedSplits := splitStorage.All()
 
-	fmt.Println(cachedSplits)
-
 	return ParseTemplate(
 		"CachedSplits",
 		HTMLtemplates.CachedSplitsTPL,

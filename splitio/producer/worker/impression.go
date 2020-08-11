@@ -87,6 +87,7 @@ func (r *RecorderImpressionMultiple) synchronizeImpressions(bulkSize int64) erro
 			task.StoreDataFlushed(before.UnixNano(), len(impressions), r.impressionStorage.Count(), "impressions")
 		}
 		err := common.WithAttempts(3, func() error {
+			// r.logger.Info(fmt.Sprintf("Impressions: %v", impressions))
 			r.logger.Info("impressionsToSend: ", len(impressions))
 			err := r.impressionRecorder.Record(impressions, metadata)
 			if err != nil {

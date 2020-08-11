@@ -121,15 +121,20 @@ func loadLogger() {
 	commonWriter = io.MultiWriter(stdoutWriter, fileWriter)
 	fullWriter = io.MultiWriter(commonWriter, slackWriter)
 
+	level := logging.LevelInfo
 	if conf.Data.Logger.VerboseOn {
 		verboseWriter = commonWriter
+		level = logging.LevelVerbose
 	}
 
 	if conf.Data.Logger.DebugOn {
 		debugWriter = commonWriter
+		if !conf.Data.Logger.VerboseOn {
+			level = logging.LevelDebug
+		}
 	}
 
-	log.Initialize(verboseWriter, debugWriter, commonWriter, commonWriter, fullWriter)
+	log.Initialize(verboseWriter, debugWriter, commonWriter, commonWriter, fullWriter, level)
 }
 
 func main() {

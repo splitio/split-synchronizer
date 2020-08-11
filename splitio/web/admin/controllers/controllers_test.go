@@ -13,6 +13,7 @@ import (
 	"github.com/splitio/go-split-commons/dtos"
 	apiMocks "github.com/splitio/go-split-commons/service/api/mocks"
 	redisStorage "github.com/splitio/go-split-commons/storage/redis"
+	"github.com/splitio/go-toolkit/logging"
 	"github.com/splitio/go-toolkit/redis"
 	"github.com/splitio/go-toolkit/redis/mocks"
 	"github.com/splitio/split-synchronizer/appcontext"
@@ -495,8 +496,10 @@ func TestHealthCheckEndpointSuccessful(t *testing.T) {
 
 func TestHealthCheckEndpointFailure(t *testing.T) {
 	appcontext.Initialize(appcontext.ProducerMode)
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
 	conf.Initialize()
 	redisMock := mocks.MockClient{
 		GetCall: func(key string) redis.Result {
@@ -542,8 +545,10 @@ func TestHealthCheckEndpointFailure(t *testing.T) {
 
 func TestHealthCheckEndpointSDKFail(t *testing.T) {
 	appcontext.Initialize(appcontext.ProducerMode)
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
 	conf.Initialize()
 	redisMock := mocks.MockClient{
 		GetCall: func(key string) redis.Result {
@@ -595,8 +600,10 @@ func TestHealthCheckEndpointSDKFail(t *testing.T) {
 
 func TestHealthCheckEndpointEventsFail(t *testing.T) {
 	appcontext.Initialize(appcontext.ProducerMode)
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
 	conf.Initialize()
 	redisMock := mocks.MockClient{
 		GetCall: func(key string) redis.Result {

@@ -8,12 +8,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/splitio/go-toolkit/logging"
 )
 
 func TestInitialize(t *testing.T) {
 	var commonWriter = ioutil.Discard
 
-	Initialize(commonWriter, commonWriter, commonWriter, commonWriter, commonWriter)
+	Initialize(commonWriter, commonWriter, commonWriter, commonWriter, commonWriter, logging.LevelNone)
 }
 
 func TestSlackWriter(t *testing.T) {

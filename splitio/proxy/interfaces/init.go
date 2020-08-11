@@ -1,13 +1,12 @@
 package interfaces
 
 import (
-	"log"
 	"os"
 
 	"github.com/splitio/go-split-commons/conf"
 	"github.com/splitio/go-split-commons/storage"
 	"github.com/splitio/go-split-commons/storage/mutexmap"
-	"github.com/splitio/go-toolkit/logging"
+	"github.com/splitio/split-synchronizer/log"
 )
 
 // GetAdvancedConfig s
@@ -36,11 +35,5 @@ var TelemetryStorage *mutexmap.MMMetricsStorage = mutexmap.NewMMMetricsStorage()
 var ProxyTelemetryWrapper storage.MetricWrapper = storage.MetricWrapper{
 	LocalTelemtry: mutexmap.NewMMMetricsStorage(),
 	Telemetry:     TelemetryStorage,
-	Logger:        nil,
+	Logger:        log.Instance,
 }
-
-// Logger logger
-var Logger = logging.NewLogger(&logging.LoggerOptions{
-	StandardLoggerFlags: log.LUTC | log.Ldate | log.Lmicroseconds | log.Lshortfile,
-	LogLevel:            logging.LevelInfo,
-})

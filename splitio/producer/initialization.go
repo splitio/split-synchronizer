@@ -120,10 +120,6 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		Impression: impressionRecorder,
 		Event:      eventRecorder,
 	}
-
-	// Run WebAdmin Server
-	admin.StartAdminWebAdmin(waOptions, storages, httpClients, recorders)
-
 	splitTasks := synchronizer.SplitTasks{
 		SplitSyncTask:      tasks.NewFetchSplitsTask(workers.SplitFetcher, conf.Data.SplitsFetchRate, log.Instance),
 		SegmentSyncTask:    tasks.NewFetchSegmentsTask(workers.SegmentFetcher, conf.Data.SegmentFetchRate, advanced.SegmentWorkers, advanced.SegmentQueueSize, log.Instance),
@@ -139,7 +135,6 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		log.Instance,
 		nil,
 	)
-
 	managerStatus := make(chan int, 1)
 	syncManager, err := synchronizer.NewSynchronizerManager(
 		syncImpl,
@@ -150,9 +145,17 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		managerStatus,
 	)
 	if err != nil {
-		panic(err)
+		log.Instance.Error(err)
+		os.Exit(splitio.ExitTaskInitialization)
 	}
 
+	// Producer mode - graceful shutdown
+	go gracefulShutdownProducer(sigs, gracefulShutdownWaitingGroup, syncManager)
+
+	// Run WebAdmin Server
+	admin.StartAdminWebAdmin(waOptions, storages, httpClients, recorders)
+
+	// Run Sync Manager
 	go syncManager.Start()
 	select {
 	case status := <-managerStatus:
@@ -160,13 +163,11 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		case synchronizer.Ready:
 			log.Instance.Info("Synchronizer tasks started")
 		case synchronizer.Error:
+			log.Instance.Error("Error starting synchronizer")
 			os.Exit(splitio.ExitTaskInitialization)
 		}
 	}
 	task.InitializeEvictionCalculator()
-
-	// Producer mode - graceful shutdown
-	go gracefulShutdownProducer(sigs, gracefulShutdownWaitingGroup, syncManager)
 
 	if impressionListenerEnabled {
 		for i := 0; i < conf.Data.ImpressionsThreads; i++ {

@@ -1,3 +1,5 @@
+// +build !race
+
 package proxy
 
 import (
@@ -6,6 +8,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/splitio/go-toolkit/logging"
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/common"
@@ -13,7 +16,7 @@ import (
 
 func TestRouterWithoutHeaders(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
 	conf.Initialize()
 	proxyOptions := &Options{
 		Port:                      ":" + strconv.Itoa(conf.Data.Proxy.Port),
@@ -44,8 +47,10 @@ func TestRouterWithoutHeaders(t *testing.T) {
 }
 
 func TestRouterWrongApikey(t *testing.T) {
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
 	conf.Initialize()
 	proxyOptions := &Options{
 		Port:                      ":" + strconv.Itoa(conf.Data.Proxy.Port),
@@ -80,8 +85,10 @@ func TestRouterWrongApikey(t *testing.T) {
 }
 
 func TestRouterOk(t *testing.T) {
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
 	conf.Initialize()
 	proxyOptions := &Options{
 		Port:                      ":" + strconv.Itoa(conf.Data.Proxy.Port),

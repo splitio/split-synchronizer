@@ -74,7 +74,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	splitAPI := service.NewSplitAPI(
 		conf.Data.APIKey,
 		advanced,
-		interfaces.Logger,
+		log.Instance,
 		metadata,
 	)
 
@@ -84,27 +84,27 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	segmentStorage := storage.NewSegmentStorage(segmentCollection)
 
 	workers := synchronizer.Workers{
-		SplitFetcher:      fetcher.NewSplitFetcher(splitCollection, splitAPI.SplitFetcher, &interfaces.ProxyTelemetryWrapper, interfaces.Logger),
-		SegmentFetcher:    fetcher.NewSegmentFetcher(segmentCollection, splitCollection, splitAPI.SegmentFetcher, &interfaces.ProxyTelemetryWrapper, interfaces.Logger),
+		SplitFetcher:      fetcher.NewSplitFetcher(splitCollection, splitAPI.SplitFetcher, &interfaces.ProxyTelemetryWrapper, log.Instance),
+		SegmentFetcher:    fetcher.NewSegmentFetcher(segmentCollection, splitCollection, splitAPI.SegmentFetcher, &interfaces.ProxyTelemetryWrapper, log.Instance),
 		TelemetryRecorder: metric.NewRecorderSingle(interfaces.TelemetryStorage, splitAPI.MetricRecorder, metadata),
 	}
 	splitTasks := synchronizer.SplitTasks{
-		SplitSyncTask:     tasks.NewFetchSplitsTask(workers.SplitFetcher, conf.Data.SplitsFetchRate, interfaces.Logger),
-		SegmentSyncTask:   tasks.NewFetchSegmentsTask(workers.SegmentFetcher, conf.Data.SegmentFetchRate, advanced.SegmentWorkers, advanced.SegmentQueueSize, interfaces.Logger),
-		TelemetrySyncTask: tasks.NewRecordTelemetryTask(workers.TelemetryRecorder, conf.Data.MetricsPostRate, interfaces.Logger),
+		SplitSyncTask:     tasks.NewFetchSplitsTask(workers.SplitFetcher, conf.Data.SplitsFetchRate, log.Instance),
+		SegmentSyncTask:   tasks.NewFetchSegmentsTask(workers.SegmentFetcher, conf.Data.SegmentFetchRate, advanced.SegmentWorkers, advanced.SegmentQueueSize, log.Instance),
+		TelemetrySyncTask: tasks.NewRecordTelemetryTask(workers.TelemetryRecorder, conf.Data.MetricsPostRate, log.Instance),
 	}
 	syncImpl := synchronizer.NewSynchronizer(
 		advanced,
 		splitTasks,
 		workers,
-		interfaces.Logger,
+		log.Instance,
 		nil,
 	)
 
 	managerStatus := make(chan int, 1)
 	syncManager, err := synchronizer.NewSynchronizerManager(
 		syncImpl,
-		interfaces.Logger,
+		log.Instance,
 		advanced,
 		splitAPI.AuthClient,
 		splitStorage,
@@ -121,7 +121,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	case status := <-managerStatus:
 		switch status {
 		case synchronizer.Ready:
-			interfaces.Logger.Info("Synchronizer tasks started")
+			log.Instance.Info("Synchronizer tasks started")
 		case synchronizer.Error:
 			os.Exit(splitio.ExitTaskInitialization)
 		}
@@ -134,8 +134,8 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	}
 
 	httpClients := common.HTTPClients{
-		SdkClient:    api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.SdkURL, interfaces.Logger, metadata),
-		EventsClient: api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.EventsURL, interfaces.Logger, metadata),
+		SdkClient:    api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.SdkURL, log.Instance, metadata),
+		EventsClient: api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.EventsURL, log.Instance, metadata),
 	}
 	go task.CheckEnvirontmentStatus(gracefulShutdownWaitingGroup, splitStorage, httpClients.SdkClient, httpClients.EventsClient)
 

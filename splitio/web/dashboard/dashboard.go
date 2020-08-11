@@ -108,17 +108,19 @@ func (d *Dashboard) HTMLSegmentKeys(segmentName string) string {
 	keys := d.storages.SegmentStorage.Keys(segmentName)
 	segmentKeys := make([]HTMLtemplates.CachedSegmentKeysRowTPLVars, 0)
 
-	for _, key := range keys.List() {
-		name, _ := key.(string)
-		cn, _ := d.storages.SegmentStorage.ChangeNumber(name)
-		lastModified := time.Unix(0, cn)
-		removedColor := ""
-		segmentKeys = append(segmentKeys, HTMLtemplates.CachedSegmentKeysRowTPLVars{
-			Name:         name,
-			LastModified: lastModified.UTC().Format(time.UnixDate),
-			Removed:      strconv.FormatBool(false),
-			RemovedColor: removedColor,
-		})
+	if keys != nil {
+		for _, key := range keys.List() {
+			name, _ := key.(string)
+			cn, _ := d.storages.SegmentStorage.ChangeNumber(name)
+			lastModified := time.Unix(0, cn)
+			removedColor := ""
+			segmentKeys = append(segmentKeys, HTMLtemplates.CachedSegmentKeysRowTPLVars{
+				Name:         name,
+				LastModified: lastModified.UTC().Format(time.UnixDate),
+				Removed:      strconv.FormatBool(false),
+				RemovedColor: removedColor,
+			})
+		}
 	}
 
 	return web.ParseTemplate(

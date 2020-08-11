@@ -35,7 +35,7 @@ var impressionWorkersStopChannel = make(chan bool, impressionChannelCapacity)
 const impressionChannelMessageRelease = 0
 const impressionChannelMessageStop = 10
 
-var impressionRecorder = api.NewHTTPImpressionRecorder(conf.Data.APIKey, interfaces.GetAdvancedConfig(), interfaces.Logger)
+var impressionRecorder *api.HTTPImpressionRecorder
 
 //----------------------------------------------------------------
 //----------------------------------------------------------------
@@ -78,6 +78,7 @@ type impressionChanMessage struct {
 
 // InitializeImpressionWorkers initializes impression workers
 func InitializeImpressionWorkers(footprint int64, postRate int64, waitingGroup *sync.WaitGroup) {
+	impressionRecorder = api.NewHTTPImpressionRecorder(conf.Data.APIKey, interfaces.GetAdvancedConfig(), log.Instance)
 	go impressionConditionsWorker(postRate, waitingGroup)
 	for i := 0; i < impressionChannelCapacity; i++ {
 		go addImpressionsToBufferWorker(footprint, waitingGroup)
