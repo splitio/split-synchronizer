@@ -10,6 +10,7 @@ import (
 	"github.com/splitio/split-synchronizer/appcontext"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/api"
+	"github.com/splitio/split-synchronizer/splitio/provisional"
 	"github.com/splitio/split-synchronizer/splitio/recorder"
 	"github.com/splitio/split-synchronizer/splitio/stats/counter"
 	"github.com/splitio/split-synchronizer/splitio/stats/latency"
@@ -17,11 +18,52 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 )
 
+const (
+	impressionObserverCacheSize = 500000
+)
+
 var impressionsIncoming chan string
+var impressionObserver provisional.ImpressionObserver
+var observerInitMutex sync.Mutex
 
 // InitializeImpressions initialiaze events task
 func InitializeImpressions(threads int) {
 	impressionsIncoming = make(chan string, threads)
+}
+
+// InitializeImpressionObserver sets up the global observer
+func InitializeImpressionObserver() {
+	observerInitMutex.Lock()
+	defer observerInitMutex.Unlock()
+	if impressionObserver != nil { // In case someone else won the race
+		return
+	}
+	var err error
+	impressionObserver, err = provisional.NewImpressionObserver(impressionObserverCacheSize)
+	if err != nil {
+		log.Error.Println("error instantiating impression cache: " + err.Error())
+		impressionObserver = &provisional.ImpressionObserverNoOp{}
+	}
+}
+
+func decorateImpressions(impressions []api.ImpressionsDTO) []api.ImpressionsDTO {
+	if impressionObserver == nil {
+		InitializeImpressionObserver()
+	}
+	for tiIndex := range impressions {
+		for kiIndex := range impressions[tiIndex].KeyImpressions {
+			previousTime, err := impressionObserver.TestAndSet(
+				impressions[tiIndex].TestName,
+				&impressions[tiIndex].KeyImpressions[kiIndex],
+			)
+			if err != nil {
+				log.Error.Println("Unable to decorate impression: " + err.Error())
+				continue
+			}
+			impressions[tiIndex].KeyImpressions[kiIndex].Pt = previousTime
+		}
+	}
+	return impressions
 }
 
 // StopPostImpressions stops PostImpressions task sendding signal
@@ -78,7 +120,7 @@ func taskPostImpressions(
 				StoreDataFlushed(beforePostServer, impressionsToFlush, impressionStorageAdapter.Size(), "impressions")
 			}
 			startTime := testImpressionsLatencies.StartMeasuringLatency()
-			err = impressionsRecorderAdapter.Post(impressions, metadata)
+			err = impressionsRecorderAdapter.Post(decorateImpressions(impressions), metadata)
 			if err != nil {
 				log.Error.Println("Error posting impressions to split backend", err.Error())
 				if _, ok := err.(*api.HttpError); ok {
