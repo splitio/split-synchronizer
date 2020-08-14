@@ -64,7 +64,7 @@ func TestSynhronizeImpressionWithNoImpressions(t *testing.T) {
 	}
 
 	impressionMockRecorder := recorderMock.MockImpressionRecorder{
-		RecordCall: func(impressions []dtos.Impression, metadata dtos.Metadata) error {
+		RecordCall: func(impressions []dtos.ImpressionsDTO, metadata dtos.Metadata) error {
 			t.Error("It should not be called")
 			return nil
 		},
