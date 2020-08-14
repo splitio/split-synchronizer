@@ -17,6 +17,7 @@ import (
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio"
 	"github.com/splitio/split-synchronizer/splitio/task"
+	"golang.org/x/exp/errors/fmt"
 )
 
 // RecorderImpressionMultiple struct for impression sync
@@ -47,7 +48,22 @@ func NewImpressionRecordMultiple(
 	}
 }
 
-func (r *RecorderImpressionMultiple) fetch(bulkSize int64) (map[dtos.Metadata][]dtos.Impression, error) {
+func toImpressionsDTO(impressionsMap map[string][]dtos.ImpressionDTO) ([]dtos.ImpressionsDTO, error) {
+	if impressionsMap == nil {
+		return nil, fmt.Errorf("Impressions map cannot be null")
+	}
+
+	toReturn := make([]dtos.ImpressionsDTO, 0)
+	for feature, impressions := range impressionsMap {
+		toReturn = append(toReturn, dtos.ImpressionsDTO{
+			TestName:       feature,
+			KeyImpressions: impressions,
+		})
+	}
+	return toReturn, nil
+}
+
+func (r *RecorderImpressionMultiple) fetch(bulkSize int64) (map[dtos.Metadata][]dtos.ImpressionsDTO, error) {
 	r.mutext.Lock()
 	defer r.mutext.Unlock()
 
@@ -57,22 +73,43 @@ func (r *RecorderImpressionMultiple) fetch(bulkSize int64) (map[dtos.Metadata][]
 		return nil, err
 	}
 
-	// grouping the information by instanceID/instanceIP
-	collectedData := make(map[dtos.Metadata][]dtos.Impression)
+	// grouping the information by instanceID/instanceIP, and then by feature name
+	collectedData := make(map[dtos.Metadata]map[string][]dtos.ImpressionDTO)
 
 	for _, stored := range storedImpressions {
 		_, instanceExists := collectedData[stored.Metadata]
 		if !instanceExists {
-			collectedData[stored.Metadata] = make([]dtos.Impression, 0)
+			collectedData[stored.Metadata] = make(map[string][]dtos.ImpressionDTO)
 		}
 
-		collectedData[stored.Metadata] = append(
-			collectedData[stored.Metadata],
-			stored.Impression,
+		_, featureExists := collectedData[stored.Metadata][stored.Impression.FeatureName]
+		if !featureExists {
+			collectedData[stored.Metadata][stored.Impression.FeatureName] = make([]dtos.ImpressionDTO, 0)
+		}
+
+		collectedData[stored.Metadata][stored.Impression.FeatureName] = append(
+			collectedData[stored.Metadata][stored.Impression.FeatureName],
+			dtos.ImpressionDTO{
+				BucketingKey: stored.Impression.BucketingKey,
+				ChangeNumber: stored.Impression.ChangeNumber,
+				KeyName:      stored.Impression.KeyName,
+				Label:        stored.Impression.Label,
+				Time:         stored.Impression.Time,
+				Treatment:    stored.Impression.Treatment,
+			},
 		)
 	}
 
-	return collectedData, nil
+	toReturn := make(map[dtos.Metadata][]dtos.ImpressionsDTO)
+	for metadata, impsForMetadata := range collectedData {
+		toReturn[metadata], err = toImpressionsDTO(impsForMetadata)
+		if err != nil {
+			r.logger.Error(fmt.Sprintf("Unable to write impressions for metadata %v", metadata))
+			continue
+		}
+	}
+
+	return toReturn, nil
 }
 
 func (r *RecorderImpressionMultiple) synchronizeImpressions(bulkSize int64) error {

@@ -35,6 +35,7 @@ func gracefulShutdownProducer(sigs chan os.Signal, gracefulShutdownWaitingGroup 
 	fmt.Println("")
 
 	// Stopping Sync Manager in charge of PeriodicFetchers and PeriodicRecorders as well as Streaming
+	fmt.Println(" -> Sending STOP to Synchronizer")
 	syncManager.Stop()
 
 	// Healthcheck - Emit task stop signal
