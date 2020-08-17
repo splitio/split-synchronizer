@@ -18,6 +18,7 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/proxy/controllers"
 	"github.com/splitio/split-synchronizer/splitio/proxy/interfaces"
 	"github.com/splitio/split-synchronizer/splitio/task"
+	utils "github.com/splitio/split-synchronizer/splitio/util"
 )
 
 const (
@@ -35,7 +36,7 @@ const (
 	localAPIError  = "sdk.request.error"
 )
 
-var metricsRecorder = api.NewHTTPMetricsRecorder(conf.Data.APIKey, interfaces.GetAdvancedConfig(), log.Instance)
+var metricsRecorder = api.NewHTTPMetricsRecorder(conf.Data.APIKey, utils.ParseAdvancedOptions(), log.Instance)
 
 func validateAPIKey(keys []string, apiKey string) bool {
 	for _, key := range keys {

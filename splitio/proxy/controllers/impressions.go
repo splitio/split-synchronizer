@@ -12,6 +12,7 @@ import (
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/proxy/interfaces"
+	utils "github.com/splitio/split-synchronizer/splitio/util"
 )
 
 //-----------------------------------------------------------------
@@ -78,7 +79,7 @@ type impressionChanMessage struct {
 
 // InitializeImpressionWorkers initializes impression workers
 func InitializeImpressionWorkers(footprint int64, postRate int64, waitingGroup *sync.WaitGroup) {
-	impressionRecorder = api.NewHTTPImpressionRecorder(conf.Data.APIKey, interfaces.GetAdvancedConfig(), log.Instance)
+	impressionRecorder = api.NewHTTPImpressionRecorder(conf.Data.APIKey, utils.ParseAdvancedOptions(), log.Instance)
 	go impressionConditionsWorker(postRate, waitingGroup)
 	for i := 0; i < impressionChannelCapacity; i++ {
 		go addImpressionsToBufferWorker(footprint, waitingGroup)
@@ -96,7 +97,10 @@ func AddImpressions(data []byte, sdkVersion string, machineIP string, machineNam
 func impressionConditionsWorker(postRate int64, waitingGroup *sync.WaitGroup) {
 	waitingGroup.Add(1)
 	defer waitingGroup.Done()
+	idleDuration := time.Second * time.Duration(postRate)
+	timer := time.NewTimer(idleDuration)
 	for {
+		timer.Reset(idleDuration)
 		// Blocking conditions to send impressions
 		select {
 		case msg := <-impressionPoolBufferChannel:
@@ -108,7 +112,7 @@ func impressionConditionsWorker(postRate int64, waitingGroup *sync.WaitGroup) {
 				sendImpressions()
 				return
 			}
-		case <-time.After(time.Second * time.Duration(postRate)):
+		case <-timer.C:
 			log.Instance.Debug("Releasing impressions by post rate")
 		}
 

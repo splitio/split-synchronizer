@@ -135,8 +135,8 @@ func TestSynhronizeImpressionSync(t *testing.T) {
 			return
 		}
 
-		switch requestReceived {
-		case 1:
+		switch impressions[0].TestName {
+		case "feature1":
 			if r.Header.Get("SplitSDKVersion") != "go-1.1.1" {
 				t.Error("Unexpected version in header")
 			}
@@ -146,10 +146,10 @@ func TestSynhronizeImpressionSync(t *testing.T) {
 			if r.Header.Get("SplitSDKMachineIP") != "1.1.1.1" {
 				t.Error("Unexpected version in header")
 			}
-			if len(impressions) != 2 {
+			if len(impressions[0].KeyImpressions) != 3 {
 				t.Error("Incorrect number of impressions")
 			}
-		case 2:
+		case "feature2":
 			if r.Header.Get("SplitSDKVersion") != "php-2.2.2" {
 				t.Error("Unexpected version in header")
 			}
@@ -159,7 +159,7 @@ func TestSynhronizeImpressionSync(t *testing.T) {
 			if r.Header.Get("SplitSDKMachineIP") != "2.2.2.2" {
 				t.Error("Unexpected version in header")
 			}
-			if len(impressions) != 2 {
+			if len(impressions[0].KeyImpressions) != 2 {
 				t.Error("Incorrect number of impressions")
 			}
 		default:
@@ -185,8 +185,8 @@ func TestSynhronizeImpressionSync(t *testing.T) {
 			}
 			return []dtos.ImpressionQueueObject{
 				{Impression: wrapImpression("feature1"), Metadata: metadata1},
-				{Impression: wrapImpression("feature2"), Metadata: metadata1},
-				{Impression: wrapImpression("feature1"), Metadata: metadata2},
+				{Impression: wrapImpression("feature2"), Metadata: metadata2},
+				{Impression: wrapImpression("feature1"), Metadata: metadata1},
 				{Impression: wrapImpression("feature2"), Metadata: metadata2},
 				{Impression: wrapImpression("feature1"), Metadata: metadata1},
 			}, nil
@@ -211,6 +211,114 @@ func TestSynhronizeImpressionSync(t *testing.T) {
 		false,
 		log.Instance,
 	)
+
+	impressionSync.SynchronizeImpressions(50)
+
+	if requestReceived != 2 {
+		t.Error("It should call twice")
+	}
+}
+
+func TestSynhronizeImpressionPt(t *testing.T) {
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
+	var requestReceived int64
+
+	metadata1 := dtos.Metadata{
+		MachineIP:   "1.1.1.1",
+		MachineName: "machine1",
+		SDKVersion:  "go-1.1.1",
+	}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/impressions" && r.Method != "POST" {
+			t.Error("Invalid request. Should be POST to /impressions")
+		}
+		atomic.AddInt64(&requestReceived, 1)
+
+		body, err := ioutil.ReadAll(r.Body)
+		r.Body.Close()
+		if err != nil {
+			t.Error("Error reading body")
+			return
+		}
+
+		var impressions []dtos.ImpressionsDTO
+
+		err = json.Unmarshal(body, &impressions)
+		if err != nil {
+			t.Errorf("Error parsing json: %s", err)
+			return
+		}
+
+		if r.Header.Get("SplitSDKVersion") != "go-1.1.1" {
+			t.Error("Unexpected version in header")
+		}
+		if r.Header.Get("SplitSDKMachineName") != "machine1" {
+			t.Error("Unexpected version in header")
+		}
+		if r.Header.Get("SplitSDKMachineIP") != "1.1.1.1" {
+			t.Error("Unexpected version in header")
+		}
+		if len(impressions[0].KeyImpressions) != 1 {
+			t.Error("Incorrect number of impressions")
+		}
+		if atomic.LoadInt64(&requestReceived) == 1 {
+			if impressions[0].KeyImpressions[0].Pt != 0 {
+				t.Error("Unexpected pt")
+			}
+		}
+		if atomic.LoadInt64(&requestReceived) == 2 {
+			if impressions[0].KeyImpressions[0].Pt != 123456789 {
+				t.Error("Unexpected pt")
+			}
+		}
+		return
+	}))
+	defer ts.Close()
+
+	impressionRecorder := api.NewHTTPImpressionRecorder(
+		"",
+		conf.AdvancedConfig{
+			EventsURL: ts.URL,
+			SdkURL:    ts.URL,
+		},
+		log.Instance,
+	)
+
+	impressionMockStorage := storageMock.MockImpressionStorage{
+		PopNWithMetadataCall: func(n int64) ([]dtos.ImpressionQueueObject, error) {
+			if n != 50 {
+				t.Error("Wrong input parameter passed")
+			}
+			return []dtos.ImpressionQueueObject{
+				{Impression: wrapImpression("feature1"), Metadata: metadata1},
+			}, nil
+		},
+	}
+
+	impressionSync := NewImpressionRecordMultiple(
+		impressionMockStorage,
+		impressionRecorder,
+		storage.NewMetricWrapper(storageMock.MockMetricStorage{
+			IncCounterCall: func(key string) {
+				if key != "testImpressions.status.200" {
+					t.Error("Unexpected counter key to increase")
+				}
+			},
+			IncLatencyCall: func(metricName string, index int) {
+				if metricName != "testImpressions.time" {
+					t.Error("Unexpected latency key to track")
+				}
+			},
+		}, nil, nil),
+		false,
+		log.Instance,
+	)
+
+	impressionSync.SynchronizeImpressions(50)
 
 	impressionSync.SynchronizeImpressions(50)
 

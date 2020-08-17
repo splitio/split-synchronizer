@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -114,34 +113,6 @@ func parseRedisOptions() (*config.RedisConfig, error) {
 func isValidApikey(splitFetcher service.SplitFetcher) bool {
 	_, err := splitFetcher.Fetch(time.Now().UnixNano() / int64(time.Millisecond))
 	return err == nil
-}
-
-func getConfig() config.AdvancedConfig {
-	advanced := config.GetDefaultAdvancedConfig()
-	advanced.EventsBulkSize = conf.Data.EventsPerPost
-	advanced.HTTPTimeout = int(conf.Data.HTTPTimeout)
-	advanced.ImpressionsBulkSize = conf.Data.ImpressionsPerPost
-	// EventsQueueSize:      5000, // MISSING
-	// ImpressionsQueueSize: 5000, // MISSING
-	// SegmentQueueSize:     100,  // MISSING
-	// SegmentWorkers:       10,   // MISSING
-
-	envSdkURL := os.Getenv("SPLITIO_SDK_URL")
-	if envSdkURL != "" {
-		advanced.SdkURL = envSdkURL
-	}
-
-	envEventsURL := os.Getenv("SPLITIO_EVENTS_URL")
-	if envEventsURL != "" {
-		advanced.EventsURL = envEventsURL
-	}
-
-	authServiceURL := os.Getenv("SPLITIO_AUTH_SERVICE_URL")
-	if authServiceURL != "" {
-		advanced.AuthServiceURL = authServiceURL
-	}
-
-	return advanced
 }
 
 func startLoop(loopTime int64) {

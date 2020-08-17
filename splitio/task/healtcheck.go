@@ -82,6 +82,8 @@ func CheckProducerStatus(splitStorage storage.SplitStorage, sdkClient api.Client
 func CheckEnvirontmentStatus(wg *sync.WaitGroup, splitStorage storage.SplitStorage, sdkClient api.Client, eventsClient api.Client) {
 	wg.Add(1)
 	keepLoop := true
+	idleDuration := time.Duration(60) * time.Second
+	timer := time.NewTimer(idleDuration)
 	for keepLoop {
 		if appcontext.ExecutionMode() == appcontext.ProducerMode {
 			CheckProducerStatus(splitStorage, sdkClient, eventsClient)
@@ -89,13 +91,14 @@ func CheckEnvirontmentStatus(wg *sync.WaitGroup, splitStorage storage.SplitStora
 			CheckEventsSdkStatus(sdkClient, eventsClient)
 		}
 
+		timer.Reset(idleDuration)
 		select {
 		case msg := <-healtcheck:
 			if msg == "STOP" {
 				log.Instance.Debug("Stopping task: healtheck")
 				keepLoop = false
 			}
-		case <-time.After(time.Duration(60) * time.Second):
+		case <-timer.C:
 		}
 	}
 	wg.Done()

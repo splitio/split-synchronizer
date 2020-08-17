@@ -24,6 +24,7 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/proxy/storage"
 	"github.com/splitio/split-synchronizer/splitio/recorder"
 	"github.com/splitio/split-synchronizer/splitio/task"
+	"github.com/splitio/split-synchronizer/splitio/util"
 )
 
 func gracefulShutdownProxy(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup, syncManager *synchronizer.Manager) {
@@ -63,7 +64,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	}
 	boltdb.Initialize(dbpath, nil)
 
-	advanced := interfaces.GetAdvancedConfig()
+	advanced := util.ParseAdvancedOptions()
 	metadata := dtos.Metadata{
 		MachineIP:   "NA",
 		MachineName: "NA",
