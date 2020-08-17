@@ -12,6 +12,7 @@ import (
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/proxy/interfaces"
+	utils "github.com/splitio/split-synchronizer/splitio/util"
 )
 
 const eventChannelCapacity = 5
@@ -71,7 +72,7 @@ type eventChanMessage struct {
 
 // InitializeEventWorkers initializes event workers
 func InitializeEventWorkers(footprint int64, postRate int64, waitingGroup *sync.WaitGroup) {
-	eventsRecorder = api.NewHTTPEventsRecorder(conf.Data.APIKey, interfaces.GetAdvancedConfig(), log.Instance)
+	eventsRecorder = api.NewHTTPEventsRecorder(conf.Data.APIKey, utils.ParseAdvancedOptions(), log.Instance)
 	go eventConditionsWorker(postRate, waitingGroup)
 	for i := 0; i < eventChannelCapacity; i++ {
 		go addEventsToBufferWorker(footprint, waitingGroup)
@@ -93,7 +94,10 @@ func AddEvents(data []byte, sdkVersion string, machineIP string, machineName str
 func eventConditionsWorker(postRate int64, waitingGroup *sync.WaitGroup) {
 	waitingGroup.Add(1)
 	defer waitingGroup.Done()
+	idleDuration := time.Second * time.Duration(postRate)
+	timer := time.NewTimer(idleDuration)
 	for {
+		timer.Reset(idleDuration)
 		// Blocking conditions to send events
 		select {
 		case msg := <-eventPoolBufferChannel:
@@ -105,7 +109,7 @@ func eventConditionsWorker(postRate int64, waitingGroup *sync.WaitGroup) {
 				sendEvents()
 				return
 			}
-		case <-time.After(time.Second * time.Duration(postRate)):
+		case <-timer.C:
 			log.Instance.Debug("Releasing events by post rate")
 		}
 

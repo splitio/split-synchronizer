@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/splitio/go-split-commons/dtos"
+	"github.com/splitio/go-split-commons/provisional"
 	"github.com/splitio/go-split-commons/service"
 	"github.com/splitio/go-split-commons/storage"
 	"github.com/splitio/go-split-commons/synchronizer/worker/impression"
@@ -20,6 +21,10 @@ import (
 	"golang.org/x/exp/errors/fmt"
 )
 
+const (
+	impressionObserverCacheSize = 500000
+)
+
 // RecorderImpressionMultiple struct for impression sync
 type RecorderImpressionMultiple struct {
 	impressionStorage         storage.ImpressionStorageConsumer
@@ -28,6 +33,7 @@ type RecorderImpressionMultiple struct {
 	impressionListenerEnabled bool
 	mutext                    *sync.Mutex
 	logger                    logging.LoggerInterface
+	impObserver               provisional.ImpressionObserver
 }
 
 // NewImpressionRecordMultiple creates new impression synchronizer for posting impressions
@@ -38,6 +44,7 @@ func NewImpressionRecordMultiple(
 	impressionListenerEnabled bool,
 	logger logging.LoggerInterface,
 ) impression.ImpressionRecorder {
+	impObserver, _ := provisional.NewImpressionObserver(impressionObserverCacheSize)
 	return &RecorderImpressionMultiple{
 		impressionStorage:         impressionStorage,
 		impressionRecorder:        impressionRecorder,
@@ -45,6 +52,7 @@ func NewImpressionRecordMultiple(
 		impressionListenerEnabled: impressionListenerEnabled,
 		mutext:                    &sync.Mutex{},
 		logger:                    logger,
+		impObserver:               impObserver,
 	}
 }
 
@@ -87,16 +95,21 @@ func (r *RecorderImpressionMultiple) fetch(bulkSize int64) (map[dtos.Metadata][]
 			collectedData[stored.Metadata][stored.Impression.FeatureName] = make([]dtos.ImpressionDTO, 0)
 		}
 
+		imp := dtos.ImpressionDTO{
+			BucketingKey: stored.Impression.BucketingKey,
+			ChangeNumber: stored.Impression.ChangeNumber,
+			KeyName:      stored.Impression.KeyName,
+			Label:        stored.Impression.Label,
+			Time:         stored.Impression.Time,
+			Treatment:    stored.Impression.Treatment,
+		}
+		imp.Pt, _ = r.impObserver.TestAndSet(
+			stored.Impression.FeatureName,
+			&imp,
+		)
 		collectedData[stored.Metadata][stored.Impression.FeatureName] = append(
 			collectedData[stored.Metadata][stored.Impression.FeatureName],
-			dtos.ImpressionDTO{
-				BucketingKey: stored.Impression.BucketingKey,
-				ChangeNumber: stored.Impression.ChangeNumber,
-				KeyName:      stored.Impression.KeyName,
-				Label:        stored.Impression.Label,
-				Time:         stored.Impression.Time,
-				Treatment:    stored.Impression.Treatment,
-			},
+			imp,
 		)
 	}
 

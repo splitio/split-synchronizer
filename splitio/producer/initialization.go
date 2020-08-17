@@ -23,6 +23,7 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/producer/worker"
 	"github.com/splitio/split-synchronizer/splitio/recorder"
 	"github.com/splitio/split-synchronizer/splitio/task"
+	"github.com/splitio/split-synchronizer/splitio/util"
 	"github.com/splitio/split-synchronizer/splitio/web/admin"
 )
 
@@ -48,7 +49,7 @@ func gracefulShutdownProducer(sigs chan os.Signal, gracefulShutdownWaitingGroup 
 
 // Start initialize the producer mode
 func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
-	advanced := getConfig()
+	advanced := util.ParseAdvancedOptions()
 	metadata := getMetadata()
 
 	// Setup fetchers & recorders

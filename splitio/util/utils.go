@@ -2,7 +2,11 @@ package util
 
 import (
 	"fmt"
+	"os"
 	"time"
+
+	"github.com/splitio/go-split-commons/conf"
+	sync "github.com/splitio/split-synchronizer/conf"
 )
 
 // ParseTime parses a date to format d h m s
@@ -29,4 +33,33 @@ func ParseTime(date time.Time) string {
 	}
 
 	return fmt.Sprintf("%dd %dh %dm %ds", d, h, m, s)
+}
+
+// ParseAdvancedOptions parses defaults for advanced Options
+func ParseAdvancedOptions() conf.AdvancedConfig {
+	advanced := conf.GetDefaultAdvancedConfig()
+	advanced.EventsBulkSize = sync.Data.EventsPerPost
+	advanced.HTTPTimeout = int(sync.Data.HTTPTimeout)
+	advanced.ImpressionsBulkSize = sync.Data.ImpressionsPerPost
+	// EventsQueueSize:      5000, // MISSING
+	// ImpressionsQueueSize: 5000, // MISSING
+	// SegmentQueueSize:     100,  // MISSING
+	// SegmentWorkers:       10,   // MISSING
+
+	envSdkURL := os.Getenv("SPLITIO_SDK_URL")
+	if envSdkURL != "" {
+		advanced.SdkURL = envSdkURL
+	}
+
+	envEventsURL := os.Getenv("SPLITIO_EVENTS_URL")
+	if envEventsURL != "" {
+		advanced.EventsURL = envEventsURL
+	}
+
+	authServiceURL := os.Getenv("SPLITIO_AUTH_SERVICE_URL")
+	if authServiceURL != "" {
+		advanced.AuthServiceURL = authServiceURL
+	}
+
+	return advanced
 }
