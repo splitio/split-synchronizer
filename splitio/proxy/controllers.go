@@ -9,16 +9,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/go-split-commons/dtos"
-	"github.com/splitio/go-split-commons/service/api"
 	"github.com/splitio/go-split-commons/util"
-	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/proxy/boltdb"
 	"github.com/splitio/split-synchronizer/splitio/proxy/boltdb/collections"
 	"github.com/splitio/split-synchronizer/splitio/proxy/controllers"
 	"github.com/splitio/split-synchronizer/splitio/proxy/interfaces"
 	"github.com/splitio/split-synchronizer/splitio/task"
-	utils "github.com/splitio/split-synchronizer/splitio/util"
 )
 
 const (
@@ -35,8 +32,6 @@ const (
 	localAPIOK     = "sdk.request.ok"
 	localAPIError  = "sdk.request.error"
 )
-
-var metricsRecorder = api.NewHTTPMetricsRecorder(conf.Data.APIKey, utils.ParseAdvancedOptions(), log.Instance)
 
 func validateAPIKey(keys []string, apiKey string) bool {
 	for _, key := range keys {
@@ -304,7 +299,7 @@ func postImpressionBeacon(keys []string, impressionListenerEnabled bool) gin.Han
 
 func postMetricsTimes(c *gin.Context) {
 	before := time.Now()
-	postEvent(c, metricLatency)
+	postEvent(c, "/metrics/times")
 	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
 	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncLatency(metricLatency, bucket)
 	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIOK)
@@ -313,7 +308,7 @@ func postMetricsTimes(c *gin.Context) {
 
 func postMetricsTime(c *gin.Context) {
 	before := time.Now()
-	postEvent(c, metricTime)
+	postEvent(c, "/metrics/time")
 	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
 	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncLatency(metricTime, bucket)
 	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIOK)
@@ -322,7 +317,7 @@ func postMetricsTime(c *gin.Context) {
 
 func postMetricsCounters(c *gin.Context) {
 	before := time.Now()
-	postEvent(c, metricCounters)
+	postEvent(c, "/metrics/counters")
 	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
 	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncLatency(metricCounters, bucket)
 	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIOK)
@@ -331,7 +326,7 @@ func postMetricsCounters(c *gin.Context) {
 
 func postMetricsCounter(c *gin.Context) {
 	before := time.Now()
-	postEvent(c, metricCounter)
+	postEvent(c, "/metrics/counter")
 	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
 	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncLatency(metricCounter, bucket)
 	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIOK)
@@ -340,7 +335,7 @@ func postMetricsCounter(c *gin.Context) {
 
 func postMetricsGauge(c *gin.Context) {
 	before := time.Now()
-	postEvent(c, metricGauge)
+	postEvent(c, "/metrics/gauge")
 	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
 	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncLatency(metricGauge, bucket)
 	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIOK)
@@ -359,7 +354,7 @@ func postEvent(c *gin.Context, url string) {
 
 	go func() {
 		log.Instance.Debug(metadata.SDKVersion, metadata.MachineIP, string(data))
-		var e = metricsRecorder.RecordRaw(url, data, metadata)
+		var e = interfaces.MetricsRecorder.RecordRaw(url, data, metadata)
 		if e != nil {
 			log.Instance.Error(e)
 		}

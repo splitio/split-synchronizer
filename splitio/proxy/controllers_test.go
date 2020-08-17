@@ -20,6 +20,7 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/proxy/boltdb"
 	"github.com/splitio/split-synchronizer/splitio/proxy/boltdb/collections"
 	"github.com/splitio/split-synchronizer/splitio/proxy/controllers"
+	"github.com/splitio/split-synchronizer/splitio/proxy/interfaces"
 )
 
 func TestSplitController(t *testing.T) {
@@ -219,6 +220,7 @@ func TestPostImpressionsBeacon(t *testing.T) {
 		stdoutWriter := ioutil.Discard //os.Stdout
 		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
 	}
+	interfaces.Initialize()
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		checkHeaders(t, r)
@@ -302,6 +304,8 @@ func TestPostEventsBeacon(t *testing.T) {
 		stdoutWriter := ioutil.Discard //os.Stdout
 		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
 	}
+	interfaces.Initialize()
+
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		checkHeaders(t, r)
