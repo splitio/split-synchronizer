@@ -63,6 +63,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		dbpath = conf.Data.Proxy.PersistMemoryPath
 	}
 	boltdb.Initialize(dbpath, nil)
+	interfaces.Initialize()
 
 	advanced := util.ParseAdvancedOptions()
 	metadata := dtos.Metadata{
@@ -85,8 +86,8 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	segmentStorage := storage.NewSegmentStorage(segmentCollection)
 
 	workers := synchronizer.Workers{
-		SplitFetcher:      fetcher.NewSplitFetcher(splitCollection, splitAPI.SplitFetcher, &interfaces.ProxyTelemetryWrapper, log.Instance),
-		SegmentFetcher:    fetcher.NewSegmentFetcher(segmentCollection, splitCollection, splitAPI.SegmentFetcher, &interfaces.ProxyTelemetryWrapper, log.Instance),
+		SplitFetcher:      fetcher.NewSplitFetcher(splitCollection, splitAPI.SplitFetcher, interfaces.ProxyTelemetryWrapper, log.Instance),
+		SegmentFetcher:    fetcher.NewSegmentFetcher(segmentCollection, splitCollection, splitAPI.SegmentFetcher, interfaces.ProxyTelemetryWrapper, log.Instance),
 		TelemetryRecorder: metric.NewRecorderSingle(interfaces.TelemetryStorage, splitAPI.MetricRecorder, metadata),
 	}
 	splitTasks := synchronizer.SplitTasks{
