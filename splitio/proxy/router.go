@@ -59,7 +59,7 @@ func Run(options *Options) {
 	admin.StartAdminWebAdmin(waOptions, common.Storages{
 		SplitStorage:          options.splitStorage,
 		SegmentStorage:        options.segmentStorage,
-		LocalTelemetryStorage: interfaces.ProxyTelemetryWrapper.LocalTelemtry,
+		LocalTelemetryStorage: interfaces.ProxyTelemetryWrapper.LocalTelemetry,
 	}, options.httpClients, common.Recorders{})
 
 	// Beacon routes

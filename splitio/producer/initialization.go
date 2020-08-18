@@ -23,7 +23,6 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/producer/worker"
 	"github.com/splitio/split-synchronizer/splitio/recorder"
 	"github.com/splitio/split-synchronizer/splitio/task"
-	"github.com/splitio/split-synchronizer/splitio/util"
 	"github.com/splitio/split-synchronizer/splitio/web/admin"
 )
 
@@ -43,13 +42,17 @@ func gracefulShutdownProducer(sigs chan os.Signal, gracefulShutdownWaitingGroup 
 	fmt.Println(" -> Sending STOP to healthcheck goroutine")
 	task.StopHealtcheck()
 
+	fmt.Println(" * Waiting goroutines stop")
+	gracefulShutdownWaitingGroup.Wait()
+
 	fmt.Println(" * Shutting it down - see you soon!")
 	os.Exit(splitio.SuccessfulOperation)
 }
 
 // Start initialize the producer mode
 func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
-	advanced := util.ParseAdvancedOptions()
+	// Getting initial config data
+	advanced := conf.ParseAdvancedOptions()
 	metadata := getMetadata()
 
 	// Setup fetchers & recorders
@@ -66,6 +69,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		os.Exit(splitio.ExitRedisInitializationFailed)
 	}
 
+	// Redis Storages
 	redisOptions, err := parseRedisOptions()
 	if err != nil {
 		log.Instance.Error("Failed to instantiate redis client.")
@@ -77,20 +81,13 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		os.Exit(splitio.ExitRedisInitializationFailed)
 	}
 
+	// Instantiating storages
 	miscStorage := redis.NewMiscStorage(redisClient, log.Instance)
 	err = sanitizeRedis(miscStorage, log.Instance)
 	if err != nil {
 		log.Instance.Error("Failed when trying to clean up redis. Aborting execution.")
 		log.Instance.Error(err.Error())
 		os.Exit(splitio.ExitRedisInitializationFailed)
-	}
-
-	// WebAdmin configuration
-	waOptions := &admin.WebAdminOptions{
-		Port:          conf.Data.Producer.Admin.Port,
-		AdminUsername: conf.Data.Producer.Admin.Username,
-		AdminPassword: conf.Data.Producer.Admin.Password,
-		DebugOn:       conf.Data.Logger.DebugOn,
 	}
 
 	metricStorage := redis.NewMetricsStorage(redisClient, metadata, log.Instance)
@@ -103,11 +100,8 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		ImpressionStorage:     redis.NewImpressionStorage(redisClient, dtos.Metadata{}, log.Instance),
 		EventStorage:          redis.NewEventsStorage(redisClient, dtos.Metadata{}, log.Instance),
 	}
-	httpClients := common.HTTPClients{
-		SdkClient:    api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.SdkURL, log.Instance, metadata),
-		EventsClient: api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.EventsURL, log.Instance, metadata),
-	}
 
+	// Creating Workers and Tasks
 	impressionListenerEnabled := strings.TrimSpace(conf.Data.ImpressionListener.Endpoint) != ""
 	impressionRecorder := worker.NewImpressionRecordMultiple(storages.ImpressionStorage, splitAPI.ImpressionRecorder, metricsWrapper, impressionListenerEnabled, log.Instance)
 	eventRecorder := worker.NewEventRecorderMultiple(storages.EventStorage, splitAPI.EventRecorder, metricsWrapper, log.Instance)
@@ -118,10 +112,6 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		ImpressionRecorder: impressionRecorder,
 		TelemetryRecorder:  worker.NewMetricRecorderMultiple(metricsWrapper, splitAPI.MetricRecorder, log.Instance),
 	}
-	recorders := common.Recorders{
-		Impression: impressionRecorder,
-		Event:      eventRecorder,
-	}
 	splitTasks := synchronizer.SplitTasks{
 		SplitSyncTask:      tasks.NewFetchSplitsTask(workers.SplitFetcher, conf.Data.SplitsFetchRate, log.Instance),
 		SegmentSyncTask:    tasks.NewFetchSegmentsTask(workers.SegmentFetcher, conf.Data.SegmentFetchRate, advanced.SegmentWorkers, advanced.SegmentQueueSize, log.Instance),
@@ -130,6 +120,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		ImpressionSyncTask: tasks.NewRecordImpressionsTasks(workers.ImpressionRecorder, conf.Data.ImpressionsPostRate, log.Instance, advanced.ImpressionsBulkSize, conf.Data.ImpressionsThreads),
 	}
 
+	// Creating Synchronizer for tasks
 	syncImpl := synchronizer.NewSynchronizer(
 		advanced,
 		splitTasks,
@@ -154,8 +145,26 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	// Producer mode - graceful shutdown
 	go gracefulShutdownProducer(sigs, gracefulShutdownWaitingGroup, syncManager)
 
+	// --------------------------- ADMIN DASHBOARD ------------------------------
+	// WebAdmin configuration
+	waOptions := &admin.WebAdminOptions{
+		Port:          conf.Data.Producer.Admin.Port,
+		AdminUsername: conf.Data.Producer.Admin.Username,
+		AdminPassword: conf.Data.Producer.Admin.Password,
+		DebugOn:       conf.Data.Logger.DebugOn,
+	}
+
 	// Run WebAdmin Server
+	httpClients := common.HTTPClients{
+		SdkClient:    api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.SdkURL, log.Instance, metadata),
+		EventsClient: api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.EventsURL, log.Instance, metadata),
+	}
+	recorders := common.Recorders{
+		Impression: impressionRecorder,
+		Event:      eventRecorder,
+	}
 	admin.StartAdminWebAdmin(waOptions, storages, httpClients, recorders)
+	// ---------------------------------------------------------------------------
 
 	// Run Sync Manager
 	go syncManager.Start()

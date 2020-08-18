@@ -6,7 +6,6 @@ import (
 	"github.com/splitio/go-split-commons/storage/mutexmap"
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio/util"
 )
 
 // TelemetryStorage storage
@@ -25,14 +24,10 @@ func Initialize() {
 	}
 
 	if ProxyTelemetryWrapper == nil {
-		ProxyTelemetryWrapper = &storage.MetricWrapper{
-			LocalTelemtry: mutexmap.NewMMMetricsStorage(),
-			Telemetry:     TelemetryStorage,
-			Logger:        log.Instance,
-		}
+		ProxyTelemetryWrapper = storage.NewMetricWrapper(TelemetryStorage, mutexmap.NewMMMetricsStorage(), log.Instance)
 	}
 
 	if MetricsRecorder == nil {
-		MetricsRecorder = api.NewHTTPMetricsRecorder(conf.Data.APIKey, util.ParseAdvancedOptions(), log.Instance)
+		MetricsRecorder = api.NewHTTPMetricsRecorder(conf.Data.APIKey, conf.ParseAdvancedOptions(), log.Instance)
 	}
 }

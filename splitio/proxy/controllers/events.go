@@ -12,7 +12,6 @@ import (
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/proxy/interfaces"
-	utils "github.com/splitio/split-synchronizer/splitio/util"
 )
 
 const eventChannelCapacity = 5
@@ -72,7 +71,7 @@ type eventChanMessage struct {
 
 // InitializeEventWorkers initializes event workers
 func InitializeEventWorkers(footprint int64, postRate int64, waitingGroup *sync.WaitGroup) {
-	eventsRecorder = api.NewHTTPEventsRecorder(conf.Data.APIKey, utils.ParseAdvancedOptions(), log.Instance)
+	eventsRecorder = api.NewHTTPEventsRecorder(conf.Data.APIKey, conf.ParseAdvancedOptions(), log.Instance)
 	go eventConditionsWorker(postRate, waitingGroup)
 	for i := 0; i < eventChannelCapacity; i++ {
 		go addEventsToBufferWorker(footprint, waitingGroup)
