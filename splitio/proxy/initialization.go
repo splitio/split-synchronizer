@@ -24,7 +24,6 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/proxy/storage"
 	"github.com/splitio/split-synchronizer/splitio/recorder"
 	"github.com/splitio/split-synchronizer/splitio/task"
-	"github.com/splitio/split-synchronizer/splitio/util"
 )
 
 func gracefulShutdownProxy(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup, syncManager *synchronizer.Manager) {
@@ -47,30 +46,36 @@ func gracefulShutdownProxy(sigs chan os.Signal, gracefulShutdownWaitingGroup *sy
 	fmt.Println(" -> Sending STOP to healthcheck goroutine")
 	task.StopHealtcheck()
 
-	// SyncManager
+	// Stopping Sync Manager in charge of PeriodicFetchers and PeriodicRecorders as well as Streaming
+	fmt.Println(" -> Sending STOP to Synchronizer")
 	syncManager.Stop()
 
 	fmt.Println(" * Waiting goroutines stop")
 	gracefulShutdownWaitingGroup.Wait()
+
 	fmt.Println(" * Shutting it down - see you soon!")
 	os.Exit(splitio.SuccessfulOperation)
 }
 
 // Start initialize in proxy mode
 func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
+	// Initialization of DB
 	var dbpath = boltdb.InMemoryMode
 	if conf.Data.Proxy.PersistMemoryPath != "" {
 		dbpath = conf.Data.Proxy.PersistMemoryPath
 	}
 	boltdb.Initialize(dbpath, nil)
-	interfaces.Initialize()
 
-	advanced := util.ParseAdvancedOptions()
+	// Getting initial config data
+	advanced := conf.ParseAdvancedOptions()
 	metadata := dtos.Metadata{
 		MachineIP:   "NA",
 		MachineName: "NA",
 		SDKVersion:  "split-sync-proxy-" + splitio.Version,
 	}
+
+	// Initialization common
+	interfaces.Initialize()
 
 	// Setup fetchers & recorders
 	splitAPI := service.NewSplitAPI(
@@ -80,11 +85,13 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		metadata,
 	)
 
+	// Instantiating storages
 	splitCollection := collections.NewSplitChangesCollection(boltdb.DBB)
 	splitStorage := storage.NewSplitStorage(splitCollection)
 	segmentCollection := collections.NewSegmentChangesCollection(boltdb.DBB)
 	segmentStorage := storage.NewSegmentStorage(segmentCollection)
 
+	// Creating Workers and Tasks
 	workers := synchronizer.Workers{
 		SplitFetcher:      fetcher.NewSplitFetcher(splitCollection, splitAPI.SplitFetcher, interfaces.ProxyTelemetryWrapper, log.Instance),
 		SegmentFetcher:    fetcher.NewSegmentFetcher(segmentCollection, splitCollection, splitAPI.SegmentFetcher, interfaces.ProxyTelemetryWrapper, log.Instance),
@@ -95,6 +102,8 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		SegmentSyncTask:   tasks.NewFetchSegmentsTask(workers.SegmentFetcher, conf.Data.SegmentFetchRate, advanced.SegmentWorkers, advanced.SegmentQueueSize, log.Instance),
 		TelemetrySyncTask: tasks.NewRecordTelemetryTask(workers.TelemetryRecorder, conf.Data.MetricsPostRate, log.Instance),
 	}
+
+	// Creating Synchronizer for tasks
 	syncImpl := synchronizer.NewSynchronizer(
 		advanced,
 		splitTasks,
@@ -116,8 +125,10 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		panic(err)
 	}
 
+	// Proxy mode - graceful shutdown
 	go gracefulShutdownProxy(sigs, gracefulShutdownWaitingGroup, syncManager)
 
+	// Run Sync Manager
 	go syncManager.Start()
 	select {
 	case status := <-managerStatus:
@@ -135,12 +146,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		})
 	}
 
-	httpClients := common.HTTPClients{
-		SdkClient:    api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.SdkURL, log.Instance, metadata),
-		EventsClient: api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.EventsURL, log.Instance, metadata),
-	}
-	go task.CheckEnvirontmentStatus(gracefulShutdownWaitingGroup, splitStorage, httpClients.SdkClient, httpClients.EventsClient)
-
+	// Initialization routes
 	controllers.InitializeImpressionWorkers(
 		conf.Data.Proxy.ImpressionsMaxSize,
 		int64(conf.Data.ImpressionsPostRate),
@@ -152,6 +158,10 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		gracefulShutdownWaitingGroup,
 	)
 
+	httpClients := common.HTTPClients{
+		SdkClient:    api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.SdkURL, log.Instance, metadata),
+		EventsClient: api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.EventsURL, log.Instance, metadata),
+	}
 	proxyOptions := &Options{
 		Port:                      ":" + strconv.Itoa(conf.Data.Proxy.Port),
 		APIKeys:                   conf.Data.Proxy.Auth.APIKeys,
@@ -164,6 +174,8 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		splitStorage:              splitStorage,
 		segmentStorage:            segmentStorage,
 	}
+
+	go task.CheckEnvirontmentStatus(gracefulShutdownWaitingGroup, splitStorage, httpClients.SdkClient, httpClients.EventsClient)
 
 	// Run webserver loop
 	Run(proxyOptions)

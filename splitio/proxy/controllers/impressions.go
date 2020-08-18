@@ -12,7 +12,6 @@ import (
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/proxy/interfaces"
-	utils "github.com/splitio/split-synchronizer/splitio/util"
 )
 
 //-----------------------------------------------------------------
@@ -79,7 +78,7 @@ type impressionChanMessage struct {
 
 // InitializeImpressionWorkers initializes impression workers
 func InitializeImpressionWorkers(footprint int64, postRate int64, waitingGroup *sync.WaitGroup) {
-	impressionRecorder = api.NewHTTPImpressionRecorder(conf.Data.APIKey, utils.ParseAdvancedOptions(), log.Instance)
+	impressionRecorder = api.NewHTTPImpressionRecorder(conf.Data.APIKey, conf.ParseAdvancedOptions(), log.Instance)
 	go impressionConditionsWorker(postRate, waitingGroup)
 	for i := 0; i < impressionChannelCapacity; i++ {
 		go addImpressionsToBufferWorker(footprint, waitingGroup)

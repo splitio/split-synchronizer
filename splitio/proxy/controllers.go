@@ -85,13 +85,13 @@ func splitChanges(c *gin.Context) {
 		default:
 			log.Instance.Error(errf)
 		}
-		interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIError)
+		interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIError)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": errf.Error()})
 		return
 	}
 	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncLatency(split, bucket)
-	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIOK)
+	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncLatency(split, bucket)
+	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIOK)
 	c.JSON(http.StatusOK, gin.H{"splits": splits, "since": since, "till": till})
 }
 
@@ -156,13 +156,13 @@ func segmentChanges(c *gin.Context) {
 	before := time.Now()
 	added, removed, till, errf := fetchSegmentsFromDB(since, segmentName)
 	if errf != nil {
-		interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIError)
+		interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIError)
 		c.JSON(http.StatusNotFound, gin.H{"error": errf.Error()})
 		return
 	}
 	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncLatency(segment, bucket)
-	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIOK)
+	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncLatency(segment, bucket)
+	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIOK)
 	c.JSON(http.StatusOK, gin.H{"name": segmentName, "added": added,
 		"removed": removed, "since": since, "till": till})
 }
@@ -179,7 +179,7 @@ func mySegments(c *gin.Context) {
 	segments, errs := segmentCollection.FetchAll()
 	if errs != nil {
 		log.Instance.Warning(errs)
-		interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIError)
+		interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIError)
 	} else {
 		for _, segment := range segments {
 			for _, skey := range segment.Keys {
@@ -192,8 +192,8 @@ func mySegments(c *gin.Context) {
 	}
 
 	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncLatency(mySegment, bucket)
-	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIOK)
+	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncLatency(mySegment, bucket)
+	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIOK)
 	c.JSON(http.StatusOK, gin.H{"mySegments": mysegments})
 }
 
@@ -219,8 +219,8 @@ func submitImpressions(
 	before := time.Now()
 	controllers.AddImpressions(data, sdkVersion, machineIP, machineName)
 	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncLatency(impressions, bucket)
-	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIOK)
+	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncLatency(impressions, bucket)
+	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIOK)
 }
 
 func postImpressionBulk(impressionListenerEnabled bool) gin.HandlerFunc {
@@ -231,7 +231,7 @@ func postImpressionBulk(impressionListenerEnabled bool) gin.HandlerFunc {
 		data, err := ioutil.ReadAll(c.Request.Body)
 		if err != nil {
 			log.Instance.Error(err)
-			interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIError)
+			interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIError)
 			c.JSON(http.StatusInternalServerError, nil)
 			return
 		}
@@ -259,7 +259,7 @@ func postImpressionBeacon(keys []string, impressionListenerEnabled bool) gin.Han
 		data, err := ioutil.ReadAll(c.Request.Body)
 		if err != nil {
 			log.Instance.Error(err)
-			interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIError)
+			interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIError)
 			c.JSON(http.StatusInternalServerError, nil)
 			return
 		}
@@ -301,8 +301,8 @@ func postMetricsTimes(c *gin.Context) {
 	before := time.Now()
 	postEvent(c, "/metrics/times")
 	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncLatency(metricLatency, bucket)
-	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIOK)
+	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncLatency(metricLatency, bucket)
+	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIOK)
 	c.JSON(http.StatusOK, "")
 }
 
@@ -310,8 +310,8 @@ func postMetricsTime(c *gin.Context) {
 	before := time.Now()
 	postEvent(c, "/metrics/time")
 	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncLatency(metricTime, bucket)
-	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIOK)
+	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncLatency(metricTime, bucket)
+	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIOK)
 	c.JSON(http.StatusOK, "")
 }
 
@@ -319,8 +319,8 @@ func postMetricsCounters(c *gin.Context) {
 	before := time.Now()
 	postEvent(c, "/metrics/counters")
 	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncLatency(metricCounters, bucket)
-	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIOK)
+	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncLatency(metricCounters, bucket)
+	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIOK)
 	c.JSON(http.StatusOK, "")
 }
 
@@ -328,8 +328,8 @@ func postMetricsCounter(c *gin.Context) {
 	before := time.Now()
 	postEvent(c, "/metrics/counter")
 	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncLatency(metricCounter, bucket)
-	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIOK)
+	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncLatency(metricCounter, bucket)
+	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIOK)
 	c.JSON(http.StatusOK, "")
 }
 
@@ -337,8 +337,8 @@ func postMetricsGauge(c *gin.Context) {
 	before := time.Now()
 	postEvent(c, "/metrics/gauge")
 	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncLatency(metricGauge, bucket)
-	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIOK)
+	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncLatency(metricGauge, bucket)
+	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIOK)
 	c.JSON(http.StatusOK, "")
 }
 
@@ -368,8 +368,8 @@ func submitEvents(sdkVersion string, machineIP string, machineName string, data 
 	before := time.Now()
 	controllers.AddEvents(data, sdkVersion, machineIP, machineName)
 	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncLatency(events, bucket)
-	interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIOK)
+	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncLatency(events, bucket)
+	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIOK)
 }
 
 func postEvents(c *gin.Context) {
@@ -379,7 +379,7 @@ func postEvents(c *gin.Context) {
 	data, err := ioutil.ReadAll(c.Request.Body)
 	if err != nil {
 		log.Instance.Error(err)
-		interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIError)
+		interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIError)
 		c.JSON(http.StatusInternalServerError, nil)
 		return
 	}
@@ -398,7 +398,7 @@ func postEventsBeacon(keys []string) gin.HandlerFunc {
 		data, err := ioutil.ReadAll(c.Request.Body)
 		if err != nil {
 			log.Instance.Error(err)
-			interfaces.ProxyTelemetryWrapper.LocalTelemtry.IncCounter(localAPIError)
+			interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIError)
 			c.JSON(http.StatusInternalServerError, nil)
 			return
 		}

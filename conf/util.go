@@ -1,0 +1,41 @@
+package conf
+
+import (
+	"os"
+
+	"github.com/splitio/go-split-commons/conf"
+)
+
+// ParseAdvancedOptions parses defaults for advanced Options
+func ParseAdvancedOptions() conf.AdvancedConfig {
+	advanced := conf.GetDefaultAdvancedConfig()
+	advanced.EventsBulkSize = Data.EventsPerPost
+	advanced.HTTPTimeout = int(Data.HTTPTimeout)
+	advanced.ImpressionsBulkSize = Data.ImpressionsPerPost
+	// EventsQueueSize:      5000, // MISSING
+	// ImpressionsQueueSize: 5000, // MISSING
+	// SegmentQueueSize:     100,  // MISSING
+	// SegmentWorkers:       10,   // MISSING
+
+	envSdkURL := os.Getenv("SPLITIO_SDK_URL")
+	if envSdkURL != "" {
+		advanced.SdkURL = envSdkURL
+	}
+
+	envEventsURL := os.Getenv("SPLITIO_EVENTS_URL")
+	if envEventsURL != "" {
+		advanced.EventsURL = envEventsURL
+	}
+
+	authServiceURL := os.Getenv("SPLITIO_AUTH_SERVICE_URL")
+	if authServiceURL != "" {
+		advanced.AuthServiceURL = authServiceURL
+	}
+
+	streamingServiceURL := os.Getenv("SPLITIO_STREAMING_SERVICE_URL")
+	if streamingServiceURL != "" {
+		advanced.StreamingServiceURL = streamingServiceURL
+	}
+
+	return advanced
+}

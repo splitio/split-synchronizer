@@ -7,7 +7,7 @@ import (
 	"github.com/splitio/go-split-commons/synchronizer/worker/impression"
 )
 
-// Storages struct
+// Storages wraps storages in one struct
 type Storages struct {
 	SplitStorage          storage.SplitStorage
 	SegmentStorage        storage.SegmentStorage
@@ -16,13 +16,13 @@ type Storages struct {
 	ImpressionStorage     storage.ImpressionStorage
 }
 
-// HTTPClients struct
+// HTTPClients wraps http clients for healthcheck
 type HTTPClients struct {
 	SdkClient    api.Client
 	EventsClient api.Client
 }
 
-// Recorders struct
+// Recorders wraps recorders for dashboards
 type Recorders struct {
 	Impression impression.ImpressionRecorder
 	Event      event.EventRecorder
