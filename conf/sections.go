@@ -76,7 +76,7 @@ type ConfigData struct {
 	ImpressionListener  ImpressionListener `json:"impressionListener" split-cli-option-group:"true"`
 	SplitsFetchRate     int                `json:"splitsRefreshRate" split-cli-option:"split-refresh-rate" split-default-value:"5" split-cli-description:"Refresh rate of splits fetcher"`
 	SegmentFetchRate    int                `json:"segmentsRefreshRate" split-default-value:"60" split-cli-option:"segment-refresh-rate" split-cli-description:"Refresh rate of segments fetcher"`
-	ImpressionsPostRate int                `json:"impressionsPostRate" split-default-value:"20" split-cli-option:"impressions-post-rate" split-cli-description:"Post rate of impressions recorder"`
+	ImpressionsPostRate int                `json:"impressionsPostRate" split-default-value:"60" split-cli-option:"impressions-post-rate" split-cli-description:"Post rate of impressions recorder"`
 	ImpressionsPerPost  int64              `json:"impressionsPerPost" split-cli-option:"impressions-per-post" split-default-value:"50000" split-cli-description:"Number of impressions to send in a POST request"`
 	ImpressionsThreads  int                `json:"impressionsThreads" split-default-value:"1" split-cli-option:"impressions-threads" split-cli-description:"Number of impressions recorder threads"`
 	EventsPostRate      int                `json:"eventsPostRate" split-default-value:"60" split-cli-option:"events-post-rate" split-cli-description:"Post rate of event recorder (seconds)"`
