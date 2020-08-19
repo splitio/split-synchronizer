@@ -16,6 +16,7 @@ import (
 	"github.com/splitio/go-toolkit/logging"
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/util"
 )
 
 func TestHashApiKey(t *testing.T) {
@@ -28,7 +29,7 @@ func TestHashApiKey(t *testing.T) {
 	}
 
 	for apikey, hash := range testCases {
-		calculated := hashAPIKey(apikey)
+		calculated := util.HashAPIKey(apikey)
 		if calculated != hash {
 			t.Errorf("Apikey %s should hash to %d. Instead got %d", apikey, hash, calculated)
 		}
