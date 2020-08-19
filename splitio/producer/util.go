@@ -121,15 +121,11 @@ func startLoop(loopTime int64) {
 	}
 }
 
-func hashAPIKey(apikey string) uint32 {
-	return util.Murmur3_32([]byte(apikey), 0)
-}
-
 func sanitizeRedis(miscStorage *redis.MiscStorage, logger logging.LoggerInterface) error {
 	if miscStorage == nil {
 		return errors.New("Could not sanitize redis")
 	}
-	currentHash := hashAPIKey(conf.Data.APIKey)
+	currentHash := util.HashAPIKey(conf.Data.APIKey)
 	currentHashAsStr := strconv.Itoa(int(currentHash))
 	defer miscStorage.SetApikeyHash(currentHashAsStr)
 
