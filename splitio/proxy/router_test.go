@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/splitio/go-toolkit/logging"
 	"github.com/splitio/split-synchronizer/conf"
@@ -29,6 +30,7 @@ func TestRouterWithoutHeaders(t *testing.T) {
 	}
 
 	go Run(proxyOptions)
+	time.Sleep(500 * time.Millisecond)
 
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", "http://localhost:3000/api/auth", nil)
@@ -66,6 +68,7 @@ func TestRouterWrongApikey(t *testing.T) {
 	}
 
 	go Run(proxyOptions)
+	time.Sleep(500 * time.Millisecond)
 
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", "http://localhost:3000/api/auth", nil)
@@ -104,6 +107,7 @@ func TestRouterOk(t *testing.T) {
 	}
 
 	go Run(proxyOptions)
+	time.Sleep(500 * time.Millisecond)
 
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", "http://localhost:3000/api/auth", nil)
