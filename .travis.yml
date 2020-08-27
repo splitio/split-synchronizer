@@ -51,6 +51,23 @@ jobs:
         on:
           branch: master
 
+    - stage: unstable
+      language: minimal
+      services:
+        - docker
+      before_script:
+        - COMMIT=$(git rev-parse --short HEAD)
+      script:
+        - docker build -t ${ARTIFACTORY_REGISTRY}/split-synchronizer:${COMMIT} .
+      deploy:
+        provider: script
+        script:
+          - echo "${ARTIFACTORY_PASSWORD}" | docker login -u "${ARTIFACTORY_USER}" --password-stdin "${ARTIFACTORY_REGISTRY}"
+          - docker push ${ARTIFACTORY_REGISTRY}/split-synchronizer:${COMMIT}
+        skip_cleanup: true
+        on:
+          all_branches: true
+
     - stage: xray
       language: minimal
       services:
@@ -61,15 +78,19 @@ jobs:
         - docker build -t ${ARTIFACTORY_REGISTRY}/split-synchronizer:${BUILD_VERSION} -t ${ARTIFACTORY_REGISTRY}/split-synchronizer:latest .
       deploy:
         provider: script
-        script: >-
-          echo "${ARTIFACTORY_PASSWORD}" | docker login -u "${ARTIFACTORY_USER}" --password-stdin "${ARTIFACTORY_REGISTRY}" &&
-          docker push ${ARTIFACTORY_REGISTRY}/split-synchronizer
+        script:
+          - echo "${ARTIFACTORY_PASSWORD}" | docker login -u "${ARTIFACTORY_USER}" --password-stdin "${ARTIFACTORY_REGISTRY}"
+          - docker push ${ARTIFACTORY_REGISTRY}/split-synchronizer
         skip_cleanup: true
         on:
           all_branches: true
 
 stages:
   - name: test
+    if: NOT (type = cron)
   - name: build
+    if: (type = pull_request OR branch = master) AND NOT (type = cron)
+  - name: unstable
+    if: NOT (type = pull_request) AND NOT (branch = master)
   - name: xray
     if: (branch = master) OR (type = cron)
