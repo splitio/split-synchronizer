@@ -46,14 +46,14 @@ func newWebAdminServer(options *WebAdminOptions, storages common.Storages, httpC
 	}
 
 	server.Router().Use(func(c *gin.Context) {
-		c.Set("SplitStorage", storages.SplitStorage)
-		c.Set("SegmentStorage", storages.SegmentStorage)
-		c.Set("LocalMetricStorage", storages.LocalTelemetryStorage)
-		c.Set("HTTPClients", httpClients)
+		c.Set(common.SplitStorage, storages.SplitStorage)
+		c.Set(common.SegmentStorage, storages.SegmentStorage)
+		c.Set(common.LocalMetricStorage, storages.LocalTelemetryStorage)
+		c.Set(common.HTTPClientsGin, httpClients)
 		if appcontext.ExecutionMode() == appcontext.ProducerMode {
-			c.Set("Recorders", recorders)
-			c.Set("EventStorage", storages.EventStorage)
-			c.Set("ImpressionStorage", storages.ImpressionStorage)
+			c.Set(common.RecordersGin, recorders)
+			c.Set(common.EventStorage, storages.EventStorage)
+			c.Set(common.ImpressionStorage, storages.ImpressionStorage)
 		}
 	})
 

@@ -167,7 +167,7 @@ func TestSizeEvents(t *testing.T) {
 
 	router := gin.Default()
 	router.GET("/", func(c *gin.Context) {
-		c.Set("EventStorage", redisStorage.NewEventsStorage(prefixed, dtos.Metadata{}, nil))
+		c.Set(common.EventStorage, redisStorage.NewEventsStorage(prefixed, dtos.Metadata{}, nil))
 		GetEventsQueueSize(c)
 	})
 
@@ -198,7 +198,7 @@ func TestSizeImpressions(t *testing.T) {
 
 	router := gin.Default()
 	router.GET("/", func(c *gin.Context) {
-		c.Set("ImpressionStorage", redisStorage.NewImpressionStorage(prefixed, dtos.Metadata{}, nil))
+		c.Set(common.ImpressionStorage, redisStorage.NewImpressionStorage(prefixed, dtos.Metadata{}, nil))
 		GetImpressionsQueueSize(c)
 	})
 
@@ -275,7 +275,7 @@ func TestDropEventsSuccess(t *testing.T) {
 
 	router := gin.Default()
 	router.POST("/test", func(c *gin.Context) {
-		c.Set("EventStorage", redisStorage.NewEventsStorage(prefixed, dtos.Metadata{}, nil))
+		c.Set(common.EventStorage, redisStorage.NewEventsStorage(prefixed, dtos.Metadata{}, nil))
 		DropEvents(c)
 	})
 
@@ -307,7 +307,7 @@ func TestDropEventsSuccessDefault(t *testing.T) {
 
 	router := gin.Default()
 	router.POST("/test", func(c *gin.Context) {
-		c.Set("EventStorage", redisStorage.NewEventsStorage(prefixed, dtos.Metadata{}, nil))
+		c.Set(common.EventStorage, redisStorage.NewEventsStorage(prefixed, dtos.Metadata{}, nil))
 		DropEvents(c)
 	})
 
@@ -380,7 +380,7 @@ func TestDropImpressionsSuccess(t *testing.T) {
 
 	router := gin.Default()
 	router.POST("/test", func(c *gin.Context) {
-		c.Set("ImpressionStorage", redisStorage.NewImpressionStorage(prefixed, dtos.Metadata{}, nil))
+		c.Set(common.ImpressionStorage, redisStorage.NewImpressionStorage(prefixed, dtos.Metadata{}, nil))
 		DropImpressions(c)
 	})
 
@@ -411,7 +411,7 @@ func TestDropImpressionsSuccessDefault(t *testing.T) {
 
 	router := gin.Default()
 	router.POST("/test", func(c *gin.Context) {
-		c.Set("ImpressionStorage", redisStorage.NewImpressionStorage(prefixed, dtos.Metadata{}, nil))
+		c.Set(common.ImpressionStorage, redisStorage.NewImpressionStorage(prefixed, dtos.Metadata{}, nil))
 		DropImpressions(c)
 	})
 
@@ -462,8 +462,8 @@ func TestHealthCheckEndpointSuccessful(t *testing.T) {
 
 	router := gin.Default()
 	router.GET("/", func(c *gin.Context) {
-		c.Set("SplitStorage", redisStorage.NewSplitStorage(prefixed, nil))
-		c.Set("HTTPClients", common.HTTPClients{
+		c.Set(common.SplitStorage, redisStorage.NewSplitStorage(prefixed, nil))
+		c.Set(common.HTTPClientsGin, common.HTTPClients{
 			AuthClient:   apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
 			SdkClient:    apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
 			EventsClient: apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
@@ -523,8 +523,8 @@ func TestHealthCheckEndpointFailure(t *testing.T) {
 
 	router := gin.Default()
 	router.GET("/", func(c *gin.Context) {
-		c.Set("SplitStorage", redisStorage.NewSplitStorage(prefixed, nil))
-		c.Set("HTTPClients", common.HTTPClients{
+		c.Set(common.SplitStorage, redisStorage.NewSplitStorage(prefixed, nil))
+		c.Set(common.HTTPClientsGin, common.HTTPClients{
 			AuthClient:   apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, errors.New("some") }},
 			SdkClient:    apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
 			EventsClient: apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
@@ -575,8 +575,8 @@ func TestHealthCheckEndpointSDKFail(t *testing.T) {
 
 	router := gin.Default()
 	router.GET("/", func(c *gin.Context) {
-		c.Set("SplitStorage", redisStorage.NewSplitStorage(prefixed, nil))
-		c.Set("HTTPClients", common.HTTPClients{
+		c.Set(common.SplitStorage, redisStorage.NewSplitStorage(prefixed, nil))
+		c.Set(common.HTTPClientsGin, common.HTTPClients{
 			AuthClient:   apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
 			SdkClient:    apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, errors.New("some") }},
 			EventsClient: apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
@@ -636,8 +636,8 @@ func TestHealthCheckEndpointEventsFail(t *testing.T) {
 
 	router := gin.Default()
 	router.GET("/", func(c *gin.Context) {
-		c.Set("SplitStorage", redisStorage.NewSplitStorage(prefixed, nil))
-		c.Set("HTTPClients", common.HTTPClients{
+		c.Set(common.SplitStorage, redisStorage.NewSplitStorage(prefixed, nil))
+		c.Set(common.HTTPClientsGin, common.HTTPClients{
 			AuthClient:   apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
 			SdkClient:    apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
 			EventsClient: apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, errors.New("some") }},
@@ -697,8 +697,8 @@ func TestHealthCheckEndpointAuthFail(t *testing.T) {
 
 	router := gin.Default()
 	router.GET("/", func(c *gin.Context) {
-		c.Set("SplitStorage", redisStorage.NewSplitStorage(prefixed, nil))
-		c.Set("HTTPClients", common.HTTPClients{
+		c.Set(common.SplitStorage, redisStorage.NewSplitStorage(prefixed, nil))
+		c.Set(common.HTTPClientsGin, common.HTTPClients{
 			AuthClient:   apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, errors.New("some") }},
 			SdkClient:    apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
 			EventsClient: apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
