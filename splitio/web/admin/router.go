@@ -49,8 +49,7 @@ func newWebAdminServer(options *WebAdminOptions, storages common.Storages, httpC
 		c.Set("SplitStorage", storages.SplitStorage)
 		c.Set("SegmentStorage", storages.SegmentStorage)
 		c.Set("LocalMetricStorage", storages.LocalTelemetryStorage)
-		c.Set("SdkClient", httpClients.SdkClient)
-		c.Set("EventsClient", httpClients.EventsClient)
+		c.Set("HTTPClients", httpClients)
 		if appcontext.ExecutionMode() == appcontext.ProducerMode {
 			c.Set("Recorders", recorders)
 			c.Set("EventStorage", storages.EventStorage)

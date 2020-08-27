@@ -1,7 +1,6 @@
 package util
 
 import (
-	"github.com/splitio/go-split-commons/service/api"
 	"github.com/splitio/go-split-commons/storage"
 	"github.com/splitio/split-synchronizer/appcontext"
 	"github.com/splitio/split-synchronizer/log"
@@ -93,38 +92,21 @@ func GetTelemetryStorage(metricStorage interface{}, exists bool) storage.Metrics
 	return st
 }
 
-// GetSDKClient gets client
-func GetSDKClient(sdkClient interface{}, exists bool) api.Client {
+// GetHTTPClients gets client
+func GetHTTPClients(httpClients interface{}, exists bool) *common.HTTPClients {
 	if !exists {
 		return nil
 	}
-	if sdkClient == nil {
-		log.Instance.Warning("SdkClient could not be fetched")
+	if httpClients == nil {
+		log.Instance.Warning("HTTPClients could not be fetched")
 		return nil
 	}
-	st, ok := sdkClient.(api.Client)
+	st, ok := httpClients.(common.HTTPClients)
 	if !ok {
-		log.Instance.Warning("SdkClient could not be fetched")
+		log.Instance.Warning("HTTPClients could not be fetched")
 		return nil
 	}
-	return st
-}
-
-// GetEventsClient gets client
-func GetEventsClient(eventsClient interface{}, exists bool) api.Client {
-	if !exists {
-		return nil
-	}
-	if eventsClient == nil {
-		log.Instance.Warning("EventsClient could not be fetched")
-		return nil
-	}
-	st, ok := eventsClient.(api.Client)
-	if !ok {
-		log.Instance.Warning("EventsClient could not be fetched")
-		return nil
-	}
-	return st
+	return &st
 }
 
 // GetRecorders gets recorders
@@ -145,11 +127,17 @@ func GetRecorders(recorders interface{}, exists bool) *common.Recorders {
 }
 
 // AreValidAPIClient validates http clients
-func AreValidAPIClient(httpClients common.HTTPClients) bool {
+func AreValidAPIClient(httpClients *common.HTTPClients) bool {
+	if httpClients == nil {
+		return false
+	}
 	if httpClients.EventsClient == nil {
 		return false
 	}
 	if httpClients.SdkClient == nil {
+		return false
+	}
+	if httpClients.AuthClient == nil {
 		return false
 	}
 	return true

@@ -19,6 +19,7 @@ import (
 	"github.com/splitio/split-synchronizer/appcontext"
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/common"
 )
 
 const eventsListNamespace = "SPLITIO.events"
@@ -39,6 +40,7 @@ type globalStatus struct {
 	Storage      *itemStatus `json:"storage"`
 	Sdk          itemStatus  `json:"sdk"`
 	Events       itemStatus  `json:"events"`
+	Auth         itemStatus  `json:"auth"`
 	Proxy        *itemStatus `json:"proxy,omitempty"`
 	HealthySince date        `json:"healthySince"`
 	Uptime       string      `json:"uptime"`
@@ -461,8 +463,11 @@ func TestHealthCheckEndpointSuccessful(t *testing.T) {
 	router := gin.Default()
 	router.GET("/", func(c *gin.Context) {
 		c.Set("SplitStorage", redisStorage.NewSplitStorage(prefixed, nil))
-		c.Set("EventsClient", apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }})
-		c.Set("SdkClient", apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }})
+		c.Set("HTTPClients", common.HTTPClients{
+			AuthClient:   apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
+			SdkClient:    apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
+			EventsClient: apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
+		})
 		HealthCheck(c)
 	})
 
@@ -485,6 +490,9 @@ func TestHealthCheckEndpointSuccessful(t *testing.T) {
 	}
 	if !gs.Sdk.Healthy {
 		t.Error("Sdk should be healthy")
+	}
+	if !gs.Auth.Healthy {
+		t.Error("Auth should be healthy")
 	}
 	if gs.Proxy != nil {
 		t.Error("Should not be status for proxy mode")
@@ -516,8 +524,11 @@ func TestHealthCheckEndpointFailure(t *testing.T) {
 	router := gin.Default()
 	router.GET("/", func(c *gin.Context) {
 		c.Set("SplitStorage", redisStorage.NewSplitStorage(prefixed, nil))
-		c.Set("EventsClient", apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, errors.New("some") }})
-		c.Set("SdkClient", apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }})
+		c.Set("HTTPClients", common.HTTPClients{
+			AuthClient:   apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, errors.New("some") }},
+			SdkClient:    apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
+			EventsClient: apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
+		})
 		HealthCheck(c)
 	})
 
@@ -565,8 +576,11 @@ func TestHealthCheckEndpointSDKFail(t *testing.T) {
 	router := gin.Default()
 	router.GET("/", func(c *gin.Context) {
 		c.Set("SplitStorage", redisStorage.NewSplitStorage(prefixed, nil))
-		c.Set("EventsClient", apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }})
-		c.Set("SdkClient", apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, errors.New("some") }})
+		c.Set("HTTPClients", common.HTTPClients{
+			AuthClient:   apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
+			SdkClient:    apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, errors.New("some") }},
+			EventsClient: apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
+		})
 		HealthCheck(c)
 	})
 
@@ -583,6 +597,9 @@ func TestHealthCheckEndpointSDKFail(t *testing.T) {
 
 	if !gs.Storage.Healthy {
 		t.Error("Storage should be healthy")
+	}
+	if !gs.Auth.Healthy {
+		t.Error("Auth should be healthy")
 	}
 	if !gs.Events.Healthy {
 		t.Error("Events should be healthy")
@@ -620,8 +637,11 @@ func TestHealthCheckEndpointEventsFail(t *testing.T) {
 	router := gin.Default()
 	router.GET("/", func(c *gin.Context) {
 		c.Set("SplitStorage", redisStorage.NewSplitStorage(prefixed, nil))
-		c.Set("EventsClient", apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, errors.New("some") }})
-		c.Set("SdkClient", apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }})
+		c.Set("HTTPClients", common.HTTPClients{
+			AuthClient:   apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
+			SdkClient:    apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
+			EventsClient: apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, errors.New("some") }},
+		})
 		HealthCheck(c)
 	})
 
@@ -641,6 +661,70 @@ func TestHealthCheckEndpointEventsFail(t *testing.T) {
 	}
 	if gs.Events.Healthy {
 		t.Error("Events should not be healthy")
+	}
+	if !gs.Auth.Healthy {
+		t.Error("Auth should be healthy")
+	}
+	if !gs.Sdk.Healthy {
+		t.Error("Sdk should not be healthy")
+	}
+	if gs.Proxy != nil {
+		t.Error("Should not be status for proxy mode")
+	}
+	if gs.HealthySince.Date != "0" {
+		t.Error("Should be 0")
+	}
+}
+
+func TestHealthCheckEndpointAuthFail(t *testing.T) {
+	appcontext.Initialize(appcontext.ProducerMode)
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
+	conf.Initialize()
+	redisMock := mocks.MockClient{
+		GetCall: func(key string) redis.Result {
+			if key != "SPLITIO.splits.till" {
+				t.Error("Unexpected key")
+			}
+			return &mocks.MockResultOutput{
+				ResultStringCall: func() (string, error) { return "12", nil },
+			}
+		},
+	}
+	prefixed, _ := redis.NewPrefixedRedisClient(&redisMock, "")
+
+	router := gin.Default()
+	router.GET("/", func(c *gin.Context) {
+		c.Set("SplitStorage", redisStorage.NewSplitStorage(prefixed, nil))
+		c.Set("HTTPClients", common.HTTPClients{
+			AuthClient:   apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, errors.New("some") }},
+			SdkClient:    apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
+			EventsClient: apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
+		})
+		HealthCheck(c)
+	})
+
+	w := performRequest(router, "GET", "/")
+
+	if http.StatusInternalServerError != w.Code {
+		t.Error("Expected 500")
+	}
+
+	body, _ := ioutil.ReadAll(w.Body)
+
+	gs := globalStatus{}
+	json.Unmarshal(body, &gs)
+
+	if !gs.Storage.Healthy {
+		t.Error("Storage should be healthy")
+	}
+	if !gs.Events.Healthy {
+		t.Error("Events should be healthy")
+	}
+	if gs.Auth.Healthy {
+		t.Error("Auth should be healthy")
 	}
 	if !gs.Sdk.Healthy {
 		t.Error("Sdk should not be healthy")

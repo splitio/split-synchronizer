@@ -8,6 +8,7 @@ import (
 	"github.com/splitio/go-split-commons/storage"
 	"github.com/splitio/split-synchronizer/appcontext"
 	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/common"
 	"github.com/splitio/split-synchronizer/splitio/util"
 )
 
@@ -20,6 +21,15 @@ func StopHealtcheck() {
 	case healtcheck <- "STOP":
 	default:
 	}
+}
+
+func getAuthStatus(authClient api.Client) bool {
+	_, err := authClient.Get("/version")
+	if err != nil {
+		log.Instance.Debug(err.Error())
+		return false
+	}
+	return true
 }
 
 func getSdkStatus(sdkClient api.Client) bool {
@@ -50,45 +60,46 @@ func GetStorageStatus(splitStorage storage.SplitStorage) bool {
 	return true
 }
 
-// CheckEventsSdkStatus checks status for event and sdk
-func CheckEventsSdkStatus(sdkClient api.Client, eventsClient api.Client) (bool, bool) {
-	eventStatus := getEventsStatus(eventsClient)
-	sdkStatus := getSdkStatus(sdkClient)
-	if healthySince.IsZero() && eventStatus && sdkStatus {
+// CheckSplitServers checks status for splits servers
+func CheckSplitServers(httpClients common.HTTPClients) (bool, bool, bool) {
+	eventStatus := getEventsStatus(httpClients.EventsClient)
+	sdkStatus := getSdkStatus(httpClients.SdkClient)
+	authStatus := getAuthStatus(httpClients.AuthClient)
+	if healthySince.IsZero() && eventStatus && sdkStatus && authStatus {
 		healthySince = time.Now()
 	} else {
-		if !sdkStatus || !eventStatus {
+		if !sdkStatus || !eventStatus || !authStatus {
 			healthySince = time.Time{}
 		}
 	}
-	return eventStatus, sdkStatus
+	return eventStatus, sdkStatus, authStatus
 }
 
 // CheckProducerStatus checks producer status
-func CheckProducerStatus(splitStorage storage.SplitStorage, sdkClient api.Client, eventsClient api.Client) (bool, bool, bool) {
-	eventStatus, sdkStatus := CheckEventsSdkStatus(sdkClient, eventsClient)
+func CheckProducerStatus(splitStorage storage.SplitStorage, httpClients common.HTTPClients) (bool, bool, bool, bool) {
+	eventStatus, sdkStatus, authStatus := CheckSplitServers(httpClients)
 	storageStatus := GetStorageStatus(splitStorage)
-	if healthySince.IsZero() && eventStatus && sdkStatus && storageStatus {
+	if healthySince.IsZero() && eventStatus && sdkStatus && storageStatus && authStatus {
 		healthySince = time.Now()
 	} else {
-		if !sdkStatus || !eventStatus || !storageStatus {
+		if !sdkStatus || !eventStatus || !authStatus || !storageStatus {
 			healthySince = time.Time{}
 		}
 	}
-	return eventStatus, sdkStatus, storageStatus
+	return eventStatus, sdkStatus, authStatus, storageStatus
 }
 
 // CheckEnvirontmentStatus task to check status of Synchronizer
-func CheckEnvirontmentStatus(wg *sync.WaitGroup, splitStorage storage.SplitStorage, sdkClient api.Client, eventsClient api.Client) {
+func CheckEnvirontmentStatus(wg *sync.WaitGroup, splitStorage storage.SplitStorage, httpClients common.HTTPClients) {
 	wg.Add(1)
 	keepLoop := true
 	idleDuration := time.Duration(60) * time.Second
 	timer := time.NewTimer(idleDuration)
 	for keepLoop {
 		if appcontext.ExecutionMode() == appcontext.ProducerMode {
-			CheckProducerStatus(splitStorage, sdkClient, eventsClient)
+			CheckProducerStatus(splitStorage, httpClients)
 		} else {
-			CheckEventsSdkStatus(sdkClient, eventsClient)
+			CheckSplitServers(httpClients)
 		}
 
 		timer.Reset(idleDuration)

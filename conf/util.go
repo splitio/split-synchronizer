@@ -12,10 +12,6 @@ func ParseAdvancedOptions() conf.AdvancedConfig {
 	advanced.EventsBulkSize = Data.EventsPerPost
 	advanced.HTTPTimeout = int(Data.HTTPTimeout)
 	advanced.ImpressionsBulkSize = Data.ImpressionsPerPost
-	// EventsQueueSize:      5000, // MISSING
-	// ImpressionsQueueSize: 5000, // MISSING
-	// SegmentQueueSize:     100,  // MISSING
-	// SegmentWorkers:       10,   // MISSING
 
 	envSdkURL := os.Getenv("SPLITIO_SDK_URL")
 	if envSdkURL != "" {

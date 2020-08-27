@@ -43,13 +43,14 @@ func (d *Dashboard) HTML() string {
 
 	eventStatus := true
 	sdkStatus := true
+	authStatus := true
 	storageStatus := true
 	runningMode := "Running as Proxy Mode"
 	if !d.proxy {
 		runningMode = "Running as Synchronizer Mode"
-		eventStatus, sdkStatus, storageStatus = task.CheckProducerStatus(d.storages.SplitStorage, d.httpClients.SdkClient, d.httpClients.EventsClient)
+		eventStatus, sdkStatus, authStatus, storageStatus = task.CheckProducerStatus(d.storages.SplitStorage, d.httpClients)
 	} else {
-		eventStatus, sdkStatus = task.CheckEventsSdkStatus(d.httpClients.SdkClient, d.httpClients.EventsClient)
+		eventStatus, sdkStatus, authStatus = task.CheckSplitServers(d.httpClients)
 	}
 
 	//Parsing main menu
@@ -92,6 +93,7 @@ func (d *Dashboard) HTML() string {
 			EventServerStatus:            eventStatus,
 			SDKServerStatus:              sdkStatus,
 			StorageStatus:                storageStatus,
+			AuthServerStatus:             authStatus,
 			Sync:                         true,
 			HealthySince:                 task.GetHealthySinceTimestamp(),
 			RefreshTime:                  15000,
