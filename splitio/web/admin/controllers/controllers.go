@@ -143,23 +143,24 @@ func HealthCheck(c *gin.Context) {
 	uptime := stats.UptimeFormatted()
 	response["uptime"] = uptime
 
-	sdkClient := util.GetSDKClient(c.Get("SdkClient"))
-	eventsClient := util.GetSDKClient(c.Get("EventsClient"))
+	httpClients := util.GetHTTPClients(c.Get("HTTPClients"))
 
 	if appcontext.ExecutionMode() == appcontext.ProxyMode {
 		status["message"] = "Proxy service working as expected"
-		eventsOK, sdkOK := task.CheckEventsSdkStatus(sdkClient, eventsClient)
+		eventsOK, sdkOK, authOK := task.CheckSplitServers(*httpClients)
 		healthy["date"] = task.GetHealthySince()
 		healthy["time"] = task.GetHealthySinceTimestamp()
 		eventsStatus := parseStatus(eventsOK, "Events")
 		sdkStatus := parseStatus(sdkOK, "SDK")
+		authStatus := parseStatus(authOK, "Auth")
 
 		response["proxy"] = status
 		response["sdk"] = sdkStatus
 		response["events"] = eventsStatus
+		response["auth"] = authStatus
 		response["healthySince"] = healthy
 
-		if sdkStatus["healthy"].(bool) && eventsStatus["healthy"].(bool) {
+		if sdkStatus["healthy"].(bool) && eventsStatus["healthy"].(bool) && authStatus["healthy"].(bool) {
 			c.JSON(http.StatusOK, response)
 		} else {
 			c.JSON(http.StatusInternalServerError, response)
@@ -167,7 +168,7 @@ func HealthCheck(c *gin.Context) {
 	} else {
 
 		status["message"] = "Synchronizer service working as expected"
-		eventsOK, sdkOK := task.CheckEventsSdkStatus(sdkClient, eventsClient)
+		eventsOK, sdkOK, authOK := task.CheckSplitServers(*httpClients)
 		storageOk := false
 		// Storage service
 		splitStorage := util.GetSplitStorage(c.Get("SplitStorage"))
@@ -181,14 +182,16 @@ func HealthCheck(c *gin.Context) {
 		eventsStatus := parseStatus(eventsOK, "Events")
 		sdkStatus := parseStatus(sdkOK, "SDK")
 		storageStatus := parseStatus(storageOk, "Storage")
+		authStatus := parseStatus(authOK, "Auth")
 
 		response["sync"] = status
 		response["storage"] = storageStatus
 		response["sdk"] = sdkStatus
 		response["events"] = eventsStatus
+		response["auth"] = authStatus
 		response["healthySince"] = healthy
 
-		if storageStatus["healthy"].(bool) && sdkStatus["healthy"].(bool) && eventsStatus["healthy"].(bool) {
+		if storageStatus["healthy"].(bool) && sdkStatus["healthy"].(bool) && eventsStatus["healthy"].(bool) && authStatus["healthy"].(bool) {
 			c.JSON(http.StatusOK, response)
 		} else {
 			c.JSON(http.StatusInternalServerError, response)
@@ -209,13 +212,10 @@ func DashboardSegmentKeys(c *gin.Context) {
 		LocalTelemetryStorage: util.GetTelemetryStorage(c.Get("LocalMetricStorage")),
 	}
 	// HttpClients
-	httpClients := common.HTTPClients{
-		SdkClient:    util.GetSDKClient(c.Get("SdkClient")),
-		EventsClient: util.GetEventsClient(c.Get("EventsClient")),
-	}
+	httpClients := util.GetHTTPClients(c.Get("HTTPClients"))
 
 	if util.AreValidStorages(storages) && util.AreValidAPIClient(httpClients) {
-		dash := createDashboard(storages, httpClients)
+		dash := createDashboard(storages, *httpClients)
 		var toReturn = dash.HTMLSegmentKeys(segmentName)
 		c.String(http.StatusOK, "%s", toReturn)
 		return
@@ -242,13 +242,10 @@ func Dashboard(c *gin.Context) {
 		LocalTelemetryStorage: util.GetTelemetryStorage(c.Get("LocalMetricStorage")),
 	}
 	// HttpClients
-	httpClients := common.HTTPClients{
-		SdkClient:    util.GetSDKClient(c.Get("SdkClient")),
-		EventsClient: util.GetEventsClient(c.Get("EventsClient")),
-	}
+	httpClients := util.GetHTTPClients(c.Get("HTTPClients"))
 
 	if util.AreValidStorages(storages) && util.AreValidAPIClient(httpClients) {
-		dash := createDashboard(storages, httpClients)
+		dash := createDashboard(storages, *httpClients)
 		//Write your 200 header status (or other status codes, but only WriteHeader once)
 		c.Writer.WriteHeader(http.StatusOK)
 		//Convert your cached html string to byte array

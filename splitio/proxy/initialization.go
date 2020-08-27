@@ -161,6 +161,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	httpClients := common.HTTPClients{
 		SdkClient:    api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.SdkURL, log.Instance, metadata),
 		EventsClient: api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.EventsURL, log.Instance, metadata),
+		AuthClient:   api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.AuthServiceURL, log.Instance, metadata),
 	}
 	proxyOptions := &Options{
 		Port:                      ":" + strconv.Itoa(conf.Data.Proxy.Port),
@@ -175,7 +176,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		segmentStorage:            segmentStorage,
 	}
 
-	go task.CheckEnvirontmentStatus(gracefulShutdownWaitingGroup, splitStorage, httpClients.SdkClient, httpClients.EventsClient)
+	go task.CheckEnvirontmentStatus(gracefulShutdownWaitingGroup, splitStorage, httpClients)
 
 	// Run webserver loop
 	Run(proxyOptions)

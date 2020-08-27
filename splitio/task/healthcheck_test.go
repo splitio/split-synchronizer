@@ -16,6 +16,7 @@ import (
 	"github.com/splitio/go-split-commons/storage/mocks"
 	"github.com/splitio/go-toolkit/logging"
 	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/common"
 )
 
 func performRequest(r http.Handler, method, path string) *httptest.ResponseRecorder {
@@ -53,7 +54,7 @@ func TestTaskCheckEnvirontmentStatusWithSomeFail(t *testing.T) {
 		ChangeNumberCall: func() (int64, error) { return 0, nil },
 	}
 
-	CheckProducerStatus(mockStorage, okClient, failClient)
+	CheckProducerStatus(mockStorage, common.HTTPClients{EventsClient: failClient, SdkClient: okClient, AuthClient: okClient})
 	if !healthySince.IsZero() {
 		t.Error("It should not write healthySince")
 	}
@@ -80,7 +81,7 @@ func TestTaskCheckEnvirontmentStatus(t *testing.T) {
 	}
 
 	check := time.Now()
-	CheckProducerStatus(mockStorage, okClient, okClient)
+	CheckProducerStatus(mockStorage, common.HTTPClients{EventsClient: okClient, SdkClient: okClient, AuthClient: okClient})
 	if check.After(healthySince) {
 		t.Error("It should succeed")
 	}
@@ -114,7 +115,7 @@ func TestTaskCheckEnvirontmentStatusWithSomeFailAndSince(t *testing.T) {
 		ChangeNumberCall: func() (int64, error) { return 0, nil },
 	}
 
-	CheckProducerStatus(mockStorage, failClient, okClient)
+	CheckProducerStatus(mockStorage, common.HTTPClients{EventsClient: failClient, SdkClient: okClient, AuthClient: okClient})
 	if !healthySince.IsZero() {
 		t.Error("It should be zero")
 	}

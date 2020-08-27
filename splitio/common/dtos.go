@@ -18,6 +18,7 @@ type Storages struct {
 
 // HTTPClients wraps http clients for healthcheck
 type HTTPClients struct {
+	AuthClient   api.Client
 	SdkClient    api.Client
 	EventsClient api.Client
 }
