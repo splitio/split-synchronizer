@@ -62,8 +62,8 @@ jobs:
       deploy:
         provider: script
         script: >-
-          - echo "${ARTIFACTORY_PASSWORD}" | docker login -u "${ARTIFACTORY_USER}" --password-stdin "${ARTIFACTORY_REGISTRY}" &&
-          - docker push ${ARTIFACTORY_REGISTRY}/split-synchronizer
+          echo "${ARTIFACTORY_PASSWORD}" | docker login -u "${ARTIFACTORY_USER}" --password-stdin "${ARTIFACTORY_REGISTRY}" &&
+          docker push ${ARTIFACTORY_REGISTRY}/split-synchronizer
         skip_cleanup: true
         on:
           all_branches: true
@@ -79,8 +79,8 @@ jobs:
       deploy:
         provider: script
         script: >-
-          - echo "${ARTIFACTORY_PASSWORD}" | docker login -u "${ARTIFACTORY_USER}" --password-stdin "${ARTIFACTORY_REGISTRY}" &&
-          - docker push ${ARTIFACTORY_REGISTRY}/split-synchronizer
+          echo "${ARTIFACTORY_PASSWORD}" | docker login -u "${ARTIFACTORY_USER}" --password-stdin "${ARTIFACTORY_REGISTRY}" &&
+          docker push ${ARTIFACTORY_REGISTRY}/split-synchronizer
         skip_cleanup: true
         on:
           all_branches: true
