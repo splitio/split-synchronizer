@@ -38,7 +38,7 @@ func Ping(c *gin.Context) {
 
 // ShowStats returns stats
 func ShowStats(c *gin.Context) {
-	localTelemetryStorage := util.GetTelemetryStorage(c.Get("LocalMetricStorage"))
+	localTelemetryStorage := util.GetTelemetryStorage(c.Get(common.LocalMetricStorage))
 	counters := localTelemetryStorage.PeekCounters()
 	latencies := localTelemetryStorage.PeekLatencies()
 	c.JSON(http.StatusOK, gin.H{"counters": counters, "latencies": latencies})
@@ -143,7 +143,7 @@ func HealthCheck(c *gin.Context) {
 	uptime := stats.UptimeFormatted()
 	response["uptime"] = uptime
 
-	httpClients := util.GetHTTPClients(c.Get("HTTPClients"))
+	httpClients := util.GetHTTPClients(c.Get(common.HTTPClientsGin))
 
 	if appcontext.ExecutionMode() == appcontext.ProxyMode {
 		status["message"] = "Proxy service working as expected"
@@ -171,7 +171,7 @@ func HealthCheck(c *gin.Context) {
 		eventsOK, sdkOK, authOK := task.CheckSplitServers(*httpClients)
 		storageOk := false
 		// Storage service
-		splitStorage := util.GetSplitStorage(c.Get("SplitStorage"))
+		splitStorage := util.GetSplitStorage(c.Get(common.SplitStorage))
 		if splitStorage != nil {
 			storageOk = task.GetStorageStatus(splitStorage)
 		} else {
@@ -205,14 +205,14 @@ func DashboardSegmentKeys(c *gin.Context) {
 
 	// Storage service
 	storages := common.Storages{
-		SplitStorage:          util.GetSplitStorage(c.Get("SplitStorage")),
-		SegmentStorage:        util.GetSegmentStorage(c.Get("SegmentStorage")),
-		EventStorage:          util.GetEventStorage(c.Get("EventStorage")),
-		ImpressionStorage:     util.GetImpressionStorage(c.Get("ImpressionStorage")),
-		LocalTelemetryStorage: util.GetTelemetryStorage(c.Get("LocalMetricStorage")),
+		SplitStorage:          util.GetSplitStorage(c.Get(common.SplitStorage)),
+		SegmentStorage:        util.GetSegmentStorage(c.Get(common.SegmentStorage)),
+		EventStorage:          util.GetEventStorage(c.Get(common.EventStorage)),
+		ImpressionStorage:     util.GetImpressionStorage(c.Get(common.ImpressionStorage)),
+		LocalTelemetryStorage: util.GetTelemetryStorage(c.Get(common.LocalMetricStorage)),
 	}
 	// HttpClients
-	httpClients := util.GetHTTPClients(c.Get("HTTPClients"))
+	httpClients := util.GetHTTPClients(c.Get(common.HTTPClientsGin))
 
 	if util.AreValidStorages(storages) && util.AreValidAPIClient(httpClients) {
 		dash := createDashboard(storages, *httpClients)
@@ -235,14 +235,14 @@ func createDashboard(storages common.Storages, httpClients common.HTTPClients) *
 func Dashboard(c *gin.Context) {
 	// Storage service
 	storages := common.Storages{
-		SplitStorage:          util.GetSplitStorage(c.Get("SplitStorage")),
-		SegmentStorage:        util.GetSegmentStorage(c.Get("SegmentStorage")),
-		EventStorage:          util.GetEventStorage(c.Get("EventStorage")),
-		ImpressionStorage:     util.GetImpressionStorage(c.Get("ImpressionStorage")),
-		LocalTelemetryStorage: util.GetTelemetryStorage(c.Get("LocalMetricStorage")),
+		SplitStorage:          util.GetSplitStorage(c.Get(common.SplitStorage)),
+		SegmentStorage:        util.GetSegmentStorage(c.Get(common.SegmentStorage)),
+		EventStorage:          util.GetEventStorage(c.Get(common.EventStorage)),
+		ImpressionStorage:     util.GetImpressionStorage(c.Get(common.ImpressionStorage)),
+		LocalTelemetryStorage: util.GetTelemetryStorage(c.Get(common.LocalMetricStorage)),
 	}
 	// HttpClients
-	httpClients := util.GetHTTPClients(c.Get("HTTPClients"))
+	httpClients := util.GetHTTPClients(c.Get(common.HTTPClientsGin))
 
 	if util.AreValidStorages(storages) && util.AreValidAPIClient(httpClients) {
 		dash := createDashboard(storages, *httpClients)
@@ -258,14 +258,14 @@ func Dashboard(c *gin.Context) {
 
 // GetEventsQueueSize returns events queue size
 func GetEventsQueueSize(c *gin.Context) {
-	eventStorage := util.GetEventStorage(c.Get("EventStorage"))
+	eventStorage := util.GetEventStorage(c.Get(common.EventStorage))
 	queueSize := eventStorage.Count()
 	c.JSON(http.StatusOK, gin.H{"queueSize": queueSize})
 }
 
 // GetImpressionsQueueSize returns impressions queue size
 func GetImpressionsQueueSize(c *gin.Context) {
-	impressionStorage := util.GetImpressionStorage(c.Get("ImpressionStorage"))
+	impressionStorage := util.GetImpressionStorage(c.Get(common.ImpressionStorage))
 	queueSize := impressionStorage.Count()
 	c.JSON(http.StatusOK, gin.H{"queueSize": queueSize})
 }
@@ -294,7 +294,7 @@ func DropEvents(c *gin.Context) {
 		return
 	}
 
-	eventStorage := util.GetEventStorage(c.Get("EventStorage"))
+	eventStorage := util.GetEventStorage(c.Get(common.EventStorage))
 	size, err := getIntegerParameterFromQuery(c, "size")
 	if err != nil {
 		c.String(http.StatusBadRequest, "%s", err.Error())
@@ -317,7 +317,7 @@ func DropImpressions(c *gin.Context) {
 		return
 	}
 
-	impressionStorage := util.GetImpressionStorage(c.Get("ImpressionStorage"))
+	impressionStorage := util.GetImpressionStorage(c.Get(common.ImpressionStorage))
 	size, err := getIntegerParameterFromQuery(c, "size")
 	if err != nil {
 		c.String(http.StatusBadRequest, "%s", err.Error())
@@ -342,7 +342,7 @@ func FlushEvents(c *gin.Context) {
 		c.String(http.StatusBadRequest, "%s", "Max Size to Flush is "+strconv.FormatInt(splitio.MaxSizeToFlush, 10))
 		return
 	}
-	recorders := util.GetRecorders(c.Get("Recorders"))
+	recorders := util.GetRecorders(c.Get(common.RecordersGin))
 	if recorders == nil {
 		c.String(http.StatusInternalServerError, "%s", err.Error())
 		return
@@ -370,7 +370,7 @@ func FlushImpressions(c *gin.Context) {
 		c.String(http.StatusBadRequest, "%s", "Max Size to Flush is "+strconv.FormatInt(splitio.MaxSizeToFlush, 10))
 		return
 	}
-	recorders := util.GetRecorders(c.Get("Recorders"))
+	recorders := util.GetRecorders(c.Get(common.RecordersGin))
 	if recorders == nil {
 		c.String(http.StatusInternalServerError, "%s", err.Error())
 		return
@@ -390,11 +390,11 @@ func FlushImpressions(c *gin.Context) {
 // GetMetrics returns stats for dashboard
 func GetMetrics(c *gin.Context) {
 	storages := common.Storages{
-		SplitStorage:          util.GetSplitStorage(c.Get("SplitStorage")),
-		EventStorage:          util.GetEventStorage(c.Get("EventStorage")),
-		ImpressionStorage:     util.GetImpressionStorage(c.Get("ImpressionStorage")),
-		LocalTelemetryStorage: util.GetTelemetryStorage(c.Get("LocalMetricStorage")),
-		SegmentStorage:        util.GetSegmentStorage(c.Get("SegmentStorage")),
+		SplitStorage:          util.GetSplitStorage(c.Get(common.SplitStorage)),
+		EventStorage:          util.GetEventStorage(c.Get(common.EventStorage)),
+		ImpressionStorage:     util.GetImpressionStorage(c.Get(common.ImpressionStorage)),
+		LocalTelemetryStorage: util.GetTelemetryStorage(c.Get(common.LocalMetricStorage)),
+		SegmentStorage:        util.GetSegmentStorage(c.Get(common.SegmentStorage)),
 	}
 
 	if util.AreValidStorages(storages) {
