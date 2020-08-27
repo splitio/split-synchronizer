@@ -10,15 +10,16 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/proxy/boltdb"
 )
 
-var mutexSegmentsTill sync.RWMutex = sync.RWMutex{}
-var segmentsTill map[string]int64 = make(map[string]int64, 0)
-
 const segmentChangesCollectionName = "SEGMENT_CHANGES_COLLECTION"
 
 // NewSegmentChangesCollection returns an instance of SegmentChangesCollection
 func NewSegmentChangesCollection(dbb *bolt.DB) SegmentChangesCollection {
 	baseCollection := boltdb.Collection{DB: dbb, Name: segmentChangesCollectionName}
-	var sCollection = SegmentChangesCollection{Collection: baseCollection}
+	var sCollection = SegmentChangesCollection{
+		Collection:        baseCollection,
+		mutexSegmentsTill: &sync.RWMutex{},
+		segmentsTill:      make(map[string]int64, 0),
+	}
 	return sCollection
 }
 
@@ -38,6 +39,8 @@ type SegmentChangesItem struct {
 // SegmentChangesCollection represents a collection of SplitChangesItem
 type SegmentChangesCollection struct {
 	boltdb.Collection
+	mutexSegmentsTill *sync.RWMutex
+	segmentsTill      map[string]int64
 }
 
 // Add an item
@@ -101,9 +104,9 @@ func (c SegmentChangesCollection) FetchAll() ([]SegmentChangesItem, error) {
 
 // ChangeNumber returns changeNumber
 func (c SegmentChangesCollection) ChangeNumber(segment string) int64 {
-	mutexSegmentsTill.RLock()
-	defer mutexSegmentsTill.RUnlock()
-	value, exists := segmentsTill[segment]
+	c.mutexSegmentsTill.RLock()
+	defer c.mutexSegmentsTill.RUnlock()
+	value, exists := c.segmentsTill[segment]
 	if exists {
 		return value
 	}
@@ -112,7 +115,7 @@ func (c SegmentChangesCollection) ChangeNumber(segment string) int64 {
 
 // SetChangeNumber sets changeNumber
 func (c SegmentChangesCollection) SetChangeNumber(segment string, since int64) {
-	mutexSegmentsTill.Lock()
-	defer mutexSegmentsTill.Unlock()
-	segmentsTill[segment] = since
+	c.mutexSegmentsTill.Lock()
+	defer c.mutexSegmentsTill.Unlock()
+	c.segmentsTill[segment] = since
 }

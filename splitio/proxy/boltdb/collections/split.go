@@ -14,15 +14,16 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/proxy/boltdb"
 )
 
-var mutexTill sync.RWMutex = sync.RWMutex{}
-var changeNumber int64 = -1
-
 const splitChangesCollectionName = "SPLIT_CHANGES_COLLECTION"
 
 // NewSplitChangesCollection returns an instance of SplitChangesCollection
 func NewSplitChangesCollection(dbb *bolt.DB) SplitChangesCollection {
 	baseCollection := boltdb.Collection{DB: dbb, Name: splitChangesCollectionName}
-	sCollection := SplitChangesCollection{Collection: baseCollection}
+	sCollection := SplitChangesCollection{
+		Collection:   baseCollection,
+		changeNumber: -1,
+		mutexTill:    &sync.RWMutex{},
+	}
 	return sCollection
 }
 
@@ -54,6 +55,8 @@ func (slice SplitsChangesItems) Swap(i, j int) {
 // SplitChangesCollection represents a collection of SplitChangesItem
 type SplitChangesCollection struct {
 	boltdb.Collection
+	mutexTill    *sync.RWMutex
+	changeNumber int64
 }
 
 // Delete an item
@@ -104,16 +107,16 @@ func (c SplitChangesCollection) FetchAll() (SplitsChangesItems, error) {
 
 // ChangeNumber returns changeNumber
 func (c SplitChangesCollection) ChangeNumber() int64 {
-	mutexTill.RLock()
-	defer mutexTill.RUnlock()
-	return changeNumber
+	c.mutexTill.RLock()
+	defer c.mutexTill.RUnlock()
+	return c.changeNumber
 }
 
 // SetChangeNumber sets changeNumber
 func (c SplitChangesCollection) SetChangeNumber(since int64) {
-	mutexTill.Lock()
-	defer mutexTill.Unlock()
-	changeNumber = since
+	c.mutexTill.Lock()
+	defer c.mutexTill.Unlock()
+	c.changeNumber = since
 }
 
 // SegmentNames returns segments

@@ -2,7 +2,6 @@ package worker
 
 import (
 	"errors"
-	"sync"
 	"time"
 
 	"github.com/splitio/go-split-commons/dtos"
@@ -22,7 +21,6 @@ type RecorderEventMultiple struct {
 	eventStorage   storage.EventStorageConsumer
 	eventRecorder  service.EventsRecorder
 	metricsWrapper *storage.MetricWrapper
-	mutext         *sync.Mutex
 	logger         logging.LoggerInterface
 }
 
@@ -37,15 +35,11 @@ func NewEventRecorderMultiple(
 		eventStorage:   eventStorage,
 		eventRecorder:  eventRecorder,
 		metricsWrapper: metricsWrapper,
-		mutext:         &sync.Mutex{},
 		logger:         logger,
 	}
 }
 
 func (e *RecorderEventMultiple) fetchEvents(bulkSize int64) (map[dtos.Metadata][]dtos.EventDTO, error) {
-	e.mutext.Lock()
-	defer e.mutext.Unlock()
-
 	storedEvents, err := e.eventStorage.PopNWithMetadata(bulkSize) //PopN has a mutex, so this function can be async without issues
 	if err != nil {
 		e.logger.Error("(Task) Post Events fails fetching events from storage", err.Error())

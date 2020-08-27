@@ -14,7 +14,6 @@ import (
 type RecorderMetricMultiple struct {
 	metricRecorder          service.MetricsRecorder
 	metricsWrapper          *storage.MetricWrapper
-	mutext                  *sync.Mutex
 	metricsJobsWaitingGroup sync.WaitGroup
 	logger                  logging.LoggerInterface
 }
@@ -29,7 +28,6 @@ func NewMetricRecorderMultiple(
 		metricRecorder:          metricRecorder,
 		metricsWrapper:          metricsWrapper,
 		metricsJobsWaitingGroup: sync.WaitGroup{},
-		mutext:                  &sync.Mutex{},
 		logger:                  logger,
 	}
 }
