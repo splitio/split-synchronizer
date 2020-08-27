@@ -3,7 +3,6 @@ package worker
 import (
 	"encoding/json"
 	"errors"
-	"sync"
 	"time"
 
 	"github.com/splitio/go-split-commons/dtos"
@@ -31,7 +30,6 @@ type RecorderImpressionMultiple struct {
 	impressionRecorder        service.ImpressionsRecorder
 	metricsWrapper            *storage.MetricWrapper
 	impressionListenerEnabled bool
-	mutext                    *sync.Mutex
 	logger                    logging.LoggerInterface
 	impObserver               provisional.ImpressionObserver
 }
@@ -50,7 +48,6 @@ func NewImpressionRecordMultiple(
 		impressionRecorder:        impressionRecorder,
 		metricsWrapper:            metricsWrapper,
 		impressionListenerEnabled: impressionListenerEnabled,
-		mutext:                    &sync.Mutex{},
 		logger:                    logger,
 		impObserver:               impObserver,
 	}
@@ -72,9 +69,6 @@ func toImpressionsDTO(impressionsMap map[string][]dtos.ImpressionDTO) ([]dtos.Im
 }
 
 func (r *RecorderImpressionMultiple) fetch(bulkSize int64) (map[dtos.Metadata][]dtos.ImpressionsDTO, error) {
-	r.mutext.Lock()
-	defer r.mutext.Unlock()
-
 	storedImpressions, err := r.impressionStorage.PopNWithMetadata(bulkSize) // PopN has a mutex, so this function can be async without issues
 	if err != nil {
 		r.logger.Error("(Task) Post Impressions fails fetching impressions from storage", err.Error())
@@ -137,7 +131,6 @@ func (r *RecorderImpressionMultiple) synchronizeImpressions(bulkSize int64) erro
 			task.StoreDataFlushed(before.UnixNano(), len(impressions), r.impressionStorage.Count(), "impressions")
 		}
 		err := common.WithAttempts(3, func() error {
-			// r.logger.Info(fmt.Sprintf("Impressions: %v", impressions))
 			r.logger.Info("impressionsToSend: ", len(impressions))
 			err := r.impressionRecorder.Record(impressions, metadata)
 			if err != nil {
