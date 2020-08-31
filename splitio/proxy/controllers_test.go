@@ -246,7 +246,7 @@ func TestPostImpressionsBeacon(t *testing.T) {
 	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
 
 	wg := &sync.WaitGroup{}
-	controllers.InitializeImpressionWorkers(200, 2, wg)
+	controllers.InitializeImpressionWorkers(200, 3, wg)
 
 	gin.SetMode(gin.TestMode)
 	router := gin.Default()
@@ -296,7 +296,7 @@ func TestPostImpressionsBeacon(t *testing.T) {
 	}
 
 	// Lets async function post impressions
-	time.Sleep(time.Duration(4) * time.Second)
+	time.Sleep(time.Duration(5) * time.Second)
 }
 
 func TestPostEventsBeacon(t *testing.T) {
@@ -334,7 +334,7 @@ func TestPostEventsBeacon(t *testing.T) {
 
 	wg := &sync.WaitGroup{}
 
-	controllers.InitializeEventWorkers(200, 2, wg)
+	controllers.InitializeEventWorkers(200, 3, wg)
 
 	gin.SetMode(gin.TestMode)
 	router := gin.Default()
@@ -385,7 +385,7 @@ func TestPostEventsBeacon(t *testing.T) {
 	}
 
 	// Lets async function post impressions
-	time.Sleep(time.Duration(4) * time.Second)
+	time.Sleep(time.Duration(5) * time.Second)
 }
 
 func TestAuth(t *testing.T) {
