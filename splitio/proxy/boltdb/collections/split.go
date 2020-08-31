@@ -21,7 +21,7 @@ func NewSplitChangesCollection(dbb *bolt.DB) SplitChangesCollection {
 	baseCollection := boltdb.Collection{DB: dbb, Name: splitChangesCollectionName}
 	sCollection := SplitChangesCollection{
 		Collection:   baseCollection,
-		changeNumber: -1,
+		changeNumber: 0,
 		mutexTill:    &sync.RWMutex{},
 	}
 	return sCollection
@@ -60,14 +60,14 @@ type SplitChangesCollection struct {
 }
 
 // Delete an item
-func (c SplitChangesCollection) Delete(item *SplitChangesItem) error {
+func (c *SplitChangesCollection) Delete(item *SplitChangesItem) error {
 	key := []byte(item.Name)
 	err := c.Collection.Delete(key)
 	return err
 }
 
 // Add an item
-func (c SplitChangesCollection) Add(item *SplitChangesItem) error {
+func (c *SplitChangesCollection) Add(item *SplitChangesItem) error {
 	key := []byte(item.Name)
 
 	err := c.Collection.SaveAs(key, item)
@@ -75,7 +75,7 @@ func (c SplitChangesCollection) Add(item *SplitChangesItem) error {
 }
 
 // FetchAll return a SplitChangesItem
-func (c SplitChangesCollection) FetchAll() (SplitsChangesItems, error) {
+func (c *SplitChangesCollection) FetchAll() (SplitsChangesItems, error) {
 
 	items, err := c.Collection.FetchAll()
 	if err != nil {
@@ -106,21 +106,21 @@ func (c SplitChangesCollection) FetchAll() (SplitsChangesItems, error) {
 }
 
 // ChangeNumber returns changeNumber
-func (c SplitChangesCollection) ChangeNumber() int64 {
+func (c *SplitChangesCollection) ChangeNumber() int64 {
 	c.mutexTill.RLock()
 	defer c.mutexTill.RUnlock()
 	return c.changeNumber
 }
 
 // SetChangeNumber sets changeNumber
-func (c SplitChangesCollection) SetChangeNumber(since int64) {
+func (c *SplitChangesCollection) SetChangeNumber(since int64) {
 	c.mutexTill.Lock()
 	defer c.mutexTill.Unlock()
 	c.changeNumber = since
 }
 
 // SegmentNames returns segments
-func (c SplitChangesCollection) SegmentNames() *set.ThreadUnsafeSet {
+func (c *SplitChangesCollection) SegmentNames() *set.ThreadUnsafeSet {
 	segments := set.NewSet()
 	rawSplits, _ := c.FetchAll()
 

@@ -44,14 +44,14 @@ type SegmentChangesCollection struct {
 }
 
 // Add an item
-func (c SegmentChangesCollection) Add(item *SegmentChangesItem) error {
+func (c *SegmentChangesCollection) Add(item *SegmentChangesItem) error {
 	key := []byte(item.Name)
 	err := c.Collection.SaveAs(key, item)
 	return err
 }
 
 // Fetch return a SegmentChangesItem
-func (c SegmentChangesCollection) Fetch(name string) (*SegmentChangesItem, error) {
+func (c *SegmentChangesCollection) Fetch(name string) (*SegmentChangesItem, error) {
 	key := []byte(name)
 	item, err := c.Collection.FetchBy(key)
 	if err != nil {
@@ -75,7 +75,7 @@ func (c SegmentChangesCollection) Fetch(name string) (*SegmentChangesItem, error
 }
 
 // FetchAll return a list of SegmentChangesItem
-func (c SegmentChangesCollection) FetchAll() ([]SegmentChangesItem, error) {
+func (c *SegmentChangesCollection) FetchAll() ([]SegmentChangesItem, error) {
 	items, err := c.Collection.FetchAll()
 	if err != nil {
 		return nil, err
@@ -103,7 +103,7 @@ func (c SegmentChangesCollection) FetchAll() ([]SegmentChangesItem, error) {
 }
 
 // ChangeNumber returns changeNumber
-func (c SegmentChangesCollection) ChangeNumber(segment string) int64 {
+func (c *SegmentChangesCollection) ChangeNumber(segment string) int64 {
 	c.mutexSegmentsTill.RLock()
 	defer c.mutexSegmentsTill.RUnlock()
 	value, exists := c.segmentsTill[segment]
@@ -114,7 +114,7 @@ func (c SegmentChangesCollection) ChangeNumber(segment string) int64 {
 }
 
 // SetChangeNumber sets changeNumber
-func (c SegmentChangesCollection) SetChangeNumber(segment string, since int64) {
+func (c *SegmentChangesCollection) SetChangeNumber(segment string, since int64) {
 	c.mutexSegmentsTill.Lock()
 	defer c.mutexSegmentsTill.Unlock()
 	c.segmentsTill[segment] = since
