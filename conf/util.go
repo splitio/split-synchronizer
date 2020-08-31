@@ -12,6 +12,7 @@ func ParseAdvancedOptions() conf.AdvancedConfig {
 	advanced.EventsBulkSize = Data.EventsPerPost
 	advanced.HTTPTimeout = int(Data.HTTPTimeout)
 	advanced.ImpressionsBulkSize = Data.ImpressionsPerPost
+	advanced.StreamingEnabled = Data.StreamingEnabled
 
 	envSdkURL := os.Getenv("SPLITIO_SDK_URL")
 	if envSdkURL != "" {
