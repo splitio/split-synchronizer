@@ -84,8 +84,8 @@ func (e *RecorderEventMultiple) synchronizeEvents(bulkSize int64) error {
 			return nil
 		})
 		if err != nil {
-			if _, ok := err.(*dtos.HTTPError); ok {
-				e.metricsWrapper.StoreCounters(storage.PostEventsCounter, string(err.(*dtos.HTTPError).Code))
+			if httpError, ok := err.(*dtos.HTTPError); ok {
+				e.metricsWrapper.StoreCounters(storage.PostEventsCounter, string(httpError.Code))
 			}
 			return err
 		}

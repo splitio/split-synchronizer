@@ -45,8 +45,8 @@ func (s *SplitFetcherProxy) SynchronizeSplits(till *int64) error {
 		before := time.Now()
 		splits, err := s.splitFetcher.Fetch(changeNumber)
 		if err != nil {
-			if _, ok := err.(*dtos.HTTPError); ok {
-				s.metricsWrapper.StoreCounters(storage.SplitChangesCounter, string(err.(*dtos.HTTPError).Code))
+			if httpError, ok := err.(*dtos.HTTPError); ok {
+				s.metricsWrapper.StoreCounters(storage.SplitChangesCounter, string(httpError.Code))
 			}
 			return err
 		}

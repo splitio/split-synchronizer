@@ -199,7 +199,9 @@ func sendImpressions() {
 				})
 				if errp != nil {
 					log.Instance.Error(errp)
-					interfaces.ProxyTelemetryWrapper.StoreCounters(storage.TestImpressionsCounter, string(errp.(*dtos.HTTPError).Code))
+					if httpError, ok := errp.(*dtos.HTTPError); ok {
+						interfaces.ProxyTelemetryWrapper.StoreCounters(storage.TestImpressionsCounter, string(httpError.Code))
+					}
 				} else {
 					bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
 					interfaces.ProxyTelemetryWrapper.StoreLatencies(storage.TestImpressionsLatency, bucket)
