@@ -10,7 +10,6 @@ import (
 // ValidateAPIKeys validates a list of given apiKey
 func ValidateAPIKeys(keys []string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-
 		var apiKey string
 		auth := strings.Split(c.Request.Header.Get("Authorization"), " ")
 		if len(auth) == 2 {
@@ -34,7 +33,6 @@ func ValidateAPIKeys(keys []string) gin.HandlerFunc {
 		}
 
 		c.Next()
-
 	}
 }
 

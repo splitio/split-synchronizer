@@ -1,13 +1,11 @@
 package HTMLtemplates
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
 
-	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio/api"
+	"github.com/splitio/go-split-commons/dtos"
 )
 
 // CachedSplitsTPLVars list of cached splits
@@ -16,7 +14,7 @@ type CachedSplitsTPLVars struct {
 }
 
 // NewCachedSplitsTPLVars creates a cached split representation
-func NewCachedSplitsTPLVars(splits []string) *CachedSplitsTPLVars {
+func NewCachedSplitsTPLVars(splits []dtos.SplitDTO) *CachedSplitsTPLVars {
 
 	toReturn := &CachedSplitsTPLVars{Splits: make([]*CachedSplitRowTPLVars, 0)}
 
@@ -39,40 +37,33 @@ type CachedSplitRowTPLVars struct {
 }
 
 // NewCachedSplitRowTPLVars return an instance of CachedSplitRowTPLVars
-func newCachedSplitRowTPLVars(splitJSON string) *CachedSplitRowTPLVars {
+func newCachedSplitRowTPLVars(split dtos.SplitDTO) *CachedSplitRowTPLVars {
 
 	toReturn := &CachedSplitRowTPLVars{}
 
-	var splitDto api.SplitDTO
-	err := json.Unmarshal([]byte(splitJSON), &splitDto)
-	if err != nil {
-		log.Error.Println("Error parsing split JSON for Dashboard", err)
-		return nil
-	}
+	toReturn.Name = split.Name
 
-	toReturn.Name = splitDto.Name
-
-	//STATUS
-	toReturn.Status = splitDto.Status
-	if splitDto.Status != "ACTIVE" {
+	// STATUS
+	toReturn.Status = split.Status
+	if split.Status != "ACTIVE" {
 		toReturn.StatusColor = "danger"
 	} else {
 		toReturn.StatusColor = ""
 	}
 
-	//KILLED
-	toReturn.Killed = strconv.FormatBool(splitDto.Killed)
-	if splitDto.Killed {
+	// KILLED
+	toReturn.Killed = strconv.FormatBool(split.Killed)
+	if split.Killed {
 		toReturn.KilledColor = "danger"
 	} else {
 		toReturn.KilledColor = ""
 	}
 
-	//TREATMENTS
+	// TREATMENTS
 	treatmets := make(map[string]bool)
-	for _, c := range splitDto.Conditions {
+	for _, c := range split.Conditions {
 		for _, p := range c.Partitions {
-			if p.Treatment == splitDto.DefaultTreatment {
+			if p.Treatment == split.DefaultTreatment {
 				treatmets[p.Treatment] = true
 			} else {
 				treatmets[p.Treatment] = false
@@ -90,7 +81,7 @@ func newCachedSplitRowTPLVars(splitJSON string) *CachedSplitRowTPLVars {
 	toReturn.Treatments = treatmetsHTML[1:]
 
 	// LAST MODIFIED
-	lastModified := time.Unix(0, splitDto.ChangeNumber*int64(time.Millisecond))
+	lastModified := time.Unix(0, split.ChangeNumber*int64(time.Millisecond))
 	toReturn.LastModified = lastModified.UTC().Format(time.UnixDate)
 
 	return toReturn

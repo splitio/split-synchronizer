@@ -1,3 +1,8 @@
+3.0.0 (Aug, 31, 2020)
+ - Added split-commons library.
+ - Added Streaming support.
+ - Deprecated outdated configs.
+
 2.6.3 (Aug 13, 2020)
  - Added lastSeen timestamp hint to impressions
 

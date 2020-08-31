@@ -1,27 +1,24 @@
 {
-	"apiKey" : "abcd1234567890",
-
-	"splitsRefreshRate":5,
-	"segmentsRefreshRate":10,
-	"impressionsPostRate":80,
-	"impressionsPerPost":56000,
+	"apiKey": "abcd1234567890",
+	"splitsRefreshRate": 5,
+	"segmentsRefreshRate": 10,
+	"impressionsPostRate": 80,
+	"impressionsPerPost": 56000,
 	"impressionsThreads": 1,
-	"metricsPostRate":60,
-
+	"metricsPostRate": 60,
 	"redis": {
-    "host":"localhost",
-		"port":6379,
-		"db":0,
-		"password":"",
-		"prefix":""
+		"host": "localhost",
+		"port": 6379,
+		"db": 0,
+		"password": "",
+		"prefix": ""
 	},
-
 	"log": {
-		"verbose":false,
-		"debug":false,
-    "stdout":true,
-		"file":"/tmp/splitio.agent.log",
-		"slackChannel":"",
-		"slackWebhookURL":""
+		"verbose": false,
+		"debug": false,
+		"stdout": true,
+		"file": "/tmp/splitio.agent.log",
+		"slackChannel": "",
+		"slackWebhookURL": ""
 	}
 }

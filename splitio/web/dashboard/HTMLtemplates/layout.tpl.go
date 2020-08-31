@@ -30,6 +30,7 @@ type LayoutTPLVars struct {
 	BackendRequestError          string
 	EventServerStatus            bool
 	SDKServerStatus              bool
+	AuthServerStatus             bool
 	StorageStatus                bool
 	Sync                         bool
 	HealthySince                 string
@@ -343,19 +344,31 @@ var LayoutTPL = `
                   <h1 id="event_server" class="centerText">ERROR</h1>
                 </div>
               </div>
-              <div id="storage_div_ok" class="col-md-2">
+              <div id="auth_server_div_ok" class="col-md-2">
+                <div class="green1Box metricBox">
+                  <h4>Auth</h4>
+                  <h1 id="auth" class="centerText">OK</h1>
+                </div>
+              </div>
+              <div id="auth_server_div_error" class="col-md-2 hidden">
+                <div class="red1Box metricBox">
+                  <h4>Auth</h4>
+                  <h1 id="auth" class="centerText">ERROR</h1>
+                </div>
+              </div>
+              <div id="storage_div_ok" class="col-md-1">
                 <div class="green1Box metricBox">
                   <h4>Storage</h4>
                   <h1 id="storage" class="centerText">OK</h1>
                 </div>
               </div>
-              <div id="storage_div_error" class="col-md-2 hidden">
+              <div id="storage_div_error" class="col-md-1 hidden">
                 <div class="red1Box metricBox">
                   <h4>Storage</h4>
                   <h1 id="storage" class="centerText">ERROR</h1>
                 </div>
               </div>
-              <div class="col-md-2">
+              <div class="col-md-1">
                 <div class="green1Box metricBox">
                   <h4>Sync</h4>
                   <h1 id="sync" class="centerText">OK</h1>
@@ -364,31 +377,43 @@ var LayoutTPL = `
             </div>
           {{else}}
             <div class="row">
-              <div id="sdk_server_div_ok" class="col-md-4">
+              <div id="sdk_server_div_ok" class="col-md-3">
                 <div class="green1Box metricBox">
                   <h4>SDK Server</h4>
                   <h1 id="sdk_server" class="centerText">OK</h1>
                 </div>
               </div>
-              <div id="sdk_server_div_error" class="col-md-4 hidden">
+              <div id="sdk_server_div_error" class="col-md-3 hidden">
                 <div class="red1Box metricBox">
                   <h4>SDK Server</h4>
                   <h1 id="sdk_server" class="centerText">ERROR</h1>
                 </div>
               </div>
-              <div id="event_server_div_ok" class="col-md-4">
+              <div id="event_server_div_ok" class="col-md-3">
                 <div class="green1Box metricBox">
                   <h4>Events Server</h4>
                   <h1 id="event_server" class="centerText">OK</h1>
                 </div>
               </div>
-              <div id="event_server_div_error" class="col-md-4 hidden">
+              <div id="event_server_div_error" class="col-md-3 hidden">
                 <div class="red1Box metricBox">
                   <h4>Events Server</h4>
                   <h1 id="event_server" class="centerText">ERROR</h1>
                 </div>
               </div>
-              <div class="col-md-4">
+              <div id="auth_server_div_ok" class="col-md-3">
+                <div class="green1Box metricBox">
+                  <h4>Auth</h4>
+                  <h1 id="auth" class="centerText">OK</h1>
+                </div>
+              </div>
+              <div id="auth_server_div_error" class="col-md-3 hidden">
+                <div class="red1Box metricBox">
+                  <h4>Auth</h4>
+                  <h1 id="auth" class="centerText">ERROR</h1>
+                </div>
+              </div>
+              <div class="col-md-3">
                 <div class="green1Box metricBox">
                   <h4>Sync</h4>
                   <h1 id="sync" class="centerText">OK</h1>
@@ -966,6 +991,14 @@ function handleHealthcheck(response) {
     $('#event_server_div_error').removeClass('hidden')
   }
 
+  if (response.auth.healthy) {
+    $('#auth_server_div_error').addClass('hidden')
+    $('#auth_server_div_ok').removeClass('hidden')
+  } else {
+    $('#auth_server_div_ok').addClass('hidden')
+    $('#auth_server_div_error').removeClass('hidden')
+  }
+
   if (response.sync) {
     if (response.storage.healthy) {
       $('#storage_div_error').addClass('hidden')
@@ -1084,6 +1117,7 @@ $(document).ready(function () {
     const isProxyMode = {{.ProxyMode}}
     const isSDKServerStatus = {{.SDKServerStatus}}
     const isEventServerStatus = {{.EventServerStatus}}
+    const isAuthServerStatus = {{.AuthServerStatus}}
 
     if (isSDKServerStatus) {
       $('#sdk_server_div_error').addClass('hidden')
@@ -1097,6 +1131,13 @@ $(document).ready(function () {
     } else {
       $('#event_server_div_ok').addClass('hidden')
       $('#event_server_div_error').removeClass('hidden')
+    }
+
+    if (isAuthServerStatus) {
+      $('#auth_server_div_error').addClass('hidden')
+    } else {
+      $('#auth_server_div_ok').addClass('hidden')
+      $('#auth_server_div_error').removeClass('hidden')
     }
 
     if (!isProxyMode) {

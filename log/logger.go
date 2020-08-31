@@ -10,22 +10,12 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/splitio/go-toolkit/logging"
 )
 
-var (
-	// Benchmark level
-	Benchmark *log.Logger
-	// Verbose level
-	Verbose *log.Logger
-	// Debug level
-	Debug *log.Logger
-	// Info level
-	Info *log.Logger
-	// Warning level
-	Warning *log.Logger
-	// Error level
-	Error *log.Logger
-)
+// Instance is an instance of log
+var Instance logging.LoggerInterface
 
 // ErrorDashboard is an instance of DashboardWriter
 var ErrorDashboard = &DashboardWriter{cmutex: &sync.Mutex{}, counts: 0, messages: make([]string, 0), messagesSize: 10}
@@ -110,7 +100,7 @@ func (w *SlackWriter) postMessage(msg []byte, attachements []SlackMessageAttachm
 	urlStr := w.WebHookURL
 	//Simple message by default
 	jsonStr := fmt.Sprintf(`{"channel": "%s", "username": "Split-Sync", "text": "%s", "icon_emoji": ":robot_face:"}`, w.Channel, msg)
-	if attachements != nil {
+	if attachements != nil && len(attachements) > 0 {
 		attachs, err := json.Marshal(attachements)
 		if err != nil {
 			fmt.Println("Error posting message to Slack with attachment fields")
@@ -142,34 +132,22 @@ func (w *SlackWriter) PostNow(msg []byte, attachements []SlackMessageAttachment)
 }
 
 // Initialize log module
-func Initialize(benchmarkWriter io.Writer, verboseWriter io.Writer,
+func Initialize(
+	verboseWriter io.Writer,
 	debugWriter io.Writer,
 	infoWriter io.Writer,
 	warningWriter io.Writer,
-	errorWriter io.Writer) {
+	errorWriter io.Writer,
+	level int) {
 
-	Benchmark = log.New(benchmarkWriter,
-		"SPLITIO-AGENT | BENCHMARK: ",
-		log.Ldate|log.Ltime|log.Lshortfile)
-
-	Verbose = log.New(verboseWriter,
-		"SPLITIO-AGENT | VERBOSE: ",
-		log.Ldate|log.Ltime|log.Lshortfile)
-
-	Debug = log.New(debugWriter,
-		"SPLITIO-AGENT | DEBUG: ",
-		log.Ldate|log.Ltime|log.Lshortfile)
-
-	Info = log.New(infoWriter,
-		"SPLITIO-AGENT | INFO: ",
-		log.Ldate|log.Ltime|log.Lshortfile)
-
-	Warning = log.New(warningWriter,
-		"SPLITIO-AGENT | WARNING: ",
-		log.Ldate|log.Ltime|log.Lshortfile)
-
-	errWriter := io.MultiWriter(errorWriter, ErrorDashboard)
-	Error = log.New(errWriter,
-		"SPLITIO-AGENT | ERROR: ",
-		log.Ldate|log.Ltime|log.Lshortfile)
+	Instance = logging.NewLogger(&logging.LoggerOptions{
+		StandardLoggerFlags: log.Ldate | log.Ltime | log.Lshortfile,
+		Prefix:              "SPLITIO-AGENT ",
+		VerboseWriter:       verboseWriter,
+		DebugWriter:         debugWriter,
+		InfoWriter:          infoWriter,
+		WarningWriter:       warningWriter,
+		ErrorWriter:         errorWriter,
+		LogLevel:            level,
+	})
 }
