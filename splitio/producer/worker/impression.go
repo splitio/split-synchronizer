@@ -140,8 +140,8 @@ func (r *RecorderImpressionMultiple) synchronizeImpressions(bulkSize int64) erro
 			return nil
 		})
 		if err != nil {
-			if _, ok := err.(*dtos.HTTPError); ok {
-				r.metricsWrapper.StoreCounters(storage.TestImpressionsCounter, string(err.(*dtos.HTTPError).Code))
+			if httpError, ok := err.(*dtos.HTTPError); ok {
+				r.metricsWrapper.StoreCounters(storage.TestImpressionsCounter, string(httpError.Code))
 			}
 			return err
 		}
