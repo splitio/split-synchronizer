@@ -85,30 +85,12 @@ if [ ! -z ${SPLIT_SYNC_SEGMENTS_REFRESH_RATE+x} ]; then
   PARAMETERS="${PARAMETERS} -segment-refresh-rate=${SPLIT_SYNC_SEGMENTS_REFRESH_RATE}"
 fi
 
-# Backwards compatibility
-if [ ! -z ${SPLIT_SYNC_IMPRESSIONS_REFRESH_RATE+x} ]; then
-  printf "\033[33mWARNING: The environment variable 'SPLIT_SYNC_IMPRESSIONS_REFRESH_RATE' will be deprecated soon in favor of 'SPLIT_SYNC_IMPRESSIONS_POST_RATE'. Mapping to replacement: 'SPLIT_SYNC_IMPRESSIONS_POST_RATE'\n\033[0m"
-  PARAMETERS="${PARAMETERS} -impressions-post-rate=${SPLIT_SYNC_IMPRESSIONS_REFRESH_RATE}"
-fi
-
 if [ ! -z ${SPLIT_SYNC_IMPRESSIONS_POST_RATE+x} ]; then
   PARAMETERS="${PARAMETERS} -impressions-post-rate=${SPLIT_SYNC_IMPRESSIONS_POST_RATE}"
 fi
 
-# Backwards compatibility
-if [ ! -z ${SPLIT_SYNC_EVENTS_REFRESH_RATE+x} ]; then
-  printf "\033[33mWARNING: The environment variable 'SPLIT_SYNC_EVENTS_REFRESH_RATE' will be deprecated soon in favor of 'SPLIT_SYNC_EVENTS_POST_RATE'. Mapping to replacement: 'SPLIT_SYNC_EVENTS_POST_RATE'\n\033[0m"
-  PARAMETERS="${PARAMETERS} -events-post-rate=${SPLIT_SYNC_EVENTS_REFRESH_RATE}"
-fi
-
 if [ ! -z ${SPLIT_SYNC_EVENTS_POST_RATE+x} ]; then
   PARAMETERS="${PARAMETERS} -events-post-rate=${SPLIT_SYNC_EVENTS_POST_RATE}"
-fi
-
-# Backwards compatibility
-if [ ! -z ${SPLIT_SYNC_METRICS_REFRESH_RATE+x} ]; then
-  printf "\033[33mWARNING: The environment variable 'SPLIT_SYNC_METRICS_REFRESH_RATE' will be deprecated soon in favor of 'SPLIT_SYNC_METRICS_POST_RATE'. Mapping to replacement: 'SPLIT_SYNC_METRICS_POST_RATE'\n\033[0m"
-  PARAMETERS="${PARAMETERS} -metrics-post-rate=${SPLIT_SYNC_METRICS_REFRESH_RATE}"
 fi
 
 if [ ! -z ${SPLIT_SYNC_METRICS_POST_RATE+x} ]; then
