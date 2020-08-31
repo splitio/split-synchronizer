@@ -2,11 +2,19 @@ package splitio
 
 const (
 	// SuccessfulOperation Operation was executed successfuly
-	SuccessfulOperation = 0
+	SuccessfulOperation = iota
 	// ExitInvalidConfiguration Invalid Configuration Code to Exit
-	ExitInvalidConfiguration = 1
+	ExitInvalidConfiguration
 	// ExitRedisInitializationFailed Failed initialization of Redis
-	ExitRedisInitializationFailed = 2
+	ExitRedisInitializationFailed
 	// ExitErrorDB Failed initialization of DB
-	ExitErrorDB = 3
+	ExitErrorDB
+	// ExitTaskInitialization Failed
+	ExitTaskInitialization
 )
+
+// DefaultSize indicates the default value for flushing Events and Impressions
+const DefaultSize = int64(5000)
+
+// MaxSizeToFlush indicates the maximmum size that can be flushing on a call
+const MaxSizeToFlush = DefaultSize * 5

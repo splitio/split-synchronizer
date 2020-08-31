@@ -3,26 +3,26 @@ package controllers
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/splitio/go-split-commons/dtos"
+	apiMocks "github.com/splitio/go-split-commons/service/api/mocks"
+	redisStorage "github.com/splitio/go-split-commons/storage/redis"
+	"github.com/splitio/go-toolkit/logging"
+	"github.com/splitio/go-toolkit/redis"
+	"github.com/splitio/go-toolkit/redis/mocks"
 	"github.com/splitio/split-synchronizer/appcontext"
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio/api"
-	"github.com/splitio/split-synchronizer/splitio/storage/redis"
+	"github.com/splitio/split-synchronizer/splitio/common"
 )
 
-//Events
 const eventsListNamespace = "SPLITIO.events"
-
-//Impressions
 const impressionsQueueNamespace = "SPLITIO.impressions"
 
 type itemStatus struct {
@@ -40,28 +40,11 @@ type globalStatus struct {
 	Storage      *itemStatus `json:"storage"`
 	Sdk          itemStatus  `json:"sdk"`
 	Events       itemStatus  `json:"events"`
+	Auth         itemStatus  `json:"auth"`
 	Proxy        *itemStatus `json:"proxy,omitempty"`
 	HealthySince date        `json:"healthySince"`
 	Uptime       string      `json:"uptime"`
 }
-
-type mockStorage struct {
-	shouldFail bool
-}
-
-func (m mockStorage) ChangeNumber() (int64, error) {
-	if m.shouldFail {
-		return 0, errors.New("X")
-	}
-	return 1234, nil
-}
-
-func (m mockStorage) Save(split []byte) error                  { return nil }
-func (m mockStorage) Remove(split []byte) error                { return nil }
-func (m mockStorage) RegisterSegment(name string) error        { return nil }
-func (m mockStorage) SetChangeNumber(changeNumber int64) error { return nil }
-func (m mockStorage) SplitsNames() ([]string, error)           { return nil, nil }
-func (m mockStorage) RawSplits() ([]string, error)             { return nil, nil }
 
 func performRequest(r http.Handler, method, path string) *httptest.ResponseRecorder {
 	req, _ := http.NewRequest(method, path, nil)
@@ -71,19 +54,15 @@ func performRequest(r http.Handler, method, path string) *httptest.ResponseRecor
 }
 
 func TestGetConfiguration(t *testing.T) {
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
 	conf.Initialize()
 	conf.Data.Redis.ClusterMode = true
-	redis.Initialize(conf.Data.Redis)
 
 	router := gin.Default()
 	router.GET("/", func(c *gin.Context) {
 		GetConfiguration(c)
 	})
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(100 * time.Millisecond)
 	w := performRequest(router, "GET", "/")
 
 	if http.StatusOK != w.Code {
@@ -113,18 +92,14 @@ func TestGetConfiguration(t *testing.T) {
 }
 
 func TestGetConfigurationSimple(t *testing.T) {
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
 	conf.Initialize()
-	redis.Initialize(conf.Data.Redis)
 
 	router := gin.Default()
 	router.GET("/", func(c *gin.Context) {
 		GetConfiguration(c)
 	})
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(100 * time.Millisecond)
 
 	w := performRequest(router, "GET", "/")
 
@@ -151,9 +126,6 @@ func TestGetConfigurationSimple(t *testing.T) {
 }
 
 func TestGetConfigurationProxyMode(t *testing.T) {
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
 	appcontext.Initialize(appcontext.ProxyMode)
 
 	router := gin.Default()
@@ -161,7 +133,7 @@ func TestGetConfigurationProxyMode(t *testing.T) {
 		GetConfiguration(c)
 	})
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(100 * time.Millisecond)
 	w := performRequest(router, "GET", "/")
 
 	responseBody, _ := ioutil.ReadAll(w.Body)
@@ -183,144 +155,75 @@ func TestGetConfigurationProxyMode(t *testing.T) {
 }
 
 func TestSizeEvents(t *testing.T) {
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
 	conf.Initialize()
-	redis.Initialize(conf.Data.Redis)
-	redis.Client.Del(eventsListNamespace)
-
-	metadata := api.SdkMetadata{
-		SdkVersion:  "test-2.0",
-		MachineIP:   "127.0.0.1",
-		MachineName: "ip-127-0-0-1",
-	}
-
-	toStore, err := json.Marshal(api.RedisStoredEventDTO{
-		Event: api.EventDTO{
-			Key:             "test",
-			EventTypeID:     "test",
-			Timestamp:       1234,
-			TrafficTypeName: "test",
-			Value:           nil,
+	redisMock := mocks.MockClient{
+		LLenCall: func(key string) redis.Result {
+			return &mocks.MockResultOutput{
+				ResultCall: func() (int64, error) { return 100, nil },
+			}
 		},
-		Metadata: api.RedisStoredMachineMetadataDTO{
-			MachineIP:   metadata.MachineIP,
-			MachineName: metadata.MachineName,
-			SDKVersion:  metadata.SdkVersion,
-		},
-	})
-	if err != nil {
-		t.Error(err.Error())
-		return
 	}
-
-	redis.Client.RPush(
-		eventsListNamespace,
-		toStore,
-	)
+	prefixed, _ := redis.NewPrefixedRedisClient(&redisMock, "")
 
 	router := gin.Default()
 	router.GET("/", func(c *gin.Context) {
+		c.Set(common.EventStorage, redisStorage.NewEventsStorage(prefixed, dtos.Metadata{}, nil))
 		GetEventsQueueSize(c)
 	})
 
-	time.Sleep(3 * time.Second)
 	w := performRequest(router, "GET", "/")
-
 	if http.StatusOK != w.Code {
-		t.Error("Expected 200")
+		t.Error("Expected 200", w.Code)
 	}
 
 	responseBody, _ := ioutil.ReadAll(w.Body)
-
 	var data map[string]interface{}
 	_ = json.Unmarshal([]byte(responseBody), &data)
-	var expected float64 = 1
+	var expected float64 = 100
 	if data["queueSize"] != expected {
-		t.Error("It should return 1")
+		t.Error("It should return 100")
 	}
-
-	redis.Client.Del(eventsListNamespace)
 }
 
 func TestSizeImpressions(t *testing.T) {
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
 	conf.Initialize()
-	redis.Initialize(conf.Data.Redis)
-	redis.Client.Del(impressionsQueueNamespace)
-
-	metadata := api.SdkMetadata{
-		SdkVersion:  "test-2.0",
-		MachineIP:   "127.0.0.1",
-		MachineName: "ip-127-0-0-1",
-	}
-
-	toStore, err := json.Marshal(redis.ImpressionDTO{
-		Data: redis.ImpressionObject{
-			BucketingKey:      "1",
-			FeatureName:       "1",
-			KeyName:           "test",
-			Rule:              "test",
-			SplitChangeNumber: 1234,
-			Timestamp:         1234,
-			Treatment:         "on",
+	redisMock := mocks.MockClient{
+		LLenCall: func(key string) redis.Result {
+			return &mocks.MockResultOutput{
+				ResultCall: func() (int64, error) { return 100, nil },
+			}
 		},
-		Metadata: redis.ImpressionMetadata{
-			InstanceIP:   metadata.MachineIP,
-			InstanceName: metadata.MachineName,
-			SdkVersion:   metadata.SdkVersion,
-		},
-	})
-	if err != nil {
-		t.Error(err.Error())
-		return
 	}
-
-	redis.Client.RPush(
-		impressionsQueueNamespace,
-		toStore,
-	)
+	prefixed, _ := redis.NewPrefixedRedisClient(&redisMock, "")
 
 	router := gin.Default()
 	router.GET("/", func(c *gin.Context) {
+		c.Set(common.ImpressionStorage, redisStorage.NewImpressionStorage(prefixed, dtos.Metadata{}, nil))
 		GetImpressionsQueueSize(c)
 	})
 
-	time.Sleep(3 * time.Second)
 	w := performRequest(router, "GET", "/")
-
 	if http.StatusOK != w.Code {
 		t.Error("Expected 200")
 	}
 
 	responseBody, _ := ioutil.ReadAll(w.Body)
-
 	var data map[string]interface{}
 	_ = json.Unmarshal([]byte(responseBody), &data)
-	var expected float64 = 1
+	var expected float64 = 100
 	if data["queueSize"] != expected {
-		t.Error("It should return 1")
+		t.Error("It should return 100")
 	}
-
-	redis.Client.Del(impressionsQueueNamespace)
 }
 
 func TestDropEventsFail(t *testing.T) {
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
 	conf.Initialize()
-	redis.Initialize(conf.Data.Redis)
 
 	router := gin.Default()
 	router.POST("/test", func(c *gin.Context) {
 		DropEvents(c)
 	})
 
-	time.Sleep(3 * time.Second)
 	res := performRequest(router, "POST", "/test?size=size")
 
 	bodyBytes, _ := ioutil.ReadAll(res.Body)
@@ -334,18 +237,13 @@ func TestDropEventsFail(t *testing.T) {
 }
 
 func TestDropEventsFailSize(t *testing.T) {
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
 	conf.Initialize()
-	redis.Initialize(conf.Data.Redis)
 
 	router := gin.Default()
 	router.POST("/test", func(c *gin.Context) {
 		DropEvents(c)
 	})
 
-	time.Sleep(3 * time.Second)
 	res := performRequest(router, "POST", "/test?size=-10")
 
 	bodyBytes, _ := ioutil.ReadAll(res.Body)
@@ -359,18 +257,28 @@ func TestDropEventsFailSize(t *testing.T) {
 }
 
 func TestDropEventsSuccess(t *testing.T) {
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
 	conf.Initialize()
-	redis.Initialize(conf.Data.Redis)
+	redisMock := mocks.MockClient{
+		LTrimCall: func(key string, start, stop int64) redis.Result {
+			if key != eventsListNamespace {
+				t.Error("Unexpected key passed")
+			}
+			if start != 10 && stop != -1 {
+				t.Error("Unexpected passed size")
+			}
+			return &mocks.MockResultOutput{
+				ErrCall: func() error { return nil },
+			}
+		},
+	}
+	prefixed, _ := redis.NewPrefixedRedisClient(&redisMock, "")
 
 	router := gin.Default()
 	router.POST("/test", func(c *gin.Context) {
+		c.Set(common.EventStorage, redisStorage.NewEventsStorage(prefixed, dtos.Metadata{}, nil))
 		DropEvents(c)
 	})
 
-	time.Sleep(3 * time.Second)
 	res := performRequest(router, "POST", "/test?size=10")
 
 	bodyBytes, _ := ioutil.ReadAll(res.Body)
@@ -384,18 +292,25 @@ func TestDropEventsSuccess(t *testing.T) {
 }
 
 func TestDropEventsSuccessDefault(t *testing.T) {
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
 	conf.Initialize()
-	redis.Initialize(conf.Data.Redis)
+	redisMock := mocks.MockClient{
+		DelCall: func(keys ...string) redis.Result {
+			if keys[0] != eventsListNamespace {
+				t.Error("Unexpected key")
+			}
+			return &mocks.MockResultOutput{
+				ResultCall: func() (int64, error) { return 1, nil },
+			}
+		},
+	}
+	prefixed, _ := redis.NewPrefixedRedisClient(&redisMock, "")
 
 	router := gin.Default()
 	router.POST("/test", func(c *gin.Context) {
+		c.Set(common.EventStorage, redisStorage.NewEventsStorage(prefixed, dtos.Metadata{}, nil))
 		DropEvents(c)
 	})
 
-	time.Sleep(3 * time.Second)
 	res := performRequest(router, "POST", "/test")
 	bodyBytes, _ := ioutil.ReadAll(res.Body)
 	body := string(bodyBytes)
@@ -408,18 +323,13 @@ func TestDropEventsSuccessDefault(t *testing.T) {
 }
 
 func TestDropImpressionsFail(t *testing.T) {
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
 	conf.Initialize()
-	redis.Initialize(conf.Data.Redis)
 
 	router := gin.Default()
 	router.POST("/test", func(c *gin.Context) {
 		DropImpressions(c)
 	})
 
-	time.Sleep(3 * time.Second)
 	res := performRequest(router, "POST", "/test?size=size")
 	bodyBytes, _ := ioutil.ReadAll(res.Body)
 	body := string(bodyBytes)
@@ -432,18 +342,13 @@ func TestDropImpressionsFail(t *testing.T) {
 }
 
 func TestDropImpressionsFailSize(t *testing.T) {
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
 	conf.Initialize()
-	redis.Initialize(conf.Data.Redis)
 
 	router := gin.Default()
 	router.POST("/test", func(c *gin.Context) {
 		DropImpressions(c)
 	})
 
-	time.Sleep(3 * time.Second)
 	res := performRequest(router, "POST", "/test?size=-10")
 
 	bodyBytes, _ := ioutil.ReadAll(res.Body)
@@ -457,18 +362,28 @@ func TestDropImpressionsFailSize(t *testing.T) {
 }
 
 func TestDropImpressionsSuccess(t *testing.T) {
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
 	conf.Initialize()
-	redis.Initialize(conf.Data.Redis)
+	redisMock := mocks.MockClient{
+		LTrimCall: func(key string, start, stop int64) redis.Result {
+			if key != impressionsQueueNamespace {
+				t.Error("Unexpected key passed")
+			}
+			if start != 1 && stop != -1 {
+				t.Error("Unexpected passed size")
+			}
+			return &mocks.MockResultOutput{
+				ErrCall: func() error { return nil },
+			}
+		},
+	}
+	prefixed, _ := redis.NewPrefixedRedisClient(&redisMock, "")
 
 	router := gin.Default()
 	router.POST("/test", func(c *gin.Context) {
+		c.Set(common.ImpressionStorage, redisStorage.NewImpressionStorage(prefixed, dtos.Metadata{}, nil))
 		DropImpressions(c)
 	})
 
-	time.Sleep(3 * time.Second)
 	res := performRequest(router, "POST", "/test?size=1")
 	bodyBytes, _ := ioutil.ReadAll(res.Body)
 	body := string(bodyBytes)
@@ -481,18 +396,25 @@ func TestDropImpressionsSuccess(t *testing.T) {
 }
 
 func TestDropImpressionsSuccessDefault(t *testing.T) {
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
 	conf.Initialize()
-	redis.Initialize(conf.Data.Redis)
+	redisMock := mocks.MockClient{
+		DelCall: func(keys ...string) redis.Result {
+			if keys[0] != impressionsQueueNamespace {
+				t.Error("Unexpected key")
+			}
+			return &mocks.MockResultOutput{
+				ResultCall: func() (int64, error) { return 1, nil },
+			}
+		},
+	}
+	prefixed, _ := redis.NewPrefixedRedisClient(&redisMock, "")
 
 	router := gin.Default()
 	router.POST("/test", func(c *gin.Context) {
+		c.Set(common.ImpressionStorage, redisStorage.NewImpressionStorage(prefixed, dtos.Metadata{}, nil))
 		DropImpressions(c)
 	})
 
-	time.Sleep(3 * time.Second)
 	res := performRequest(router, "POST", "/test")
 	bodyBytes, _ := ioutil.ReadAll(res.Body)
 	body := string(bodyBytes)
@@ -505,18 +427,13 @@ func TestDropImpressionsSuccessDefault(t *testing.T) {
 }
 
 func TestFlushImpressionsFail(t *testing.T) {
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
 	conf.Initialize()
-	redis.Initialize(conf.Data.Redis)
 
 	router := gin.Default()
 	router.POST("/test", func(c *gin.Context) {
 		FlushImpressions(c)
 	})
 
-	time.Sleep(3 * time.Second)
 	res := performRequest(router, "POST", "/test?size=200000")
 	bodyBytes, _ := ioutil.ReadAll(res.Body)
 	body := string(bodyBytes)
@@ -526,313 +443,31 @@ func TestFlushImpressionsFail(t *testing.T) {
 	if body != "Max Size to Flush is 25000" {
 		t.Error("Wrong message")
 	}
-}
-
-func TestAnotherOperationRunningOnEvents(t *testing.T) {
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		rBody, _ := ioutil.ReadAll(r.Body)
-
-		var eventsInPost []api.EventDTO
-		err := json.Unmarshal(rBody, &eventsInPost)
-		time.Sleep(3 * time.Second)
-
-		if err != nil {
-			t.Error(err)
-			return
-		}
-
-	}))
-
-	defer ts.Close()
-
-	os.Setenv("SPLITIO_SDK_URL", ts.URL)
-	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
-
-	api.Initialize()
-	conf.Initialize()
-	conf.Data.Redis.Prefix = "testflush"
-
-	redis.Initialize(conf.Data.Redis)
-
-	//INSERT MOCK DATA
-	//----------------
-	itemsToAdd := 10003
-	eventListName := conf.Data.Redis.Prefix + ".SPLITIO.events"
-
-	eventJSON := `{"m":{"s":"test-1.0.0","i":"127.0.0.1","n":"SOME_MACHINE_NAME"},"e":{"key":"6c4829ab-a0d8-4e72-8176-a334f596fb79","trafficTypeName":"user","eventTypeId":"a5213963-5564-43ff-83b2-ac6dbd5af3b1","value":2993.4876,"timestamp":1516310749882}}`
-
-	//Deleting previous test data
-	res := redis.Client.Del(eventListName)
-	if res.Err() != nil {
-		t.Error(res.Err().Error())
-		return
-	}
-
-	//Pushing 10003 events
-	eventBulk := make([]interface{}, itemsToAdd)
-	for i := 0; i < itemsToAdd; i++ {
-		eventBulk[i] = eventJSON
-	}
-	redis.Client.RPush(eventListName, eventBulk...)
-
-	//----------------
-
-	//Catching panic status and reporting error
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				t.Error("Recovered task", r)
-			}
-		}()
-
-		router := gin.Default()
-		router.POST("/flushEvents", func(c *gin.Context) {
-			FlushEvents(c)
-		})
-
-		router.POST("/dropEvents", func(c *gin.Context) {
-			DropEvents(c)
-		})
-
-		time.Sleep(3 * time.Second)
-
-		res1 := make(chan int)
-		res2 := make(chan int)
-		res3 := make(chan int)
-		res2Msg := make(chan string)
-		res3Msg := make(chan string)
-
-		go func() {
-			res := performRequest(router, "POST", "/flushEvents")
-			res1 <- res.Code
-		}()
-		go func() {
-			time.Sleep(300 * time.Millisecond)
-			res := performRequest(router, "POST", "/dropEvents")
-			res2 <- res.Code
-			bodyBytes, _ := ioutil.ReadAll(res.Body)
-			res2Msg <- string(bodyBytes)
-		}()
-		go func() {
-			time.Sleep(400 * time.Millisecond)
-			res := performRequest(router, "POST", "/flushEvents")
-			res3 <- res.Code
-			bodyBytes, _ := ioutil.ReadAll(res.Body)
-			res3Msg <- string(bodyBytes)
-		}()
-
-		x := <-res1
-		y := <-res2
-		yMsg := <-res2Msg
-		z := <-res3
-		zMsg := <-res3Msg
-		if x != http.StatusOK {
-			t.Error("Should returned 200")
-		}
-
-		if y != http.StatusInternalServerError {
-			t.Error("Should returned 500")
-		}
-		if yMsg != "Cannot execute drop. Another operation is performing operations on Events" {
-			t.Error("Wrong message")
-		}
-
-		if z != http.StatusInternalServerError {
-			t.Error("Should returned 500")
-		}
-		if zMsg != "Cannot execute flush. Another operation is performing operations on Events" {
-			t.Error("Wrong message")
-		}
-
-		res := performRequest(router, "POST", "/dropEvents")
-		if res.Code != http.StatusOK {
-			t.Error("Should returned 200")
-		}
-
-		res = performRequest(router, "POST", "/dropEvents")
-		if res.Code != http.StatusOK {
-			t.Error("Should returned 200")
-		}
-	}()
-}
-
-func TestFlushEventsFail(t *testing.T) {
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
-	conf.Initialize()
-	redis.Initialize(conf.Data.Redis)
-
-	router := gin.Default()
-	router.POST("/test", func(c *gin.Context) {
-		FlushEvents(c)
-	})
-
-	time.Sleep(3 * time.Second)
-	res := performRequest(router, "POST", "/test?size=200000")
-	bodyBytes, _ := ioutil.ReadAll(res.Body)
-	body := string(bodyBytes)
-	if res.Code != http.StatusBadRequest {
-		t.Error("Should returned 400")
-	}
-	if body != "Max Size to Flush is 25000" {
-		t.Error("Wrong message")
-	}
-}
-
-func TestAnotherOperationRunningOnImpressions(t *testing.T) {
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		rBody, _ := ioutil.ReadAll(r.Body)
-
-		var impressionsInPost []redis.ImpressionDTO
-		err := json.Unmarshal(rBody, &impressionsInPost)
-		time.Sleep(3 * time.Second)
-		if err != nil {
-			t.Error(err)
-			return
-		}
-
-	}))
-
-	defer ts.Close()
-
-	os.Setenv("SPLITIO_SDK_URL", ts.URL)
-	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
-
-	api.Initialize()
-	conf.Initialize()
-	conf.Data.Redis.Prefix = "impressionstest"
-
-	//Redis storage by default
-	redis.Initialize(conf.Data.Redis)
-
-	//INSERT MOCK DATA
-	//----------------
-	itemsToAdd := 10003
-	impressionListName := conf.Data.Redis.Prefix + ".SPLITIO.impressions"
-
-	impressionJSON := `{"m":{"s":"test-1.0.0","i":"127.0.0.1","n":"SOME_MACHINE_NAME"},"i":{"k":"6c4829ab-a0d8-4e72-8176-a334f596fb79","b":"bucketing","f":"feature","t":"ON","c":12345,"r":"rule","timestamp":1516310749882}}`
-
-	//Deleting previous test data
-	res := redis.Client.Del(impressionListName)
-	if res.Err() != nil {
-		t.Error(res.Err().Error())
-		return
-	}
-
-	//Pushing 10003 impressions
-	for i := 0; i < itemsToAdd; i++ {
-		redis.Client.RPush(impressionListName, impressionJSON)
-	}
-
-	//----------------
-
-	//Catching panic status and reporting error
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				t.Error("Recovered task", r)
-			}
-		}()
-
-		router := gin.Default()
-		router.POST("/flushImpressions", func(c *gin.Context) {
-			FlushImpressions(c)
-		})
-
-		router.POST("/dropImpressions", func(c *gin.Context) {
-			DropImpressions(c)
-		})
-
-		time.Sleep(3 * time.Second)
-
-		res1 := make(chan int)
-		res2 := make(chan int)
-		res3 := make(chan int)
-		res2Msg := make(chan string)
-		res3Msg := make(chan string)
-
-		go func() {
-			res := performRequest(router, "POST", "/flushImpressions")
-			res1 <- res.Code
-		}()
-		go func() {
-			time.Sleep(300 * time.Millisecond)
-			res := performRequest(router, "POST", "/dropImpressions")
-			bodyBytes, _ := ioutil.ReadAll(res.Body)
-			res2 <- res.Code
-			res2Msg <- string(bodyBytes)
-		}()
-		go func() {
-			time.Sleep(400 * time.Millisecond)
-			res := performRequest(router, "POST", "/flushImpressions")
-			bodyBytes, _ := ioutil.ReadAll(res.Body)
-			res3 <- res.Code
-			res3Msg <- string(bodyBytes)
-		}()
-
-		x := <-res1
-		y := <-res2
-		yMsg := <-res2Msg
-		z := <-res3
-		zMsg := <-res3Msg
-		if x != http.StatusOK {
-			t.Error("Should returned 200")
-		}
-
-		if y != http.StatusInternalServerError {
-			t.Error("Should returned 500")
-		}
-		if yMsg != "Cannot execute drop. Another operation is performing operations on Impressions" {
-			t.Error("Wrong message")
-		}
-
-		if z != http.StatusInternalServerError {
-			t.Error("Should returned 500")
-		}
-		if zMsg != "Cannot execute flush. Another operation is performing operations on Impressions" {
-			t.Error("Wrong message")
-			t.Error(zMsg)
-		}
-
-		res := performRequest(router, "POST", "/dropImpressions")
-		if res.Code != http.StatusOK {
-			t.Error("Should returned 200")
-		}
-
-		res = performRequest(router, "POST", "/dropImpressions")
-		if res.Code != http.StatusOK {
-			t.Error("Should returned 200")
-		}
-	}()
 }
 
 func TestHealthCheckEndpointSuccessful(t *testing.T) {
 	appcontext.Initialize(appcontext.ProducerMode)
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
-	tsHealthcheck := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, "ok")
-	}))
-	defer tsHealthcheck.Close()
-
-	os.Setenv("SPLITIO_SDK_URL", tsHealthcheck.URL)
-	os.Setenv("SPLITIO_EVENTS_URL", tsHealthcheck.URL)
-
-	api.Initialize()
+	conf.Initialize()
+	redisMock := mocks.MockClient{
+		GetCall: func(key string) redis.Result {
+			if key != "SPLITIO.splits.till" {
+				t.Error("Unexpected key")
+			}
+			return &mocks.MockResultOutput{
+				ResultStringCall: func() (string, error) { return "12", nil },
+			}
+		},
+	}
+	prefixed, _ := redis.NewPrefixedRedisClient(&redisMock, "")
 
 	router := gin.Default()
 	router.GET("/", func(c *gin.Context) {
-		c.Set("SplitStorage", mockStorage{shouldFail: false})
+		c.Set(common.SplitStorage, redisStorage.NewSplitStorage(prefixed, nil))
+		c.Set(common.HTTPClientsGin, common.HTTPClients{
+			AuthClient:   apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
+			SdkClient:    apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
+			EventsClient: apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
+		})
 		HealthCheck(c)
 	})
 
@@ -856,6 +491,9 @@ func TestHealthCheckEndpointSuccessful(t *testing.T) {
 	if !gs.Sdk.Healthy {
 		t.Error("Sdk should be healthy")
 	}
+	if !gs.Auth.Healthy {
+		t.Error("Auth should be healthy")
+	}
 	if gs.Proxy != nil {
 		t.Error("Should not be status for proxy mode")
 	}
@@ -866,24 +504,31 @@ func TestHealthCheckEndpointSuccessful(t *testing.T) {
 
 func TestHealthCheckEndpointFailure(t *testing.T) {
 	appcontext.Initialize(appcontext.ProducerMode)
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("500 - Error"))
-		fmt.Fprintln(w, "ok")
-	}))
-	defer ts.Close()
-
-	os.Setenv("SPLITIO_SDK_URL", ts.URL)
-	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
-
-	api.Initialize()
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
+	conf.Initialize()
+	redisMock := mocks.MockClient{
+		GetCall: func(key string) redis.Result {
+			if key != "SPLITIO.splits.till" {
+				t.Error("Unexpected key")
+			}
+			return &mocks.MockResultOutput{
+				ResultStringCall: func() (string, error) { return "", errors.New("some") },
+			}
+		},
+	}
+	prefixed, _ := redis.NewPrefixedRedisClient(&redisMock, "")
 
 	router := gin.Default()
 	router.GET("/", func(c *gin.Context) {
-		c.Set("SplitStorage", mockStorage{shouldFail: true})
+		c.Set(common.SplitStorage, redisStorage.NewSplitStorage(prefixed, nil))
+		c.Set(common.HTTPClientsGin, common.HTTPClients{
+			AuthClient:   apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, errors.New("some") }},
+			SdkClient:    apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
+			EventsClient: apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
+		})
 		HealthCheck(c)
 	})
 
@@ -911,29 +556,31 @@ func TestHealthCheckEndpointFailure(t *testing.T) {
 
 func TestHealthCheckEndpointSDKFail(t *testing.T) {
 	appcontext.Initialize(appcontext.ProducerMode)
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, "ok")
-	}))
-	defer ts.Close()
-
-	fail := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("500 - Error"))
-		fmt.Fprintln(w, "ok")
-	}))
-	defer fail.Close()
-
-	os.Setenv("SPLITIO_SDK_URL", fail.URL)
-	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
-
-	api.Initialize()
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
+	conf.Initialize()
+	redisMock := mocks.MockClient{
+		GetCall: func(key string) redis.Result {
+			if key != "SPLITIO.splits.till" {
+				t.Error("Unexpected key")
+			}
+			return &mocks.MockResultOutput{
+				ResultStringCall: func() (string, error) { return "12", nil },
+			}
+		},
+	}
+	prefixed, _ := redis.NewPrefixedRedisClient(&redisMock, "")
 
 	router := gin.Default()
 	router.GET("/", func(c *gin.Context) {
-		c.Set("SplitStorage", mockStorage{shouldFail: false})
+		c.Set(common.SplitStorage, redisStorage.NewSplitStorage(prefixed, nil))
+		c.Set(common.HTTPClientsGin, common.HTTPClients{
+			AuthClient:   apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
+			SdkClient:    apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, errors.New("some") }},
+			EventsClient: apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
+		})
 		HealthCheck(c)
 	})
 
@@ -951,6 +598,9 @@ func TestHealthCheckEndpointSDKFail(t *testing.T) {
 	if !gs.Storage.Healthy {
 		t.Error("Storage should be healthy")
 	}
+	if !gs.Auth.Healthy {
+		t.Error("Auth should be healthy")
+	}
 	if !gs.Events.Healthy {
 		t.Error("Events should be healthy")
 	}
@@ -967,29 +617,31 @@ func TestHealthCheckEndpointSDKFail(t *testing.T) {
 
 func TestHealthCheckEndpointEventsFail(t *testing.T) {
 	appcontext.Initialize(appcontext.ProducerMode)
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, "ok")
-	}))
-	defer ts.Close()
-
-	fail := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("500 - Error"))
-		fmt.Fprintln(w, "ok")
-	}))
-	defer fail.Close()
-
-	os.Setenv("SPLITIO_SDK_URL", ts.URL)
-	os.Setenv("SPLITIO_EVENTS_URL", fail.URL)
-
-	api.Initialize()
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
+	conf.Initialize()
+	redisMock := mocks.MockClient{
+		GetCall: func(key string) redis.Result {
+			if key != "SPLITIO.splits.till" {
+				t.Error("Unexpected key")
+			}
+			return &mocks.MockResultOutput{
+				ResultStringCall: func() (string, error) { return "12", nil },
+			}
+		},
+	}
+	prefixed, _ := redis.NewPrefixedRedisClient(&redisMock, "")
 
 	router := gin.Default()
 	router.GET("/", func(c *gin.Context) {
-		c.Set("SplitStorage", mockStorage{shouldFail: false})
+		c.Set(common.SplitStorage, redisStorage.NewSplitStorage(prefixed, nil))
+		c.Set(common.HTTPClientsGin, common.HTTPClients{
+			AuthClient:   apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
+			SdkClient:    apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
+			EventsClient: apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, errors.New("some") }},
+		})
 		HealthCheck(c)
 	})
 
@@ -1010,6 +662,9 @@ func TestHealthCheckEndpointEventsFail(t *testing.T) {
 	if gs.Events.Healthy {
 		t.Error("Events should not be healthy")
 	}
+	if !gs.Auth.Healthy {
+		t.Error("Auth should be healthy")
+	}
 	if !gs.Sdk.Healthy {
 		t.Error("Sdk should not be healthy")
 	}
@@ -1021,31 +676,40 @@ func TestHealthCheckEndpointEventsFail(t *testing.T) {
 	}
 }
 
-func TestHealtcheckEndpointProxy(t *testing.T) {
-	appcontext.Initialize(appcontext.ProxyMode)
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, "ok")
-	}))
-	defer ts.Close()
-
-	os.Setenv("SPLITIO_SDK_URL", ts.URL)
-	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
-
-	api.Initialize()
+func TestHealthCheckEndpointAuthFail(t *testing.T) {
+	appcontext.Initialize(appcontext.ProducerMode)
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
+	conf.Initialize()
+	redisMock := mocks.MockClient{
+		GetCall: func(key string) redis.Result {
+			if key != "SPLITIO.splits.till" {
+				t.Error("Unexpected key")
+			}
+			return &mocks.MockResultOutput{
+				ResultStringCall: func() (string, error) { return "12", nil },
+			}
+		},
+	}
+	prefixed, _ := redis.NewPrefixedRedisClient(&redisMock, "")
 
 	router := gin.Default()
 	router.GET("/", func(c *gin.Context) {
-		c.Set("SplitStorage", mockStorage{shouldFail: false})
+		c.Set(common.SplitStorage, redisStorage.NewSplitStorage(prefixed, nil))
+		c.Set(common.HTTPClientsGin, common.HTTPClients{
+			AuthClient:   apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, errors.New("some") }},
+			SdkClient:    apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
+			EventsClient: apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
+		})
 		HealthCheck(c)
 	})
 
 	w := performRequest(router, "GET", "/")
 
-	if http.StatusOK != w.Code {
-		t.Error("Expected 200")
+	if http.StatusInternalServerError != w.Code {
+		t.Error("Expected 500")
 	}
 
 	body, _ := ioutil.ReadAll(w.Body)
@@ -1053,19 +717,22 @@ func TestHealtcheckEndpointProxy(t *testing.T) {
 	gs := globalStatus{}
 	json.Unmarshal(body, &gs)
 
+	if !gs.Storage.Healthy {
+		t.Error("Storage should be healthy")
+	}
 	if !gs.Events.Healthy {
 		t.Error("Events should be healthy")
 	}
+	if gs.Auth.Healthy {
+		t.Error("Auth should be healthy")
+	}
 	if !gs.Sdk.Healthy {
-		t.Error("Sdk should be healthy")
+		t.Error("Sdk should not be healthy")
 	}
-	if gs.Proxy == nil {
-		t.Error("Should return status for proxy mode")
+	if gs.Proxy != nil {
+		t.Error("Should not be status for proxy mode")
 	}
-	if gs.Storage != nil {
-		t.Error("Should not be status for producer mode")
-	}
-	if gs.HealthySince.Date == "0" {
-		t.Error("It should have a date", gs.HealthySince.Date)
+	if gs.HealthySince.Date != "0" {
+		t.Error("Should be 0")
 	}
 }

@@ -4,13 +4,15 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/split-synchronizer/splitio/storage/boltdb/wrappers"
+	"github.com/splitio/go-split-commons/storage"
+	"github.com/splitio/split-synchronizer/splitio/common"
+	"github.com/splitio/split-synchronizer/splitio/proxy/interfaces"
 	"github.com/splitio/split-synchronizer/splitio/web/admin"
 	"github.com/splitio/split-synchronizer/splitio/web/middleware"
 )
 
-// ProxyOptions struct to set options for Proxy mode.
-type ProxyOptions struct {
+// Options struct to set options for Proxy mode.
+type Options struct {
 	Port                      string
 	AdminPort                 int
 	AdminUsername             string
@@ -18,10 +20,13 @@ type ProxyOptions struct {
 	APIKeys                   []string
 	ImpressionListenerEnabled bool
 	DebugOn                   bool
+	splitStorage              storage.SplitStorage
+	segmentStorage            storage.SegmentStorage
+	httpClients               common.HTTPClients
 }
 
 // Run runs the proxy server
-func Run(options *ProxyOptions) {
+func Run(options *Options) {
 	if !options.DebugOn {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -41,7 +46,6 @@ func Run(options *ProxyOptions) {
 		"SplitSDKVersion",
 		"Authorization"}
 	router.Use(cors.New(corsConfig))
-
 	router.Use(middleware.Logger())
 
 	// WebAdmin configuration
@@ -52,7 +56,11 @@ func Run(options *ProxyOptions) {
 		DebugOn:       options.DebugOn,
 	}
 
-	admin.StartAdminWebAdmin(waOptions, wrappers.NewSplitChangesWrapper(), wrappers.NewSegmentChangesWrapper())
+	admin.StartAdminWebAdmin(waOptions, common.Storages{
+		SplitStorage:          options.splitStorage,
+		SegmentStorage:        options.segmentStorage,
+		LocalTelemetryStorage: interfaces.ProxyTelemetryWrapper.LocalTelemetry,
+	}, options.httpClients, common.Recorders{})
 
 	// Beacon routes
 	beacon := router.Group("/api")
@@ -63,8 +71,8 @@ func Run(options *ProxyOptions) {
 
 	// API routes
 	api := router.Group("/api")
-	router.Use(middleware.ValidateAPIKeys(options.APIKeys))
-	router.Use(gzip.Gzip(gzip.DefaultCompression))
+	api.Use(middleware.ValidateAPIKeys(options.APIKeys))
+	api.Use(gzip.Gzip(gzip.DefaultCompression))
 	{
 		api.GET("/splitChanges", splitChanges)
 		api.GET("/segmentChanges/:name", segmentChanges)

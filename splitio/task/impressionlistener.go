@@ -1,6 +1,7 @@
 package task
 
 import (
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -8,7 +9,22 @@ import (
 	"github.com/splitio/split-synchronizer/splitio/recorder"
 )
 
-var impressionListenerStream = make(chan *ImpressionBulk, recorder.ImpressionListenerMainQueueSize)
+// ImpressionListenerMainQueueSize queue sizes
+const impressionListenerMainQueueSize int = 10
+
+// impressionListenerFailedQueueSize queue sizes
+const impressionListenerFailedQueueSize int = 10
+
+// ImpressionBulk struct
+type ImpressionBulk struct {
+	Data        json.RawMessage
+	SdkVersion  string
+	MachineIP   string
+	MachineName string
+	attempt     int
+}
+
+var impressionListenerStream = make(chan *ImpressionBulk, impressionListenerMainQueueSize)
 
 // QueueImpressionsForListener Impression Listener for Synchronizer
 func QueueImpressionsForListener(impressions *ImpressionBulk) error {
@@ -24,7 +40,7 @@ func queueFailedImpressions(failedQueue chan *ImpressionBulk, msg *ImpressionBul
 	select {
 	case failedQueue <- msg:
 	default:
-		log.Error.Println("Impression listener failed queue is full. " +
+		log.Instance.Error("Impression listener failed queue is full. " +
 			"Impressions will be dropped until the listener enpoint is restored.")
 	}
 }
@@ -55,7 +71,7 @@ func taskPostImpressionsToListener(ilSubmitter recorder.ImpressionListenerSubmit
 
 // PostImpressionsToListener Add Impressions to Listener
 func PostImpressionsToListener(ilSubmitter recorder.ImpressionListenerSubmitter) {
-	var failedQueue = make(chan *ImpressionBulk, recorder.ImpressionListenerFailedQueueSize)
+	var failedQueue = make(chan *ImpressionBulk, impressionListenerFailedQueueSize)
 	for {
 		taskPostImpressionsToListener(ilSubmitter, failedQueue)
 		time.Sleep(time.Duration(100) * time.Millisecond)

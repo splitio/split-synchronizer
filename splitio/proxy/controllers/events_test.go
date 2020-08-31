@@ -11,8 +11,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/splitio/go-split-commons/dtos"
+	"github.com/splitio/go-toolkit/logging"
+	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio/api"
+	"github.com/splitio/split-synchronizer/splitio/proxy/interfaces"
 )
 
 func TestEventBufferCounter(t *testing.T) {
@@ -32,9 +35,12 @@ func TestEventBufferCounter(t *testing.T) {
 }
 
 func TestAddEvents(t *testing.T) {
-	wg := &sync.WaitGroup{}
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	conf.Initialize()
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
+	interfaces.Initialize()
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
@@ -56,7 +62,7 @@ func TestAddEvents(t *testing.T) {
 
 		rBody, _ := ioutil.ReadAll(r.Body)
 
-		var eventsInPost []api.EventDTO
+		var eventsInPost []dtos.EventDTO
 		err := json.Unmarshal(rBody, &eventsInPost)
 		if err != nil {
 			t.Error(err)
@@ -76,21 +82,19 @@ func TestAddEvents(t *testing.T) {
 	os.Setenv("SPLITIO_SDK_URL", ts.URL)
 	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
 
-	api.Initialize()
-
-	e1 := api.EventDTO{
+	e1 := dtos.EventDTO{
 		Key:             "some_key",
 		EventTypeID:     "some_event",
 		TrafficTypeName: "some_traffic_type",
 	}
 
-	e2 := api.EventDTO{
+	e2 := dtos.EventDTO{
 		Key:             "another_key",
 		EventTypeID:     "some_event",
 		TrafficTypeName: "some_traffic_type",
 	}
 
-	events := []api.EventDTO{e1, e2}
+	events := []dtos.EventDTO{e1, e2}
 
 	data, err := json.Marshal(events)
 	if err != nil {
@@ -99,6 +103,7 @@ func TestAddEvents(t *testing.T) {
 	}
 
 	// Init Impressions controller.
+	wg := &sync.WaitGroup{}
 	InitializeEventWorkers(200, 2, wg)
 	AddEvents(data, "test-1.0.0", "127.0.0.1", "SOME_MACHINE_NAME")
 
