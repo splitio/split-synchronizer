@@ -19,6 +19,7 @@
 #    - SPLIT_SYNC_LOG_SLACK_CHANNEL            Set the Slack channel or user
 #    - SPLIT_SYNC_LOG_SLACK_WEBHOOK            Set the Slack webhook url
 #    - SPLIT_SYNC_IP_ADDRESSES_ENABLED         Flag to disable IP addresses and host name from being sent to the Split backend
+#    - SPLIT_SYNC_STREAMING_ENABLED            Flag to enable/disable streaming
 #
 #    - SPLIT_SYNC_ADVANCED_PARAMETERS          Set custom parameters that are not configured via provided Env vars.
 #                                              Sample:
@@ -139,6 +140,10 @@ fi
 
 if is_true "$SPLIT_SYNC_IP_ADDRESSES_ENABLED"; then
   PARAMETERS="${PARAMETERS} -ip-addresses-enabled"
+fi
+
+if is_true "$SPLIT_SYNC_STREAMING_ENABLED"; then
+  PARAMETERS="${PARAMETERS} -streaming-enabled"
 fi
 
 
