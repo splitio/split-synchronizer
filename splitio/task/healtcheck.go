@@ -4,10 +4,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/splitio/go-split-commons/service/api"
+	"github.com/splitio/go-split-commons/storage"
 	"github.com/splitio/split-synchronizer/appcontext"
 	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio/api"
-	"github.com/splitio/split-synchronizer/splitio/storage"
+	"github.com/splitio/split-synchronizer/splitio/common"
 	"github.com/splitio/split-synchronizer/splitio/util"
 )
 
@@ -22,19 +23,28 @@ func StopHealtcheck() {
 	}
 }
 
-func getSdkStatus() bool {
-	_, err := api.SdkClient.Get("/version")
+func getAuthStatus(authClient api.Client) bool {
+	_, err := authClient.Get("/version")
 	if err != nil {
-		log.Debug.Println(err.Error())
+		log.Instance.Debug(err.Error())
 		return false
 	}
 	return true
 }
 
-func getEventsStatus() bool {
-	_, err := api.EventsClient.Get("/version")
+func getSdkStatus(sdkClient api.Client) bool {
+	_, err := sdkClient.Get("/version")
 	if err != nil {
-		log.Debug.Println(err.Error())
+		log.Instance.Debug(err.Error())
+		return false
+	}
+	return true
+}
+
+func getEventsStatus(eventsClient api.Client) bool {
+	_, err := eventsClient.Get("/version")
+	if err != nil {
+		log.Instance.Debug(err.Error())
 		return false
 	}
 	return true
@@ -44,58 +54,62 @@ func getEventsStatus() bool {
 func GetStorageStatus(splitStorage storage.SplitStorage) bool {
 	_, err := splitStorage.ChangeNumber()
 	if err != nil {
-		log.Debug.Println(err.Error())
+		log.Instance.Debug(err.Error())
 		return false
 	}
 	return true
 }
 
-// CheckEventsSdkStatus checks status for event and sdk
-func CheckEventsSdkStatus() (bool, bool) {
-	eventStatus := getEventsStatus()
-	sdkStatus := getSdkStatus()
-	if healthySince.IsZero() && eventStatus && sdkStatus {
+// CheckSplitServers checks status for splits servers
+func CheckSplitServers(httpClients common.HTTPClients) (bool, bool, bool) {
+	eventStatus := getEventsStatus(httpClients.EventsClient)
+	sdkStatus := getSdkStatus(httpClients.SdkClient)
+	authStatus := getAuthStatus(httpClients.AuthClient)
+	if healthySince.IsZero() && eventStatus && sdkStatus && authStatus {
 		healthySince = time.Now()
 	} else {
-		if !sdkStatus || !eventStatus {
+		if !sdkStatus || !eventStatus || !authStatus {
 			healthySince = time.Time{}
 		}
 	}
-	return eventStatus, sdkStatus
+	return eventStatus, sdkStatus, authStatus
 }
 
 // CheckProducerStatus checks producer status
-func CheckProducerStatus(splitStorage storage.SplitStorage) (bool, bool, bool) {
-	eventStatus, sdkStatus := CheckEventsSdkStatus()
+func CheckProducerStatus(splitStorage storage.SplitStorage, httpClients common.HTTPClients) (bool, bool, bool, bool) {
+	eventStatus, sdkStatus, authStatus := CheckSplitServers(httpClients)
 	storageStatus := GetStorageStatus(splitStorage)
-	if healthySince.IsZero() && eventStatus && sdkStatus && storageStatus {
+	if healthySince.IsZero() && eventStatus && sdkStatus && storageStatus && authStatus {
 		healthySince = time.Now()
 	} else {
-		if !sdkStatus || !eventStatus || !storageStatus {
+		if !sdkStatus || !eventStatus || !authStatus || !storageStatus {
 			healthySince = time.Time{}
 		}
 	}
-	return eventStatus, sdkStatus, storageStatus
+	return eventStatus, sdkStatus, authStatus, storageStatus
 }
 
 // CheckEnvirontmentStatus task to check status of Synchronizer
-func CheckEnvirontmentStatus(wg *sync.WaitGroup, splitStorage storage.SplitStorage) {
+func CheckEnvirontmentStatus(wg *sync.WaitGroup, splitStorage storage.SplitStorage, httpClients common.HTTPClients) {
 	wg.Add(1)
 	keepLoop := true
+	idleDuration := time.Duration(60) * time.Second
+	timer := time.NewTimer(idleDuration)
 	for keepLoop {
 		if appcontext.ExecutionMode() == appcontext.ProducerMode {
-			CheckProducerStatus(splitStorage)
+			CheckProducerStatus(splitStorage, httpClients)
 		} else {
-			CheckEventsSdkStatus()
+			CheckSplitServers(httpClients)
 		}
 
+		timer.Reset(idleDuration)
 		select {
 		case msg := <-healtcheck:
 			if msg == "STOP" {
-				log.Debug.Println("Stopping task: healtheck")
+				log.Instance.Debug("Stopping task: healtheck")
 				keepLoop = false
 			}
-		case <-time.After(time.Duration(60) * time.Second):
+		case <-timer.C:
 		}
 	}
 	wg.Done()

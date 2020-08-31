@@ -3,7 +3,7 @@ jobs:
     - stage: test
       language: go
       go:
-        - 1.9.x
+        - 1.13.x
       services:
         - redis-server
       before_install:
@@ -16,7 +16,7 @@ jobs:
     - stage: build
       language: go
       go:
-        - 1.9.x
+        - 1.13.x
       services:
         - redis-server
       before_install:
@@ -51,6 +51,23 @@ jobs:
         on:
           branch: master
 
+    - stage: unstable
+      language: minimal
+      services:
+        - docker
+      before_script:
+        - COMMIT=$(git rev-parse --short HEAD)
+      script:
+        - docker build -t ${ARTIFACTORY_REGISTRY}/split-synchronizer:${COMMIT} .
+      deploy:
+        provider: script
+        script: >-
+          echo "${ARTIFACTORY_PASSWORD}" | docker login -u "${ARTIFACTORY_USER}" --password-stdin "${ARTIFACTORY_REGISTRY}" &&
+          docker push ${ARTIFACTORY_REGISTRY}/split-synchronizer
+        skip_cleanup: true
+        on:
+          all_branches: true
+
     - stage: xray
       language: minimal
       services:
@@ -70,6 +87,10 @@ jobs:
 
 stages:
   - name: test
+    if: NOT (type = cron)
   - name: build
+    if: (type = pull_request OR branch = master) AND NOT (type = cron)
+  - name: unstable
+    if: NOT (type = pull_request) AND NOT (branch = master)
   - name: xray
     if: (branch = master) OR (type = cron)

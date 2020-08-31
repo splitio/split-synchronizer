@@ -8,16 +8,15 @@ import (
 	"syscall"
 
 	"github.com/gin-gonic/gin"
+	"github.com/splitio/go-toolkit/logging"
 	"github.com/splitio/split-synchronizer/appcontext"
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio"
-	"github.com/splitio/split-synchronizer/splitio/api"
-	"github.com/splitio/split-synchronizer/splitio/recorder"
+	"github.com/splitio/split-synchronizer/splitio/common"
 	"github.com/splitio/split-synchronizer/splitio/stats"
-	"github.com/splitio/split-synchronizer/splitio/storage"
-	"github.com/splitio/split-synchronizer/splitio/storage/redis"
 	"github.com/splitio/split-synchronizer/splitio/task"
+	"github.com/splitio/split-synchronizer/splitio/util"
 	"github.com/splitio/split-synchronizer/splitio/web"
 	"github.com/splitio/split-synchronizer/splitio/web/dashboard"
 )
@@ -39,8 +38,9 @@ func Ping(c *gin.Context) {
 
 // ShowStats returns stats
 func ShowStats(c *gin.Context) {
-	counters := stats.Counters()
-	latencies := stats.Latencies()
+	localTelemetryStorage := util.GetTelemetryStorage(c.Get(common.LocalMetricStorage))
+	counters := localTelemetryStorage.PeekCounters()
+	latencies := localTelemetryStorage.PeekLatencies()
 	c.JSON(http.StatusOK, gin.H{"counters": counters, "latencies": latencies})
 }
 
@@ -100,7 +100,7 @@ func GetConfiguration(c *gin.Context) {
 		config["redis"] = conf.Data.Redis
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"apiKey":              log.ObfuscateAPIKey(conf.Data.APIKey),
+		"apiKey":              logging.ObfuscateAPIKey(conf.Data.APIKey),
 		"impressionListener":  conf.Data.ImpressionListener,
 		"splitRefreshRate":    conf.Data.SplitsFetchRate,
 		"segmentsRefreshRate": conf.Data.SegmentFetchRate,
@@ -143,20 +143,24 @@ func HealthCheck(c *gin.Context) {
 	uptime := stats.UptimeFormatted()
 	response["uptime"] = uptime
 
+	httpClients := util.GetHTTPClients(c.Get(common.HTTPClientsGin))
+
 	if appcontext.ExecutionMode() == appcontext.ProxyMode {
 		status["message"] = "Proxy service working as expected"
-		eventsOK, sdkOK := task.CheckEventsSdkStatus()
+		eventsOK, sdkOK, authOK := task.CheckSplitServers(*httpClients)
 		healthy["date"] = task.GetHealthySince()
 		healthy["time"] = task.GetHealthySinceTimestamp()
 		eventsStatus := parseStatus(eventsOK, "Events")
 		sdkStatus := parseStatus(sdkOK, "SDK")
+		authStatus := parseStatus(authOK, "Auth")
 
 		response["proxy"] = status
 		response["sdk"] = sdkStatus
 		response["events"] = eventsStatus
+		response["auth"] = authStatus
 		response["healthySince"] = healthy
 
-		if sdkStatus["healthy"].(bool) && eventsStatus["healthy"].(bool) {
+		if sdkStatus["healthy"].(bool) && eventsStatus["healthy"].(bool) && authStatus["healthy"].(bool) {
 			c.JSON(http.StatusOK, response)
 		} else {
 			c.JSON(http.StatusInternalServerError, response)
@@ -164,28 +168,30 @@ func HealthCheck(c *gin.Context) {
 	} else {
 
 		status["message"] = "Synchronizer service working as expected"
-		eventsOK, sdkOK := task.CheckEventsSdkStatus()
+		eventsOK, sdkOK, authOK := task.CheckSplitServers(*httpClients)
 		storageOk := false
 		// Storage service
-		splitStorage := getSplitStorage(c.Get("SplitStorage"))
+		splitStorage := util.GetSplitStorage(c.Get(common.SplitStorage))
 		if splitStorage != nil {
 			storageOk = task.GetStorageStatus(splitStorage)
 		} else {
-			log.Warning.Println("Storage Status could not be fetched")
+			log.Instance.Warning("Storage Status could not be fetched")
 		}
 		healthy["date"] = task.GetHealthySince()
 		healthy["time"] = task.GetHealthySinceTimestamp()
 		eventsStatus := parseStatus(eventsOK, "Events")
 		sdkStatus := parseStatus(sdkOK, "SDK")
 		storageStatus := parseStatus(storageOk, "Storage")
+		authStatus := parseStatus(authOK, "Auth")
 
 		response["sync"] = status
 		response["storage"] = storageStatus
 		response["sdk"] = sdkStatus
 		response["events"] = eventsStatus
+		response["auth"] = authStatus
 		response["healthySince"] = healthy
 
-		if storageStatus["healthy"].(bool) && sdkStatus["healthy"].(bool) && eventsStatus["healthy"].(bool) {
+		if storageStatus["healthy"].(bool) && sdkStatus["healthy"].(bool) && eventsStatus["healthy"].(bool) && authStatus["healthy"].(bool) {
 			c.JSON(http.StatusOK, response)
 		} else {
 			c.JSON(http.StatusInternalServerError, response)
@@ -193,99 +199,74 @@ func HealthCheck(c *gin.Context) {
 	}
 }
 
-func getSplitStorage(splitStorage interface{}, exists bool) storage.SplitStorage {
-	if !exists {
-		return nil
-	}
-	if splitStorage == nil {
-		log.Warning.Println("SplitStorage could not be fetched")
-		return nil
-	}
-	st, ok := splitStorage.(storage.SplitStorage)
-	if !ok {
-		log.Warning.Println("SplitStorage could not be fetched")
-		return nil
-	}
-	return st
-}
-
-func getSegmentStorage(segmentStorage interface{}, exists bool) storage.SegmentStorage {
-	if !exists {
-		return nil
-	}
-	if segmentStorage == nil {
-		log.Warning.Println("SegmentStorage could not be fetched")
-		return nil
-	}
-	st, ok := segmentStorage.(storage.SegmentStorage)
-	if !ok {
-		log.Warning.Println("SegmentStorage could not be fetched")
-		return nil
-	}
-	return st
-}
-
 // DashboardSegmentKeys returns a keys for a given segment
 func DashboardSegmentKeys(c *gin.Context) {
-
 	segmentName := c.Param("segment")
 
 	// Storage service
-	splitStorage := getSplitStorage(c.Get("SplitStorage"))
-	segmentStorage := getSegmentStorage(c.Get("SegmentStorage"))
+	storages := common.Storages{
+		SplitStorage:          util.GetSplitStorage(c.Get(common.SplitStorage)),
+		SegmentStorage:        util.GetSegmentStorage(c.Get(common.SegmentStorage)),
+		EventStorage:          util.GetEventStorage(c.Get(common.EventStorage)),
+		ImpressionStorage:     util.GetImpressionStorage(c.Get(common.ImpressionStorage)),
+		LocalTelemetryStorage: util.GetTelemetryStorage(c.Get(common.LocalMetricStorage)),
+	}
+	// HttpClients
+	httpClients := util.GetHTTPClients(c.Get(common.HTTPClientsGin))
 
-	if splitStorage != nil && segmentStorage != nil {
-		dash := createDashboard(splitStorage, segmentStorage)
+	if util.AreValidStorages(storages) && util.AreValidAPIClient(httpClients) {
+		dash := createDashboard(storages, *httpClients)
 		var toReturn = dash.HTMLSegmentKeys(segmentName)
 		c.String(http.StatusOK, "%s", toReturn)
 		return
 	}
+	log.Instance.Error("DashboardSegmentKeys: Could not fetch storages")
 	c.String(http.StatusInternalServerError, "%s", "Could not fetch storage")
 }
 
-func createDashboard(splitStorage storage.SplitStorage, segmentStorage storage.SegmentStorage) *dashboard.Dashboard {
+func createDashboard(storages common.Storages, httpClients common.HTTPClients) *dashboard.Dashboard {
 	if appcontext.ExecutionMode() == appcontext.ProxyMode {
-		return dashboard.NewDashboard(conf.Data.Proxy.Title, true, splitStorage, segmentStorage)
+		return dashboard.NewDashboard(conf.Data.Proxy.Title, true, storages, httpClients)
 	}
-	return dashboard.NewDashboard(conf.Data.Producer.Admin.Title, false, splitStorage, segmentStorage)
+	return dashboard.NewDashboard(conf.Data.Producer.Admin.Title, false, storages, httpClients)
 }
 
 // Dashboard returns a dashboard
 func Dashboard(c *gin.Context) {
 	// Storage service
-	splitStorage := getSplitStorage(c.Get("SplitStorage"))
-	segmentStorage := getSegmentStorage(c.Get("SegmentStorage"))
+	storages := common.Storages{
+		SplitStorage:          util.GetSplitStorage(c.Get(common.SplitStorage)),
+		SegmentStorage:        util.GetSegmentStorage(c.Get(common.SegmentStorage)),
+		EventStorage:          util.GetEventStorage(c.Get(common.EventStorage)),
+		ImpressionStorage:     util.GetImpressionStorage(c.Get(common.ImpressionStorage)),
+		LocalTelemetryStorage: util.GetTelemetryStorage(c.Get(common.LocalMetricStorage)),
+	}
+	// HttpClients
+	httpClients := util.GetHTTPClients(c.Get(common.HTTPClientsGin))
 
-	if splitStorage != nil && segmentStorage != nil {
-		dash := createDashboard(splitStorage, segmentStorage)
+	if util.AreValidStorages(storages) && util.AreValidAPIClient(httpClients) {
+		dash := createDashboard(storages, *httpClients)
 		//Write your 200 header status (or other status codes, but only WriteHeader once)
 		c.Writer.WriteHeader(http.StatusOK)
 		//Convert your cached html string to byte array
 		c.Writer.Write([]byte(dash.HTML()))
 		return
 	}
+	log.Instance.Error("Dashboard: Could not fetch storages")
 	c.String(http.StatusInternalServerError, "%s", "Could not fetch storage")
 }
 
 // GetEventsQueueSize returns events queue size
 func GetEventsQueueSize(c *gin.Context) {
-	if !conf.Data.Redis.DisableLegacyImpressions {
-		log.Warning.Println("DisableLegacyImpressions is false: The size of events will only consider the events from the queue.")
-	}
-
-	eventsStorageAdapter := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-	queueSize := eventsStorageAdapter.Size()
+	eventStorage := util.GetEventStorage(c.Get(common.EventStorage))
+	queueSize := eventStorage.Count()
 	c.JSON(http.StatusOK, gin.H{"queueSize": queueSize})
 }
 
 // GetImpressionsQueueSize returns impressions queue size
 func GetImpressionsQueueSize(c *gin.Context) {
-	if !conf.Data.Redis.DisableLegacyImpressions {
-		log.Warning.Println("DisableLegacyImpressions is false: The size of impressions will only consider the impressions from the queue.")
-	}
-
-	impressionsStorageAdapter := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-	queueSize := impressionsStorageAdapter.Size()
+	impressionStorage := util.GetImpressionStorage(c.Get(common.ImpressionStorage))
+	queueSize := impressionStorage.Count()
 	c.JSON(http.StatusOK, gin.H{"queueSize": queueSize})
 }
 
@@ -313,13 +294,13 @@ func DropEvents(c *gin.Context) {
 		return
 	}
 
-	eventsStorageAdapter := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+	eventStorage := util.GetEventStorage(c.Get(common.EventStorage))
 	size, err := getIntegerParameterFromQuery(c, "size")
 	if err != nil {
 		c.String(http.StatusBadRequest, "%s", err.Error())
 		return
 	}
-	err = eventsStorageAdapter.Drop(size)
+	err = eventStorage.Drop(size)
 	if err == nil {
 		c.String(http.StatusOK, "%s", "Events dropped")
 		return
@@ -336,13 +317,13 @@ func DropImpressions(c *gin.Context) {
 		return
 	}
 
-	impressionsStorageAdapter := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
+	impressionStorage := util.GetImpressionStorage(c.Get(common.ImpressionStorage))
 	size, err := getIntegerParameterFromQuery(c, "size")
 	if err != nil {
 		c.String(http.StatusBadRequest, "%s", err.Error())
 		return
 	}
-	err = impressionsStorageAdapter.Drop(size)
+	err = impressionStorage.Drop(size)
 	if err == nil {
 		c.String(http.StatusOK, "%s", "Impressions dropped")
 		return
@@ -357,13 +338,20 @@ func FlushEvents(c *gin.Context) {
 		c.String(http.StatusBadRequest, "%s", err.Error())
 		return
 	}
-	if size != nil && *size > api.MaxSizeToFlush {
-		c.String(http.StatusBadRequest, "%s", "Max Size to Flush is "+strconv.FormatInt(api.MaxSizeToFlush, 10))
+	if size != nil && *size > splitio.MaxSizeToFlush {
+		c.String(http.StatusBadRequest, "%s", "Max Size to Flush is "+strconv.FormatInt(splitio.MaxSizeToFlush, 10))
 		return
 	}
-	eventsStorageAdapter := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-	eventsRecorder := recorder.EventsHTTPRecorder{}
-	err = task.EventsFlush(eventsRecorder, eventsStorageAdapter, size)
+	recorders := util.GetRecorders(c.Get(common.RecordersGin))
+	if recorders == nil {
+		c.String(http.StatusInternalServerError, "%s", err.Error())
+		return
+	}
+	var toFlush int64 = 0
+	if size != nil {
+		toFlush = *size
+	}
+	err = recorders.Event.FlushEvents(toFlush)
 	if err != nil {
 		c.String(http.StatusInternalServerError, "%s", err.Error())
 		return
@@ -378,13 +366,20 @@ func FlushImpressions(c *gin.Context) {
 		c.String(http.StatusBadRequest, "%s", err.Error())
 		return
 	}
-	if size != nil && *size > api.MaxSizeToFlush {
-		c.String(http.StatusBadRequest, "%s", "Max Size to Flush is "+strconv.FormatInt(api.MaxSizeToFlush, 10))
+	if size != nil && *size > splitio.MaxSizeToFlush {
+		c.String(http.StatusBadRequest, "%s", "Max Size to Flush is "+strconv.FormatInt(splitio.MaxSizeToFlush, 10))
 		return
 	}
-	impressionsStorageAdapter := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-	impressionRecorder := recorder.ImpressionsHTTPRecorder{}
-	err = task.ImpressionsFlush(impressionRecorder, impressionsStorageAdapter, size, conf.Data.Redis.DisableLegacyImpressions, true)
+	recorders := util.GetRecorders(c.Get(common.RecordersGin))
+	if recorders == nil {
+		c.String(http.StatusInternalServerError, "%s", err.Error())
+		return
+	}
+	var toFlush int64 = 0
+	if size != nil {
+		toFlush = *size
+	}
+	err = recorders.Impression.FlushImpressions(toFlush)
 	if err != nil {
 		c.String(http.StatusInternalServerError, "%s", err.Error())
 		return
@@ -394,14 +389,19 @@ func FlushImpressions(c *gin.Context) {
 
 // GetMetrics returns stats for dashboard
 func GetMetrics(c *gin.Context) {
-	// Storage service
-	splitStorage := getSplitStorage(c.Get("SplitStorage"))
-	segmentStorage := getSegmentStorage(c.Get("SegmentStorage"))
+	storages := common.Storages{
+		SplitStorage:          util.GetSplitStorage(c.Get(common.SplitStorage)),
+		EventStorage:          util.GetEventStorage(c.Get(common.EventStorage)),
+		ImpressionStorage:     util.GetImpressionStorage(c.Get(common.ImpressionStorage)),
+		LocalTelemetryStorage: util.GetTelemetryStorage(c.Get(common.LocalMetricStorage)),
+		SegmentStorage:        util.GetSegmentStorage(c.Get(common.SegmentStorage)),
+	}
 
-	if splitStorage != nil && segmentStorage != nil {
-		stats := web.GetMetrics(splitStorage, segmentStorage)
+	if util.AreValidStorages(storages) {
+		stats := web.GetMetrics(storages)
 		c.JSON(http.StatusOK, stats)
 		return
 	}
-	c.String(http.StatusInternalServerError, "%s", "Could not fetch storage")
+	log.Instance.Error("GetMetrics: Could not fetch storages")
+	c.String(http.StatusInternalServerError, "%s", "Could not fetch storages")
 }

@@ -4,10 +4,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio"
+	"github.com/splitio/split-synchronizer/splitio/common"
 	"github.com/splitio/split-synchronizer/splitio/stats"
-	"github.com/splitio/split-synchronizer/splitio/storage"
 	"github.com/splitio/split-synchronizer/splitio/task"
 	"github.com/splitio/split-synchronizer/splitio/web"
 	"github.com/splitio/split-synchronizer/splitio/web/dashboard/HTMLtemplates"
@@ -15,32 +14,43 @@ import (
 
 // Dashboard represents html dashboard class
 type Dashboard struct {
-	title          string
-	proxy          bool
-	splitStorage   storage.SplitStorage
-	segmentStorage storage.SegmentStorage
-	layoutTpl      string
-	mainMenuTpl    string
+	title       string
+	proxy       bool
+	storages    common.Storages
+	httpClients common.HTTPClients
+	layoutTpl   string
+	mainMenuTpl string
 }
 
 // NewDashboard returns an instance of Dashboard struct
-func NewDashboard(title string, isProxy bool, splitStorage storage.SplitStorage, segmentStorage storage.SegmentStorage) *Dashboard {
-	return &Dashboard{title: title, proxy: isProxy, splitStorage: splitStorage, segmentStorage: segmentStorage}
+func NewDashboard(
+	title string,
+	isProxy bool,
+	storages common.Storages,
+	httpClients common.HTTPClients,
+) *Dashboard {
+	return &Dashboard{
+		title:       title,
+		proxy:       isProxy,
+		storages:    storages,
+		httpClients: httpClients,
+	}
 }
 
 //HTML returns parsed HTML code
 func (d *Dashboard) HTML() string {
-	metrics := web.GetMetrics(d.splitStorage, d.segmentStorage)
+	metrics := web.GetMetrics(d.storages)
 
 	eventStatus := true
 	sdkStatus := true
+	authStatus := true
 	storageStatus := true
 	runningMode := "Running as Proxy Mode"
 	if !d.proxy {
 		runningMode = "Running as Synchronizer Mode"
-		eventStatus, sdkStatus, storageStatus = task.CheckProducerStatus(d.splitStorage)
+		eventStatus, sdkStatus, authStatus, storageStatus = task.CheckProducerStatus(d.storages.SplitStorage, d.httpClients)
 	} else {
-		eventStatus, sdkStatus = task.CheckEventsSdkStatus()
+		eventStatus, sdkStatus, authStatus = task.CheckSplitServers(d.httpClients)
 	}
 
 	//Parsing main menu
@@ -83,6 +93,7 @@ func (d *Dashboard) HTML() string {
 			EventServerStatus:            eventStatus,
 			SDKServerStatus:              sdkStatus,
 			StorageStatus:                storageStatus,
+			AuthServerStatus:             authStatus,
 			Sync:                         true,
 			HealthySince:                 task.GetHealthySinceTimestamp(),
 			RefreshTime:                  15000,
@@ -96,29 +107,22 @@ func (d *Dashboard) HTML() string {
 
 // HTMLSegmentKeys return a html representation of segment's keys list
 func (d *Dashboard) HTMLSegmentKeys(segmentName string) string {
-
-	keys, err := d.segmentStorage.Keys(segmentName)
-	if err != nil {
-		log.Error.Println("Error fetching keys for segment:", segmentName)
-		return ""
-	}
-
+	keys := d.storages.SegmentStorage.Keys(segmentName)
 	segmentKeys := make([]HTMLtemplates.CachedSegmentKeysRowTPLVars, 0)
 
-	for _, key := range keys {
-		lastModified := time.Unix(0, key.LastModified*int64(time.Millisecond))
-		var removedColor string
-		if key.Removed {
-			removedColor = "danger"
-		} else {
-			removedColor = ""
+	if keys != nil {
+		for _, key := range keys.List() {
+			name, _ := key.(string)
+			cn, _ := d.storages.SegmentStorage.ChangeNumber(name)
+			lastModified := time.Unix(0, cn)
+			removedColor := ""
+			segmentKeys = append(segmentKeys, HTMLtemplates.CachedSegmentKeysRowTPLVars{
+				Name:         name,
+				LastModified: lastModified.UTC().Format(time.UnixDate),
+				Removed:      strconv.FormatBool(false),
+				RemovedColor: removedColor,
+			})
 		}
-		segmentKeys = append(segmentKeys, HTMLtemplates.CachedSegmentKeysRowTPLVars{
-			Name:         key.Name,
-			LastModified: lastModified.UTC().Format(time.UnixDate),
-			Removed:      strconv.FormatBool(key.Removed),
-			RemovedColor: removedColor,
-		})
 	}
 
 	return web.ParseTemplate(

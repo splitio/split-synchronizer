@@ -1,4 +1,3 @@
-// Package controllers implements functions to call from http controllers
 package controllers
 
 import (
@@ -6,14 +5,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/splitio/go-split-commons/dtos"
+	"github.com/splitio/go-split-commons/service/api"
+	"github.com/splitio/go-split-commons/storage"
+	"github.com/splitio/go-split-commons/util"
+	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio/api"
-	"github.com/splitio/split-synchronizer/splitio/stats/counter"
-	"github.com/splitio/split-synchronizer/splitio/stats/latency"
+	"github.com/splitio/split-synchronizer/splitio/proxy/interfaces"
 )
-
-var eventLatencyRegister = latency.NewLatencyBucket()
-var eventCounterRegister = counter.NewLocalCounter()
 
 const eventChannelCapacity = 5
 
@@ -28,6 +27,8 @@ var eventPoolBufferChannel = make(chan int, 10)
 
 const eventChannelMessageRelease = 0
 const eventChannelMessageStop = 10
+
+var eventsRecorder *api.HTTPEventsRecorder
 
 //----------------------------------------------------------------
 //----------------------------------------------------------------
@@ -70,6 +71,7 @@ type eventChanMessage struct {
 
 // InitializeEventWorkers initializes event workers
 func InitializeEventWorkers(footprint int64, postRate int64, waitingGroup *sync.WaitGroup) {
+	eventsRecorder = api.NewHTTPEventsRecorder(conf.Data.APIKey, conf.ParseAdvancedOptions(), log.Instance)
 	go eventConditionsWorker(postRate, waitingGroup)
 	for i := 0; i < eventChannelCapacity; i++ {
 		go addEventsToBufferWorker(footprint, waitingGroup)
@@ -91,20 +93,23 @@ func AddEvents(data []byte, sdkVersion string, machineIP string, machineName str
 func eventConditionsWorker(postRate int64, waitingGroup *sync.WaitGroup) {
 	waitingGroup.Add(1)
 	defer waitingGroup.Done()
+	idleDuration := time.Second * time.Duration(postRate)
+	timer := time.NewTimer(idleDuration)
 	for {
+		timer.Reset(idleDuration)
 		// Blocking conditions to send events
 		select {
 		case msg := <-eventPoolBufferChannel:
 			switch msg {
 			case eventChannelMessageRelease:
-				log.Debug.Println("Releasing events by Size")
+				log.Instance.Debug("Releasing events by Size")
 			case eventChannelMessageStop:
 				// flush events and finish
 				sendEvents()
 				return
 			}
-		case <-time.After(time.Second * time.Duration(postRate)):
-			log.Debug.Println("Releasing events by post rate")
+		case <-timer.C:
+			log.Instance.Debug("Releasing events by post rate")
 		}
 
 		sendEvents()
@@ -173,7 +178,7 @@ func sendEvents() {
 					var rawEvents []json.RawMessage
 					err := json.Unmarshal(byteEvent, &rawEvents)
 					if err != nil {
-						log.Error.Println(err)
+						log.Instance.Error(err)
 						continue
 					}
 
@@ -185,20 +190,24 @@ func sendEvents() {
 
 				data, errl := json.Marshal(toSend)
 				if errl != nil {
-					log.Error.Println(errl)
+					log.Instance.Error(errl)
 					continue
 				}
-				startCheckpoint := eventLatencyRegister.StartMeasuringLatency()
-				errp := api.PostEvents(data, sdkVersion, machineIP, machineName)
+				before := time.Now()
+				errp := eventsRecorder.RecordRaw("/events/bulk", data, dtos.Metadata{
+					SDKVersion:  sdkVersion,
+					MachineIP:   machineIP,
+					MachineName: machineName,
+				})
 				if errp != nil {
-					log.Error.Println(errp)
-					eventCounterRegister.Increment("backend::request.error")
+					log.Instance.Error(errp)
+					if httpError, ok := errp.(*dtos.HTTPError); ok {
+						interfaces.ProxyTelemetryWrapper.StoreCounters(storage.PostEventsCounter, string(httpError.Code))
+					}
 				} else {
-					eventLatencyRegister.RegisterLatency(
-						"backend::/api/events/bulk",
-						startCheckpoint,
-					)
-					eventCounterRegister.Increment("backend::request.ok")
+					bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
+					interfaces.ProxyTelemetryWrapper.StoreLatencies(storage.PostEventsLatency, bucket)
+					interfaces.ProxyTelemetryWrapper.StoreCounters(storage.PostEventsCounter, "ok")
 				}
 
 			}

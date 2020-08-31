@@ -28,7 +28,6 @@ func PostMessageToSlack(message string, attachements []SlackMessageAttachment) {
 
 // PostShutdownMessageToSlack post the shutdown message to slack channel
 func PostShutdownMessageToSlack(kill bool) {
-
 	var title string
 	var color string
 
