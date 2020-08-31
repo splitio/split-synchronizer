@@ -5,17 +5,20 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"os"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/splitio/go-toolkit/logging"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio/recorder"
 )
 
 func before() {
-	stdoutWriter := os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
 }
 
 func TestQueueImpressionsToPostToListener(t *testing.T) {
@@ -31,9 +34,9 @@ func TestQueueImpressionsToPostToListener(t *testing.T) {
 }
 
 func TestTaskPostImpressionsToListener(t *testing.T) {
-	received := false
+	var received int64
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		received = true
+		atomic.AddInt64(&received, 1)
 		var data recorder.ImpressionListenerPostBody
 		body, _ := ioutil.ReadAll(r.Body)
 		err := json.Unmarshal(body, &data)
@@ -59,7 +62,7 @@ func TestTaskPostImpressionsToListener(t *testing.T) {
 
 	time.Sleep(time.Duration(5) * time.Second)
 
-	if !received {
+	if atomic.LoadInt64(&received) <= 0 {
 		t.Error("Message not received")
 	}
 }

@@ -3,6 +3,8 @@ package util
 import (
 	"fmt"
 	"time"
+
+	"github.com/splitio/go-toolkit/hasher"
 )
 
 // ParseTime parses a date to format d h m s
@@ -29,4 +31,10 @@ func ParseTime(date time.Time) string {
 	}
 
 	return fmt.Sprintf("%dd %dh %dm %ds", d, h, m, s)
+}
+
+// HashAPIKey hashes apikey
+func HashAPIKey(apikey string) uint32 {
+	murmur32 := hasher.NewMurmur332Hasher(0)
+	return murmur32.Hash([]byte(apikey))
 }

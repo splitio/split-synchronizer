@@ -6,16 +6,27 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/splitio/go-split-commons/dtos"
+	"github.com/splitio/go-split-commons/service"
+	"github.com/splitio/go-split-commons/service/api"
+	"github.com/splitio/go-split-commons/synchronizer"
+	"github.com/splitio/go-split-commons/synchronizer/worker/metric"
+	"github.com/splitio/go-split-commons/tasks"
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio"
+	"github.com/splitio/split-synchronizer/splitio/common"
+	"github.com/splitio/split-synchronizer/splitio/proxy/boltdb"
+	"github.com/splitio/split-synchronizer/splitio/proxy/boltdb/collections"
 	"github.com/splitio/split-synchronizer/splitio/proxy/controllers"
+	"github.com/splitio/split-synchronizer/splitio/proxy/fetcher"
+	"github.com/splitio/split-synchronizer/splitio/proxy/interfaces"
+	"github.com/splitio/split-synchronizer/splitio/proxy/storage"
 	"github.com/splitio/split-synchronizer/splitio/recorder"
-	"github.com/splitio/split-synchronizer/splitio/storage/boltdb"
 	"github.com/splitio/split-synchronizer/splitio/task"
 )
 
-func gracefulShutdownProxy(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
+func gracefulShutdownProxy(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup, syncManager *synchronizer.Manager) {
 	<-sigs
 
 	log.PostShutdownMessageToSlack(false)
@@ -35,22 +46,99 @@ func gracefulShutdownProxy(sigs chan os.Signal, gracefulShutdownWaitingGroup *sy
 	fmt.Println(" -> Sending STOP to healthcheck goroutine")
 	task.StopHealtcheck()
 
+	// Stopping Sync Manager in charge of PeriodicFetchers and PeriodicRecorders as well as Streaming
+	fmt.Println(" -> Sending STOP to Synchronizer")
+	syncManager.Stop()
+
 	fmt.Println(" * Waiting goroutines stop")
 	gracefulShutdownWaitingGroup.Wait()
+
 	fmt.Println(" * Shutting it down - see you soon!")
 	os.Exit(splitio.SuccessfulOperation)
 }
 
 // Start initialize in proxy mode
 func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
-
+	// Initialization of DB
 	var dbpath = boltdb.InMemoryMode
 	if conf.Data.Proxy.PersistMemoryPath != "" {
 		dbpath = conf.Data.Proxy.PersistMemoryPath
 	}
 	boltdb.Initialize(dbpath, nil)
-	go gracefulShutdownProxy(sigs, gracefulShutdownWaitingGroup)
-	go task.FetchRawSplits(conf.Data.SplitsFetchRate, conf.Data.SegmentFetchRate)
+
+	// Getting initial config data
+	advanced := conf.ParseAdvancedOptions()
+	metadata := dtos.Metadata{
+		MachineIP:   "NA",
+		MachineName: "NA",
+		SDKVersion:  "split-sync-proxy-" + splitio.Version,
+	}
+
+	// Initialization common
+	interfaces.Initialize()
+
+	// Setup fetchers & recorders
+	splitAPI := service.NewSplitAPI(
+		conf.Data.APIKey,
+		advanced,
+		log.Instance,
+		metadata,
+	)
+
+	// Instantiating storages
+	splitCollection := collections.NewSplitChangesCollection(boltdb.DBB)
+	splitStorage := storage.NewSplitStorage(splitCollection)
+	segmentCollection := collections.NewSegmentChangesCollection(boltdb.DBB)
+	segmentStorage := storage.NewSegmentStorage(segmentCollection)
+
+	// Creating Workers and Tasks
+	workers := synchronizer.Workers{
+		SplitFetcher:      fetcher.NewSplitFetcher(splitCollection, splitAPI.SplitFetcher, interfaces.ProxyTelemetryWrapper, log.Instance),
+		SegmentFetcher:    fetcher.NewSegmentFetcher(segmentCollection, splitCollection, splitAPI.SegmentFetcher, interfaces.ProxyTelemetryWrapper, log.Instance),
+		TelemetryRecorder: metric.NewRecorderSingle(interfaces.TelemetryStorage, splitAPI.MetricRecorder, metadata),
+	}
+	splitTasks := synchronizer.SplitTasks{
+		SplitSyncTask:     tasks.NewFetchSplitsTask(workers.SplitFetcher, conf.Data.SplitsFetchRate, log.Instance),
+		SegmentSyncTask:   tasks.NewFetchSegmentsTask(workers.SegmentFetcher, conf.Data.SegmentFetchRate, advanced.SegmentWorkers, advanced.SegmentQueueSize, log.Instance),
+		TelemetrySyncTask: tasks.NewRecordTelemetryTask(workers.TelemetryRecorder, conf.Data.MetricsPostRate, log.Instance),
+	}
+
+	// Creating Synchronizer for tasks
+	syncImpl := synchronizer.NewSynchronizer(
+		advanced,
+		splitTasks,
+		workers,
+		log.Instance,
+		nil,
+	)
+
+	managerStatus := make(chan int, 1)
+	syncManager, err := synchronizer.NewSynchronizerManager(
+		syncImpl,
+		log.Instance,
+		advanced,
+		splitAPI.AuthClient,
+		splitStorage,
+		managerStatus,
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	// Proxy mode - graceful shutdown
+	go gracefulShutdownProxy(sigs, gracefulShutdownWaitingGroup, syncManager)
+
+	// Run Sync Manager
+	go syncManager.Start()
+	select {
+	case status := <-managerStatus:
+		switch status {
+		case synchronizer.Ready:
+			log.Instance.Info("Synchronizer tasks started")
+		case synchronizer.Error:
+			os.Exit(splitio.ExitTaskInitialization)
+		}
+	}
 
 	if conf.Data.ImpressionListener.Endpoint != "" {
 		go task.PostImpressionsToListener(recorder.ImpressionListenerSubmitter{
@@ -58,8 +146,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		})
 	}
 
-	go task.CheckEnvirontmentStatus(gracefulShutdownWaitingGroup, nil)
-
+	// Initialization routes
 	controllers.InitializeImpressionWorkers(
 		conf.Data.Proxy.ImpressionsMaxSize,
 		int64(conf.Data.ImpressionsPostRate),
@@ -71,7 +158,12 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		gracefulShutdownWaitingGroup,
 	)
 
-	proxyOptions := &ProxyOptions{
+	httpClients := common.HTTPClients{
+		SdkClient:    api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.SdkURL, log.Instance, metadata),
+		EventsClient: api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.EventsURL, log.Instance, metadata),
+		AuthClient:   api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.AuthServiceURL, log.Instance, metadata),
+	}
+	proxyOptions := &Options{
 		Port:                      ":" + strconv.Itoa(conf.Data.Proxy.Port),
 		APIKeys:                   conf.Data.Proxy.Auth.APIKeys,
 		AdminPort:                 conf.Data.Proxy.AdminPort,
@@ -79,8 +171,13 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		AdminPassword:             conf.Data.Proxy.AdminPassword,
 		DebugOn:                   conf.Data.Logger.DebugOn,
 		ImpressionListenerEnabled: conf.Data.ImpressionListener.Endpoint != "",
+		httpClients:               httpClients,
+		splitStorage:              splitStorage,
+		segmentStorage:            segmentStorage,
 	}
 
-	//Run webserver loop
+	go task.CheckEnvirontmentStatus(gracefulShutdownWaitingGroup, splitStorage, httpClients)
+
+	// Run webserver loop
 	Run(proxyOptions)
 }

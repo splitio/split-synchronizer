@@ -13,6 +13,7 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/splitio/go-toolkit/logging"
 	"github.com/splitio/split-synchronizer/appcontext"
 	"github.com/splitio/split-synchronizer/splitio/producer"
 	"github.com/splitio/split-synchronizer/splitio/proxy"
@@ -20,8 +21,6 @@ import (
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio"
-	"github.com/splitio/split-synchronizer/splitio/api"
-	"github.com/splitio/split-synchronizer/splitio/stats"
 )
 
 type configMap map[string]interface{}
@@ -29,7 +28,6 @@ type flagInformation struct {
 	configFile             *string
 	writeDefaultConfigFile *string
 	asProxy                *bool
-	benchmarkMode          *bool
 	versionInfo            *bool
 	cliParametersMap       configMap
 }
@@ -37,21 +35,11 @@ type flagInformation struct {
 var gracefulShutdownWaitingGroup = &sync.WaitGroup{}
 var sigs = make(chan os.Signal, 1)
 
-func checkDeprecatedConfigParameters() {
-	deprecatedMessages := conf.ProcessDeprecatedOptions()
-	if len(deprecatedMessages) > 0 {
-		for _, msg := range deprecatedMessages {
-			log.Warning.Println(msg)
-		}
-	}
-}
-
 func parseCLIFlags() *flagInformation {
 	cliFlags := &flagInformation{
 		configFile:             flag.String("config", "splitio.agent.conf.json", "a configuration file"),
 		writeDefaultConfigFile: flag.String("write-default-config", "", "write a default configuration file"),
 		asProxy:                flag.Bool("proxy", false, "run as split server proxy to improve sdk performance"),
-		benchmarkMode:          flag.Bool("benchmark", false, "Benchmark mode"),
 		versionInfo:            flag.Bool("version", false, "Print the version"),
 	}
 
@@ -97,11 +85,10 @@ func loadConfiguration(configFile *string, cliParametersMap configMap) error {
 	return nil
 }
 
-func loadLogger(benchmarkMode *bool) {
+func loadLogger() {
 	var err error
 	var commonWriter io.Writer
 	var fullWriter io.Writer
-	var benchmarkWriter = ioutil.Discard
 	var verboseWriter = ioutil.Discard
 	var debugWriter = ioutil.Discard
 	var fileWriter = ioutil.Discard
@@ -109,11 +96,11 @@ func loadLogger(benchmarkMode *bool) {
 	var slackWriter = ioutil.Discard
 
 	if len(conf.Data.Logger.File) > 3 {
-		opt := &log.FileRotateOptions{
+		fileWriter, err = logging.NewFileRotate(&logging.FileRotateOptions{
 			MaxBytes:    conf.Data.Logger.FileMaxSize,
 			BackupCount: conf.Data.Logger.FileBackupCount,
-			Path:        conf.Data.Logger.File}
-		fileWriter, err = log.NewFileRotate(opt)
+			Path:        conf.Data.Logger.File,
+		})
 		if err != nil {
 			fmt.Printf("Error opening log file: %s \n", err.Error())
 			fileWriter = ioutil.Discard
@@ -134,19 +121,20 @@ func loadLogger(benchmarkMode *bool) {
 	commonWriter = io.MultiWriter(stdoutWriter, fileWriter)
 	fullWriter = io.MultiWriter(commonWriter, slackWriter)
 
+	level := logging.LevelInfo
 	if conf.Data.Logger.VerboseOn {
 		verboseWriter = commonWriter
+		level = logging.LevelVerbose
 	}
 
 	if conf.Data.Logger.DebugOn {
 		debugWriter = commonWriter
+		if !conf.Data.Logger.VerboseOn {
+			level = logging.LevelDebug
+		}
 	}
 
-	if *benchmarkMode == true {
-		benchmarkWriter = commonWriter
-	}
-
-	log.Initialize(benchmarkWriter, verboseWriter, debugWriter, commonWriter, commonWriter, fullWriter)
+	log.Initialize(verboseWriter, debugWriter, commonWriter, commonWriter, fullWriter, level)
 }
 
 func main() {
@@ -176,10 +164,7 @@ func main() {
 	}
 
 	// These functions rely on the config module being successfully populated
-	loadLogger(cliFlags.benchmarkMode)
-	checkDeprecatedConfigParameters()
-	api.Initialize()
-	stats.Initialize()
+	loadLogger()
 
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 

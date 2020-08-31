@@ -2,193 +2,36 @@ package main
 
 import (
 	"testing"
-
-	"github.com/splitio/split-synchronizer/conf"
 )
 
-func TestInitializationWithProperParameters(t *testing.T) {
-	c := "test/dataset/test.conf.warning1.json"
-	loadConfiguration(&c, nil)
-
-	if len(conf.ProcessDeprecatedOptions()) > 0 {
-		t.Error("It should not be messages to inform")
-	}
-
-	if conf.Data.EventsConsumerReadSize > 0 {
-		t.Error("It should be 0")
-	}
-	if conf.Data.EventsPushRate > 0 {
-		t.Error("It should be 0")
-	}
-	if conf.Data.ImpressionsRefreshRate > 0 {
-		t.Error("It should be 0")
-	}
-	if conf.Data.EventsConsumerThreads > 0 {
-		t.Error("It should be 0")
+func TestWrongConfigs(t *testing.T) {
+	c := "test/dataset/test.conf.error1.json"
+	err := loadConfiguration(&c, nil)
+	if err.Error() != "\"redisError\" is not a valid property in configuration" {
+		t.Error("Unexpected error msg")
 	}
 }
 
-func TestInitializationWithPassingEeventsConsumerReadSize(t *testing.T) {
-	c := "test/dataset/test.conf.warning2.json"
-	loadConfiguration(&c, nil)
-
-	messages := conf.ProcessDeprecatedOptions()
-
-	if len(messages) == 0 {
-		t.Error("It should be messages to inform")
-	}
-
-	expected := "The parameter 'eventsConsumerReadSize' and 'events-consumer-read-size' will be deprecated soon in favor of 'eventsPerPost' or 'events-per-post'. Mapping to replacement: 'eventsPerPost'/'events-per-post'."
-	if messages[0] != expected {
-		t.Error("Error is distinct from the expected one")
-		t.Error("Actual -> ", messages[0])
-		t.Error("Expected -> ", expected)
-	}
-
-	if conf.Data.EventsPerPost != 5 {
-		t.Error("Wrong value for event per post")
-	}
-	if conf.Data.EventsPushRate > 0 {
-		t.Error("It should be 0")
-	}
-	if conf.Data.ImpressionsRefreshRate > 0 {
-		t.Error("It should be 0")
-	}
-	if conf.Data.EventsConsumerThreads > 0 {
-		t.Error("It should be 0")
+func TestWrongConfigsChild(t *testing.T) {
+	c := "test/dataset/test.conf.error2.json"
+	err := loadConfiguration(&c, nil)
+	if err.Error() != "\"redis.hostError\" is not a valid property in configuration" {
+		t.Error("Unexpected error msg")
 	}
 }
 
-func TestInitializationWithPassingEventsPushRate(t *testing.T) {
-	c := "test/dataset/test.conf.warning3.json"
-	loadConfiguration(&c, nil)
-
-	messages := conf.ProcessDeprecatedOptions()
-
-	if len(messages) == 0 {
-		t.Error("It should be messages to inform")
-	}
-
-	expected := "The parameter 'eventsPushRate' and 'events-push-rate' will be deprecated soon in favor of 'eventsPostRate' or 'events-post-rate'. Mapping to replacement: 'eventsPostRate'/'events-post-rate'."
-	if messages[0] != expected {
-		t.Error("Error is distinct from the expected one")
-		t.Error("Actual -> ", messages[0])
-		t.Error("Expected -> ", expected)
-	}
-
-	if conf.Data.EventsConsumerReadSize > 0 {
-		t.Error("It should be 0")
-	}
-	if conf.Data.EventsPostRate != 30 {
-		t.Error("It should be 30")
-	}
-	if conf.Data.ImpressionsRefreshRate > 0 {
-		t.Error("It should be 0")
-	}
-	if conf.Data.EventsConsumerThreads > 0 {
-		t.Error("It should be 0")
-	}
-}
-func TestInitializationWithPassingDeprecatedProperties(t *testing.T) {
-	c := "test/dataset/test.conf.warning4.json"
-	loadConfiguration(&c, nil)
-
-	messages := conf.ProcessDeprecatedOptions()
-
-	if len(messages) == 0 {
-		t.Error("It should be messages to inform")
-	}
-
-	expected := "The parameter 'eventsConsumerReadSize' and 'events-consumer-read-size' will be deprecated soon in favor of 'eventsPerPost' or 'events-per-post'. Mapping to replacement: 'eventsPerPost'/'events-per-post'."
-	if messages[0] != expected {
-		t.Error("Error is distinct from the expected one")
-		t.Error("Actual -> ", messages[0])
-		t.Error("Expected -> ", expected)
-	}
-
-	expected = "The parameter 'eventsPushRate' and 'events-push-rate' will be deprecated soon in favor of 'eventsPostRate' or 'events-post-rate'. Mapping to replacement: 'eventsPostRate'/'events-post-rate'."
-	if messages[1] != expected {
-		t.Error("Error is distinct from the expected one")
-		t.Error("Actual -> ", messages[1])
-		t.Error("Expected -> ", expected)
-	}
-
-	expected = "The parameter 'impressionsRefreshRate' will be deprecated soon in favor of 'impressionsPostRate'. Mapping to replacement: 'impressionsPostRate'."
-	if messages[2] != expected {
-		t.Error("Error is distinct from the expected one")
-		t.Error("Actual -> ", messages[2])
-		t.Error("Expected -> ", expected)
-	}
-
-	expected = "The parameter 'eventsConsumerThreads' and 'events-consumer-threads' will be deprecated soon in favor of 'eventsThreads' or 'events-threads'. Mapping to replacement 'eventsThreads'/'events-threads'."
-	if messages[3] != expected {
-		t.Error("Error is distinct from the expected one")
-		t.Error("Actual -> ", messages[3])
-		t.Error("Expected -> ", expected)
-	}
-
-	if conf.Data.EventsPerPost != 5 {
-		t.Error("It should be 5")
-	}
-	if conf.Data.EventsPostRate != 30 {
-		t.Error("It should be 30")
-	}
-	if conf.Data.ImpressionsPostRate != 2 {
-		t.Error("It should be 2")
-	}
-	if conf.Data.EventsThreads != 2 {
-		t.Error("It should be 2")
+func TestWrongConfigsMetric(t *testing.T) {
+	c := "test/dataset/test.conf.error3.json"
+	err := loadConfiguration(&c, nil)
+	if err.Error() != "\"metricsError\" is not a valid property in configuration" {
+		t.Error("Unexpected error msg")
 	}
 }
 
-func TestInitializationWithPassingDeprecatedPropertiesAndNonDeprecatedProperties(t *testing.T) {
-	c := "test/dataset/test.conf.warning5.json"
-	loadConfiguration(&c, nil)
-
-	messages := conf.ProcessDeprecatedOptions()
-
-	if len(messages) == 0 {
-		t.Error("It should be messages to inform")
-	}
-
-	expected := "The parameter 'eventsConsumerReadSize' and 'events-consumer-read-size' will be deprecated soon in favor of 'eventsPerPost' or 'events-per-post'. Mapping to replacement: 'eventsPerPost'/'events-per-post'."
-	if messages[0] != expected {
-		t.Error("Error is distinct from the expected one")
-		t.Error("Actual -> ", messages[0])
-		t.Error("Expected -> ", expected)
-	}
-
-	expected = "The parameter 'eventsPushRate' and 'events-push-rate' will be deprecated soon in favor of 'eventsPostRate' or 'events-post-rate'. Mapping to replacement: 'eventsPostRate'/'events-post-rate'."
-	if messages[1] != expected {
-		t.Error("Error is distinct from the expected one")
-		t.Error("Actual -> ", messages[1])
-		t.Error("Expected -> ", expected)
-	}
-
-	expected = "The parameter 'impressionsRefreshRate' will be deprecated soon in favor of 'impressionsPostRate'. Mapping to replacement: 'impressionsPostRate'."
-	if messages[2] != expected {
-		t.Error("Error is distinct from the expected one")
-		t.Error("Actual -> ", messages[2])
-		t.Error("Expected -> ", expected)
-	}
-
-	expected = "The parameter 'eventsConsumerThreads' and 'events-consumer-threads' will be deprecated soon in favor of 'eventsThreads' or 'events-threads'. Mapping to replacement 'eventsThreads'/'events-threads'."
-	if messages[3] != expected {
-		t.Error("Error is distinct from the expected one")
-		t.Error("Actual -> ", messages[3])
-		t.Error("Expected -> ", expected)
-	}
-
-	if conf.Data.EventsPerPost != 5 {
-		t.Error("It should be 5")
-	}
-	if conf.Data.EventsPostRate != 30 {
-		t.Error("It should be 30")
-	}
-	if conf.Data.ImpressionsPostRate != 5 {
-		t.Error("It should be 5")
-	}
-	if conf.Data.EventsThreads != 4 {
-		t.Error("It should be 4")
+func TestConfigsOk(t *testing.T) {
+	c := "test/dataset/test.conf.json"
+	err := loadConfiguration(&c, nil)
+	if err != nil {
+		t.Error("Unexpected error msg")
 	}
 }

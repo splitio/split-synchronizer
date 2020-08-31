@@ -14,11 +14,13 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/splitio/go-split-commons/dtos"
+	"github.com/splitio/go-toolkit/logging"
 	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio/api"
+	"github.com/splitio/split-synchronizer/splitio/proxy/boltdb"
+	"github.com/splitio/split-synchronizer/splitio/proxy/boltdb/collections"
 	"github.com/splitio/split-synchronizer/splitio/proxy/controllers"
-	"github.com/splitio/split-synchronizer/splitio/storage/boltdb"
-	"github.com/splitio/split-synchronizer/splitio/storage/boltdb/collections"
+	"github.com/splitio/split-synchronizer/splitio/proxy/interfaces"
 )
 
 func TestSplitController(t *testing.T) {
@@ -81,7 +83,6 @@ func TestSplitController(t *testing.T) {
 }
 
 func TestSegmentController(t *testing.T) {
-
 	db, err := boltdb.NewInstance(fmt.Sprintf("/tmp/test_controller_segments_%d.db", time.Now().UnixNano()), nil)
 	if err != nil {
 		t.Error(err)
@@ -215,22 +216,26 @@ func checkHeaders(t *testing.T, r *http.Request) {
 }
 
 func TestPostImpressionsBeacon(t *testing.T) {
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
+	interfaces.Initialize()
+
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		checkHeaders(t, r)
 
 		rBody, _ := ioutil.ReadAll(r.Body)
 
-		var impressionsInPost []api.ImpressionsDTO
+		var impressionsInPost []dtos.ImpressionsDTO
 		err := json.Unmarshal(rBody, &impressionsInPost)
 		if err != nil {
 			t.Error(err)
 			return
 		}
 
-		if impressionsInPost[0].TestName != "some_test" ||
-			impressionsInPost[0].KeyImpressions[0].KeyName != "some_key_1" ||
-			impressionsInPost[0].KeyImpressions[1].KeyName != "some_key_2" {
-			t.Error("Posted impressions arrived mal-formed")
+		if len(impressionsInPost) != 2 {
+			t.Error("Impressions malformed")
 		}
 
 		fmt.Fprintln(w, "ok!!")
@@ -241,11 +246,7 @@ func TestPostImpressionsBeacon(t *testing.T) {
 	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
 
 	wg := &sync.WaitGroup{}
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
-	api.Initialize()
-	controllers.InitializeImpressionWorkers(200, 2, wg)
+	controllers.InitializeImpressionWorkers(200, 3, wg)
 
 	gin.SetMode(gin.TestMode)
 	router := gin.Default()
@@ -284,8 +285,6 @@ func TestPostImpressionsBeacon(t *testing.T) {
 		t.Error("Should returned 204")
 	}
 
-	time.Sleep(time.Duration(1) * time.Second)
-
 	res = performRequest(
 		router,
 		"POST",
@@ -297,17 +296,23 @@ func TestPostImpressionsBeacon(t *testing.T) {
 	}
 
 	// Lets async function post impressions
-	time.Sleep(time.Duration(4) * time.Second)
+	time.Sleep(time.Duration(5) * time.Second)
 }
 
 func TestPostEventsBeacon(t *testing.T) {
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
+	interfaces.Initialize()
+
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		checkHeaders(t, r)
 
 		rBody, _ := ioutil.ReadAll(r.Body)
 
-		var eventsInPost []api.EventDTO
+		var eventsInPost []dtos.EventDTO
 		err := json.Unmarshal(rBody, &eventsInPost)
 		if err != nil {
 			t.Error(err)
@@ -328,11 +333,8 @@ func TestPostEventsBeacon(t *testing.T) {
 	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
 
 	wg := &sync.WaitGroup{}
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
 
-	api.Initialize()
-	controllers.InitializeEventWorkers(200, 2, wg)
+	controllers.InitializeEventWorkers(200, 3, wg)
 
 	gin.SetMode(gin.TestMode)
 	router := gin.Default()
@@ -383,7 +385,7 @@ func TestPostEventsBeacon(t *testing.T) {
 	}
 
 	// Lets async function post impressions
-	time.Sleep(time.Duration(4) * time.Second)
+	time.Sleep(time.Duration(5) * time.Second)
 }
 
 func TestAuth(t *testing.T) {
@@ -395,10 +397,10 @@ func TestAuth(t *testing.T) {
 	os.Setenv("SPLITIO_SDK_URL", ts.URL)
 	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
 
-	stdoutWriter := ioutil.Discard //os.Stdout
-	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter)
-
-	api.Initialize()
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
 
 	gin.SetMode(gin.TestMode)
 	router := gin.Default()
@@ -410,7 +412,17 @@ func TestAuth(t *testing.T) {
 	if res.Code != http.StatusOK {
 		t.Error("Should returned 200")
 	}
-	if res.Body.String() != "{\"pushEnabled\":false,\"token\":\"\"}" {
-		t.Error("Unexpected response")
+	type response struct {
+		pushEnabled bool
+		token       string
+	}
+
+	var body *response
+	_ = json.Unmarshal(res.Body.Bytes(), &body)
+	if body.pushEnabled {
+		t.Error("It should be false")
+	}
+	if body.token != "" {
+		t.Error("Wrong token")
 	}
 }

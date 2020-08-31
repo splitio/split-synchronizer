@@ -1,4 +1,3 @@
-// Package controllers implements functions to call from http controllers
 package controllers
 
 import (
@@ -6,14 +5,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/splitio/go-split-commons/dtos"
+	"github.com/splitio/go-split-commons/service/api"
+	"github.com/splitio/go-split-commons/storage"
+	"github.com/splitio/go-split-commons/util"
+	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio/api"
-	"github.com/splitio/split-synchronizer/splitio/stats/counter"
-	"github.com/splitio/split-synchronizer/splitio/stats/latency"
+	"github.com/splitio/split-synchronizer/splitio/proxy/interfaces"
 )
-
-var impressionLatencyRegister = latency.NewLatencyBucket()
-var impressionCounterRegister = counter.NewLocalCounter()
 
 //-----------------------------------------------------------------
 // IMPRESSIONS
@@ -35,6 +34,8 @@ var impressionWorkersStopChannel = make(chan bool, impressionChannelCapacity)
 
 const impressionChannelMessageRelease = 0
 const impressionChannelMessageStop = 10
+
+var impressionRecorder *api.HTTPImpressionRecorder
 
 //----------------------------------------------------------------
 //----------------------------------------------------------------
@@ -77,6 +78,7 @@ type impressionChanMessage struct {
 
 // InitializeImpressionWorkers initializes impression workers
 func InitializeImpressionWorkers(footprint int64, postRate int64, waitingGroup *sync.WaitGroup) {
+	impressionRecorder = api.NewHTTPImpressionRecorder(conf.Data.APIKey, conf.ParseAdvancedOptions(), log.Instance)
 	go impressionConditionsWorker(postRate, waitingGroup)
 	for i := 0; i < impressionChannelCapacity; i++ {
 		go addImpressionsToBufferWorker(footprint, waitingGroup)
@@ -94,20 +96,23 @@ func AddImpressions(data []byte, sdkVersion string, machineIP string, machineNam
 func impressionConditionsWorker(postRate int64, waitingGroup *sync.WaitGroup) {
 	waitingGroup.Add(1)
 	defer waitingGroup.Done()
+	idleDuration := time.Second * time.Duration(postRate)
+	timer := time.NewTimer(idleDuration)
 	for {
+		timer.Reset(idleDuration)
 		// Blocking conditions to send impressions
 		select {
 		case msg := <-impressionPoolBufferChannel:
 			switch msg {
 			case impressionChannelMessageRelease:
-				log.Debug.Println("Releasing impressions by Size")
+				log.Instance.Debug("Releasing impressions by Size")
 			case impressionChannelMessageStop:
 				// flush impressions and finish
 				sendImpressions()
 				return
 			}
-		case <-time.After(time.Second * time.Duration(postRate)):
-			log.Debug.Println("Releasing impressions by post rate")
+		case <-timer.C:
+			log.Instance.Debug("Releasing impressions by post rate")
 		}
 
 		sendImpressions()
@@ -171,7 +176,7 @@ func sendImpressions() {
 					var rawImpressions []json.RawMessage
 					err := json.Unmarshal(byteImpression, &rawImpressions)
 					if err != nil {
-						log.Error.Println(err)
+						log.Instance.Error(err)
 						continue
 					}
 
@@ -183,17 +188,24 @@ func sendImpressions() {
 
 				data, errl := json.Marshal(toSend)
 				if errl != nil {
-					log.Error.Println(errl)
+					log.Instance.Error(errl)
 					continue
 				}
-				startCheckpoint := impressionLatencyRegister.StartMeasuringLatency()
-				errp := api.PostImpressions(data, sdkVersion, machineIP, machineName)
+				before := time.Now()
+				errp := impressionRecorder.RecordRaw("/testImpressions/bulk", data, dtos.Metadata{
+					SDKVersion:  sdkVersion,
+					MachineIP:   machineIP,
+					MachineName: machineName,
+				})
 				if errp != nil {
-					log.Error.Println(errp)
-					impressionCounterRegister.Increment("backend::request.error")
+					log.Instance.Error(errp)
+					if httpError, ok := errp.(*dtos.HTTPError); ok {
+						interfaces.ProxyTelemetryWrapper.StoreCounters(storage.TestImpressionsCounter, string(httpError.Code))
+					}
 				} else {
-					impressionLatencyRegister.RegisterLatency("backend::/api/testImpressions/bulk", startCheckpoint)
-					impressionCounterRegister.Increment("backend::request.ok")
+					bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
+					interfaces.ProxyTelemetryWrapper.StoreLatencies(storage.TestImpressionsLatency, bucket)
+					interfaces.ProxyTelemetryWrapper.StoreCounters(storage.TestImpressionsCounter, "ok")
 				}
 
 			}

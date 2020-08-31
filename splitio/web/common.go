@@ -5,15 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"text/template"
 	"time"
 
+	"github.com/splitio/go-split-commons/storage"
 	"github.com/splitio/split-synchronizer/appcontext"
-	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio/stats"
-	"github.com/splitio/split-synchronizer/splitio/storage"
-	"github.com/splitio/split-synchronizer/splitio/storage/redis"
+	"github.com/splitio/split-synchronizer/splitio/common"
 	"github.com/splitio/split-synchronizer/splitio/task"
 	"github.com/splitio/split-synchronizer/splitio/web/dashboard/HTMLtemplates"
 )
@@ -95,10 +94,10 @@ func ParseTemplate(name string, text string, data interface{}) string {
 	return buf.String()
 }
 
-func parseLatencySerieData(key string, label string, backgroundColor string, borderColor string) string {
+func parseLatencySerieData(key string, label string, backgroundColor string, borderColor string, localTelemetry storage.MetricsStorage) string {
 	var toReturn string
 
-	latencies := stats.Latencies()
+	latencies := localTelemetry.PeekLatencies()
 	if ldata, ok := latencies[key]; ok {
 		if serie, err := json.Marshal(ldata); err == nil {
 			toReturn = ParseTemplate(
@@ -116,78 +115,92 @@ func parseLatencySerieData(key string, label string, backgroundColor string, bor
 	return toReturn
 }
 
-func parseSDKStats() string {
+func parseSDKStats(localTelemetry storage.MetricsStorage) string {
 	var toReturn string
 
 	toReturn += parseLatencySerieData(
-		"/api/splitChanges",
+		"sdk.splitChanges",
 		"/api/splitChanges",
 		toRGBAString(255, 159, 64, 0.2),
-		toRGBAString(255, 159, 64, 1))
+		toRGBAString(255, 159, 64, 1),
+		localTelemetry,
+	)
 
 	toReturn += parseLatencySerieData(
-		"/api/segmentChanges/*",
-		"/api/segmentChanges/*",
+		"sdk.segmentChanges",
+		"/api/segmentChanges",
 		toRGBAString(54, 162, 235, 0.2),
-		toRGBAString(54, 162, 235, 1))
+		toRGBAString(54, 162, 235, 1),
+		localTelemetry,
+	)
 
 	toReturn += parseLatencySerieData(
-		"/api/testImpressions/bulk",
+		"sdk.impressions",
 		"/api/testImpressions/bulk",
 		toRGBAString(75, 192, 192, 0.2),
-		toRGBAString(75, 192, 192, 1))
+		toRGBAString(75, 192, 192, 1),
+		localTelemetry,
+	)
 
 	toReturn += parseLatencySerieData(
-		"/api/events/bulk",
+		"sdk.events",
 		"/api/events/bulk",
 		toRGBAString(255, 205, 86, 0.2),
-		toRGBAString(255, 205, 86, 1))
+		toRGBAString(255, 205, 86, 1),
+		localTelemetry,
+	)
 
 	toReturn += parseLatencySerieData(
-		"/api/mySegments/*",
-		"/api/mySegments/*",
+		"sdk.mySegments",
+		"/api/mySegments",
 		toRGBAString(153, 102, 255, 0.2),
-		toRGBAString(153, 102, 255, 1))
+		toRGBAString(153, 102, 255, 1),
+		localTelemetry,
+	)
 
 	return toReturn
 }
 
-func parseBackendStats() string {
+func parseBackendStats(localTelemetry storage.MetricsStorage) string {
 	var toReturn string
 
 	toReturn += parseLatencySerieData(
 		"backend::/api/splitChanges",
 		"/api/splitChanges",
 		toRGBAString(255, 159, 64, 0.2),
-		toRGBAString(255, 159, 64, 1))
+		toRGBAString(255, 159, 64, 1),
+		localTelemetry,
+	)
 
 	toReturn += parseLatencySerieData(
 		"backend::/api/segmentChanges",
-		"/api/segmentChanges/*",
+		"/api/segmentChanges/",
 		toRGBAString(54, 162, 235, 0.2),
-		toRGBAString(54, 162, 235, 1))
+		toRGBAString(54, 162, 235, 1),
+		localTelemetry,
+	)
 
 	toReturn += parseLatencySerieData(
 		"backend::/api/testImpressions/bulk",
 		"/api/testImpressions/bulk",
 		toRGBAString(75, 192, 192, 0.2),
-		toRGBAString(75, 192, 192, 1))
+		toRGBAString(75, 192, 192, 1),
+		localTelemetry,
+	)
 
 	toReturn += parseLatencySerieData(
 		"backend::/api/events/bulk",
 		"/api/events/bulk",
 		toRGBAString(255, 205, 86, 0.2),
-		toRGBAString(255, 205, 86, 1))
+		toRGBAString(255, 205, 86, 1),
+		localTelemetry,
+	)
 
 	return toReturn
 }
 
 func parseCachedSplits(splitStorage storage.SplitStorage) string {
-	cachedSplits, err := splitStorage.RawSplits()
-	if err != nil {
-		log.Error.Println("Error fetching cached splits")
-		return ""
-	}
+	cachedSplits := splitStorage.All()
 
 	return ParseTemplate(
 		"CachedSplits",
@@ -195,30 +208,28 @@ func parseCachedSplits(splitStorage storage.SplitStorage) string {
 		HTMLtemplates.NewCachedSplitsTPLVars(cachedSplits))
 }
 
-func parseCachedSegments(segmentStorage storage.SegmentStorage) string {
-	cachedSegments, err := segmentStorage.RegisteredSegmentNames()
-	if err != nil {
-		log.Error.Println("Error fetching cached segment list")
-		return ""
-	}
+func parseCachedSegments(splitStorage storage.SplitStorage, segmentStorage storage.SegmentStorage) string {
+	cachedSegments := splitStorage.SegmentNames()
 
 	toRender := make([]*HTMLtemplates.CachedSegmentRowTPLVars, 0)
-	for _, segment := range cachedSegments {
+	for _, s := range cachedSegments.List() {
 
-		activeKeys, err := segmentStorage.CountActiveKeys(segment)
-		if err != nil {
-			log.Warning.Printf("Error counting active keys for segment %s\n", segment)
+		segment, _ := s.(string)
+		activeKeys := segmentStorage.Keys(segment)
+		size := 0
+		if activeKeys != nil {
+			size = activeKeys.Size()
 		}
 
-		removedKeys, err := segmentStorage.CountRemovedKeys(segment)
-		if err != nil {
-			log.Warning.Printf("Error counting removed keys for segment %s\n", segment)
+		removedKeys := 0
+		if appcontext.ExecutionMode() == appcontext.ProxyMode {
+			removedKeys = int(segmentStorage.CountRemovedKeys(segment))
 		}
 
 		// LAST MODIFIED
 		changeNumber, err := segmentStorage.ChangeNumber(segment)
 		if err != nil {
-			log.Warning.Printf("Error fetching last update for segment %s\n", segment)
+			log.Instance.Warning(fmt.Sprintf("Error fetching last update for segment %s\n", segment))
 		}
 		lastModified := time.Unix(0, changeNumber*int64(time.Millisecond))
 
@@ -226,10 +237,10 @@ func parseCachedSegments(segmentStorage storage.SegmentStorage) string {
 			&HTMLtemplates.CachedSegmentRowTPLVars{
 				ProxyMode:    appcontext.ExecutionMode() == appcontext.ProxyMode,
 				Name:         segment,
-				ActiveKeys:   strconv.Itoa(int(activeKeys)),
+				ActiveKeys:   strconv.Itoa(size),
 				LastModified: lastModified.UTC().Format(time.UnixDate),
-				RemovedKeys:  strconv.Itoa(int(removedKeys)),
-				TotalKeys:    strconv.Itoa(int(removedKeys) + int(activeKeys)),
+				RemovedKeys:  strconv.Itoa(removedKeys),
+				TotalKeys:    strconv.Itoa(removedKeys + size),
 			})
 	}
 
@@ -239,27 +250,23 @@ func parseCachedSegments(segmentStorage storage.SegmentStorage) string {
 		HTMLtemplates.CachedSegmentsTPLVars{Segments: toRender})
 }
 
-func parseEventsSize() string {
+func parseEventsSize(eventStorage storage.EventsStorage) string {
 	if appcontext.ExecutionMode() == appcontext.ProxyMode {
 		return "0"
 	}
 
-	eventsStorageAdapter := redis.NewEventStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-	size := eventsStorageAdapter.Size()
-
+	size := eventStorage.Count()
 	eventsSize := strconv.FormatInt(size, 10)
 
 	return eventsSize
 }
 
-func parseImpressionSize() string {
+func parseImpressionSize(impressionStorage storage.ImpressionStorage) string {
 	if appcontext.ExecutionMode() == appcontext.ProxyMode {
 		return "0"
 	}
 
-	impressionsStorageAdapter := redis.NewImpressionStorageAdapter(redis.Client, conf.Data.Redis.Prefix)
-	size := impressionsStorageAdapter.Size()
-
+	size := impressionStorage.Count()
 	impressionsSize := strconv.FormatInt(size, 10)
 
 	return impressionsSize
@@ -288,41 +295,40 @@ func parseImpressionsLambda() string {
 }
 
 // GetMetrics data
-func GetMetrics(splitStorage storage.SplitStorage, segmentStorage storage.SegmentStorage) Metrics {
-	splitNames, err := splitStorage.SplitsNames()
-	if err != nil {
-		log.Error.Println("Error reading splits, maybe storage has not been initialized yet")
-	}
-
-	segmentNames, err := segmentStorage.RegisteredSegmentNames()
-	if err != nil {
-		log.Error.Println("Error reading segments, maybe storage has not been initialized yet")
-	}
+func GetMetrics(storages common.Storages) Metrics {
+	splitNames := storages.SplitStorage.SplitNames()
+	segmentNames := storages.SplitStorage.SegmentNames()
 
 	// Counters
-	counters := stats.Counters()
+	counters := storages.LocalTelemetryStorage.PeekCounters()
+	backendErrorCount := int64(0)
+	for key, counter := range counters {
+		if strings.Contains(key, "backend::") && key != "backend::request.ok" {
+			backendErrorCount += counter
+		}
+	}
 
 	return Metrics{
 		SplitsNumber:                 strconv.Itoa(len(splitNames)),
-		SegmentsNumber:               strconv.Itoa(len(segmentNames)),
+		SegmentsNumber:               strconv.Itoa(segmentNames.Size()),
 		LoggedErrors:                 formatNumber(log.ErrorDashboard.Counts()),
 		LoggedMessages:               log.ErrorDashboard.Messages(),
-		RequestErrorFormatted:        formatNumber(counters["request.error"]),
-		RequestOkFormatted:           formatNumber(counters["request.ok"]),
-		SdksTotalRequests:            formatNumber(counters["request.ok"] + counters["request.error"]),
-		BackendTotalRequests:         formatNumber(counters["backend::request.ok"] + counters["backend::request.error"]),
+		RequestErrorFormatted:        formatNumber(counters["sdk.request.error"]),
+		RequestOkFormatted:           formatNumber(counters["sdk.request.ok"]),
+		SdksTotalRequests:            formatNumber(counters["sdk.request.ok"] + counters["sdk.request.error"]),
+		BackendTotalRequests:         formatNumber(counters["backend::request.ok"] + backendErrorCount),
 		BackendRequestOkFormatted:    formatNumber(counters["backend::request.ok"]),
-		BackendRequestErrorFormatted: formatNumber(counters["backend::request.error"]),
-		SplitRows:                    parseCachedSplits(splitStorage),
-		SegmentRows:                  parseCachedSegments(segmentStorage),
-		LatenciesGroupDataBackend:    "[" + parseBackendStats() + "]",
+		BackendRequestErrorFormatted: formatNumber(backendErrorCount),
+		SplitRows:                    parseCachedSplits(storages.SplitStorage),
+		SegmentRows:                  parseCachedSegments(storages.SplitStorage, storages.SegmentStorage),
+		LatenciesGroupDataBackend:    "[" + parseBackendStats(storages.LocalTelemetryStorage) + "]",
 		BackendRequestOk:             strconv.Itoa(int(counters["backend::request.ok"])),
-		BackendRequestError:          strconv.Itoa(int(counters["backend::request.error"])),
-		LatenciesGroupData:           "[" + parseSDKStats() + "]",
-		RequestOk:                    strconv.Itoa(int(counters["request.ok"])),
-		RequestError:                 strconv.Itoa(int(counters["request.error"])),
-		EventsQueueSize:              parseEventsSize(),
-		ImpressionsQueueSize:         parseImpressionSize(),
+		BackendRequestError:          strconv.Itoa(int(backendErrorCount)),
+		LatenciesGroupData:           "[" + parseSDKStats(storages.LocalTelemetryStorage) + "]",
+		RequestOk:                    strconv.Itoa(int(counters["sdk.request.ok"])),
+		RequestError:                 strconv.Itoa(int(counters["sdk.request.error"])),
+		EventsQueueSize:              parseEventsSize(storages.EventStorage),
+		ImpressionsQueueSize:         parseImpressionSize(storages.ImpressionStorage),
 		EventsLambda:                 parseEventsLambda(),
 		ImpressionsLambda:            parseImpressionsLambda(),
 	}
