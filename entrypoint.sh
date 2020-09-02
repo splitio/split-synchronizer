@@ -181,10 +181,6 @@ then
 else
   printf "Running in PRODUCER mode"
 
-  if is_true "$SPLIT_SYNC_REDIS_DISABLE_LEGACY_IMPRESSIONS"; then
-    PARAMETERS="${PARAMETERS} -redis-disable-legacy-impressions"
-  fi
-
   if [ ! -z ${SPLIT_SYNC_REDIS_HOST+x} ]; then
     PARAMETERS="${PARAMETERS} -redis-host=${SPLIT_SYNC_REDIS_HOST}"
   fi
