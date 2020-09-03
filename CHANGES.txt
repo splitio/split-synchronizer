@@ -1,6 +1,7 @@
 3.0.0 (Aug, 31, 2020)
  - Added split-commons library.
  - Added Streaming support.
+ - Bugfixing - Fixed an issue for proxy mode where sdkAPIKeys, proxy-apikeys or SPLIT_SYNC_PROXY_SDK_APIKEYS were not being validated if set
  - BREAKING CHANGES:
       - Removed support for legacy impressions (only stored in queue now) as well the config for enabling/disabling it (listed below)
       - Removed deprecated configs:
