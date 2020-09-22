@@ -6,8 +6,8 @@ import (
 	"sync"
 
 	"github.com/boltdb/bolt"
-	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio/proxy/boltdb"
+	"github.com/splitio/split-synchronizer/v4/log"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb"
 )
 
 const segmentChangesCollectionName = "SEGMENT_CHANGES_COLLECTION"

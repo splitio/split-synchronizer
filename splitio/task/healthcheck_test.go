@@ -10,13 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/splitio/go-split-commons/conf"
-	"github.com/splitio/go-split-commons/dtos"
-	"github.com/splitio/go-split-commons/service/api"
-	"github.com/splitio/go-split-commons/storage/mocks"
-	"github.com/splitio/go-toolkit/logging"
-	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio/common"
+	"github.com/splitio/go-split-commons/v2/conf"
+	"github.com/splitio/go-split-commons/v2/dtos"
+	"github.com/splitio/go-split-commons/v2/service/api"
+	"github.com/splitio/go-split-commons/v2/storage/mocks"
+	"github.com/splitio/go-toolkit/v3/logging"
+	"github.com/splitio/split-synchronizer/v4/log"
+	"github.com/splitio/split-synchronizer/v4/splitio/common"
 )
 
 func performRequest(r http.Handler, method, path string) *httptest.ResponseRecorder {

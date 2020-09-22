@@ -14,13 +14,13 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/go-split-commons/dtos"
-	"github.com/splitio/go-toolkit/logging"
-	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio/proxy/boltdb"
-	"github.com/splitio/split-synchronizer/splitio/proxy/boltdb/collections"
-	"github.com/splitio/split-synchronizer/splitio/proxy/controllers"
-	"github.com/splitio/split-synchronizer/splitio/proxy/interfaces"
+	"github.com/splitio/go-split-commons/v2/dtos"
+	"github.com/splitio/go-toolkit/v3/logging"
+	"github.com/splitio/split-synchronizer/v4/log"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb/collections"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/controllers"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/interfaces"
 )
 
 func TestSplitController(t *testing.T) {

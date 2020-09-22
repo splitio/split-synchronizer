@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/boltdb/bolt"
-	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/v4/log"
 )
 
 var mutex = &sync.Mutex{}

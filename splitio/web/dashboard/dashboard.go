@@ -4,12 +4,12 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/splitio/split-synchronizer/splitio"
-	"github.com/splitio/split-synchronizer/splitio/common"
-	"github.com/splitio/split-synchronizer/splitio/stats"
-	"github.com/splitio/split-synchronizer/splitio/task"
-	"github.com/splitio/split-synchronizer/splitio/web"
-	"github.com/splitio/split-synchronizer/splitio/web/dashboard/HTMLtemplates"
+	"github.com/splitio/split-synchronizer/v4/splitio"
+	"github.com/splitio/split-synchronizer/v4/splitio/common"
+	"github.com/splitio/split-synchronizer/v4/splitio/stats"
+	"github.com/splitio/split-synchronizer/v4/splitio/task"
+	"github.com/splitio/split-synchronizer/v4/splitio/web"
+	"github.com/splitio/split-synchronizer/v4/splitio/web/dashboard/HTMLtemplates"
 )
 
 // Dashboard represents html dashboard class

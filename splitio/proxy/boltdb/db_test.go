@@ -4,9 +4,9 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/splitio/go-toolkit/logging"
-	"github.com/splitio/split-synchronizer/conf"
-	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/go-toolkit/v3/logging"
+	"github.com/splitio/split-synchronizer/v4/conf"
+	"github.com/splitio/split-synchronizer/v4/log"
 )
 
 func before() {

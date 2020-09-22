@@ -3,10 +3,10 @@ package storage
 import (
 	"encoding/json"
 
-	"github.com/splitio/go-split-commons/dtos"
-	"github.com/splitio/go-split-commons/storage"
-	"github.com/splitio/go-toolkit/datastructures/set"
-	"github.com/splitio/split-synchronizer/splitio/proxy/boltdb/collections"
+	"github.com/splitio/go-split-commons/v2/dtos"
+	"github.com/splitio/go-split-commons/v2/storage"
+	"github.com/splitio/go-toolkit/v3/datastructures/set"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb/collections"
 )
 
 // SplitStorage struct

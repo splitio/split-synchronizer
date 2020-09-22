@@ -4,11 +4,11 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/go-split-commons/storage"
-	"github.com/splitio/split-synchronizer/splitio/common"
-	"github.com/splitio/split-synchronizer/splitio/proxy/interfaces"
-	"github.com/splitio/split-synchronizer/splitio/web/admin"
-	"github.com/splitio/split-synchronizer/splitio/web/middleware"
+	"github.com/splitio/go-split-commons/v2/storage"
+	"github.com/splitio/split-synchronizer/v4/splitio/common"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/interfaces"
+	"github.com/splitio/split-synchronizer/v4/splitio/web/admin"
+	"github.com/splitio/split-synchronizer/v4/splitio/web/middleware"
 )
 
 // Options struct to set options for Proxy mode.
