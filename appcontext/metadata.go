@@ -1,6 +1,6 @@
 package appcontext
 
-import "github.com/splitio/split-synchronizer/splitio"
+import "github.com/splitio/split-synchronizer/v4/splitio"
 
 const (
 	_ = iota

@@ -1,10 +1,10 @@
 package common
 
 import (
-	"github.com/splitio/go-split-commons/service/api"
-	"github.com/splitio/go-split-commons/storage"
-	"github.com/splitio/go-split-commons/synchronizer/worker/event"
-	"github.com/splitio/go-split-commons/synchronizer/worker/impression"
+	"github.com/splitio/go-split-commons/v2/service/api"
+	"github.com/splitio/go-split-commons/v2/storage"
+	"github.com/splitio/go-split-commons/v2/synchronizer/worker/event"
+	"github.com/splitio/go-split-commons/v2/synchronizer/worker/impression"
 )
 
 // Storages wraps storages in one struct

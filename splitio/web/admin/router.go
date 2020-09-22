@@ -4,10 +4,10 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/split-synchronizer/appcontext"
-	"github.com/splitio/split-synchronizer/splitio/common"
-	"github.com/splitio/split-synchronizer/splitio/web/admin/controllers"
-	"github.com/splitio/split-synchronizer/splitio/web/middleware"
+	"github.com/splitio/split-synchronizer/v4/appcontext"
+	"github.com/splitio/split-synchronizer/v4/splitio/common"
+	"github.com/splitio/split-synchronizer/v4/splitio/web/admin/controllers"
+	"github.com/splitio/split-synchronizer/v4/splitio/web/middleware"
 )
 
 // WebAdminOptions struct to set options for sync admin mode.

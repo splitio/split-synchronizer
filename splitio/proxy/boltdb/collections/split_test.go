@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/splitio/split-synchronizer/splitio/proxy/boltdb"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb"
 )
 
 func TestSplitCollection(t *testing.T) {

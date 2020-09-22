@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/splitio/go-toolkit/logging"
+	"github.com/splitio/go-toolkit/v3/logging"
 )
 
 // Instance is an instance of log

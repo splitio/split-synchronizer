@@ -5,13 +5,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/splitio/go-split-commons/dtos"
-	"github.com/splitio/go-split-commons/service/api"
-	"github.com/splitio/go-split-commons/storage"
-	"github.com/splitio/go-split-commons/util"
-	"github.com/splitio/split-synchronizer/conf"
-	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio/proxy/interfaces"
+	"github.com/splitio/go-split-commons/v2/dtos"
+	"github.com/splitio/go-split-commons/v2/service/api"
+	"github.com/splitio/go-split-commons/v2/storage"
+	"github.com/splitio/go-split-commons/v2/util"
+	"github.com/splitio/split-synchronizer/v4/conf"
+	"github.com/splitio/split-synchronizer/v4/log"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/interfaces"
 )
 
 const eventChannelCapacity = 5

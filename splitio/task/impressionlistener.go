@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio/recorder"
+	"github.com/splitio/split-synchronizer/v4/log"
+	"github.com/splitio/split-synchronizer/v4/splitio/recorder"
 )
 
 // ImpressionListenerMainQueueSize queue sizes

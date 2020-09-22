@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/splitio/split-synchronizer/conf"
+	"github.com/splitio/split-synchronizer/v4/conf"
 )
 
 func TestEvictionCalculatorEvents(t *testing.T) {
