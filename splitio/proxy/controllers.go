@@ -354,7 +354,7 @@ func postEvent(c *gin.Context, url string) {
 
 	go func() {
 		log.Instance.Debug(metadata.SDKVersion, metadata.MachineIP, string(data))
-		var e = interfaces.MetricsRecorder.RecordRaw(url, data, metadata)
+		var e = interfaces.MetricsRecorder.RecordRaw(url, data, metadata, nil)
 		if e != nil {
 			log.Instance.Error(e)
 		}

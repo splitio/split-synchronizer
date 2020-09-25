@@ -86,6 +86,7 @@ type ConfigData struct {
 	HTTPTimeout         int64              `json:"httpTimeout" split-default-value:"60" split-cli-option:"http-timeout" split-cli-description:"Timeout specifies a time limit for requests"`
 	IPAddressesEnabled  bool               `json:"IPAddressesEnabled" split-default-value:"true" split-cli-option:"ip-addresses-enabled" split-cli-description:"Flag to disable IP addresses and host name from being sent to the Split backend"`
 	StreamingEnabled    bool               `json:"streamingEnabled" split-default-value:"true" split-cli-option:"streaming-enabled" split-cli-description:"Flag to enable/disable streaming"`
+	ImpressionsMode     string             `json:"impressionsMode" split-default-value:"optimized" split-cli-option:"impressions-mode" split-cli-description:"Set the mode of sending impressions to Split Servers"`
 }
 
 //MarshalBinary exports ConfigData to JSON string

@@ -4,7 +4,7 @@
 
 [[constraint]]
   name = "github.com/splitio/go-split-commons"
-  version = "=1.2.1"
+  branch = "task/readyForSync"
 
 [[constraint]]
   name = "github.com/gin-contrib/cors"
