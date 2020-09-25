@@ -198,7 +198,7 @@ func sendEvents() {
 					SDKVersion:  sdkVersion,
 					MachineIP:   machineIP,
 					MachineName: machineName,
-				})
+				}, nil)
 				if errp != nil {
 					log.Instance.Error(errp)
 					if httpError, ok := errp.(*dtos.HTTPError); ok {

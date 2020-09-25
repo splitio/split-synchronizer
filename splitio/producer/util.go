@@ -16,9 +16,9 @@ import (
 	"github.com/splitio/go-split-commons/storage/redis"
 	"github.com/splitio/go-toolkit/logging"
 	"github.com/splitio/go-toolkit/nethelpers"
+	"github.com/splitio/split-synchronizer/appcontext"
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio"
 	"github.com/splitio/split-synchronizer/splitio/util"
 )
 
@@ -161,6 +161,6 @@ func getMetadata() dtos.Metadata {
 	return dtos.Metadata{
 		MachineIP:   ipAddress,
 		MachineName: instanceName,
-		SDKVersion:  "split-sync-" + splitio.Version,
+		SDKVersion:  appcontext.VersionHeader(),
 	}
 }
