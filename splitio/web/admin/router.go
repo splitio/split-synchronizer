@@ -37,7 +37,7 @@ func newWebAdminServer(options *WebAdminOptions, storages common.Storages, httpC
 	server.router.Use(gin.Recovery())
 	if !options.DebugOn {
 		gin.SetMode(gin.ReleaseMode)
-		server.router.Use(gin.LoggerWithWriter(gin.DefaultWriter, []string{"/admin/healthcheck", "/admin/ping", "/admin/uptime", "/admin/version"}...))
+		server.router.Use(gin.LoggerWithWriter(gin.DefaultWriter, "/admin/healthcheck", "/admin/ping", "/admin/uptime", "/admin/version"))
 	} else {
 		server.router.Use(gin.Logger())
 	}
