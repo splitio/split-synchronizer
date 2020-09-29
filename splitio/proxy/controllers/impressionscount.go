@@ -16,14 +16,14 @@ func InitializeImpressionsCountRecorder() {
 
 // PostImpressionsCount sends data to split
 func PostImpressionsCount(sdkVersion string, machineIP string, machineName string, data []byte) error {
-	errp := impressionsCountRecorder.RecordRaw("/testImpressions/count", data, dtos.Metadata{
+	err := impressionsCountRecorder.RecordRaw("/testImpressions/count", data, dtos.Metadata{
 		SDKVersion:  sdkVersion,
 		MachineIP:   machineIP,
 		MachineName: machineName,
 	}, nil)
-	if errp != nil {
-		log.Instance.Error(errp)
-		return errp
+	if err != nil {
+		log.Instance.Error(err)
+		return err
 	}
 	return nil
 }
