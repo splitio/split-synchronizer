@@ -205,6 +205,7 @@ func submitImpressions(
 	sdkVersion string,
 	machineIP string,
 	machineName string,
+	impressionsMode string,
 	data []byte,
 ) {
 	if impressionListenerEnabled {
@@ -217,7 +218,7 @@ func submitImpressions(
 	}
 
 	before := time.Now()
-	controllers.AddImpressions(data, sdkVersion, machineIP, machineName)
+	controllers.AddImpressions(data, sdkVersion, machineIP, machineName, impressionsMode)
 	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
 	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncLatency(impressions, bucket)
 	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIOK)
@@ -228,6 +229,7 @@ func postImpressionBulk(impressionListenerEnabled bool) gin.HandlerFunc {
 		sdkVersion := c.Request.Header.Get("SplitSDKVersion")
 		machineIP := c.Request.Header.Get("SplitSDKMachineIP")
 		machineName := c.Request.Header.Get("SplitSDKMachineName")
+		impressionsMode := c.Request.Header.Get("SplitSDKImpressionsMode")
 		data, err := ioutil.ReadAll(c.Request.Body)
 		if err != nil {
 			log.Instance.Error(err)
@@ -244,7 +246,7 @@ func postImpressionBulk(impressionListenerEnabled bool) gin.HandlerFunc {
 			})
 		}
 
-		submitImpressions(impressionListenerEnabled, sdkVersion, machineIP, machineName, data)
+		submitImpressions(impressionListenerEnabled, sdkVersion, machineIP, machineName, impressionsMode, data)
 		c.JSON(http.StatusOK, nil)
 	}
 }
@@ -288,7 +290,82 @@ func postImpressionBeacon(keys []string, impressionListenerEnabled bool) gin.Han
 			return
 		}
 
-		submitImpressions(impressionListenerEnabled, body.Sdk, "NA", "NA", impressions)
+		submitImpressions(impressionListenerEnabled, body.Sdk, "NA", "NA", "", impressions)
+		c.JSON(http.StatusNoContent, nil)
+	}
+}
+
+func postImpressionsCount() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		sdkVersion := c.Request.Header.Get("SplitSDKVersion")
+		machineIP := c.Request.Header.Get("SplitSDKMachineIP")
+		machineName := c.Request.Header.Get("SplitSDKMachineName")
+		data, err := ioutil.ReadAll(c.Request.Body)
+		if err != nil {
+			log.Instance.Error(err)
+			c.JSON(http.StatusInternalServerError, nil)
+			return
+		}
+
+		err = controllers.PostImpressionsCount(sdkVersion, machineIP, machineName, data)
+		if err != nil {
+			log.Instance.Error(err)
+			c.JSON(http.StatusInternalServerError, nil)
+			return
+		}
+		c.JSON(http.StatusOK, nil)
+	}
+}
+
+func postImpressionsCountBeacon(keys []string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.Request.Body == nil {
+			c.JSON(http.StatusBadRequest, nil)
+			return
+		}
+
+		data, err := ioutil.ReadAll(c.Request.Body)
+		if err != nil {
+			log.Instance.Error(err)
+			c.JSON(http.StatusInternalServerError, nil)
+			return
+		}
+
+		type BeaconImpressionsCount struct {
+			Entries dtos.ImpressionsCountDTO `json:"entries"`
+			Sdk     string                   `json:"sdk"`
+			Token   string                   `json:"token"`
+		}
+		var body BeaconImpressionsCount
+		if err := json.Unmarshal([]byte(data), &body); err != nil {
+			log.Instance.Error(err)
+			c.JSON(http.StatusBadRequest, nil)
+			return
+		}
+
+		if !validateAPIKey(keys, body.Token) {
+			c.AbortWithStatus(401)
+			return
+		}
+
+		impressionsCount, err := json.Marshal(body.Entries)
+		if err != nil {
+			log.Instance.Error(err)
+			c.JSON(http.StatusInternalServerError, nil)
+			return
+		}
+
+		if len(body.Entries.PerFeature) == 0 {
+			c.JSON(http.StatusNoContent, nil)
+			return
+		}
+
+		controllers.PostImpressionsCount(body.Sdk, "NA", "NA", impressionsCount)
+		if err != nil {
+			log.Instance.Error(err)
+			c.JSON(http.StatusInternalServerError, nil)
+			return
+		}
 		c.JSON(http.StatusNoContent, nil)
 	}
 }
