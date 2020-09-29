@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"net/url"
 	"os"
 	"os/signal"
@@ -13,6 +14,7 @@ import (
 	"sync"
 	"syscall"
 
+	cfg "github.com/splitio/go-split-commons/conf"
 	"github.com/splitio/go-toolkit/logging"
 	"github.com/splitio/split-synchronizer/appcontext"
 	"github.com/splitio/split-synchronizer/splitio/producer"
@@ -21,6 +23,12 @@ import (
 	"github.com/splitio/split-synchronizer/conf"
 	"github.com/splitio/split-synchronizer/log"
 	"github.com/splitio/split-synchronizer/splitio"
+)
+
+const (
+	defaultImpressionSyncOptimized = 300
+	defaultImpressionSync          = 60
+	minImpressionSyncDebug         = 1
 )
 
 type configMap map[string]interface{}
@@ -81,6 +89,29 @@ func loadConfiguration(configFile *string, cliParametersMap configMap) error {
 	}
 	//overwrite with cli values
 	conf.LoadFromArgs(cliParametersMap)
+
+	switch conf.Data.ImpressionsMode {
+	case cfg.ImpressionsModeOptimized:
+		if conf.Data.ImpressionsPostRate == 0 {
+			conf.Data.ImpressionsPostRate = defaultImpressionSyncOptimized
+		} else {
+			if conf.Data.ImpressionsPostRate < defaultImpressionSync {
+				return fmt.Errorf("ImpressionsPostRate must be >= %d. Actual is: %d", defaultImpressionSync, conf.Data.ImpressionsPostRate)
+			}
+			conf.Data.ImpressionsPostRate = int(math.Max(float64(defaultImpressionSync), float64(conf.Data.ImpressionsPostRate)))
+		}
+	case cfg.ImpressionsModeDebug:
+		fallthrough
+	default:
+		if conf.Data.ImpressionsPostRate == 0 {
+			conf.Data.ImpressionsPostRate = defaultImpressionSync
+		} else {
+			if conf.Data.ImpressionsPostRate < minImpressionSyncDebug {
+				return fmt.Errorf("ImpressionsPostRate must be >= %d. Actual is: %d", minImpressionSyncDebug, conf.Data.ImpressionsPostRate)
+			}
+			conf.Data.ImpressionsPostRate = int(math.Max(float64(defaultImpressionSync), float64(conf.Data.ImpressionsPostRate)))
+		}
+	}
 
 	return nil
 }
