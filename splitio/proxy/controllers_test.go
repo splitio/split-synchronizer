@@ -449,7 +449,7 @@ func TestPostImpressionsCountBeacon(t *testing.T) {
 		router,
 		"POST",
 		"/ok",
-		"{\"entries\": {\"pf\":[{\"f\":\"some\",\"rc\":100,\"t\":12345678}]},\"token\":\"something\",\"sdk\":\"something\"}",
+		"{\"entries\": {\"pf\":[{\"f\":\"some\",\"rc\":100,\"m\":12345678}]},\"token\":\"something\",\"sdk\":\"something\"}",
 	)
 	if res.Code != http.StatusNoContent {
 		t.Error("Should returned 204")

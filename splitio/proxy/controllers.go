@@ -309,8 +309,11 @@ func postImpressionsCount() gin.HandlerFunc {
 
 		err = controllers.PostImpressionsCount(sdkVersion, machineIP, machineName, data)
 		if err != nil {
-			log.Instance.Error(err)
-			c.JSON(http.StatusInternalServerError, nil)
+			if httpError, ok := err.(*dtos.HTTPError); ok {
+				c.JSON(httpError.Code, nil)
+			} else {
+				c.JSON(http.StatusInternalServerError, nil)
+			}
 			return
 		}
 		c.JSON(http.StatusOK, nil)
@@ -362,9 +365,11 @@ func postImpressionsCountBeacon(keys []string) gin.HandlerFunc {
 
 		controllers.PostImpressionsCount(body.Sdk, "NA", "NA", impressionsCount)
 		if err != nil {
-			log.Instance.Error(err)
-			c.JSON(http.StatusInternalServerError, nil)
-			return
+			if httpError, ok := err.(*dtos.HTTPError); ok {
+				c.JSON(httpError.Code, nil)
+			} else {
+				c.JSON(http.StatusInternalServerError, nil)
+			}
 		}
 		c.JSON(http.StatusNoContent, nil)
 	}
