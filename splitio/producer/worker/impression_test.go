@@ -102,7 +102,7 @@ func wrapImpression(feature string) dtos.Impression {
 		ChangeNumber: 123456789,
 		KeyName:      "someKey",
 		Label:        "someLabel",
-		Time:         time.Now().UnixNano() / int64(time.Millisecond),
+		Time:         time.Now().UTC().UnixNano() / int64(time.Millisecond),
 		Treatment:    "someTreatment",
 		FeatureName:  feature,
 	}
