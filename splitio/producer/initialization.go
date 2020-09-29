@@ -137,7 +137,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		log.Instance.Error(err)
 		os.Exit(splitio.ExitTaskInitialization)
 	}
-	splitTasks.ImpressionSyncTask = tasks.NewRecordImpressionsTasks(workers.ImpressionRecorder, conf.Data.ImpressionsPostRate, log.Instance, advanced.ImpressionsBulkSize, conf.Data.ImpressionsThreads)
+	splitTasks.ImpressionSyncTask = tasks.NewRecordImpressionsTasks(impressionRecorder, conf.Data.ImpressionsPostRate, log.Instance, advanced.ImpressionsBulkSize, conf.Data.ImpressionsThreads)
 
 	// Creating Synchronizer for tasks
 	syncImpl := synchronizer.NewSynchronizer(
