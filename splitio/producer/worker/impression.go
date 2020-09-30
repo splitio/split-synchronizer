@@ -55,47 +55,6 @@ func NewImpressionRecordMultiple(
 	}, nil
 }
 
-func toImpressionsDTO(impressionsMap map[string][]dtos.ImpressionDTO) ([]dtos.ImpressionsDTO, error) {
-	if impressionsMap == nil {
-		return nil, fmt.Errorf("Impressions map cannot be null")
-	}
-
-	toReturn := make([]dtos.ImpressionsDTO, 0)
-	for feature, impressions := range impressionsMap {
-		toReturn = append(toReturn, dtos.ImpressionsDTO{
-			TestName:       feature,
-			KeyImpressions: impressions,
-		})
-	}
-	return toReturn, nil
-}
-
-func wrapData(impressions []dtos.Impression, collectedData map[dtos.Metadata]map[string][]dtos.ImpressionDTO, metadata dtos.Metadata) map[dtos.Metadata]map[string][]dtos.ImpressionDTO {
-	for _, impression := range impressions { // To prevent errors use range instead of first element
-		_, instanceExists := collectedData[metadata]
-		if !instanceExists {
-			collectedData[metadata] = make(map[string][]dtos.ImpressionDTO)
-		}
-		_, featureExists := collectedData[metadata][impression.FeatureName]
-		if !featureExists {
-			collectedData[metadata][impression.FeatureName] = make([]dtos.ImpressionDTO, 0)
-		}
-		collectedData[metadata][impression.FeatureName] = append(
-			collectedData[metadata][impression.FeatureName],
-			dtos.ImpressionDTO{
-				BucketingKey: impression.BucketingKey,
-				ChangeNumber: impression.ChangeNumber,
-				KeyName:      impression.KeyName,
-				Label:        impression.Label,
-				Time:         impression.Time,
-				Treatment:    impression.Treatment,
-				Pt:           impression.Pt,
-			},
-		)
-	}
-	return collectedData
-}
-
 func (r *RecorderImpressionMultiple) wrapDTO(collectedData map[dtos.Metadata]map[string][]dtos.ImpressionDTO) map[dtos.Metadata][]dtos.ImpressionsDTO {
 	var err error
 	impressions := make(map[dtos.Metadata][]dtos.ImpressionsDTO)
@@ -109,7 +68,7 @@ func (r *RecorderImpressionMultiple) wrapDTO(collectedData map[dtos.Metadata]map
 	return impressions
 }
 
-func (r *RecorderImpressionMultiple) fetch(bulkSize int64) (map[dtos.Metadata][]dtos.ImpressionsDTO, map[dtos.Metadata][]dtos.ImpressionsDTO, error) {
+func (r *RecorderImpressionMultiple) fetch(bulkSize int64) (map[dtos.Metadata][]dtos.ImpressionsDTO, map[dtos.Metadata][]impressionsListener, error) {
 	storedImpressions, err := r.impressionStorage.PopNWithMetadata(bulkSize) // PopN has a mutex, so this function can be async without issues
 	if err != nil {
 		r.logger.Error("(Task) Post Impressions fails fetching impressions from storage", err.Error())
@@ -118,16 +77,16 @@ func (r *RecorderImpressionMultiple) fetch(bulkSize int64) (map[dtos.Metadata][]
 
 	// grouping the information by instanceID/instanceIP, and then by feature name
 	collectedDataforLog := make(map[dtos.Metadata]map[string][]dtos.ImpressionDTO)
-	collectedDataforListener := make(map[dtos.Metadata]map[string][]dtos.ImpressionDTO)
+	collectedDataforListener := make(map[dtos.Metadata]map[string][]impressionListener)
 
 	for _, stored := range storedImpressions {
 		toSend, forListener := r.impressionManager.ProcessImpressions([]dtos.Impression{stored.Impression})
 
 		collectedDataforLog = wrapData(toSend, collectedDataforLog, stored.Metadata)
-		collectedDataforListener = wrapData(forListener, collectedDataforListener, stored.Metadata)
+		collectedDataforListener = wrapDataForListener(forListener, collectedDataforListener, stored.Metadata)
 	}
 
-	return r.wrapDTO(collectedDataforLog), r.wrapDTO(collectedDataforListener), nil
+	return r.wrapDTO(collectedDataforLog), wrapDTOListener(collectedDataforListener), nil
 }
 
 func (r *RecorderImpressionMultiple) recordImpressions(impressionsToSend map[dtos.Metadata][]dtos.ImpressionsDTO) error {
@@ -158,7 +117,7 @@ func (r *RecorderImpressionMultiple) recordImpressions(impressionsToSend map[dto
 	return nil
 }
 
-func (r *RecorderImpressionMultiple) sendDataToListener(impressionsToListener map[dtos.Metadata][]dtos.ImpressionsDTO) {
+func (r *RecorderImpressionMultiple) sendDataToListener(impressionsToListener map[dtos.Metadata][]impressionsListener) {
 	for metadata, impressions := range impressionsToListener {
 		rawImpressions, err := json.Marshal(impressions)
 		if err != nil {
