@@ -158,6 +158,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		int64(conf.Data.EventsPostRate),
 		gracefulShutdownWaitingGroup,
 	)
+	controllers.InitializeImpressionsCountRecorder()
 
 	httpClients := common.HTTPClients{
 		SdkClient:    api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.SdkURL, log.Instance, metadata),

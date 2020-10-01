@@ -82,7 +82,7 @@ func loadConfiguration(configFile *string, cliParametersMap configMap) error {
 	//overwrite with cli values
 	conf.LoadFromArgs(cliParametersMap)
 
-	return nil
+	return conf.ValidConfigs()
 }
 
 func loadLogger() {
@@ -160,6 +160,7 @@ func main() {
 	//Initialize modules
 	err := loadConfiguration(cliFlags.configFile, cliFlags.cliParametersMap)
 	if err != nil {
+		fmt.Printf("\nSplit Synchronizer - Initialization error: %s\n", err)
 		os.Exit(splitio.ExitInvalidConfiguration)
 	}
 
