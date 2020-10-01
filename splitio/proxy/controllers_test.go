@@ -234,7 +234,7 @@ func TestPostImpressionsBeacon(t *testing.T) {
 			return
 		}
 
-		if len(impressionsInPost) != 2 {
+		if impressionsInPost[0].TestName != "some_test" || len(impressionsInPost) != 2 {
 			t.Error("Impressions malformed")
 		}
 
@@ -279,7 +279,7 @@ func TestPostImpressionsBeacon(t *testing.T) {
 		router,
 		"POST",
 		"/ok",
-		"{\"entries\": [{\"testName\":\"some_test\",\"keyImpressions\": [{\"keyName\": \"some_key_1\",\"treatment\": \"off\",\"time\": 1572026609000,\"changeNumber\": 1567008715937,\"label\": \"default rule\"}]}],\"token\":\"something\",\"sdk\":\"something\"}",
+		"{\"entries\": [{\"f\":\"some_test\",\"i\": [{\"k\": \"some_key_1\",\"t\": \"off\",\"m\": 1572026609000,\"c\": 1567008715937,\"r\": \"default rule\"}]}],\"token\":\"something\",\"sdk\":\"something\"}",
 	)
 	if res.Code != http.StatusNoContent {
 		t.Error("Should returned 204")
@@ -289,7 +289,7 @@ func TestPostImpressionsBeacon(t *testing.T) {
 		router,
 		"POST",
 		"/ok",
-		"{\"entries\": [{\"testName\":\"some_test\",\"keyImpressions\": [{\"keyName\": \"some_key_2\",\"treatment\": \"off\",\"time\": 1572026609000,\"changeNumber\": 1567008715937,\"label\": \"default rule\"}]}],\"token\":\"something\",\"sdk\":\"something\"}",
+		"{\"entries\": [{\"f\":\"some_test\",\"i\": [{\"k\": \"some_key_2\",\"t\": \"off\",\"m\": 1572026609000,\"c\": 1567008715937,\"r\": \"default rule\"}]}],\"token\":\"something\",\"sdk\":\"something\"}",
 	)
 	if res.Code != http.StatusNoContent {
 		t.Error("Should returned 204")
@@ -386,6 +386,77 @@ func TestPostEventsBeacon(t *testing.T) {
 
 	// Lets async function post impressions
 	time.Sleep(time.Duration(5) * time.Second)
+}
+
+func TestPostImpressionsCountBeacon(t *testing.T) {
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		checkHeaders(t, r)
+
+		rBody, _ := ioutil.ReadAll(r.Body)
+
+		var impressionsCountInPost dtos.ImpressionsCountDTO
+		err := json.Unmarshal(rBody, &impressionsCountInPost)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		if impressionsCountInPost.PerFeature[0].FeatureName != "some" || impressionsCountInPost.PerFeature[0].RawCount != 100 {
+			t.Error("Wrong payload")
+		}
+
+		fmt.Fprintln(w, "ok!!")
+	}))
+	defer ts.Close()
+
+	os.Setenv("SPLITIO_SDK_URL", ts.URL)
+	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
+
+	controllers.InitializeImpressionsCountRecorder()
+
+	gin.SetMode(gin.TestMode)
+	router := gin.Default()
+
+	router.POST("/noBody", func(c *gin.Context) {
+		postImpressionsCountBeacon([]string{"something"})(c)
+	})
+	res := performRequest(router, "POST", "/noBody", "")
+	if res.Code != http.StatusBadRequest {
+		t.Error("Should returned 400")
+	}
+
+	router.POST("/badApiKey", func(c *gin.Context) {
+		postImpressionsCountBeacon([]string{})(c)
+	})
+	res = performRequest(router, "POST", "/badApiKey", "{\"entries\": {\"pf\":[]},\"token\":\"some\",\"sdk\":\"test\"}")
+	if res.Code != http.StatusUnauthorized {
+		t.Error("Should returned 401")
+	}
+
+	router.POST("/ok", func(c *gin.Context) {
+		postImpressionsCountBeacon([]string{"something"})(c)
+	})
+	res = performRequest(router, "POST", "/ok", "{\"entries\":{\"pf\":[]},\"token\":\"something\",\"sdk\":\"something\"}")
+	if res.Code != http.StatusNoContent {
+		t.Error("Should returned 204")
+	}
+
+	res = performRequest(
+		router,
+		"POST",
+		"/ok",
+		"{\"entries\": {\"pf\":[{\"f\":\"some\",\"rc\":100,\"m\":12345678}]},\"token\":\"something\",\"sdk\":\"something\"}",
+	)
+	if res.Code != http.StatusNoContent {
+		t.Error("Should returned 204")
+	}
+
+	// Lets async function post impressions
+	time.Sleep(time.Duration(500) * time.Millisecond)
 }
 
 func TestAuth(t *testing.T) {
