@@ -1,3 +1,6 @@
+3.0.2 (Oct XX, 2020)
+- Added local impressions deduping (enabled by default).
+
 3.0.1 (Sep 10, 2020)
  - Upgraded split-commons to fix high cpu usage issue
 
