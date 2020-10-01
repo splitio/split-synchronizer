@@ -11,6 +11,7 @@ import (
 	"github.com/splitio/go-split-commons/dtos"
 	"github.com/splitio/go-split-commons/util"
 	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/common"
 	"github.com/splitio/split-synchronizer/splitio/proxy/boltdb"
 	"github.com/splitio/split-synchronizer/splitio/proxy/boltdb/collections"
 	"github.com/splitio/split-synchronizer/splitio/proxy/controllers"
@@ -209,12 +210,19 @@ func submitImpressions(
 	data []byte,
 ) {
 	if impressionListenerEnabled {
-		_ = task.QueueImpressionsForListener(&task.ImpressionBulk{
-			Data:        json.RawMessage(data),
-			SdkVersion:  sdkVersion,
-			MachineIP:   machineIP,
-			MachineName: machineName,
-		})
+		var impression *common.ImpressionsListener
+		err := json.Unmarshal(data, impression)
+		if err == nil && impression != nil {
+			serializedImpression, err := json.Marshal(impression)
+			if err == nil {
+				_ = task.QueueImpressionsForListener(&task.ImpressionBulk{
+					Data:        json.RawMessage(serializedImpression),
+					SdkVersion:  sdkVersion,
+					MachineIP:   machineIP,
+					MachineName: machineName,
+				})
+			}
+		}
 	}
 
 	before := time.Now()
