@@ -107,6 +107,7 @@ func GetConfiguration(c *gin.Context) {
 		"impressionsPostRate": conf.Data.ImpressionsPostRate,
 		"impressionsPerPost":  conf.Data.ImpressionsPerPost,
 		"impressionsThreads":  conf.Data.ImpressionsThreads,
+		"impressionsMode":     conf.Data.ImpressionsMode,
 		"eventsPostRate":      conf.Data.EventsPostRate,
 		"eventsPerPost":       conf.Data.EventsPerPost,
 		"eventsThreads":       conf.Data.EventsThreads,
