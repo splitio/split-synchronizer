@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	config "github.com/splitio/go-split-commons/conf"
 	"github.com/splitio/go-split-commons/dtos"
 	"github.com/splitio/go-split-commons/service/api"
 	"github.com/splitio/go-split-commons/storage"
@@ -91,12 +90,8 @@ func InitializeImpressionWorkers(footprint int64, postRate int64, waitingGroup *
 
 // AddImpressions non-blocking function to add impressions and return response
 func AddImpressions(data []byte, sdkVersion string, machineIP string, machineName string, impressionsMode string) {
-	var imp = impressionChanMessage{SdkVersion: sdkVersion,
-		MachineIP: machineIP, MachineName: machineName, Data: data, ImpressionsMode: config.ImpressionsModeDebug}
-	if strings.ToLower(impressionsMode) == config.ImpressionsModeOptimized {
-		imp.ImpressionsMode = config.ImpressionsModeOptimized
-	}
-	impressionChannel <- imp
+	impressionChannel <- impressionChanMessage{SdkVersion: sdkVersion,
+		MachineIP: machineIP, MachineName: machineName, Data: data, ImpressionsMode: strings.ToLower(impressionsMode)}
 }
 
 func impressionConditionsWorker(postRate int64, waitingGroup *sync.WaitGroup) {
@@ -204,13 +199,17 @@ func sendImpressions() {
 						continue
 					}
 					before := time.Now()
+					var extraHeaders map[string]string
+					if impressionsMode != "" {
+						extraHeaders = make(map[string]string)
+						extraHeaders["SplitSDKImpressionsMode"] = impressionsMode
+					}
 					errp := impressionRecorder.RecordRaw("/testImpressions/bulk",
 						data, dtos.Metadata{
 							SDKVersion:  sdkVersion,
 							MachineIP:   machineIP,
 							MachineName: machineName,
-						},
-						map[string]string{"SplitSDKImpressionsMode": impressionsMode})
+						}, extraHeaders)
 					if errp != nil {
 						log.Instance.Error(errp)
 						if httpError, ok := errp.(*dtos.HTTPError); ok {
