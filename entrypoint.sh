@@ -148,7 +148,7 @@ if is_true "$SPLIT_SYNC_STREAMING_ENABLED"; then
 fi
 
 if [ ! -z ${SPLIT_SYNC_IMPRESSIONS_MODE+x} ]; then
-  PARAMETERS="${PARAMETERS} -impressions-mode"
+  PARAMETERS="${PARAMETERS} -impressions-mode=${SPLIT_SYNC_IMPRESSIONS_MODE}"
 fi
 
 # PROXY MODE ON
