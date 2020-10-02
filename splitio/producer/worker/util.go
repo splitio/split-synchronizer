@@ -2,6 +2,7 @@ package worker
 
 import (
 	"github.com/splitio/go-split-commons/dtos"
+	"github.com/splitio/split-synchronizer/splitio/common"
 	"golang.org/x/exp/errors/fmt"
 )
 
@@ -46,34 +47,19 @@ func wrapData(impressions []dtos.Impression, collectedData map[dtos.Metadata]map
 	return collectedData
 }
 
-type impressionListener struct {
-	KeyName      string `json:"keyName"`
-	Treatment    string `json:"treatment"`
-	Time         int64  `json:"time"`
-	ChangeNumber int64  `json:"changeNumber"`
-	Label        string `json:"label"`
-	BucketingKey string `json:"bucketingKey,omitempty"`
-	Pt           int64  `json:"pt,omitempty"`
-}
-
-type impressionsListener struct {
-	TestName       string               `json:"testName"`
-	KeyImpressions []impressionListener `json:"keyImpressions"`
-}
-
-func wrapDataForListener(impressions []dtos.Impression, collectedData map[dtos.Metadata]map[string][]impressionListener, metadata dtos.Metadata) map[dtos.Metadata]map[string][]impressionListener {
+func wrapDataForListener(impressions []dtos.Impression, collectedData map[dtos.Metadata]map[string][]common.ImpressionListener, metadata dtos.Metadata) map[dtos.Metadata]map[string][]common.ImpressionListener {
 	for _, impression := range impressions { // To prevent errors use range instead of first element
 		_, instanceExists := collectedData[metadata]
 		if !instanceExists {
-			collectedData[metadata] = make(map[string][]impressionListener)
+			collectedData[metadata] = make(map[string][]common.ImpressionListener)
 		}
 		_, featureExists := collectedData[metadata][impression.FeatureName]
 		if !featureExists {
-			collectedData[metadata][impression.FeatureName] = make([]impressionListener, 0)
+			collectedData[metadata][impression.FeatureName] = make([]common.ImpressionListener, 0)
 		}
 		collectedData[metadata][impression.FeatureName] = append(
 			collectedData[metadata][impression.FeatureName],
-			impressionListener{
+			common.ImpressionListener{
 				BucketingKey: impression.BucketingKey,
 				ChangeNumber: impression.ChangeNumber,
 				KeyName:      impression.KeyName,
@@ -87,14 +73,14 @@ func wrapDataForListener(impressions []dtos.Impression, collectedData map[dtos.M
 	return collectedData
 }
 
-func toListenerDTO(impressionsMap map[string][]impressionListener) ([]impressionsListener, error) {
+func toListenerDTO(impressionsMap map[string][]common.ImpressionListener) ([]common.ImpressionsListener, error) {
 	if impressionsMap == nil {
 		return nil, fmt.Errorf("Impressions map cannot be null")
 	}
 
-	toReturn := make([]impressionsListener, 0)
+	toReturn := make([]common.ImpressionsListener, 0)
 	for feature, impressions := range impressionsMap {
-		toReturn = append(toReturn, impressionsListener{
+		toReturn = append(toReturn, common.ImpressionsListener{
 			TestName:       feature,
 			KeyImpressions: impressions,
 		})
@@ -102,9 +88,9 @@ func toListenerDTO(impressionsMap map[string][]impressionListener) ([]impression
 	return toReturn, nil
 }
 
-func wrapDTOListener(collectedData map[dtos.Metadata]map[string][]impressionListener) map[dtos.Metadata][]impressionsListener {
+func wrapDTOListener(collectedData map[dtos.Metadata]map[string][]common.ImpressionListener) map[dtos.Metadata][]common.ImpressionsListener {
 	var err error
-	impressions := make(map[dtos.Metadata][]impressionsListener)
+	impressions := make(map[dtos.Metadata][]common.ImpressionsListener)
 	for metadata, impsForMetadata := range collectedData {
 		impressions[metadata], err = toListenerDTO(impsForMetadata)
 		if err != nil {

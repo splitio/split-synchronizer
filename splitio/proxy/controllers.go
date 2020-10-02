@@ -11,6 +11,7 @@ import (
 	"github.com/splitio/go-split-commons/dtos"
 	"github.com/splitio/go-split-commons/util"
 	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/splitio/common"
 	"github.com/splitio/split-synchronizer/splitio/proxy/boltdb"
 	"github.com/splitio/split-synchronizer/splitio/proxy/boltdb/collections"
 	"github.com/splitio/split-synchronizer/splitio/proxy/controllers"
@@ -209,12 +210,39 @@ func submitImpressions(
 	data []byte,
 ) {
 	if impressionListenerEnabled {
-		_ = task.QueueImpressionsForListener(&task.ImpressionBulk{
-			Data:        json.RawMessage(data),
-			SdkVersion:  sdkVersion,
-			MachineIP:   machineIP,
-			MachineName: machineName,
-		})
+		var rawPayload []dtos.ImpressionsDTO
+		err := json.Unmarshal(data, &rawPayload)
+		if err == nil && rawPayload != nil && len(rawPayload) > 0 {
+			impressionsListenerDTO := make([]common.ImpressionsListener, 0, len(rawPayload))
+			for _, impressionsDTO := range rawPayload {
+				impressionListenerDTO := make([]common.ImpressionListener, 0, len(impressionsDTO.KeyImpressions))
+				for _, impression := range impressionsDTO.KeyImpressions {
+					impressionListenerDTO = append(impressionListenerDTO, common.ImpressionListener{
+						BucketingKey: impression.BucketingKey,
+						ChangeNumber: impression.ChangeNumber,
+						KeyName:      impression.KeyName,
+						Label:        impression.Label,
+						Pt:           impression.Pt,
+						Time:         impression.Time,
+						Treatment:    impression.Treatment,
+					})
+				}
+				impressionsListenerDTO = append(impressionsListenerDTO, common.ImpressionsListener{
+					TestName:       impressionsDTO.TestName,
+					KeyImpressions: impressionListenerDTO,
+				})
+			}
+
+			serializedImpression, err := json.Marshal(impressionsListenerDTO)
+			if err == nil {
+				_ = task.QueueImpressionsForListener(&task.ImpressionBulk{
+					Data:        json.RawMessage(serializedImpression),
+					SdkVersion:  sdkVersion,
+					MachineIP:   machineIP,
+					MachineName: machineName,
+				})
+			}
+		}
 	}
 
 	before := time.Now()
