@@ -39,7 +39,6 @@ func ValidConfigs() error {
 			if Data.ImpressionsPostRate < minImpressionSyncDebug {
 				return fmt.Errorf("ImpressionsPostRate must be >= %d. Actual is: %d", minImpressionSyncDebug, Data.ImpressionsPostRate)
 			}
-			Data.ImpressionsPostRate = int(math.Max(float64(defaultImpressionSync), float64(Data.ImpressionsPostRate)))
 		}
 	default:
 		fmt.Println(`You passed an invalid impressionsMode, impressionsMode should be one of the following values: 'debug' or 'optimized'. Defaulting to 'optimized' mode.`)
