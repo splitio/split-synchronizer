@@ -16,7 +16,11 @@ import (
 
 const eventChannelCapacity = 5
 
-var eventPoolBuffer = make(sdkVersionBuffer)
+type eventMachineNameBuffer map[string][][]byte
+type eventMachineIPBuffer map[string]eventMachineNameBuffer
+type eventSdkVersionBuffer map[string]eventMachineIPBuffer
+
+var eventPoolBuffer = make(eventSdkVersionBuffer)
 
 var eventPoolBufferSize = eventPoolBufferSizeStruct{size: 0}
 var eventCurrentPoolBucket = 0
@@ -139,11 +143,11 @@ func addEventsToBufferWorker(footprint int64, waitingGroup *sync.WaitGroup) {
 		eventPoolBufferSize.Addition(int64(dataSize))
 
 		if eventPoolBuffer[sdkVersion] == nil {
-			eventPoolBuffer[sdkVersion] = make(machineIPBuffer)
+			eventPoolBuffer[sdkVersion] = make(eventMachineIPBuffer)
 		}
 
 		if eventPoolBuffer[sdkVersion][machineIP] == nil {
-			eventPoolBuffer[sdkVersion][machineIP] = make(machineNameBuffer)
+			eventPoolBuffer[sdkVersion][machineIP] = make(eventMachineNameBuffer)
 		}
 
 		if eventPoolBuffer[sdkVersion][machineIP][machineName] == nil {
@@ -198,7 +202,7 @@ func sendEvents() {
 					SDKVersion:  sdkVersion,
 					MachineIP:   machineIP,
 					MachineName: machineName,
-				})
+				}, nil)
 				if errp != nil {
 					log.Instance.Error(errp)
 					if httpError, ok := errp.(*dtos.HTTPError); ok {
@@ -214,7 +218,7 @@ func sendEvents() {
 		}
 	}
 	// Clear the eventPoolBuffer
-	eventPoolBuffer = make(sdkVersionBuffer)
+	eventPoolBuffer = make(eventSdkVersionBuffer)
 }
 
 // StopEventsRecording stops all tasks related to event submission.
