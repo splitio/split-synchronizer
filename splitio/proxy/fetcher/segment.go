@@ -78,7 +78,7 @@ func (s *SegmentFetcherProxy) SynchronizeSegments() error {
 // SynchronizeSegment syncs segment
 func (s *SegmentFetcherProxy) SynchronizeSegment(name string, till *int64) error {
 	for {
-		s.logger.Info(fmt.Sprintf("Synchronizing segment %s", name))
+		s.logger.Debug(fmt.Sprintf("Synchronizing segment %s", name))
 		changeNumber := s.segmentStorage.ChangeNumber(name)
 		if changeNumber == 0 {
 			changeNumber = -1
