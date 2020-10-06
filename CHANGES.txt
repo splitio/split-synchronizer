@@ -1,5 +1,5 @@
 4.0.0 (Oct 6, 2020)
-- BREAKING CHANGE: Migrated to go modules (dep & bare-bones go-dep no longer supported)
+- BREAKING CHANGE (only when sync is used by source code, not binary or Docker versions): Migrated to go modules (dep & bare-bones go-dep no longer supported)
 - Added local impressions deduping (enabled by default).
 
 3.0.1 (Sep 10, 2020)
