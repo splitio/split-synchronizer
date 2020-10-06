@@ -65,6 +65,7 @@ func Run(options *Options) {
 	// Beacon routes
 	beacon := router.Group("/api")
 	{
+		beacon.POST("/testImpressions/count/beacon", postImpressionsCountBeacon(options.APIKeys))
 		beacon.POST("/testImpressions/beacon", postImpressionBeacon(options.APIKeys, options.ImpressionListenerEnabled))
 		beacon.POST("/events/beacon", postEventsBeacon(options.APIKeys))
 	}
@@ -78,6 +79,7 @@ func Run(options *Options) {
 		api.GET("/segmentChanges/:name", segmentChanges)
 		api.GET("/mySegments/:key", mySegments)
 		api.POST("/testImpressions/bulk", postImpressionBulk(options.ImpressionListenerEnabled))
+		api.POST("/testImpressions/count", postImpressionsCount())
 		api.POST("/metrics/times", postMetricsTimes)
 		api.POST("/metrics/counters", postMetricsCounters)
 		api.POST("/metrics/gauge", postMetricsGauge)

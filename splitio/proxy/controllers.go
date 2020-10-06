@@ -11,6 +11,7 @@ import (
 	"github.com/splitio/go-split-commons/v2/dtos"
 	"github.com/splitio/go-split-commons/v2/util"
 	"github.com/splitio/split-synchronizer/v4/log"
+	"github.com/splitio/split-synchronizer/v4/splitio/common"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb/collections"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/controllers"
@@ -205,19 +206,47 @@ func submitImpressions(
 	sdkVersion string,
 	machineIP string,
 	machineName string,
+	impressionsMode string,
 	data []byte,
 ) {
 	if impressionListenerEnabled {
-		_ = task.QueueImpressionsForListener(&task.ImpressionBulk{
-			Data:        json.RawMessage(data),
-			SdkVersion:  sdkVersion,
-			MachineIP:   machineIP,
-			MachineName: machineName,
-		})
+		var rawPayload []dtos.ImpressionsDTO
+		err := json.Unmarshal(data, &rawPayload)
+		if err == nil && rawPayload != nil && len(rawPayload) > 0 {
+			impressionsListenerDTO := make([]common.ImpressionsListener, 0, len(rawPayload))
+			for _, impressionsDTO := range rawPayload {
+				impressionListenerDTO := make([]common.ImpressionListener, 0, len(impressionsDTO.KeyImpressions))
+				for _, impression := range impressionsDTO.KeyImpressions {
+					impressionListenerDTO = append(impressionListenerDTO, common.ImpressionListener{
+						BucketingKey: impression.BucketingKey,
+						ChangeNumber: impression.ChangeNumber,
+						KeyName:      impression.KeyName,
+						Label:        impression.Label,
+						Pt:           impression.Pt,
+						Time:         impression.Time,
+						Treatment:    impression.Treatment,
+					})
+				}
+				impressionsListenerDTO = append(impressionsListenerDTO, common.ImpressionsListener{
+					TestName:       impressionsDTO.TestName,
+					KeyImpressions: impressionListenerDTO,
+				})
+			}
+
+			serializedImpression, err := json.Marshal(impressionsListenerDTO)
+			if err == nil {
+				_ = task.QueueImpressionsForListener(&task.ImpressionBulk{
+					Data:        json.RawMessage(serializedImpression),
+					SdkVersion:  sdkVersion,
+					MachineIP:   machineIP,
+					MachineName: machineName,
+				})
+			}
+		}
 	}
 
 	before := time.Now()
-	controllers.AddImpressions(data, sdkVersion, machineIP, machineName)
+	controllers.AddImpressions(data, sdkVersion, machineIP, machineName, impressionsMode)
 	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
 	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncLatency(impressions, bucket)
 	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIOK)
@@ -228,6 +257,7 @@ func postImpressionBulk(impressionListenerEnabled bool) gin.HandlerFunc {
 		sdkVersion := c.Request.Header.Get("SplitSDKVersion")
 		machineIP := c.Request.Header.Get("SplitSDKMachineIP")
 		machineName := c.Request.Header.Get("SplitSDKMachineName")
+		impressionsMode := c.Request.Header.Get("SplitSDKImpressionsMode")
 		data, err := ioutil.ReadAll(c.Request.Body)
 		if err != nil {
 			log.Instance.Error(err)
@@ -244,7 +274,7 @@ func postImpressionBulk(impressionListenerEnabled bool) gin.HandlerFunc {
 			})
 		}
 
-		submitImpressions(impressionListenerEnabled, sdkVersion, machineIP, machineName, data)
+		submitImpressions(impressionListenerEnabled, sdkVersion, machineIP, machineName, impressionsMode, data)
 		c.JSON(http.StatusOK, nil)
 	}
 }
@@ -288,7 +318,87 @@ func postImpressionBeacon(keys []string, impressionListenerEnabled bool) gin.Han
 			return
 		}
 
-		submitImpressions(impressionListenerEnabled, body.Sdk, "NA", "NA", impressions)
+		submitImpressions(impressionListenerEnabled, body.Sdk, "NA", "NA", "", impressions)
+		c.JSON(http.StatusNoContent, nil)
+	}
+}
+
+func postImpressionsCount() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		sdkVersion := c.Request.Header.Get("SplitSDKVersion")
+		machineIP := c.Request.Header.Get("SplitSDKMachineIP")
+		machineName := c.Request.Header.Get("SplitSDKMachineName")
+		data, err := ioutil.ReadAll(c.Request.Body)
+		if err != nil {
+			log.Instance.Error(err)
+			c.JSON(http.StatusInternalServerError, nil)
+			return
+		}
+
+		err = controllers.PostImpressionsCount(sdkVersion, machineIP, machineName, data)
+		if err != nil {
+			if httpError, ok := err.(*dtos.HTTPError); ok {
+				c.JSON(httpError.Code, nil)
+			} else {
+				c.JSON(http.StatusInternalServerError, nil)
+			}
+			return
+		}
+		c.JSON(http.StatusOK, nil)
+	}
+}
+
+func postImpressionsCountBeacon(keys []string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.Request.Body == nil {
+			c.JSON(http.StatusBadRequest, nil)
+			return
+		}
+
+		data, err := ioutil.ReadAll(c.Request.Body)
+		if err != nil {
+			log.Instance.Error(err)
+			c.JSON(http.StatusInternalServerError, nil)
+			return
+		}
+
+		type BeaconImpressionsCount struct {
+			Entries dtos.ImpressionsCountDTO `json:"entries"`
+			Sdk     string                   `json:"sdk"`
+			Token   string                   `json:"token"`
+		}
+		var body BeaconImpressionsCount
+		if err := json.Unmarshal([]byte(data), &body); err != nil {
+			log.Instance.Error(err)
+			c.JSON(http.StatusBadRequest, nil)
+			return
+		}
+
+		if !validateAPIKey(keys, body.Token) {
+			c.AbortWithStatus(401)
+			return
+		}
+
+		impressionsCount, err := json.Marshal(body.Entries)
+		if err != nil {
+			log.Instance.Error(err)
+			c.JSON(http.StatusInternalServerError, nil)
+			return
+		}
+
+		if len(body.Entries.PerFeature) == 0 {
+			c.JSON(http.StatusNoContent, nil)
+			return
+		}
+
+		controllers.PostImpressionsCount(body.Sdk, "NA", "NA", impressionsCount)
+		if err != nil {
+			if httpError, ok := err.(*dtos.HTTPError); ok {
+				c.JSON(httpError.Code, nil)
+			} else {
+				c.JSON(http.StatusInternalServerError, nil)
+			}
+		}
 		c.JSON(http.StatusNoContent, nil)
 	}
 }
@@ -354,7 +464,7 @@ func postEvent(c *gin.Context, url string) {
 
 	go func() {
 		log.Instance.Debug(metadata.SDKVersion, metadata.MachineIP, string(data))
-		var e = interfaces.MetricsRecorder.RecordRaw(url, data, metadata)
+		var e = interfaces.MetricsRecorder.RecordRaw(url, data, metadata, nil)
 		if e != nil {
 			log.Instance.Error(e)
 		}

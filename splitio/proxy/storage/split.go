@@ -33,7 +33,7 @@ func (s SplitStorage) SetChangeNumber(changeNumber int64) error {
 }
 
 // KillLocally kills
-func (s SplitStorage) KillLocally(splitName string, defaultTreatment string) {}
+func (s SplitStorage) KillLocally(splitName string, defaultTreatment string, changeNumber int64) {}
 
 // PutMany method
 func (s SplitStorage) PutMany(splits []dtos.SplitDTO, changeNumber int64) {}

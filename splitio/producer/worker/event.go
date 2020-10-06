@@ -75,7 +75,6 @@ func (e *RecorderEventMultiple) synchronizeEvents(bulkSize int64) error {
 			task.StoreDataFlushed(before.UnixNano(), len(events), e.eventStorage.Count(), "events")
 		}
 		err := common.WithAttempts(3, func() error {
-			e.logger.Info("eventToSend: ", len(events))
 			err := e.eventRecorder.Record(events, metadata)
 			if err != nil {
 				e.logger.Error("Error posting events")

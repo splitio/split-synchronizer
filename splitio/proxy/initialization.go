@@ -12,6 +12,7 @@ import (
 	"github.com/splitio/go-split-commons/v2/synchronizer"
 	"github.com/splitio/go-split-commons/v2/synchronizer/worker/metric"
 	"github.com/splitio/go-split-commons/v2/tasks"
+	"github.com/splitio/split-synchronizer/v4/appcontext"
 	"github.com/splitio/split-synchronizer/v4/conf"
 	"github.com/splitio/split-synchronizer/v4/log"
 	"github.com/splitio/split-synchronizer/v4/splitio"
@@ -71,7 +72,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	metadata := dtos.Metadata{
 		MachineIP:   "NA",
 		MachineName: "NA",
-		SDKVersion:  "split-sync-proxy-" + splitio.Version,
+		SDKVersion:  appcontext.VersionHeader(),
 	}
 
 	// Initialization common
@@ -157,6 +158,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		int64(conf.Data.EventsPostRate),
 		gracefulShutdownWaitingGroup,
 	)
+	controllers.InitializeImpressionsCountRecorder()
 
 	httpClients := common.HTTPClients{
 		SdkClient:    api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.SdkURL, log.Instance, metadata),

@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,7 +18,8 @@ import (
 //-----------------------------------------------------------------
 // IMPRESSIONS
 //-----------------------------------------------------------------
-type machineNameBuffer map[string][][]byte
+type impressionsModeBuffer map[string][][]byte
+type machineNameBuffer map[string]impressionsModeBuffer
 type machineIPBuffer map[string]machineNameBuffer
 type sdkVersionBuffer map[string]machineIPBuffer
 
@@ -70,10 +72,11 @@ func (s *impressionPoolBufferSizeStruct) GreaterThan(v int64) bool {
 //----------------------------------------------------------------
 
 type impressionChanMessage struct {
-	SdkVersion  string
-	MachineIP   string
-	MachineName string
-	Data        []byte
+	SdkVersion      string
+	MachineIP       string
+	MachineName     string
+	ImpressionsMode string
+	Data            []byte
 }
 
 // InitializeImpressionWorkers initializes impression workers
@@ -86,11 +89,9 @@ func InitializeImpressionWorkers(footprint int64, postRate int64, waitingGroup *
 }
 
 // AddImpressions non-blocking function to add impressions and return response
-func AddImpressions(data []byte, sdkVersion string, machineIP string, machineName string) {
-	var imp = impressionChanMessage{SdkVersion: sdkVersion,
-		MachineIP: machineIP, MachineName: machineName, Data: data}
-
-	impressionChannel <- imp
+func AddImpressions(data []byte, sdkVersion string, machineIP string, machineName string, impressionsMode string) {
+	impressionChannel <- impressionChanMessage{SdkVersion: sdkVersion,
+		MachineIP: machineIP, MachineName: machineName, Data: data, ImpressionsMode: strings.ToLower(impressionsMode)}
 }
 
 func impressionConditionsWorker(postRate int64, waitingGroup *sync.WaitGroup) {
@@ -134,6 +135,7 @@ func addImpressionsToBufferWorker(footprint int64, waitingGroup *sync.WaitGroup)
 		sdkVersion := impMessage.SdkVersion
 		machineIP := impMessage.MachineIP
 		machineName := impMessage.MachineName
+		impressionsMode := impMessage.ImpressionsMode
 
 		impressionMutexPoolBuffer.Lock()
 		//Update current buffer size
@@ -149,10 +151,14 @@ func addImpressionsToBufferWorker(footprint int64, waitingGroup *sync.WaitGroup)
 		}
 
 		if impressionPoolBuffer[sdkVersion][machineIP][machineName] == nil {
-			impressionPoolBuffer[sdkVersion][machineIP][machineName] = make([][]byte, 0)
+			impressionPoolBuffer[sdkVersion][machineIP][machineName] = make(impressionsModeBuffer)
 		}
 
-		impressionPoolBuffer[sdkVersion][machineIP][machineName] = append(impressionPoolBuffer[sdkVersion][machineIP][machineName], data)
+		if impressionPoolBuffer[sdkVersion][machineIP][machineName][impressionsMode] == nil {
+			impressionPoolBuffer[sdkVersion][machineIP][machineName][impressionsMode] = make([][]byte, 0)
+		}
+
+		impressionPoolBuffer[sdkVersion][machineIP][machineName][impressionsMode] = append(impressionPoolBuffer[sdkVersion][machineIP][machineName][impressionsMode], data)
 
 		impressionMutexPoolBuffer.Unlock()
 
@@ -168,46 +174,53 @@ func sendImpressions() {
 	impressionPoolBufferSize.Reset()
 	for sdkVersion, machineIPMap := range impressionPoolBuffer {
 		for machineIP, machineMap := range machineIPMap {
-			for machineName, listImpressions := range machineMap {
+			for machineName, impressionsModeMap := range machineMap {
+				for impressionsMode, listImpressions := range impressionsModeMap {
 
-				var toSend = make([]json.RawMessage, 0)
+					var toSend = make([]json.RawMessage, 0)
 
-				for _, byteImpression := range listImpressions {
-					var rawImpressions []json.RawMessage
-					err := json.Unmarshal(byteImpression, &rawImpressions)
-					if err != nil {
-						log.Instance.Error(err)
+					for _, byteImpression := range listImpressions {
+						var rawImpressions []json.RawMessage
+						err := json.Unmarshal(byteImpression, &rawImpressions)
+						if err != nil {
+							log.Instance.Error(err)
+							continue
+						}
+
+						for _, impression := range rawImpressions {
+							toSend = append(toSend, impression)
+						}
+
+					}
+
+					data, errl := json.Marshal(toSend)
+					if errl != nil {
+						log.Instance.Error(errl)
 						continue
 					}
-
-					for _, impression := range rawImpressions {
-						toSend = append(toSend, impression)
+					before := time.Now()
+					var extraHeaders map[string]string
+					if impressionsMode != "" {
+						extraHeaders = make(map[string]string)
+						extraHeaders["SplitSDKImpressionsMode"] = impressionsMode
 					}
-
-				}
-
-				data, errl := json.Marshal(toSend)
-				if errl != nil {
-					log.Instance.Error(errl)
-					continue
-				}
-				before := time.Now()
-				errp := impressionRecorder.RecordRaw("/testImpressions/bulk", data, dtos.Metadata{
-					SDKVersion:  sdkVersion,
-					MachineIP:   machineIP,
-					MachineName: machineName,
-				})
-				if errp != nil {
-					log.Instance.Error(errp)
-					if httpError, ok := errp.(*dtos.HTTPError); ok {
-						interfaces.ProxyTelemetryWrapper.StoreCounters(storage.TestImpressionsCounter, string(httpError.Code))
+					errp := impressionRecorder.RecordRaw("/testImpressions/bulk",
+						data, dtos.Metadata{
+							SDKVersion:  sdkVersion,
+							MachineIP:   machineIP,
+							MachineName: machineName,
+						}, extraHeaders)
+					if errp != nil {
+						log.Instance.Error(errp)
+						if httpError, ok := errp.(*dtos.HTTPError); ok {
+							interfaces.ProxyTelemetryWrapper.StoreCounters(storage.TestImpressionsCounter, string(httpError.Code))
+						}
+					} else {
+						bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
+						interfaces.ProxyTelemetryWrapper.StoreLatencies(storage.TestImpressionsLatency, bucket)
+						interfaces.ProxyTelemetryWrapper.StoreCounters(storage.TestImpressionsCounter, "ok")
 					}
-				} else {
-					bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-					interfaces.ProxyTelemetryWrapper.StoreLatencies(storage.TestImpressionsLatency, bucket)
-					interfaces.ProxyTelemetryWrapper.StoreCounters(storage.TestImpressionsCounter, "ok")
 				}
-
 			}
 		}
 	}
