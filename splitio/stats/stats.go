@@ -3,7 +3,7 @@ package stats
 import (
 	"time"
 
-	"github.com/splitio/split-synchronizer/splitio/util"
+	"github.com/splitio/split-synchronizer/v4/splitio/util"
 )
 
 var startTime time.Time

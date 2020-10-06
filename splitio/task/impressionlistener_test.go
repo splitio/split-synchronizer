@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/splitio/go-toolkit/logging"
-	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio/recorder"
+	"github.com/splitio/go-toolkit/v3/logging"
+	"github.com/splitio/split-synchronizer/v4/log"
+	"github.com/splitio/split-synchronizer/v4/splitio/recorder"
 )
 
 func before() {

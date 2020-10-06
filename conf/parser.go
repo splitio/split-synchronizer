@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	validator "github.com/splitio/go-toolkit/json-struct-validator"
+	validator "github.com/splitio/go-toolkit/v3/json-struct-validator"
 )
 
 // Data contains all configuration values

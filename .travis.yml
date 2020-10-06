@@ -6,10 +6,6 @@ jobs:
         - 1.13.x
       services:
         - redis-server
-      before_install:
-        - curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-      install:
-        - dep ensure
       script:
         - go test -v -cover $(go list ./... | grep -v /vendor/)
 
@@ -19,10 +15,6 @@ jobs:
         - 1.13.x
       services:
         - redis-server
-      before_install:
-        - curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-      install:
-        - dep ensure
       before_script:
         - BUILD_VERSION=$(tail -n 1 splitio/version.go | awk '{print $4}' | tr -d '"')
         - mkdir -p ${TRAVIS_BUILD_DIR}/release/deploy/synchronizer/${BUILD_VERSION}
