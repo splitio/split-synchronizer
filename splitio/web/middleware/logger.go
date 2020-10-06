@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/split-synchronizer/v4/log"
 )
 
 // Logger middleware to log HTTP requests at Debug level

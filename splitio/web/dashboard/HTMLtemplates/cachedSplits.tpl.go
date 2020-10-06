@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/splitio/go-split-commons/dtos"
+	"github.com/splitio/go-split-commons/v2/dtos"
 )
 
 // CachedSplitsTPLVars list of cached splits

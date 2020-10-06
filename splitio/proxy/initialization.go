@@ -6,24 +6,25 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/splitio/go-split-commons/dtos"
-	"github.com/splitio/go-split-commons/service"
-	"github.com/splitio/go-split-commons/service/api"
-	"github.com/splitio/go-split-commons/synchronizer"
-	"github.com/splitio/go-split-commons/synchronizer/worker/metric"
-	"github.com/splitio/go-split-commons/tasks"
-	"github.com/splitio/split-synchronizer/conf"
-	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio"
-	"github.com/splitio/split-synchronizer/splitio/common"
-	"github.com/splitio/split-synchronizer/splitio/proxy/boltdb"
-	"github.com/splitio/split-synchronizer/splitio/proxy/boltdb/collections"
-	"github.com/splitio/split-synchronizer/splitio/proxy/controllers"
-	"github.com/splitio/split-synchronizer/splitio/proxy/fetcher"
-	"github.com/splitio/split-synchronizer/splitio/proxy/interfaces"
-	"github.com/splitio/split-synchronizer/splitio/proxy/storage"
-	"github.com/splitio/split-synchronizer/splitio/recorder"
-	"github.com/splitio/split-synchronizer/splitio/task"
+	"github.com/splitio/go-split-commons/v2/dtos"
+	"github.com/splitio/go-split-commons/v2/service"
+	"github.com/splitio/go-split-commons/v2/service/api"
+	"github.com/splitio/go-split-commons/v2/synchronizer"
+	"github.com/splitio/go-split-commons/v2/synchronizer/worker/metric"
+	"github.com/splitio/go-split-commons/v2/tasks"
+	"github.com/splitio/split-synchronizer/v4/appcontext"
+	"github.com/splitio/split-synchronizer/v4/conf"
+	"github.com/splitio/split-synchronizer/v4/log"
+	"github.com/splitio/split-synchronizer/v4/splitio"
+	"github.com/splitio/split-synchronizer/v4/splitio/common"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb/collections"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/controllers"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/fetcher"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/interfaces"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage"
+	"github.com/splitio/split-synchronizer/v4/splitio/recorder"
+	"github.com/splitio/split-synchronizer/v4/splitio/task"
 )
 
 func gracefulShutdownProxy(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup, syncManager *synchronizer.Manager) {
@@ -71,7 +72,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	metadata := dtos.Metadata{
 		MachineIP:   "NA",
 		MachineName: "NA",
-		SDKVersion:  "split-sync-proxy-" + splitio.Version,
+		SDKVersion:  appcontext.VersionHeader(),
 	}
 
 	// Initialization common
@@ -157,6 +158,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		int64(conf.Data.EventsPostRate),
 		gracefulShutdownWaitingGroup,
 	)
+	controllers.InitializeImpressionsCountRecorder()
 
 	httpClients := common.HTTPClients{
 		SdkClient:    api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.SdkURL, log.Instance, metadata),

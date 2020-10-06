@@ -9,14 +9,14 @@ import (
 	"os"
 	"testing"
 
-	config "github.com/splitio/go-split-commons/conf"
-	"github.com/splitio/go-split-commons/dtos"
-	"github.com/splitio/go-split-commons/service/mocks"
-	predis "github.com/splitio/go-split-commons/storage/redis"
-	"github.com/splitio/go-toolkit/logging"
-	"github.com/splitio/split-synchronizer/conf"
-	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio/util"
+	config "github.com/splitio/go-split-commons/v2/conf"
+	"github.com/splitio/go-split-commons/v2/dtos"
+	"github.com/splitio/go-split-commons/v2/service/mocks"
+	predis "github.com/splitio/go-split-commons/v2/storage/redis"
+	"github.com/splitio/go-toolkit/v3/logging"
+	"github.com/splitio/split-synchronizer/v4/conf"
+	"github.com/splitio/split-synchronizer/v4/log"
+	"github.com/splitio/split-synchronizer/v4/splitio/util"
 )
 
 func TestHashApiKey(t *testing.T) {

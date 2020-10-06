@@ -3,7 +3,7 @@ package task
 import (
 	"sync"
 
-	"github.com/splitio/split-synchronizer/conf"
+	"github.com/splitio/split-synchronizer/v4/conf"
 )
 
 // record struct that has all the required information of one flushing process

@@ -3,12 +3,8 @@ FROM golang:1.13-alpine AS builder
 
 WORKDIR /go/src/github.com/splitio/split-synchronizer
 
-RUN apk update && \
-    apk add --no-cache git dep
-
 COPY . .
 
-RUN dep ensure
 RUN go build -o split-sync
 
 # Runner stage

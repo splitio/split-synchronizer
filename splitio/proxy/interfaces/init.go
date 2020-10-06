@@ -1,11 +1,11 @@
 package interfaces
 
 import (
-	"github.com/splitio/go-split-commons/service/api"
-	"github.com/splitio/go-split-commons/storage"
-	"github.com/splitio/go-split-commons/storage/mutexmap"
-	"github.com/splitio/split-synchronizer/conf"
-	"github.com/splitio/split-synchronizer/log"
+	"github.com/splitio/go-split-commons/v2/service/api"
+	"github.com/splitio/go-split-commons/v2/storage"
+	"github.com/splitio/go-split-commons/v2/storage/mutexmap"
+	"github.com/splitio/split-synchronizer/v4/conf"
+	"github.com/splitio/split-synchronizer/v4/log"
 )
 
 // TelemetryStorage storage

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/splitio/split-synchronizer/appcontext"
-	"github.com/splitio/split-synchronizer/conf"
-	"github.com/splitio/split-synchronizer/splitio"
+	"github.com/splitio/split-synchronizer/v4/appcontext"
+	"github.com/splitio/split-synchronizer/v4/conf"
+	"github.com/splitio/split-synchronizer/v4/splitio"
 )
 
 // PostMessageToSlack post a message to Slack Channel

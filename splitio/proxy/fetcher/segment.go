@@ -5,14 +5,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/splitio/go-split-commons/dtos"
-	"github.com/splitio/go-split-commons/service"
-	"github.com/splitio/go-split-commons/storage"
-	"github.com/splitio/go-split-commons/synchronizer/worker/segment"
-	"github.com/splitio/go-split-commons/util"
-	"github.com/splitio/go-toolkit/datastructures/set"
-	"github.com/splitio/go-toolkit/logging"
-	"github.com/splitio/split-synchronizer/splitio/proxy/boltdb/collections"
+	"github.com/splitio/go-split-commons/v2/dtos"
+	"github.com/splitio/go-split-commons/v2/service"
+	"github.com/splitio/go-split-commons/v2/storage"
+	"github.com/splitio/go-split-commons/v2/synchronizer/worker/segment"
+	"github.com/splitio/go-split-commons/v2/util"
+	"github.com/splitio/go-toolkit/v3/datastructures/set"
+	"github.com/splitio/go-toolkit/v3/logging"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb/collections"
 )
 
 // SegmentFetcherProxy struct
@@ -78,7 +78,7 @@ func (s *SegmentFetcherProxy) SynchronizeSegments() error {
 // SynchronizeSegment syncs segment
 func (s *SegmentFetcherProxy) SynchronizeSegment(name string, till *int64) error {
 	for {
-		s.logger.Info(fmt.Sprintf("Synchronizing segment %s", name))
+		s.logger.Debug(fmt.Sprintf("Synchronizing segment %s", name))
 		changeNumber := s.segmentStorage.ChangeNumber(name)
 		if changeNumber == 0 {
 			changeNumber = -1

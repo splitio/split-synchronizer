@@ -4,11 +4,11 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/go-split-commons/storage"
-	"github.com/splitio/split-synchronizer/splitio/common"
-	"github.com/splitio/split-synchronizer/splitio/proxy/interfaces"
-	"github.com/splitio/split-synchronizer/splitio/web/admin"
-	"github.com/splitio/split-synchronizer/splitio/web/middleware"
+	"github.com/splitio/go-split-commons/v2/storage"
+	"github.com/splitio/split-synchronizer/v4/splitio/common"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/interfaces"
+	"github.com/splitio/split-synchronizer/v4/splitio/web/admin"
+	"github.com/splitio/split-synchronizer/v4/splitio/web/middleware"
 )
 
 // Options struct to set options for Proxy mode.
@@ -65,6 +65,7 @@ func Run(options *Options) {
 	// Beacon routes
 	beacon := router.Group("/api")
 	{
+		beacon.POST("/testImpressions/count/beacon", postImpressionsCountBeacon(options.APIKeys))
 		beacon.POST("/testImpressions/beacon", postImpressionBeacon(options.APIKeys, options.ImpressionListenerEnabled))
 		beacon.POST("/events/beacon", postEventsBeacon(options.APIKeys))
 	}
@@ -78,6 +79,7 @@ func Run(options *Options) {
 		api.GET("/segmentChanges/:name", segmentChanges)
 		api.GET("/mySegments/:key", mySegments)
 		api.POST("/testImpressions/bulk", postImpressionBulk(options.ImpressionListenerEnabled))
+		api.POST("/testImpressions/count", postImpressionsCount())
 		api.POST("/metrics/times", postMetricsTimes)
 		api.POST("/metrics/counters", postMetricsCounters)
 		api.POST("/metrics/gauge", postMetricsGauge)

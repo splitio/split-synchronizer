@@ -10,16 +10,16 @@ import (
 	"strings"
 	"time"
 
-	config "github.com/splitio/go-split-commons/conf"
-	"github.com/splitio/go-split-commons/dtos"
-	"github.com/splitio/go-split-commons/service"
-	"github.com/splitio/go-split-commons/storage/redis"
-	"github.com/splitio/go-toolkit/logging"
-	"github.com/splitio/go-toolkit/nethelpers"
-	"github.com/splitio/split-synchronizer/conf"
-	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio"
-	"github.com/splitio/split-synchronizer/splitio/util"
+	config "github.com/splitio/go-split-commons/v2/conf"
+	"github.com/splitio/go-split-commons/v2/dtos"
+	"github.com/splitio/go-split-commons/v2/service"
+	"github.com/splitio/go-split-commons/v2/storage/redis"
+	"github.com/splitio/go-toolkit/v3/logging"
+	"github.com/splitio/go-toolkit/v3/nethelpers"
+	"github.com/splitio/split-synchronizer/v4/appcontext"
+	"github.com/splitio/split-synchronizer/v4/conf"
+	"github.com/splitio/split-synchronizer/v4/log"
+	"github.com/splitio/split-synchronizer/v4/splitio/util"
 )
 
 func parseTLSConfig(opt conf.RedisSection) (*tls.Config, error) {
@@ -161,6 +161,6 @@ func getMetadata() dtos.Metadata {
 	return dtos.Metadata{
 		MachineIP:   ipAddress,
 		MachineName: instanceName,
-		SDKVersion:  "split-sync-" + splitio.Version,
+		SDKVersion:  appcontext.VersionHeader(),
 	}
 }

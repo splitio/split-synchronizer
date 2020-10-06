@@ -1,10 +1,10 @@
 package util
 
 import (
-	"github.com/splitio/go-split-commons/storage"
-	"github.com/splitio/split-synchronizer/appcontext"
-	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio/common"
+	"github.com/splitio/go-split-commons/v2/storage"
+	"github.com/splitio/split-synchronizer/v4/appcontext"
+	"github.com/splitio/split-synchronizer/v4/log"
+	"github.com/splitio/split-synchronizer/v4/splitio/common"
 )
 
 // GetImpressionStorage gets storage

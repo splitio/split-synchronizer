@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
-	"github.com/splitio/go-toolkit/logging"
-	"github.com/splitio/split-synchronizer/conf"
-	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio/proxy/boltdb"
+	"github.com/splitio/go-toolkit/v3/logging"
+	"github.com/splitio/split-synchronizer/v4/conf"
+	"github.com/splitio/split-synchronizer/v4/log"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb"
 )
 
 func before() {

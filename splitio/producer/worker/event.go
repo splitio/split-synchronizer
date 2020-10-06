@@ -4,16 +4,16 @@ import (
 	"errors"
 	"time"
 
-	"github.com/splitio/go-split-commons/dtos"
-	"github.com/splitio/go-split-commons/service"
-	"github.com/splitio/go-split-commons/storage"
-	"github.com/splitio/go-split-commons/synchronizer/worker/event"
-	"github.com/splitio/go-split-commons/util"
-	"github.com/splitio/go-toolkit/common"
-	"github.com/splitio/go-toolkit/logging"
-	"github.com/splitio/split-synchronizer/appcontext"
-	"github.com/splitio/split-synchronizer/splitio"
-	"github.com/splitio/split-synchronizer/splitio/task"
+	"github.com/splitio/go-split-commons/v2/dtos"
+	"github.com/splitio/go-split-commons/v2/service"
+	"github.com/splitio/go-split-commons/v2/storage"
+	"github.com/splitio/go-split-commons/v2/synchronizer/worker/event"
+	"github.com/splitio/go-split-commons/v2/util"
+	"github.com/splitio/go-toolkit/v3/common"
+	"github.com/splitio/go-toolkit/v3/logging"
+	"github.com/splitio/split-synchronizer/v4/appcontext"
+	"github.com/splitio/split-synchronizer/v4/splitio"
+	"github.com/splitio/split-synchronizer/v4/splitio/task"
 )
 
 // RecorderEventMultiple struct for event sync
@@ -75,7 +75,6 @@ func (e *RecorderEventMultiple) synchronizeEvents(bulkSize int64) error {
 			task.StoreDataFlushed(before.UnixNano(), len(events), e.eventStorage.Count(), "events")
 		}
 		err := common.WithAttempts(3, func() error {
-			e.logger.Info("eventToSend: ", len(events))
 			err := e.eventRecorder.Record(events, metadata)
 			if err != nil {
 				e.logger.Error("Error posting events")

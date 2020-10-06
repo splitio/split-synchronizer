@@ -8,17 +8,17 @@ import (
 	"syscall"
 
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/go-toolkit/logging"
-	"github.com/splitio/split-synchronizer/appcontext"
-	"github.com/splitio/split-synchronizer/conf"
-	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio"
-	"github.com/splitio/split-synchronizer/splitio/common"
-	"github.com/splitio/split-synchronizer/splitio/stats"
-	"github.com/splitio/split-synchronizer/splitio/task"
-	"github.com/splitio/split-synchronizer/splitio/util"
-	"github.com/splitio/split-synchronizer/splitio/web"
-	"github.com/splitio/split-synchronizer/splitio/web/dashboard"
+	"github.com/splitio/go-toolkit/v3/logging"
+	"github.com/splitio/split-synchronizer/v4/appcontext"
+	"github.com/splitio/split-synchronizer/v4/conf"
+	"github.com/splitio/split-synchronizer/v4/log"
+	"github.com/splitio/split-synchronizer/v4/splitio"
+	"github.com/splitio/split-synchronizer/v4/splitio/common"
+	"github.com/splitio/split-synchronizer/v4/splitio/stats"
+	"github.com/splitio/split-synchronizer/v4/splitio/task"
+	"github.com/splitio/split-synchronizer/v4/splitio/util"
+	"github.com/splitio/split-synchronizer/v4/splitio/web"
+	"github.com/splitio/split-synchronizer/v4/splitio/web/dashboard"
 )
 
 // Uptime returns the service uptime
@@ -107,6 +107,7 @@ func GetConfiguration(c *gin.Context) {
 		"impressionsPostRate": conf.Data.ImpressionsPostRate,
 		"impressionsPerPost":  conf.Data.ImpressionsPerPost,
 		"impressionsThreads":  conf.Data.ImpressionsThreads,
+		"impressionsMode":     conf.Data.ImpressionsMode,
 		"eventsPostRate":      conf.Data.EventsPostRate,
 		"eventsPerPost":       conf.Data.EventsPerPost,
 		"eventsThreads":       conf.Data.EventsThreads,

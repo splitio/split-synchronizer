@@ -13,14 +13,14 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/splitio/go-toolkit/logging"
-	"github.com/splitio/split-synchronizer/appcontext"
-	"github.com/splitio/split-synchronizer/splitio/producer"
-	"github.com/splitio/split-synchronizer/splitio/proxy"
+	"github.com/splitio/go-toolkit/v3/logging"
+	"github.com/splitio/split-synchronizer/v4/appcontext"
+	"github.com/splitio/split-synchronizer/v4/splitio/producer"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy"
 
-	"github.com/splitio/split-synchronizer/conf"
-	"github.com/splitio/split-synchronizer/log"
-	"github.com/splitio/split-synchronizer/splitio"
+	"github.com/splitio/split-synchronizer/v4/conf"
+	"github.com/splitio/split-synchronizer/v4/log"
+	"github.com/splitio/split-synchronizer/v4/splitio"
 )
 
 type configMap map[string]interface{}
@@ -82,7 +82,7 @@ func loadConfiguration(configFile *string, cliParametersMap configMap) error {
 	//overwrite with cli values
 	conf.LoadFromArgs(cliParametersMap)
 
-	return nil
+	return conf.ValidConfigs()
 }
 
 func loadLogger() {
@@ -160,6 +160,7 @@ func main() {
 	//Initialize modules
 	err := loadConfiguration(cliFlags.configFile, cliFlags.cliParametersMap)
 	if err != nil {
+		fmt.Printf("\nSplit Synchronizer - Initialization error: %s\n", err)
 		os.Exit(splitio.ExitInvalidConfiguration)
 	}
 
