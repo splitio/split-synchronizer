@@ -1,4 +1,4 @@
-# Contributing to the Split Python SDK
+# Contributing to the Split Synchronizer
 
 Split Synchronizer is an open source project and we welcome feedback and contribution. The information below describes how to build the project with your changes, run the tests, and send the Pull Request(PR).
 
