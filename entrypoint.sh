@@ -79,7 +79,7 @@ is_true() {
 is_false() {
     normalized=$(echo $1 | tr 'A-Z' 'a-z')
     case $normalized in
-        flase|off|no)
+        false|off|no)
             return 0
             ;;
         *)
