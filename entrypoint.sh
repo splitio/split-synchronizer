@@ -64,10 +64,22 @@
 #    - SPLIT_SYNC_REDIS_FORCE_CLEANUP               Cleanup redis (DB and prefix only) before starting.
 
 
-# Accepted values for options
 is_true() {
-    case $1 in
-        TRUE|true|ON|on|YES|yes)
+    normalized=$(echo "$1" | tr 'A-Z' 'a-z')
+    case $normalized in
+        true|on|yes)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+is_false() {
+    normalized=$(echo $1 | tr 'A-Z' 'a-z')
+    case $normalized in
+        flase|off|no)
             return 0
             ;;
         *)
@@ -105,14 +117,20 @@ fi
 
 if is_true "$SPLIT_SYNC_LOG_DEBUG"; then
   PARAMETERS="${PARAMETERS} -log-debug"
+elif is_false "$SPLIT_SYNC_LOG_DEBUG"; then
+  PARAMETERS="${PARAMETERS} -log-debug=false"
 fi
 
 if is_true "$SPLIT_SYNC_LOG_VERBOSE"; then
   PARAMETERS="${PARAMETERS} -log-verbose"
+elif is_false "$SPLIT_SYNC_LOG_VERBOSE"; then
+  PARAMETERS="${PARAMETERS} -log-verbose=false"
 fi
 
 if is_true "$SPLIT_SYNC_LOG_STDOUT"; then
   PARAMETERS="${PARAMETERS} -log-stdout"
+elif is_false "$SPLIT_SYNC_LOG_STDOUT"; then
+  PARAMETERS="${PARAMETERS} -log-stdout=false"
 fi
 
 if [ ! -z ${SPLIT_SYNC_LOG_FILE+x} ]; then
@@ -139,12 +157,16 @@ if [ ! -z ${SPLIT_SYNC_IMPRESSION_LISTENER_ENDPOINT+x} ]; then
   PARAMETERS="${PARAMETERS} -impression-listener-endpoint=${SPLIT_SYNC_IMPRESSION_LISTENER_ENDPOINT}"
 fi
 
-if is_true "$SPLIT_SYNC_IP_ADDRESSES_ENABLED"; then
-  PARAMETERS="${PARAMETERS} -ip-addresses-enabled"
+if is_true "$split_sync_ip_addresses_enabled"; then
+  parameters="${parameters} -ip-addresses-enabled"
+elif is_false "$split_sync_ip_addresses_enabled"; then
+  parameters="${parameters} -ip-addresses-enabled=false"
 fi
 
 if is_true "$SPLIT_SYNC_STREAMING_ENABLED"; then
   PARAMETERS="${PARAMETERS} -streaming-enabled"
+elif is_false "$SPLIT_SYNC_STREAMING_ENABLED"; then
+  PARAMETERS="${PARAMETERS} -streaming-enabled=false"
 fi
 
 if [ ! -z ${SPLIT_SYNC_IMPRESSIONS_MODE+x} ]; then
@@ -253,6 +275,8 @@ else
  
     if is_true "$SPLIT_SYNC_REDIS_FORCE_CLEANUP"; then
         PARAMETERS="${PARAMETERS} -force-fresh-startup"
+    elif is_false "$SPLIT_SYNC_REDIS_FORCE_CLEANUP"; then
+        PARAMETERS="${PARAMETERS} -force-fresh-startup=false"
     fi
   fi
     
