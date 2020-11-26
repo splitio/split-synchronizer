@@ -1,3 +1,6 @@
+4.0.1 (Nov 26, 2020)
+- Fix entrypoint handling of boolean parameters
+
 4.0.0 (Oct 6, 2020)
 - BREAKING CHANGE (only when sync is used by source code, not binary or Docker versions): Migrated to go modules (dep & bare-bones go-dep no longer supported)
 - Added local impressions deduping (enabled by default).
