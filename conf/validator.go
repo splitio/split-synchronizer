@@ -5,7 +5,7 @@ import (
 	"math"
 	"strings"
 
-	cfg "github.com/splitio/go-split-commons/v2/conf"
+	cfg "github.com/splitio/go-split-commons/v3/conf"
 )
 
 const (

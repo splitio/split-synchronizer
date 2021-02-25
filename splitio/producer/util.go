@@ -10,12 +10,12 @@ import (
 	"strings"
 	"time"
 
-	config "github.com/splitio/go-split-commons/v2/conf"
-	"github.com/splitio/go-split-commons/v2/dtos"
-	"github.com/splitio/go-split-commons/v2/service"
-	"github.com/splitio/go-split-commons/v2/storage/redis"
-	"github.com/splitio/go-toolkit/v3/logging"
-	"github.com/splitio/go-toolkit/v3/nethelpers"
+	config "github.com/splitio/go-split-commons/v3/conf"
+	"github.com/splitio/go-split-commons/v3/dtos"
+	"github.com/splitio/go-split-commons/v3/service"
+	"github.com/splitio/go-split-commons/v3/storage/redis"
+	"github.com/splitio/go-toolkit/v4/logging"
+	"github.com/splitio/go-toolkit/v4/nethelpers"
 	"github.com/splitio/split-synchronizer/v4/appcontext"
 	"github.com/splitio/split-synchronizer/v4/conf"
 	"github.com/splitio/split-synchronizer/v4/log"
@@ -111,7 +111,7 @@ func parseRedisOptions() (*config.RedisConfig, error) {
 }
 
 func isValidApikey(splitFetcher service.SplitFetcher) bool {
-	_, err := splitFetcher.Fetch(time.Now().UnixNano() / int64(time.Millisecond))
+	_, err := splitFetcher.Fetch(time.Now().UnixNano()/int64(time.Millisecond), false)
 	return err == nil
 }
 

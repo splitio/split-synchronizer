@@ -9,13 +9,13 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/splitio/go-split-commons/v2/conf"
-	"github.com/splitio/go-split-commons/v2/dtos"
-	"github.com/splitio/go-split-commons/v2/service/api"
-	recorderMock "github.com/splitio/go-split-commons/v2/service/mocks"
-	"github.com/splitio/go-split-commons/v2/storage"
-	storageMock "github.com/splitio/go-split-commons/v2/storage/mocks"
-	"github.com/splitio/go-toolkit/v3/logging"
+	"github.com/splitio/go-split-commons/v3/conf"
+	"github.com/splitio/go-split-commons/v3/dtos"
+	"github.com/splitio/go-split-commons/v3/service/api"
+	recorderMock "github.com/splitio/go-split-commons/v3/service/mocks"
+	"github.com/splitio/go-split-commons/v3/storage"
+	storageMock "github.com/splitio/go-split-commons/v3/storage/mocks"
+	"github.com/splitio/go-toolkit/v4/logging"
 	"github.com/splitio/split-synchronizer/v4/log"
 )
 

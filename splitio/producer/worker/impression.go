@@ -1,20 +1,22 @@
 package worker
 
 import (
+	"strconv"
+
 	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
-	"github.com/splitio/go-split-commons/v2/conf"
-	"github.com/splitio/go-split-commons/v2/dtos"
-	"github.com/splitio/go-split-commons/v2/provisional"
-	"github.com/splitio/go-split-commons/v2/service"
-	"github.com/splitio/go-split-commons/v2/storage"
-	"github.com/splitio/go-split-commons/v2/synchronizer/worker/impression"
-	"github.com/splitio/go-split-commons/v2/util"
-	commonToolkit "github.com/splitio/go-toolkit/v3/common"
-	"github.com/splitio/go-toolkit/v3/logging"
+	"github.com/splitio/go-split-commons/v3/conf"
+	"github.com/splitio/go-split-commons/v3/dtos"
+	"github.com/splitio/go-split-commons/v3/provisional"
+	"github.com/splitio/go-split-commons/v3/service"
+	"github.com/splitio/go-split-commons/v3/storage"
+	"github.com/splitio/go-split-commons/v3/synchronizer/worker/impression"
+	"github.com/splitio/go-split-commons/v3/util"
+	commonToolkit "github.com/splitio/go-toolkit/v4/common"
+	"github.com/splitio/go-toolkit/v4/logging"
 	"github.com/splitio/split-synchronizer/v4/appcontext"
 	"github.com/splitio/split-synchronizer/v4/splitio"
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
@@ -111,7 +113,7 @@ func (r *RecorderImpressionMultiple) recordImpressions(impressionsToSend map[dto
 		})
 		if err != nil {
 			if httpError, ok := err.(*dtos.HTTPError); ok {
-				r.metricsWrapper.StoreCounters(storage.TestImpressionsCounter, string(httpError.Code))
+				r.metricsWrapper.StoreCounters(storage.TestImpressionsCounter, strconv.Itoa(httpError.Code))
 			}
 			return err
 		}

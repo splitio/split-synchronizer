@@ -6,12 +6,12 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/splitio/go-split-commons/v2/dtos"
-	"github.com/splitio/go-split-commons/v2/service"
-	"github.com/splitio/go-split-commons/v2/service/api"
-	"github.com/splitio/go-split-commons/v2/synchronizer"
-	"github.com/splitio/go-split-commons/v2/synchronizer/worker/metric"
-	"github.com/splitio/go-split-commons/v2/tasks"
+	"github.com/splitio/go-split-commons/v3/dtos"
+	"github.com/splitio/go-split-commons/v3/service"
+	"github.com/splitio/go-split-commons/v3/service/api"
+	"github.com/splitio/go-split-commons/v3/synchronizer"
+	"github.com/splitio/go-split-commons/v3/synchronizer/worker/metric"
+	"github.com/splitio/go-split-commons/v3/tasks"
 	"github.com/splitio/split-synchronizer/v4/appcontext"
 	"github.com/splitio/split-synchronizer/v4/conf"
 	"github.com/splitio/split-synchronizer/v4/log"
@@ -27,7 +27,7 @@ import (
 	"github.com/splitio/split-synchronizer/v4/splitio/task"
 )
 
-func gracefulShutdownProxy(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup, syncManager *synchronizer.Manager) {
+func gracefulShutdownProxy(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup, syncManager synchronizer.Manager) {
 	<-sigs
 
 	log.PostShutdownMessageToSlack(false)

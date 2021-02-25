@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/splitio/go-toolkit/v3/hasher"
+	"github.com/splitio/go-toolkit/v4/hasher"
 )
 
 // ParseTime parses a date to format d h m s
