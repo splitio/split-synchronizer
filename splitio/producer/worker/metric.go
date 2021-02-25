@@ -3,11 +3,11 @@ package worker
 import (
 	"sync"
 
-	"github.com/splitio/go-split-commons/v2/dtos"
-	"github.com/splitio/go-split-commons/v2/service"
-	"github.com/splitio/go-split-commons/v2/storage"
-	"github.com/splitio/go-split-commons/v2/synchronizer/worker/metric"
-	"github.com/splitio/go-toolkit/v3/logging"
+	"github.com/splitio/go-split-commons/v3/dtos"
+	"github.com/splitio/go-split-commons/v3/service"
+	"github.com/splitio/go-split-commons/v3/storage"
+	"github.com/splitio/go-split-commons/v3/synchronizer/worker/metric"
+	"github.com/splitio/go-toolkit/v4/logging"
 )
 
 // RecorderMetricMultiple struct for metric sync

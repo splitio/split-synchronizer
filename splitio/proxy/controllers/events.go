@@ -2,13 +2,14 @@ package controllers
 
 import (
 	"encoding/json"
+	"strconv"
 	"sync"
 	"time"
 
-	"github.com/splitio/go-split-commons/v2/dtos"
-	"github.com/splitio/go-split-commons/v2/service/api"
-	"github.com/splitio/go-split-commons/v2/storage"
-	"github.com/splitio/go-split-commons/v2/util"
+	"github.com/splitio/go-split-commons/v3/dtos"
+	"github.com/splitio/go-split-commons/v3/service/api"
+	"github.com/splitio/go-split-commons/v3/storage"
+	"github.com/splitio/go-split-commons/v3/util"
 	"github.com/splitio/split-synchronizer/v4/conf"
 	"github.com/splitio/split-synchronizer/v4/log"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/interfaces"
@@ -206,7 +207,7 @@ func sendEvents() {
 				if errp != nil {
 					log.Instance.Error(errp)
 					if httpError, ok := errp.(*dtos.HTTPError); ok {
-						interfaces.ProxyTelemetryWrapper.StoreCounters(storage.PostEventsCounter, string(httpError.Code))
+						interfaces.ProxyTelemetryWrapper.StoreCounters(storage.PostEventsCounter, strconv.Itoa(httpError.Code))
 					}
 				} else {
 					bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())

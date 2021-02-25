@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/splitio/go-toolkit/v3/hasher"
+	"github.com/splitio/go-toolkit/v4/hasher"
 )
 
 func TestParseTime(t *testing.T) {

@@ -1,3 +1,8 @@
+4.0.2 (TBD)
+- SSE revamp
+- Add Cache control headers to on-demand requests
+- Sync new segments if referenced in a segment notification
+
 4.0.1 (Dic 22, 2020)
 - Fix entrypoint handling of boolean parameters
 - Remove confusing log message in token renewal process

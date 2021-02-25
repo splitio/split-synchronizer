@@ -2,16 +2,17 @@ package fetcher
 
 import (
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
-	"github.com/splitio/go-split-commons/v2/dtos"
-	"github.com/splitio/go-split-commons/v2/service"
-	"github.com/splitio/go-split-commons/v2/storage"
-	"github.com/splitio/go-split-commons/v2/synchronizer/worker/segment"
-	"github.com/splitio/go-split-commons/v2/util"
-	"github.com/splitio/go-toolkit/v3/datastructures/set"
-	"github.com/splitio/go-toolkit/v3/logging"
+	"github.com/splitio/go-split-commons/v3/dtos"
+	"github.com/splitio/go-split-commons/v3/service"
+	"github.com/splitio/go-split-commons/v3/storage"
+	"github.com/splitio/go-split-commons/v3/synchronizer/worker/segment"
+	"github.com/splitio/go-split-commons/v3/util"
+	"github.com/splitio/go-toolkit/v4/datastructures/set"
+	"github.com/splitio/go-toolkit/v4/logging"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb/collections"
 )
 
@@ -25,7 +26,7 @@ type SegmentFetcherProxy struct {
 }
 
 // NewSegmentFetcher build new fetcher for proxy
-func NewSegmentFetcher(segmentStorage collections.SegmentChangesCollection, splitStorage collections.SplitChangesCollection, segmentFetcher service.SegmentFetcher, metricsWrapper *storage.MetricWrapper, logger logging.LoggerInterface) segment.SegmentFetcher {
+func NewSegmentFetcher(segmentStorage collections.SegmentChangesCollection, splitStorage collections.SplitChangesCollection, segmentFetcher service.SegmentFetcher, metricsWrapper *storage.MetricWrapper, logger logging.LoggerInterface) segment.Updater {
 	return &SegmentFetcherProxy{
 		segmentStorage: segmentStorage,
 		splitStorage:   splitStorage,
@@ -41,7 +42,7 @@ func (s *SegmentFetcherProxy) SegmentNames() []interface{} {
 }
 
 // SynchronizeSegments syncs segments
-func (s *SegmentFetcherProxy) SynchronizeSegments() error {
+func (s *SegmentFetcherProxy) SynchronizeSegments(requestNoCache bool) error {
 	segmentNames := s.splitStorage.SegmentNames().List()
 	s.logger.Debug("Segment Sync", segmentNames)
 	wg := sync.WaitGroup{}
@@ -58,7 +59,7 @@ func (s *SegmentFetcherProxy) SynchronizeSegments() error {
 			ready := false
 			var err error
 			for !ready {
-				err = s.SynchronizeSegment(segmentName, nil)
+				err = s.SynchronizeSegment(segmentName, nil, requestNoCache)
 				if err != nil {
 					failedSegments.Add(segmentName)
 				}
@@ -76,7 +77,7 @@ func (s *SegmentFetcherProxy) SynchronizeSegments() error {
 }
 
 // SynchronizeSegment syncs segment
-func (s *SegmentFetcherProxy) SynchronizeSegment(name string, till *int64) error {
+func (s *SegmentFetcherProxy) SynchronizeSegment(name string, till *int64, requestNoCache bool) error {
 	for {
 		s.logger.Debug(fmt.Sprintf("Synchronizing segment %s", name))
 		changeNumber := s.segmentStorage.ChangeNumber(name)
@@ -88,10 +89,10 @@ func (s *SegmentFetcherProxy) SynchronizeSegment(name string, till *int64) error
 		}
 
 		before := time.Now()
-		segmentChanges, err := s.segmentFetcher.Fetch(name, changeNumber)
+		segmentChanges, err := s.segmentFetcher.Fetch(name, changeNumber, requestNoCache)
 		if err != nil {
 			if httpError, ok := err.(*dtos.HTTPError); ok {
-				s.metricsWrapper.StoreCounters(storage.SegmentChangesCounter, string(httpError.Code))
+				s.metricsWrapper.StoreCounters(storage.SegmentChangesCounter, strconv.Itoa(httpError.Code))
 			}
 			return err
 		}
@@ -144,4 +145,9 @@ func (s *SegmentFetcherProxy) SynchronizeSegment(name string, till *int64) error
 			return nil
 		}
 	}
+}
+
+// IsSegmentCached returns if the segment exists instorage
+func (s *SegmentFetcherProxy) IsSegmentCached(name string) bool {
+	return s.segmentStorage.ChangeNumber(name) != -1
 }

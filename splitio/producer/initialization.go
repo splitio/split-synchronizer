@@ -6,19 +6,19 @@ import (
 	"strings"
 	"sync"
 
-	cfg "github.com/splitio/go-split-commons/v2/conf"
-	"github.com/splitio/go-split-commons/v2/dtos"
-	"github.com/splitio/go-split-commons/v2/provisional"
-	"github.com/splitio/go-split-commons/v2/service"
-	"github.com/splitio/go-split-commons/v2/service/api"
-	"github.com/splitio/go-split-commons/v2/storage"
-	"github.com/splitio/go-split-commons/v2/storage/mutexmap"
-	"github.com/splitio/go-split-commons/v2/storage/redis"
-	"github.com/splitio/go-split-commons/v2/synchronizer"
-	"github.com/splitio/go-split-commons/v2/synchronizer/worker/impressionscount"
-	"github.com/splitio/go-split-commons/v2/synchronizer/worker/segment"
-	"github.com/splitio/go-split-commons/v2/synchronizer/worker/split"
-	"github.com/splitio/go-split-commons/v2/tasks"
+	cfg "github.com/splitio/go-split-commons/v3/conf"
+	"github.com/splitio/go-split-commons/v3/dtos"
+	"github.com/splitio/go-split-commons/v3/provisional"
+	"github.com/splitio/go-split-commons/v3/service"
+	"github.com/splitio/go-split-commons/v3/service/api"
+	"github.com/splitio/go-split-commons/v3/storage"
+	"github.com/splitio/go-split-commons/v3/storage/mutexmap"
+	"github.com/splitio/go-split-commons/v3/storage/redis"
+	"github.com/splitio/go-split-commons/v3/synchronizer"
+	"github.com/splitio/go-split-commons/v3/synchronizer/worker/impressionscount"
+	"github.com/splitio/go-split-commons/v3/synchronizer/worker/segment"
+	"github.com/splitio/go-split-commons/v3/synchronizer/worker/split"
+	"github.com/splitio/go-split-commons/v3/tasks"
 	"github.com/splitio/split-synchronizer/v4/conf"
 	"github.com/splitio/split-synchronizer/v4/log"
 	"github.com/splitio/split-synchronizer/v4/splitio"
@@ -29,7 +29,7 @@ import (
 	"github.com/splitio/split-synchronizer/v4/splitio/web/admin"
 )
 
-func gracefulShutdownProducer(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup, syncManager *synchronizer.Manager) {
+func gracefulShutdownProducer(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup, syncManager synchronizer.Manager) {
 	<-sigs
 
 	log.PostShutdownMessageToSlack(false)
