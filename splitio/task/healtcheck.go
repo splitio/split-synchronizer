@@ -4,8 +4,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/splitio/go-split-commons/v2/service/api"
-	"github.com/splitio/go-split-commons/v2/storage"
+	"github.com/splitio/go-split-commons/v3/service/api"
+	"github.com/splitio/go-split-commons/v3/storage"
 	"github.com/splitio/split-synchronizer/v4/appcontext"
 	"github.com/splitio/split-synchronizer/v4/log"
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
@@ -24,7 +24,7 @@ func StopHealtcheck() {
 }
 
 func getAuthStatus(authClient api.Client) bool {
-	_, err := authClient.Get("/version")
+	_, err := authClient.Get("/version", nil)
 	if err != nil {
 		log.Instance.Debug(err.Error())
 		return false
@@ -33,7 +33,7 @@ func getAuthStatus(authClient api.Client) bool {
 }
 
 func getSdkStatus(sdkClient api.Client) bool {
-	_, err := sdkClient.Get("/version")
+	_, err := sdkClient.Get("/version", nil)
 	if err != nil {
 		log.Instance.Debug(err.Error())
 		return false
@@ -42,7 +42,7 @@ func getSdkStatus(sdkClient api.Client) bool {
 }
 
 func getEventsStatus(eventsClient api.Client) bool {
-	_, err := eventsClient.Get("/version")
+	_, err := eventsClient.Get("/version", nil)
 	if err != nil {
 		log.Instance.Debug(err.Error())
 		return false

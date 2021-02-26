@@ -9,11 +9,11 @@ import (
 	"os"
 	"testing"
 
-	config "github.com/splitio/go-split-commons/v2/conf"
-	"github.com/splitio/go-split-commons/v2/dtos"
-	"github.com/splitio/go-split-commons/v2/service/mocks"
-	predis "github.com/splitio/go-split-commons/v2/storage/redis"
-	"github.com/splitio/go-toolkit/v3/logging"
+	config "github.com/splitio/go-split-commons/v3/conf"
+	"github.com/splitio/go-split-commons/v3/dtos"
+	"github.com/splitio/go-split-commons/v3/service/mocks"
+	predis "github.com/splitio/go-split-commons/v3/storage/redis"
+	"github.com/splitio/go-toolkit/v4/logging"
 	"github.com/splitio/split-synchronizer/v4/conf"
 	"github.com/splitio/split-synchronizer/v4/log"
 	"github.com/splitio/split-synchronizer/v4/splitio/util"
@@ -46,7 +46,7 @@ func TestIsApikeyValidOk(t *testing.T) {
 	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
 
 	httpSplitFetcher := mocks.MockSplitFetcher{
-		FetchCall: func(changeNumber int64) (*dtos.SplitChangesDTO, error) { return nil, nil },
+		FetchCall: func(changeNumber int64, requestNoCache bool) (*dtos.SplitChangesDTO, error) { return nil, nil },
 	}
 
 	if !isValidApikey(httpSplitFetcher) {
@@ -64,7 +64,9 @@ func TestIsApikeyValidNotOk(t *testing.T) {
 	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
 
 	httpSplitFetcher := mocks.MockSplitFetcher{
-		FetchCall: func(changeNumber int64) (*dtos.SplitChangesDTO, error) { return nil, errors.New("Some") },
+		FetchCall: func(changeNumber int64, requestNoCache bool) (*dtos.SplitChangesDTO, error) {
+			return nil, errors.New("Some")
+		},
 	}
 
 	if isValidApikey(httpSplitFetcher) {
