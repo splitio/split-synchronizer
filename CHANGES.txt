@@ -1,3 +1,9 @@
+4.0.2 (Feb 26, 2021)
+- SSE revamp
+- Add Cache control headers to on-demand requests
+- Sync new segments if referenced in a segment notification
+- Set gin to release mode unless debug logging is enabled
+
 4.0.1 (Dic 22, 2020)
 - Fix entrypoint handling of boolean parameters
 - Remove confusing log message in token renewal process

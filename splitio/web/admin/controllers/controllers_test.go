@@ -10,12 +10,12 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/go-split-commons/v2/dtos"
-	apiMocks "github.com/splitio/go-split-commons/v2/service/api/mocks"
-	redisStorage "github.com/splitio/go-split-commons/v2/storage/redis"
-	"github.com/splitio/go-toolkit/v3/logging"
-	"github.com/splitio/go-toolkit/v3/redis"
-	"github.com/splitio/go-toolkit/v3/redis/mocks"
+	"github.com/splitio/go-split-commons/v3/dtos"
+	apiMocks "github.com/splitio/go-split-commons/v3/service/api/mocks"
+	redisStorage "github.com/splitio/go-split-commons/v3/storage/redis"
+	"github.com/splitio/go-toolkit/v4/logging"
+	"github.com/splitio/go-toolkit/v4/redis"
+	"github.com/splitio/go-toolkit/v4/redis/mocks"
 	"github.com/splitio/split-synchronizer/v4/appcontext"
 	"github.com/splitio/split-synchronizer/v4/conf"
 	"github.com/splitio/split-synchronizer/v4/log"
@@ -464,9 +464,9 @@ func TestHealthCheckEndpointSuccessful(t *testing.T) {
 	router.GET("/", func(c *gin.Context) {
 		c.Set(common.SplitStorage, redisStorage.NewSplitStorage(prefixed, nil))
 		c.Set(common.HTTPClientsGin, common.HTTPClients{
-			AuthClient:   apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
-			SdkClient:    apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
-			EventsClient: apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
+			AuthClient:   apiMocks.ClientMock{GetCall: func(string, map[string]string) ([]byte, error) { return []byte{}, nil }},
+			SdkClient:    apiMocks.ClientMock{GetCall: func(string, map[string]string) ([]byte, error) { return []byte{}, nil }},
+			EventsClient: apiMocks.ClientMock{GetCall: func(string, map[string]string) ([]byte, error) { return []byte{}, nil }},
 		})
 		HealthCheck(c)
 	})
@@ -525,9 +525,9 @@ func TestHealthCheckEndpointFailure(t *testing.T) {
 	router.GET("/", func(c *gin.Context) {
 		c.Set(common.SplitStorage, redisStorage.NewSplitStorage(prefixed, nil))
 		c.Set(common.HTTPClientsGin, common.HTTPClients{
-			AuthClient:   apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, errors.New("some") }},
-			SdkClient:    apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
-			EventsClient: apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
+			AuthClient:   apiMocks.ClientMock{GetCall: func(string, map[string]string) ([]byte, error) { return []byte{}, errors.New("some") }},
+			SdkClient:    apiMocks.ClientMock{GetCall: func(string, map[string]string) ([]byte, error) { return []byte{}, nil }},
+			EventsClient: apiMocks.ClientMock{GetCall: func(string, map[string]string) ([]byte, error) { return []byte{}, nil }},
 		})
 		HealthCheck(c)
 	})
@@ -577,9 +577,9 @@ func TestHealthCheckEndpointSDKFail(t *testing.T) {
 	router.GET("/", func(c *gin.Context) {
 		c.Set(common.SplitStorage, redisStorage.NewSplitStorage(prefixed, nil))
 		c.Set(common.HTTPClientsGin, common.HTTPClients{
-			AuthClient:   apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
-			SdkClient:    apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, errors.New("some") }},
-			EventsClient: apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
+			AuthClient:   apiMocks.ClientMock{GetCall: func(string, map[string]string) ([]byte, error) { return []byte{}, nil }},
+			SdkClient:    apiMocks.ClientMock{GetCall: func(string, map[string]string) ([]byte, error) { return []byte{}, errors.New("some") }},
+			EventsClient: apiMocks.ClientMock{GetCall: func(string, map[string]string) ([]byte, error) { return []byte{}, nil }},
 		})
 		HealthCheck(c)
 	})
@@ -638,9 +638,9 @@ func TestHealthCheckEndpointEventsFail(t *testing.T) {
 	router.GET("/", func(c *gin.Context) {
 		c.Set(common.SplitStorage, redisStorage.NewSplitStorage(prefixed, nil))
 		c.Set(common.HTTPClientsGin, common.HTTPClients{
-			AuthClient:   apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
-			SdkClient:    apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
-			EventsClient: apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, errors.New("some") }},
+			AuthClient:   apiMocks.ClientMock{GetCall: func(string, map[string]string) ([]byte, error) { return []byte{}, nil }},
+			SdkClient:    apiMocks.ClientMock{GetCall: func(string, map[string]string) ([]byte, error) { return []byte{}, nil }},
+			EventsClient: apiMocks.ClientMock{GetCall: func(string, map[string]string) ([]byte, error) { return []byte{}, errors.New("some") }},
 		})
 		HealthCheck(c)
 	})
@@ -699,9 +699,9 @@ func TestHealthCheckEndpointAuthFail(t *testing.T) {
 	router.GET("/", func(c *gin.Context) {
 		c.Set(common.SplitStorage, redisStorage.NewSplitStorage(prefixed, nil))
 		c.Set(common.HTTPClientsGin, common.HTTPClients{
-			AuthClient:   apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, errors.New("some") }},
-			SdkClient:    apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
-			EventsClient: apiMocks.ClientMock{GetCall: func(service string) ([]byte, error) { return []byte{}, nil }},
+			AuthClient:   apiMocks.ClientMock{GetCall: func(string, map[string]string) ([]byte, error) { return []byte{}, errors.New("some") }},
+			SdkClient:    apiMocks.ClientMock{GetCall: func(string, map[string]string) ([]byte, error) { return []byte{}, nil }},
+			EventsClient: apiMocks.ClientMock{GetCall: func(string, map[string]string) ([]byte, error) { return []byte{}, nil }},
 		})
 		HealthCheck(c)
 	})

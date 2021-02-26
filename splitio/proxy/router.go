@@ -4,7 +4,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/go-split-commons/v2/storage"
+	"github.com/splitio/go-split-commons/v3/storage"
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/interfaces"
 	"github.com/splitio/split-synchronizer/v4/splitio/web/admin"
