@@ -33,10 +33,12 @@ func StartAdminWebAdmin(options *WebAdminOptions, storages common.Storages, http
 }
 
 func newWebAdminServer(options *WebAdminOptions, storages common.Storages, httpClients common.HTTPClients, recorders common.Recorders) *WebAdminServer {
+	if !options.DebugOn {
+		gin.SetMode(gin.ReleaseMode)
+	}
 	server := &WebAdminServer{options: options, router: gin.New()}
 	server.router.Use(gin.Recovery())
 	if !options.DebugOn {
-		gin.SetMode(gin.ReleaseMode)
 		server.router.Use(gin.LoggerWithWriter(gin.DefaultWriter, "/admin/healthcheck", "/admin/ping", "/admin/uptime", "/admin/version"))
 	} else {
 		server.router.Use(gin.Logger())
