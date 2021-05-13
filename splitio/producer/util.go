@@ -11,12 +11,9 @@ import (
 	"time"
 
 	config "github.com/splitio/go-split-commons/v3/conf"
-	"github.com/splitio/go-split-commons/v3/dtos"
 	"github.com/splitio/go-split-commons/v3/service"
 	"github.com/splitio/go-split-commons/v3/storage/redis"
 	"github.com/splitio/go-toolkit/v4/logging"
-	"github.com/splitio/go-toolkit/v4/nethelpers"
-	"github.com/splitio/split-synchronizer/v4/appcontext"
 	"github.com/splitio/split-synchronizer/v4/conf"
 	"github.com/splitio/split-synchronizer/v4/log"
 	"github.com/splitio/split-synchronizer/v4/splitio/util"
@@ -145,22 +142,4 @@ func sanitizeRedis(miscStorage *redis.MiscStorage, logger logging.LoggerInterfac
 		miscStorage.ClearAll()
 	}
 	return nil
-}
-
-func getMetadata() dtos.Metadata {
-	instanceName := "unknown"
-	ipAddress := "unknown"
-	if conf.Data.IPAddressesEnabled {
-		ip, err := nethelpers.ExternalIP()
-		if err == nil {
-			ipAddress = ip
-			instanceName = fmt.Sprintf("ip-%s", strings.Replace(ipAddress, ".", "-", -1))
-		}
-	}
-
-	return dtos.Metadata{
-		MachineIP:   ipAddress,
-		MachineName: instanceName,
-		SDKVersion:  appcontext.VersionHeader(),
-	}
 }
