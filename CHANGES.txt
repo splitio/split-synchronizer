@@ -1,3 +1,6 @@
+4.0.3 (Jun 28, 2021)
+ - Added dial timeout for Streaming.
+
 4.0.2 (Feb 26, 2021)
 - SSE revamp
 - Add Cache control headers to on-demand requests

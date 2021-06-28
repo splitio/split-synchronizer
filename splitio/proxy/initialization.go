@@ -6,13 +6,11 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/splitio/go-split-commons/v3/dtos"
 	"github.com/splitio/go-split-commons/v3/service"
 	"github.com/splitio/go-split-commons/v3/service/api"
 	"github.com/splitio/go-split-commons/v3/synchronizer"
 	"github.com/splitio/go-split-commons/v3/synchronizer/worker/metric"
 	"github.com/splitio/go-split-commons/v3/tasks"
-	"github.com/splitio/split-synchronizer/v4/appcontext"
 	"github.com/splitio/split-synchronizer/v4/conf"
 	"github.com/splitio/split-synchronizer/v4/log"
 	"github.com/splitio/split-synchronizer/v4/splitio"
@@ -25,6 +23,7 @@ import (
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage"
 	"github.com/splitio/split-synchronizer/v4/splitio/recorder"
 	"github.com/splitio/split-synchronizer/v4/splitio/task"
+	"github.com/splitio/split-synchronizer/v4/splitio/util"
 )
 
 func gracefulShutdownProxy(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup, syncManager synchronizer.Manager) {
@@ -69,11 +68,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 
 	// Getting initial config data
 	advanced := conf.ParseAdvancedOptions()
-	metadata := dtos.Metadata{
-		MachineIP:   "NA",
-		MachineName: "NA",
-		SDKVersion:  appcontext.VersionHeader(),
-	}
+	metadata := util.GetMetadata()
 
 	// Initialization common
 	interfaces.Initialize()
