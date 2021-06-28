@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strconv"
@@ -71,11 +72,13 @@ func fetchSplitsFromDB(since int) ([]json.RawMessage, int64, error) {
 }
 
 func splitChanges(c *gin.Context) {
+	log.Instance.Debug(fmt.Sprintf("Headers: %v", c.Request.Header))
 	sinceParam := c.DefaultQuery("since", "-1")
 	since, err := strconv.Atoi(sinceParam)
 	if err != nil {
 		since = -1
 	}
+	log.Instance.Debug(fmt.Sprintf("SDK Fetches Splits Since: %d", since))
 
 	before := time.Now()
 	splits, till, errf := fetchSplitsFromDB(since)
@@ -147,6 +150,7 @@ func fetchSegmentsFromDB(since int, segmentName string) ([]string, []string, int
 }
 
 func segmentChanges(c *gin.Context) {
+	log.Instance.Debug(fmt.Sprintf("Headers: %v", c.Request.Header))
 	sinceParam := c.DefaultQuery("since", "-1")
 	since, err := strconv.Atoi(sinceParam)
 	if err != nil {
@@ -154,6 +158,7 @@ func segmentChanges(c *gin.Context) {
 	}
 
 	segmentName := c.Param("name")
+	log.Instance.Debug(fmt.Sprintf("SDK Fetches Segment: %s Since: %d", segmentName, since))
 	before := time.Now()
 	added, removed, till, errf := fetchSegmentsFromDB(since, segmentName)
 	if errf != nil {
@@ -172,6 +177,7 @@ func segmentChanges(c *gin.Context) {
 // MY SEGMENTS
 //-----------------------------------------------------------------------------
 func mySegments(c *gin.Context) {
+	log.Instance.Debug(fmt.Sprintf("Headers: %v", c.Request.Header))
 	before := time.Now()
 	key := c.Param("key")
 	var mysegments = make([]dtos.MySegmentDTO, 0)
@@ -543,5 +549,6 @@ func postEventsBeacon(keys []string) gin.HandlerFunc {
 }
 
 func auth(c *gin.Context) {
+	log.Instance.Debug(fmt.Sprintf("Headers: %v", c.Request.Header))
 	c.JSON(http.StatusOK, gin.H{"pushEnabled": false, "token": ""})
 }

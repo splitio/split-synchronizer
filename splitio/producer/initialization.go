@@ -26,6 +26,7 @@ import (
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/worker"
 	"github.com/splitio/split-synchronizer/v4/splitio/recorder"
 	"github.com/splitio/split-synchronizer/v4/splitio/task"
+	"github.com/splitio/split-synchronizer/v4/splitio/util"
 	"github.com/splitio/split-synchronizer/v4/splitio/web/admin"
 )
 
@@ -56,7 +57,7 @@ func gracefulShutdownProducer(sigs chan os.Signal, gracefulShutdownWaitingGroup 
 func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	// Getting initial config data
 	advanced := conf.ParseAdvancedOptions()
-	metadata := getMetadata()
+	metadata := util.GetMetadata()
 
 	// Setup fetchers & recorders
 	splitAPI := service.NewSplitAPI(
