@@ -9,6 +9,7 @@ import (
 	"github.com/splitio/go-split-commons/v3/dtos"
 	"github.com/splitio/go-split-commons/v3/service"
 	"github.com/splitio/go-split-commons/v3/storage"
+	"github.com/splitio/go-split-commons/v3/storage/mutexmap"
 	"github.com/splitio/go-split-commons/v3/synchronizer/worker/segment"
 	"github.com/splitio/go-split-commons/v3/util"
 	"github.com/splitio/go-toolkit/v4/datastructures/set"
@@ -18,7 +19,8 @@ import (
 
 // SegmentFetcherProxy struct
 type SegmentFetcherProxy struct {
-	segmentStorage collections.SegmentChangesCollection
+	segmentStorage *mutexmap.MMSegmentStorage
+	mySegments     *MySegmentsCache
 	splitStorage   collections.SplitChangesCollection
 	segmentFetcher service.SegmentFetcher
 	metricsWrapper *storage.MetricWrapper
@@ -26,9 +28,10 @@ type SegmentFetcherProxy struct {
 }
 
 // NewSegmentFetcher build new fetcher for proxy
-func NewSegmentFetcher(segmentStorage collections.SegmentChangesCollection, splitStorage collections.SplitChangesCollection, segmentFetcher service.SegmentFetcher, metricsWrapper *storage.MetricWrapper, logger logging.LoggerInterface) segment.Updater {
+func NewSegmentFetcher(segmentStorage *mutexmap.MMSegmentStorage, splitStorage collections.SplitChangesCollection, segmentFetcher service.SegmentFetcher, metricsWrapper *storage.MetricWrapper, logger logging.LoggerInterface, mySegmentsCache *MySegmentsCache) segment.Updater {
 	return &SegmentFetcherProxy{
 		segmentStorage: segmentStorage,
+		mySegments:     mySegmentsCache,
 		splitStorage:   splitStorage,
 		segmentFetcher: segmentFetcher,
 		metricsWrapper: metricsWrapper,
@@ -76,11 +79,38 @@ func (s *SegmentFetcherProxy) SynchronizeSegments(requestNoCache bool) error {
 	return nil
 }
 
+func (s *SegmentFetcherProxy) processUpdate(segmentChanges *dtos.SegmentChangesDTO) {
+	name := segmentChanges.Name
+	oldSegment := s.segmentStorage.Keys(name)
+	if oldSegment == nil {
+		keys := set.NewSet()
+		for _, key := range segmentChanges.Added {
+			keys.Add(key)
+		}
+		s.logger.Debug(fmt.Sprintf("Segment [%s] doesn't exist now, it will add (%d) keys", name, keys.Size()))
+		s.segmentStorage.Update(name, keys, set.NewSet(), segmentChanges.Till)
+	} else {
+		toAdd := set.NewSet()
+		toRemove := set.NewSet()
+		// Segment exists, must add new members and remove old ones
+		for _, key := range segmentChanges.Added {
+			toAdd.Add(key)
+		}
+		for _, key := range segmentChanges.Removed {
+			toRemove.Add(key)
+		}
+		if toAdd.Size() > 0 || toRemove.Size() > 0 {
+			s.logger.Debug(fmt.Sprintf("Segment [%s] exists, it will be updated. %d keys added, %d keys removed", name, toAdd.Size(), toRemove.Size()))
+			s.segmentStorage.Update(name, toAdd, toRemove, segmentChanges.Till)
+		}
+	}
+}
+
 // SynchronizeSegment syncs segment
 func (s *SegmentFetcherProxy) SynchronizeSegment(name string, till *int64, requestNoCache bool) error {
 	for {
 		s.logger.Debug(fmt.Sprintf("Synchronizing segment %s", name))
-		changeNumber := s.segmentStorage.ChangeNumber(name)
+		changeNumber, _ := s.segmentStorage.ChangeNumber(name)
 		if changeNumber == 0 {
 			changeNumber = -1
 		}
@@ -97,46 +127,17 @@ func (s *SegmentFetcherProxy) SynchronizeSegment(name string, till *int64, reque
 			return err
 		}
 
-		segmentItem, _ := s.segmentStorage.Fetch(segmentChanges.Name)
-
-		if segmentItem == nil {
-			segmentItem = &collections.SegmentChangesItem{}
-			segmentItem.Name = segmentChanges.Name
-			segmentItem.Keys = make(map[string]collections.SegmentKey)
+		for _, removedKey := range segmentChanges.Removed {
+			s.logger.Debug("Removing", segmentChanges.Name, "for", removedKey)
+			s.mySegments.RemoveSegmentForUser(removedKey, segmentChanges.Name)
 		}
 
-		for _, removedSegment := range segmentChanges.Removed {
-			s.logger.Debug("Removing", removedSegment, "from", segmentChanges.Name)
-			if _, exists := segmentItem.Keys[removedSegment]; exists {
-				itemAux := segmentItem.Keys[removedSegment]
-				itemAux.Removed = true
-				itemAux.ChangeNumber = segmentChanges.Till
-				segmentItem.Keys[removedSegment] = itemAux
-			} else {
-				segmentItem.Keys[removedSegment] = collections.SegmentKey{Name: removedSegment,
-					Removed: true, ChangeNumber: segmentChanges.Till}
-			}
-
+		for _, addedKey := range segmentChanges.Added {
+			s.logger.Debug("Adding", segmentChanges.Name, "for", addedKey)
+			s.mySegments.AddSegmentToUser(addedKey, segmentChanges.Name)
 		}
 
-		for _, addedSegment := range segmentChanges.Added {
-			s.logger.Debug("Adding", addedSegment, "in", segmentChanges.Name)
-			if _, exists := segmentItem.Keys[addedSegment]; exists {
-				itemAux := segmentItem.Keys[addedSegment]
-				itemAux.Removed = false
-				itemAux.ChangeNumber = segmentChanges.Till
-				segmentItem.Keys[addedSegment] = itemAux
-			} else {
-				segmentItem.Keys[addedSegment] = collections.SegmentKey{Name: addedSegment,
-					Removed: false, ChangeNumber: segmentChanges.Till}
-			}
-		}
-		err = s.segmentStorage.Add(segmentItem)
-		if err != nil {
-			s.logger.Error(err)
-			return err
-		}
-		s.segmentStorage.SetChangeNumber(segmentChanges.Name, segmentChanges.Till)
+		s.processUpdate(segmentChanges)
 
 		bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
 		s.metricsWrapper.StoreLatencies(storage.SegmentChangesLatency, bucket)
@@ -149,5 +150,9 @@ func (s *SegmentFetcherProxy) SynchronizeSegment(name string, till *int64, reque
 
 // IsSegmentCached returns if the segment exists instorage
 func (s *SegmentFetcherProxy) IsSegmentCached(name string) bool {
-	return s.segmentStorage.ChangeNumber(name) != -1
+	cn, err := s.segmentStorage.ChangeNumber(name)
+	if err != nil {
+		return false
+	}
+	return cn != -1
 }

@@ -15,11 +15,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/go-split-commons/v3/dtos"
+	"github.com/splitio/go-split-commons/v3/storage"
+	"github.com/splitio/go-split-commons/v3/storage/mutexmap"
+	"github.com/splitio/go-toolkit/v4/datastructures/set"
 	"github.com/splitio/go-toolkit/v4/logging"
 	"github.com/splitio/split-synchronizer/v4/log"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb/collections"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/controllers"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/fetcher"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/interfaces"
 )
 
@@ -495,5 +499,72 @@ func TestAuth(t *testing.T) {
 	}
 	if body.token != "" {
 		t.Error("Wrong token")
+	}
+}
+
+func TestMySegmentsController(t *testing.T) {
+	interfaces.MySegmentsCache = fetcher.NewMySegmentsCache()
+	interfaces.ProxyTelemetryWrapper = storage.NewMetricWrapper(mutexmap.NewMMMetricsStorage(), mutexmap.NewMMMetricsStorage(), log.Instance)
+	interfaces.MySegmentsCache.AddSegmentToUser("test", "one")
+	interfaces.MySegmentsCache.AddSegmentToUser("test", "two")
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "ok!!")
+	}))
+	defer ts.Close()
+
+	os.Setenv("SPLITIO_SDK_URL", ts.URL)
+	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
+
+	if log.Instance == nil {
+		stdoutWriter := ioutil.Discard //os.Stdout
+		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
+	}
+
+	gin.SetMode(gin.TestMode)
+	router := gin.Default()
+	router.GET("/mysegments/:key", func(c *gin.Context) {
+		mySegments(c)
+	})
+
+	res := performRequest(router, "GET", "/mysegments/test", "")
+	if res.Code != http.StatusOK {
+		t.Error("Should returned 200")
+	}
+
+	var r *MySegments
+	body, _ := ioutil.ReadAll(res.Body)
+	json.Unmarshal(body, &r)
+	if r == nil {
+		t.Error("Wrong payload")
+	}
+
+	if len(r.Segments) != 2 {
+		t.Error("It should be 2")
+	}
+	segments := set.NewSet()
+	for _, s := range r.Segments {
+		segments.Add(s.Name)
+	}
+	if !segments.Has("one") {
+		t.Error("it should has segment")
+	}
+	if !segments.Has("two") {
+		t.Error("it should has segment")
+	}
+
+	res = performRequest(router, "GET", "/mysegments/empty", "")
+	if res.Code != http.StatusOK {
+		t.Error("Should returned 200")
+	}
+
+	body, _ = ioutil.ReadAll(res.Body)
+	json.Unmarshal(body, &r)
+	if r == nil {
+		t.Error("Wrong payload")
+	}
+
+	if len(r.Segments) != 0 {
+		t.Error("It should be 0")
 	}
 }

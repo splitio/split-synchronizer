@@ -8,6 +8,7 @@ import (
 
 	"github.com/splitio/go-split-commons/v3/service"
 	"github.com/splitio/go-split-commons/v3/service/api"
+	"github.com/splitio/go-split-commons/v3/storage/mutexmap"
 	"github.com/splitio/go-split-commons/v3/synchronizer"
 	"github.com/splitio/go-split-commons/v3/synchronizer/worker/metric"
 	"github.com/splitio/go-split-commons/v3/tasks"
@@ -84,13 +85,12 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	// Instantiating storages
 	splitCollection := collections.NewSplitChangesCollection(boltdb.DBB)
 	splitStorage := storage.NewSplitStorage(splitCollection)
-	segmentCollection := collections.NewSegmentChangesCollection(boltdb.DBB)
-	segmentStorage := storage.NewSegmentStorage(segmentCollection)
+	segmentStorage := mutexmap.NewMMSegmentStorage()
 
 	// Creating Workers and Tasks
 	workers := synchronizer.Workers{
 		SplitFetcher:      fetcher.NewSplitFetcher(splitCollection, splitAPI.SplitFetcher, interfaces.ProxyTelemetryWrapper, log.Instance),
-		SegmentFetcher:    fetcher.NewSegmentFetcher(segmentCollection, splitCollection, splitAPI.SegmentFetcher, interfaces.ProxyTelemetryWrapper, log.Instance),
+		SegmentFetcher:    fetcher.NewSegmentFetcher(segmentStorage, splitCollection, splitAPI.SegmentFetcher, interfaces.ProxyTelemetryWrapper, log.Instance, interfaces.MySegmentsCache),
 		TelemetryRecorder: metric.NewRecorderSingle(interfaces.TelemetryStorage, splitAPI.MetricRecorder, metadata),
 	}
 	splitTasks := synchronizer.SplitTasks{
