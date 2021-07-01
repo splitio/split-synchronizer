@@ -10,24 +10,34 @@ import (
 	"github.com/splitio/go-split-commons/v3/synchronizer/worker/split"
 	"github.com/splitio/go-split-commons/v3/util"
 	"github.com/splitio/go-toolkit/v4/logging"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb/collections"
+
+	//	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb/collections"
+	storageV2 "github.com/splitio/split-synchronizer/v4/splitio/proxy/storage/v2"
 )
 
 // SplitFetcherProxy struct
 type SplitFetcherProxy struct {
-	splitStorage   collections.SplitChangesCollection
-	splitFetcher   service.SplitFetcher
-	metricsWrapper *storage.MetricWrapper
-	logger         logging.LoggerInterface
+	splitStorage          storage.SplitStorage
+	splitChangesSummaries *storageV2.SplitChangesSummaries
+	splitFetcher          service.SplitFetcher
+	metricsWrapper        *storage.MetricWrapper
+	logger                logging.LoggerInterface
 }
 
 // NewSplitFetcher build new fetcher for proxy
-func NewSplitFetcher(splitStorage collections.SplitChangesCollection, splitFetcher service.SplitFetcher, metricsWrapper *storage.MetricWrapper, logger logging.LoggerInterface) split.Updater {
+func NewSplitFetcher(
+	splitStorage storage.SplitStorage,
+	splitChangesSummaries *storageV2.SplitChangesSummaries,
+	splitFetcher service.SplitFetcher,
+	metricsWrapper *storage.MetricWrapper,
+	logger logging.LoggerInterface,
+) split.Updater {
 	return &SplitFetcherProxy{
-		splitStorage:   splitStorage,
-		splitFetcher:   splitFetcher,
-		metricsWrapper: metricsWrapper,
-		logger:         logger,
+		splitChangesSummaries: splitChangesSummaries,
+		splitStorage:          splitStorage,
+		splitFetcher:          splitFetcher,
+		metricsWrapper:        metricsWrapper,
+		logger:                logger,
 	}
 }
 
@@ -35,7 +45,7 @@ func NewSplitFetcher(splitStorage collections.SplitChangesCollection, splitFetch
 func (s *SplitFetcherProxy) SynchronizeSplits(till *int64, requestNoCache bool) ([]string, error) {
 	// @TODO: add delays
 	for {
-		changeNumber := s.splitStorage.ChangeNumber()
+		changeNumber, _ := s.splitStorage.ChangeNumber()
 		if changeNumber == 0 {
 			changeNumber = -1
 		}
@@ -52,23 +62,26 @@ func (s *SplitFetcherProxy) SynchronizeSplits(till *int64, requestNoCache bool) 
 			return nil, err
 		}
 
-		s.splitStorage.SetChangeNumber(splits.Till)
+		toAdd := []dtos.SplitDTO{}
+		toDel := []dtos.SplitDTO{}
+		toAddView := []storageV2.SplitMinimalView{}
+		toDelView := []storageV2.SplitMinimalView{}
 		for _, split := range splits.Splits {
-			splitChangesItem := &collections.SplitChangesItem{}
-			rdat, err := split.MarshalBinary()
-			if err != nil {
-				continue
-			}
-			splitChangesItem.JSON = string(rdat)
-			splitChangesItem.ChangeNumber = split.ChangeNumber
-			splitChangesItem.Name = split.Name
-			splitChangesItem.Status = split.Status
-			err = s.splitStorage.Add(splitChangesItem)
-			if err != nil {
-				continue
+			if split.Status == "ACTIVE" {
+				toAdd = append(toAdd, split)
+				toAddView = append(toAddView, storageV2.SplitMinimalView{Name: split.Name, TrafficType: split.TrafficTypeName})
+			} else {
+				toDel = append(toDel, split)
+				toDelView = append(toDelView, storageV2.SplitMinimalView{Name: split.Name, TrafficType: split.TrafficTypeName})
 			}
 		}
-		bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
+		s.splitStorage.PutMany(toAdd, splits.Till)
+		for _, spl := range toDel {
+			s.splitStorage.Remove(spl.Name)
+		}
+		s.splitChangesSummaries.AddChanges(splits.Till, toAddView, toDelView)
+
+		bucket := util.Bucket(time.Since(before).Nanoseconds())
 		s.metricsWrapper.StoreCounters(storage.SplitChangesCounter, "ok")
 		s.metricsWrapper.StoreLatencies(storage.SplitChangesLatency, bucket)
 		if splits.Till == splits.Since || (till != nil && splits.Till >= *till) {

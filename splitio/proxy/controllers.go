@@ -17,6 +17,7 @@ import (
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb/collections"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/controllers"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/interfaces"
+	storageV2 "github.com/splitio/split-synchronizer/v4/splitio/proxy/storage/v2"
 	"github.com/splitio/split-synchronizer/v4/splitio/task"
 )
 
@@ -71,6 +72,52 @@ func fetchSplitsFromDB(since int) ([]json.RawMessage, int64, error) {
 	return splits, till, nil
 }
 
+func buildArchivedSplitsFor(nameToTrafficType map[string]string) []dtos.SplitDTO {
+	archived := make([]dtos.SplitDTO, 0, len(nameToTrafficType))
+	for name, tt := range nameToTrafficType {
+		archived = append(archived, dtos.SplitDTO{
+			ChangeNumber:          1,
+			TrafficTypeName:       tt,
+			Name:                  name,
+			TrafficAllocation:     100,
+			TrafficAllocationSeed: 0,
+			Seed:                  0,
+			Status:                "ARCHIVED",
+			Killed:                false,
+			DefaultTreatment:      "off",
+			Algo:                  1,
+			Conditions:            make([]dtos.ConditionDTO, 0),
+		})
+	}
+	return archived
+}
+
+func handleSplitCNNotPresent(c *gin.Context, since int64) {
+	data, err := interfaces.SplitAPI.SplitFetcher.Fetch(since, true)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, "")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"splits": data.Splits, "since": data.Since, "till": data.Till})
+
+	// Add the entry to the summary cache in background.
+	go func() {
+		// TODO: This logic for parsing a SplitChangesDTO should be somewhere in a common place
+		toAddView := []storageV2.SplitMinimalView{}
+		toDelView := []storageV2.SplitMinimalView{}
+		for _, split := range data.Splits {
+			if split.Status == "ACTIVE" {
+				toAddView = append(toAddView, storageV2.SplitMinimalView{Name: split.Name, TrafficType: split.TrafficTypeName})
+			} else {
+				toDelView = append(toDelView, storageV2.SplitMinimalView{Name: split.Name, TrafficType: split.TrafficTypeName})
+			}
+		}
+		interfaces.SplitChangesSummary.AddOlderChange(since, toAddView, toDelView)
+	}()
+
+	return
+}
+
 func splitChanges(c *gin.Context) {
 	log.Instance.Debug(fmt.Sprintf("Headers: %v", c.Request.Header))
 	sinceParam := c.DefaultQuery("since", "-1")
@@ -80,23 +127,60 @@ func splitChanges(c *gin.Context) {
 	}
 	log.Instance.Debug(fmt.Sprintf("SDK Fetches Splits Since: %d", since))
 
-	before := time.Now()
-	splits, till, errf := fetchSplitsFromDB(since)
-	if errf != nil {
-		switch errf {
-		case boltdb.ErrorBucketNotFound:
-			log.Instance.Warning("Maybe Splits are not yet synchronized")
-		default:
-			log.Instance.Error(errf)
+	// Special case of -1, return all
+	if since == -1 {
+		cn, err := interfaces.SplitStorage.ChangeNumber()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, "")
+			return
 		}
-		interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIError)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": errf.Error()})
+		all := interfaces.SplitStorage.All()
+		fmt.Println(interfaces.SplitStorage.SplitNames())
+		c.JSON(http.StatusOK, gin.H{"splits": all, "since": since, "till": cn})
 		return
 	}
-	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncLatency(split, bucket)
-	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIOK)
-	c.JSON(http.StatusOK, gin.H{"splits": splits, "since": since, "till": till})
+
+	summary, till, err := interfaces.SplitChangesSummary.FetchSince(int64(since))
+	if err != nil {
+		// Special case of missing CN, fetch, reply and cache in BG
+		handleSplitCNNotPresent(c, int64(since))
+		return
+	}
+
+	// Regular flow
+	splitNames := make([]string, 0, len(summary.Updated))
+	for name := range summary.Updated {
+		splitNames = append(splitNames, name)
+	}
+
+	active := interfaces.SplitStorage.FetchMany(splitNames)
+	all := make([]dtos.SplitDTO, 0, len(summary.Removed)+len(summary.Updated))
+	fmt.Println("ACA: ", active)
+	for _, split := range active {
+		all = append(all, *split)
+	}
+	all = append(all, buildArchivedSplitsFor(summary.Removed)...)
+	c.JSON(http.StatusOK, gin.H{"splits": all, "since": since, "till": till})
+
+	/*
+		before := time.Now()
+		splits, till, errf := fetchSplitsFromDB(since)
+		if errf != nil {
+			switch errf {
+			case boltdb.ErrorBucketNotFound:
+				log.Instance.Warning("Maybe Splits are not yet synchronized")
+			default:
+				log.Instance.Error(errf)
+			}
+			interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIError)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": errf.Error()})
+			return
+		}
+		bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
+		interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncLatency(split, bucket)
+		interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIOK)
+		c.JSON(http.StatusOK, gin.H{"splits": splits, "since": since, "till": till})
+	*/
 }
 
 //-----------------------------------------------------------------------------

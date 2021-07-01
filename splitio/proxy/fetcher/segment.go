@@ -14,21 +14,27 @@ import (
 	"github.com/splitio/go-split-commons/v3/util"
 	"github.com/splitio/go-toolkit/v4/datastructures/set"
 	"github.com/splitio/go-toolkit/v4/logging"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb/collections"
 )
 
 // SegmentFetcherProxy struct
 type SegmentFetcherProxy struct {
 	segmentStorage *mutexmap.MMSegmentStorage
 	mySegments     *MySegmentsCache
-	splitStorage   collections.SplitChangesCollection
+	splitStorage   storage.SplitStorageConsumer
 	segmentFetcher service.SegmentFetcher
 	metricsWrapper *storage.MetricWrapper
 	logger         logging.LoggerInterface
 }
 
 // NewSegmentFetcher build new fetcher for proxy
-func NewSegmentFetcher(segmentStorage *mutexmap.MMSegmentStorage, splitStorage collections.SplitChangesCollection, segmentFetcher service.SegmentFetcher, metricsWrapper *storage.MetricWrapper, logger logging.LoggerInterface, mySegmentsCache *MySegmentsCache) segment.Updater {
+func NewSegmentFetcher(
+	segmentStorage *mutexmap.MMSegmentStorage,
+	splitStorage storage.SplitStorageConsumer,
+	segmentFetcher service.SegmentFetcher,
+	metricsWrapper *storage.MetricWrapper,
+	logger logging.LoggerInterface,
+	mySegmentsCache *MySegmentsCache,
+) segment.Updater {
 	return &SegmentFetcherProxy{
 		segmentStorage: segmentStorage,
 		mySegments:     mySegmentsCache,
@@ -139,7 +145,7 @@ func (s *SegmentFetcherProxy) SynchronizeSegment(name string, till *int64, reque
 
 		s.processUpdate(segmentChanges)
 
-		bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
+		bucket := util.Bucket(time.Since(before).Nanoseconds())
 		s.metricsWrapper.StoreLatencies(storage.SegmentChangesLatency, bucket)
 		s.metricsWrapper.StoreCounters(storage.SegmentChangesCounter, "ok")
 		if segmentChanges.Till == segmentChanges.Since || (till != nil && segmentChanges.Till >= *till) {
