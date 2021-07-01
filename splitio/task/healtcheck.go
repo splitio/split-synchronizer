@@ -42,6 +42,9 @@ func getSdkStatus(sdkClient api.Client) bool {
 }
 
 func getEventsStatus(eventsClient api.Client) bool {
+	if eventsClient == nil {
+		panic("ACA")
+	}
 	_, err := eventsClient.Get("/version", nil)
 	if err != nil {
 		log.Instance.Debug(err.Error())

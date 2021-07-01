@@ -19,14 +19,20 @@ import (
 // SegmentFetcherProxy struct
 type SegmentFetcherProxy struct {
 	segmentStorage collections.SegmentChangesCollection
-	splitStorage   collections.SplitChangesCollection
+	splitStorage   storage.SplitStorageConsumer
 	segmentFetcher service.SegmentFetcher
 	metricsWrapper *storage.MetricWrapper
 	logger         logging.LoggerInterface
 }
 
 // NewSegmentFetcher build new fetcher for proxy
-func NewSegmentFetcher(segmentStorage collections.SegmentChangesCollection, splitStorage collections.SplitChangesCollection, segmentFetcher service.SegmentFetcher, metricsWrapper *storage.MetricWrapper, logger logging.LoggerInterface) segment.Updater {
+func NewSegmentFetcher(
+	segmentStorage collections.SegmentChangesCollection,
+	splitStorage storage.SplitStorageConsumer,
+	segmentFetcher service.SegmentFetcher,
+	metricsWrapper *storage.MetricWrapper,
+	logger logging.LoggerInterface,
+) segment.Updater {
 	return &SegmentFetcherProxy{
 		segmentStorage: segmentStorage,
 		splitStorage:   splitStorage,

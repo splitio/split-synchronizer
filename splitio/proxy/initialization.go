@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/splitio/go-split-commons/v3/service"
 	"github.com/splitio/go-split-commons/v3/service/api"
 	"github.com/splitio/go-split-commons/v3/synchronizer"
 	"github.com/splitio/go-split-commons/v3/synchronizer/worker/metric"
@@ -73,25 +72,17 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	// Initialization common
 	interfaces.Initialize()
 
-	// Setup fetchers & recorders
-	splitAPI := service.NewSplitAPI(
-		conf.Data.APIKey,
-		advanced,
-		log.Instance,
-		metadata,
-	)
-
 	// Instantiating storages
-	splitCollection := collections.NewSplitChangesCollection(boltdb.DBB)
-	splitStorage := storage.NewSplitStorage(splitCollection)
 	segmentCollection := collections.NewSegmentChangesCollection(boltdb.DBB)
 	segmentStorage := storage.NewSegmentStorage(segmentCollection)
 
 	// Creating Workers and Tasks
 	workers := synchronizer.Workers{
-		SplitFetcher:      fetcher.NewSplitFetcher(splitCollection, splitAPI.SplitFetcher, interfaces.ProxyTelemetryWrapper, log.Instance),
-		SegmentFetcher:    fetcher.NewSegmentFetcher(segmentCollection, splitCollection, splitAPI.SegmentFetcher, interfaces.ProxyTelemetryWrapper, log.Instance),
-		TelemetryRecorder: metric.NewRecorderSingle(interfaces.TelemetryStorage, splitAPI.MetricRecorder, metadata),
+		SplitFetcher: fetcher.NewSplitFetcher(interfaces.SplitStorage, interfaces.SplitChangesSummary,
+			interfaces.SplitAPI.SplitFetcher, interfaces.ProxyTelemetryWrapper, log.Instance),
+		SegmentFetcher: fetcher.NewSegmentFetcher(segmentCollection, interfaces.SplitStorage,
+			interfaces.SplitAPI.SegmentFetcher, interfaces.ProxyTelemetryWrapper, log.Instance),
+		TelemetryRecorder: metric.NewRecorderSingle(interfaces.TelemetryStorage, interfaces.SplitAPI.MetricRecorder, metadata),
 	}
 	splitTasks := synchronizer.SplitTasks{
 		SplitSyncTask:     tasks.NewFetchSplitsTask(workers.SplitFetcher, conf.Data.SplitsFetchRate, log.Instance),
@@ -113,8 +104,8 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		syncImpl,
 		log.Instance,
 		advanced,
-		splitAPI.AuthClient,
-		splitStorage,
+		interfaces.SplitAPI.AuthClient,
+		interfaces.SplitStorage,
 		managerStatus,
 	)
 	if err != nil {
@@ -169,11 +160,11 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		DebugOn:                   conf.Data.Logger.DebugOn,
 		ImpressionListenerEnabled: conf.Data.ImpressionListener.Endpoint != "",
 		httpClients:               httpClients,
-		splitStorage:              splitStorage,
+		splitStorage:              interfaces.SplitStorage,
 		segmentStorage:            segmentStorage,
 	}
 
-	go task.CheckEnvirontmentStatus(gracefulShutdownWaitingGroup, splitStorage, httpClients)
+	go task.CheckEnvirontmentStatus(gracefulShutdownWaitingGroup, interfaces.SplitStorage, httpClients)
 
 	// Run webserver loop
 	Run(proxyOptions)
