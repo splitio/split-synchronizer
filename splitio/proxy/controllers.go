@@ -72,6 +72,9 @@ func fetchSplitsFromDB(since int) ([]json.RawMessage, int64, error) {
 	return splits, till, nil
 }
 
+// this functions takes a mapping of split name -> traffic type name,
+// and build fake "ARCHIVED" splits to return to the sdk upon a splitChanges request
+// now that we no longer store the full body of archived splits
 func buildArchivedSplitsFor(nameToTrafficType map[string]string) []dtos.SplitDTO {
 	archived := make([]dtos.SplitDTO, 0, len(nameToTrafficType))
 	for name, tt := range nameToTrafficType {
@@ -135,7 +138,6 @@ func splitChanges(c *gin.Context) {
 			return
 		}
 		all := interfaces.SplitStorage.All()
-		fmt.Println(interfaces.SplitStorage.SplitNames())
 		c.JSON(http.StatusOK, gin.H{"splits": all, "since": since, "till": cn})
 		return
 	}
@@ -155,7 +157,6 @@ func splitChanges(c *gin.Context) {
 
 	active := interfaces.SplitStorage.FetchMany(splitNames)
 	all := make([]dtos.SplitDTO, 0, len(summary.Removed)+len(summary.Updated))
-	fmt.Println("ACA: ", active)
 	for _, split := range active {
 		all = append(all, *split)
 	}
