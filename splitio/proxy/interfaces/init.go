@@ -7,8 +7,8 @@ import (
 	"github.com/splitio/go-split-commons/v3/storage/mutexmap"
 	"github.com/splitio/split-synchronizer/v4/conf"
 	"github.com/splitio/split-synchronizer/v4/log"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/fetcher"
 	storageV2 "github.com/splitio/split-synchronizer/v4/splitio/proxy/storage/v2"
+	v2 "github.com/splitio/split-synchronizer/v4/splitio/proxy/storage/v2"
 	"github.com/splitio/split-synchronizer/v4/splitio/util"
 )
 
@@ -25,7 +25,7 @@ var MetricsRecorder *api.HTTPMetricsRecorder
 var SegmentStorage *mutexmap.MMSegmentStorage
 
 // MySegmentsCache cache
-var MySegmentsCache *fetcher.MySegmentsCache
+var MySegmentsCache *v2.MySegmentsCache
 
 // SplitChangesSummary storage
 var SplitChangesSummary *storageV2.SplitChangesSummaries
@@ -55,7 +55,7 @@ func Initialize() {
 	}
 
 	if MySegmentsCache == nil {
-		MySegmentsCache = fetcher.NewMySegmentsCache()
+		MySegmentsCache = v2.NewMySegmentsCache()
 	}
 
 	if SplitChangesSummary == nil {

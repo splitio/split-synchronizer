@@ -14,12 +14,13 @@ import (
 	"github.com/splitio/go-split-commons/v3/util"
 	"github.com/splitio/go-toolkit/v4/datastructures/set"
 	"github.com/splitio/go-toolkit/v4/logging"
+	v2 "github.com/splitio/split-synchronizer/v4/splitio/proxy/storage/v2"
 )
 
 // SegmentFetcherProxy struct
 type SegmentFetcherProxy struct {
 	segmentStorage *mutexmap.MMSegmentStorage
-	mySegments     *MySegmentsCache
+	mySegments     *v2.MySegmentsCache
 	splitStorage   storage.SplitStorageConsumer
 	segmentFetcher service.SegmentFetcher
 	metricsWrapper *storage.MetricWrapper
@@ -33,7 +34,7 @@ func NewSegmentFetcher(
 	segmentFetcher service.SegmentFetcher,
 	metricsWrapper *storage.MetricWrapper,
 	logger logging.LoggerInterface,
-	mySegmentsCache *MySegmentsCache,
+	mySegmentsCache *v2.MySegmentsCache,
 ) segment.Updater {
 	return &SegmentFetcherProxy{
 		segmentStorage: segmentStorage,

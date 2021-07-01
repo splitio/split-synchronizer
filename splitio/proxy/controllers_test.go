@@ -23,8 +23,8 @@ import (
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb/collections"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/controllers"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/fetcher"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/interfaces"
+	v2 "github.com/splitio/split-synchronizer/v4/splitio/proxy/storage/v2"
 )
 
 func TestSplitController(t *testing.T) {
@@ -503,7 +503,7 @@ func TestAuth(t *testing.T) {
 }
 
 func TestMySegmentsController(t *testing.T) {
-	interfaces.MySegmentsCache = fetcher.NewMySegmentsCache()
+	interfaces.MySegmentsCache = v2.NewMySegmentsCache()
 	interfaces.ProxyTelemetryWrapper = storage.NewMetricWrapper(mutexmap.NewMMMetricsStorage(), mutexmap.NewMMMetricsStorage(), log.Instance)
 	interfaces.MySegmentsCache.AddSegmentToUser("test", "one")
 	interfaces.MySegmentsCache.AddSegmentToUser("test", "two")

@@ -230,7 +230,6 @@ func fetchSegmentsFromDB(since int, segmentName string) ([]string, []string, int
 			}
 		}
 	}
-
 	return added, removed, till, nil
 }
 
@@ -245,12 +244,17 @@ func segmentChanges(c *gin.Context) {
 	segmentName := c.Param("name")
 	log.Instance.Debug(fmt.Sprintf("SDK Fetches Segment: %s Since: %d", segmentName, since))
 	before := time.Now()
-	added, removed, till, errf := fetchSegmentsFromDB(since, segmentName)
-	if errf != nil {
-		interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIError)
-		c.JSON(http.StatusNotFound, gin.H{"error": errf.Error()})
-		return
-	}
+	/*
+		added, removed, till, errf := fetchSegmentsFromDB(since, segmentName)
+		if errf != nil {
+			interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIError)
+			c.JSON(http.StatusNotFound, gin.H{"error": errf.Error()})
+			return
+		}
+	*/
+	added := make([]string, 0)
+	removed := make([]string, 0)
+	till := int64(since)
 	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
 	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncLatency(segment, bucket)
 	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIOK)

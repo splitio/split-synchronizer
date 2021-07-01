@@ -1,4 +1,4 @@
-package fetcher
+package v2
 
 import "sync"
 
