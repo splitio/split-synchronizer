@@ -15,11 +15,9 @@ import (
 	"github.com/splitio/split-synchronizer/v4/splitio"
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb/collections"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/controllers"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/fetcher"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/interfaces"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage"
 	"github.com/splitio/split-synchronizer/v4/splitio/recorder"
 	"github.com/splitio/split-synchronizer/v4/splitio/task"
 	"github.com/splitio/split-synchronizer/v4/splitio/util"
@@ -72,16 +70,12 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	// Initialization common
 	interfaces.Initialize()
 
-	// Instantiating storages
-	segmentCollection := collections.NewSegmentChangesCollection(boltdb.DBB)
-	segmentStorage := storage.NewSegmentStorage(segmentCollection)
-
 	// Creating Workers and Tasks
 	workers := synchronizer.Workers{
 		SplitFetcher: fetcher.NewSplitFetcher(interfaces.SplitStorage, interfaces.SplitChangesSummary,
 			interfaces.SplitAPI.SplitFetcher, interfaces.ProxyTelemetryWrapper, log.Instance),
-		SegmentFetcher: fetcher.NewSegmentFetcher(segmentCollection, interfaces.SplitStorage,
-			interfaces.SplitAPI.SegmentFetcher, interfaces.ProxyTelemetryWrapper, log.Instance),
+		SegmentFetcher: fetcher.NewSegmentFetcher(interfaces.SegmentStorage, interfaces.SplitStorage,
+			interfaces.SplitAPI.SegmentFetcher, interfaces.ProxyTelemetryWrapper, log.Instance, interfaces.MySegmentsCache),
 		TelemetryRecorder: metric.NewRecorderSingle(interfaces.TelemetryStorage, interfaces.SplitAPI.MetricRecorder, metadata),
 	}
 	splitTasks := synchronizer.SplitTasks{
@@ -161,7 +155,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		ImpressionListenerEnabled: conf.Data.ImpressionListener.Endpoint != "",
 		httpClients:               httpClients,
 		splitStorage:              interfaces.SplitStorage,
-		segmentStorage:            segmentStorage,
+		segmentStorage:            interfaces.SegmentStorage,
 	}
 
 	go task.CheckEnvirontmentStatus(gracefulShutdownWaitingGroup, interfaces.SplitStorage, httpClients)

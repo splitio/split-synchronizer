@@ -8,6 +8,7 @@ import (
 	"github.com/splitio/split-synchronizer/v4/conf"
 	"github.com/splitio/split-synchronizer/v4/log"
 	storageV2 "github.com/splitio/split-synchronizer/v4/splitio/proxy/storage/v2"
+	v2 "github.com/splitio/split-synchronizer/v4/splitio/proxy/storage/v2"
 	"github.com/splitio/split-synchronizer/v4/splitio/util"
 )
 
@@ -19,6 +20,12 @@ var ProxyTelemetryWrapper *storage.MetricWrapper
 
 // MetricsRecorder recorder
 var MetricsRecorder *api.HTTPMetricsRecorder
+
+// SegmentStorage storage
+var SegmentStorage *mutexmap.MMSegmentStorage
+
+// MySegmentsCache cache
+var MySegmentsCache *v2.MySegmentsCache
 
 // SplitChangesSummary storage
 var SplitChangesSummary *storageV2.SplitChangesSummaries
@@ -41,6 +48,14 @@ func Initialize() {
 
 	if MetricsRecorder == nil {
 		MetricsRecorder = api.NewHTTPMetricsRecorder(conf.Data.APIKey, conf.ParseAdvancedOptions(), log.Instance)
+	}
+
+	if SegmentStorage == nil {
+		SegmentStorage = mutexmap.NewMMSegmentStorage()
+	}
+
+	if MySegmentsCache == nil {
+		MySegmentsCache = v2.NewMySegmentsCache()
 	}
 
 	if SplitChangesSummary == nil {

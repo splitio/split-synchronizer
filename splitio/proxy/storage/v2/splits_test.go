@@ -51,9 +51,9 @@ func TestSplitChangesSummary(t *testing.T) {
 	// MOVE TO CN=1
 	summaries.AddChanges(1,
 		[]SplitMinimalView{
-			SplitMinimalView{"s1", "tt1"},
-			SplitMinimalView{"s2", "tt1"},
-			SplitMinimalView{"s3", "tt1"},
+			{"s1", "tt1"},
+			{"s2", "tt1"},
+			{"s3", "tt1"},
 		},
 		[]SplitMinimalView{},
 	)
@@ -77,7 +77,7 @@ func TestSplitChangesSummary(t *testing.T) {
 	validateChanges(t, changes1, []string{}, []string{})
 
 	// MOVE TO CN=2
-	summaries.AddChanges(2, []SplitMinimalView{SplitMinimalView{"s2", "tt2"}}, []SplitMinimalView{})
+	summaries.AddChanges(2, []SplitMinimalView{{"s2", "tt2"}}, []SplitMinimalView{})
 	changesM1, cnM1, err = summaries.FetchSince(-1)
 	if err != nil {
 		t.Error(err)
@@ -106,7 +106,7 @@ func TestSplitChangesSummary(t *testing.T) {
 	validateChanges(t, changes2, []string{}, []string{})
 
 	// MOVE TO CN=3
-	summaries.AddChanges(3, []SplitMinimalView{SplitMinimalView{"s3", "tt3"}}, []SplitMinimalView{})
+	summaries.AddChanges(3, []SplitMinimalView{{"s3", "tt3"}}, []SplitMinimalView{})
 	changesM1, cnM1, err = summaries.FetchSince(-1)
 	if err != nil {
 		t.Error(err)
@@ -144,7 +144,7 @@ func TestSplitChangesSummary(t *testing.T) {
 	validateChanges(t, changes3, []string{}, []string{})
 
 	// MOVE TO CN=4
-	summaries.AddChanges(4, []SplitMinimalView{SplitMinimalView{"s4", "tt3"}}, []SplitMinimalView{SplitMinimalView{"s1", "tt1"}})
+	summaries.AddChanges(4, []SplitMinimalView{{"s4", "tt3"}}, []SplitMinimalView{{"s1", "tt1"}})
 	changesM1, cnM1, err = summaries.FetchSince(-1)
 	if err != nil {
 		t.Error(err)

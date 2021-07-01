@@ -81,7 +81,7 @@ func (s *SplitFetcherProxy) SynchronizeSplits(till *int64, requestNoCache bool) 
 		}
 		s.splitChangesSummaries.AddChanges(splits.Till, toAddView, toDelView)
 
-		bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
+		bucket := util.Bucket(time.Since(before).Nanoseconds())
 		s.metricsWrapper.StoreCounters(storage.SplitChangesCounter, "ok")
 		s.metricsWrapper.StoreLatencies(storage.SplitChangesLatency, bucket)
 		if splits.Till == splits.Since || (till != nil && splits.Till >= *till) {

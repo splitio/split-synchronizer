@@ -230,7 +230,6 @@ func fetchSegmentsFromDB(since int, segmentName string) ([]string, []string, int
 			}
 		}
 	}
-
 	return added, removed, till, nil
 }
 
@@ -245,17 +244,26 @@ func segmentChanges(c *gin.Context) {
 	segmentName := c.Param("name")
 	log.Instance.Debug(fmt.Sprintf("SDK Fetches Segment: %s Since: %d", segmentName, since))
 	before := time.Now()
-	added, removed, till, errf := fetchSegmentsFromDB(since, segmentName)
-	if errf != nil {
-		interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIError)
-		c.JSON(http.StatusNotFound, gin.H{"error": errf.Error()})
-		return
-	}
+	/*
+		added, removed, till, errf := fetchSegmentsFromDB(since, segmentName)
+		if errf != nil {
+			interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIError)
+			c.JSON(http.StatusNotFound, gin.H{"error": errf.Error()})
+			return
+		}
+	*/
+	added := make([]string, 0)
+	removed := make([]string, 0)
+	till := int64(since)
 	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
 	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncLatency(segment, bucket)
 	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIOK)
 	c.JSON(http.StatusOK, gin.H{"name": segmentName, "added": added,
 		"removed": removed, "since": since, "till": till})
+}
+
+type MySegments struct {
+	Segments []dtos.MySegmentDTO `json:"mySegments"`
 }
 
 //-----------------------------------------------------------------------------
@@ -267,26 +275,15 @@ func mySegments(c *gin.Context) {
 	key := c.Param("key")
 	var mysegments = make([]dtos.MySegmentDTO, 0)
 
-	segmentCollection := collections.NewSegmentChangesCollection(boltdb.DBB)
-	segments, errs := segmentCollection.FetchAll()
-	if errs != nil {
-		log.Instance.Warning(errs)
-		interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIError)
-	} else {
-		for _, segment := range segments {
-			for _, skey := range segment.Keys {
-				if !skey.Removed && skey.Name == key {
-					mysegments = append(mysegments, dtos.MySegmentDTO{Name: segment.Name})
-					break
-				}
-			}
-		}
+	segments := interfaces.MySegmentsCache.GetSegmentsForUser(key)
+	for _, segment := range segments {
+		mysegments = append(mysegments, dtos.MySegmentDTO{Name: segment})
 	}
 
 	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
 	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncLatency(mySegment, bucket)
 	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIOK)
-	c.JSON(http.StatusOK, gin.H{"mySegments": mysegments})
+	c.JSON(http.StatusOK, MySegments{Segments: mysegments})
 }
 
 //-----------------------------------------------------------------
