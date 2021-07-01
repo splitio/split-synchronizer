@@ -276,10 +276,8 @@ func mySegments(c *gin.Context) {
 	var mysegments = make([]dtos.MySegmentDTO, 0)
 
 	segments := interfaces.MySegmentsCache.GetSegmentsForUser(key)
-	if segments != nil {
-		for _, segment := range *segments {
-			mysegments = append(mysegments, dtos.MySegmentDTO{Name: segment})
-		}
+	for _, segment := range segments {
+		mysegments = append(mysegments, dtos.MySegmentDTO{Name: segment})
 	}
 
 	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
