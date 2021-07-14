@@ -3,7 +3,7 @@
 
 4.0.2 (Feb 26, 2021)
 - Streaming revamp
-   - Fixed race condition on error in Streaming in order to fallbacking to Streaming. => Fixed race condition on certain Streaming errors in order to properly fallback to Streaming.
+   - Fixed race condition on certain Streaming errors in order to properly fallback to Streaming.
    - Added few improvements in Synchronization cycle.
 - Added Cache control headers to on-demand requests.
 - Added logic to sync new segments if referenced in a segment notification.
