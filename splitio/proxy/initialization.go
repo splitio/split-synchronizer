@@ -73,7 +73,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	// Creating Workers and Tasks
 	workers := synchronizer.Workers{
 		SplitFetcher: fetcher.NewSplitFetcher(interfaces.SplitStorage, interfaces.SplitChangesSummary,
-			interfaces.SplitAPI.SplitFetcher, interfaces.ProxyTelemetryWrapper, log.Instance),
+			interfaces.SplitAPI.SplitFetcher, interfaces.ProxyTelemetryWrapper, cacheMW, log.Instance),
 		SegmentFetcher: fetcher.NewSegmentFetcher(interfaces.SegmentStorage, interfaces.SplitStorage,
 			interfaces.SplitAPI.SegmentFetcher, interfaces.ProxyTelemetryWrapper, log.Instance, interfaces.MySegmentsCache),
 		TelemetryRecorder: metric.NewRecorderSingle(interfaces.TelemetryStorage, interfaces.SplitAPI.MetricRecorder, metadata),

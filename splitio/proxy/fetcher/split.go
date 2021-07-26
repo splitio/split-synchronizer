@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/splitio/gincache"
 	"github.com/splitio/go-split-commons/v3/dtos"
 	"github.com/splitio/go-split-commons/v3/service"
 	"github.com/splitio/go-split-commons/v3/storage"
@@ -21,6 +22,7 @@ type SplitFetcherProxy struct {
 	splitChangesSummaries *storageV2.SplitChangesSummaries
 	splitFetcher          service.SplitFetcher
 	metricsWrapper        *storage.MetricWrapper
+	httpCache             *gincache.Middleware
 	logger                logging.LoggerInterface
 }
 
@@ -30,6 +32,7 @@ func NewSplitFetcher(
 	splitChangesSummaries *storageV2.SplitChangesSummaries,
 	splitFetcher service.SplitFetcher,
 	metricsWrapper *storage.MetricWrapper,
+	httpCache *gincache.Middleware,
 	logger logging.LoggerInterface,
 ) split.Updater {
 	return &SplitFetcherProxy{
@@ -38,6 +41,7 @@ func NewSplitFetcher(
 		splitFetcher:          splitFetcher,
 		metricsWrapper:        metricsWrapper,
 		logger:                logger,
+		httpCache:             httpCache,
 	}
 }
 
@@ -80,6 +84,9 @@ func (s *SplitFetcherProxy) SynchronizeSplits(till *int64, requestNoCache bool) 
 			s.splitStorage.Remove(spl.Name)
 		}
 		s.splitChangesSummaries.AddChanges(splits.Till, toAddView, toDelView)
+		if len(toAdd) > 0 || len(toDel) > 0 {
+			s.httpCache.EvictAll()
+		}
 
 		bucket := util.Bucket(time.Since(before).Nanoseconds())
 		s.metricsWrapper.StoreCounters(storage.SplitChangesCounter, "ok")

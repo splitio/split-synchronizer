@@ -4,6 +4,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
+	"github.com/splitio/gincache"
 	"github.com/splitio/go-split-commons/v3/storage"
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/interfaces"
@@ -24,6 +25,8 @@ type Options struct {
 	segmentStorage            storage.SegmentStorage
 	httpClients               common.HTTPClients
 }
+
+var cacheMW *gincache.Middleware = gincache.New(func(c *gin.Context) string { return c.Request.URL.Path + c.Request.URL.RawQuery })
 
 // Run runs the proxy server
 func Run(options *Options) {
@@ -73,6 +76,7 @@ func Run(options *Options) {
 	// API routes
 	api := router.Group("/api")
 	api.Use(middleware.ValidateAPIKeys(options.APIKeys))
+	api.Use(cacheMW.Handle)
 	api.Use(gzip.Gzip(gzip.DefaultCompression))
 	{
 		api.GET("/splitChanges", splitChanges)
