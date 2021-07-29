@@ -10,14 +10,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/splitio/go-split-commons/v3/conf"
-	"github.com/splitio/go-split-commons/v3/dtos"
-	"github.com/splitio/go-split-commons/v3/provisional"
-	"github.com/splitio/go-split-commons/v3/service/api"
-	recorderMock "github.com/splitio/go-split-commons/v3/service/mocks"
-	"github.com/splitio/go-split-commons/v3/storage"
-	storageMock "github.com/splitio/go-split-commons/v3/storage/mocks"
-	"github.com/splitio/go-toolkit/v4/logging"
+	"github.com/splitio/go-split-commons/v4/conf"
+	"github.com/splitio/go-split-commons/v4/dtos"
+	"github.com/splitio/go-split-commons/v4/provisional"
+	"github.com/splitio/go-split-commons/v4/service/api"
+	recorderMock "github.com/splitio/go-split-commons/v4/service/mocks"
+	storageMock "github.com/splitio/go-split-commons/v4/storage/mocks"
+	"github.com/splitio/go-split-commons/v4/telemetry"
+	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v4/log"
 )
 
@@ -40,7 +40,8 @@ func TestSynchronizeImpressionError(t *testing.T) {
 	impressionSync, _ := NewImpressionRecordMultiple(
 		impressionMockStorage,
 		impressionMockRecorder,
-		storage.NewMetricWrapper(storageMock.MockMetricStorage{}, nil, nil),
+		&storageMock.MockTelemetryStorage{},
+		// storage.NewMetricWrapper(storageMock.MockMetricStorage{}, nil, nil),
 		log.Instance,
 		conf.ManagerConfig{
 			ImpressionsMode: conf.ImpressionsModeDebug,
@@ -80,7 +81,8 @@ func TestSynhronizeImpressionWithNoImpressions(t *testing.T) {
 	impressionSync, _ := NewImpressionRecordMultiple(
 		impressionMockStorage,
 		impressionMockRecorder,
-		storage.NewMetricWrapper(storageMock.MockMetricStorage{}, nil, nil),
+		&storageMock.MockTelemetryStorage{},
+		// storage.NewMetricWrapper(storageMock.MockMetricStorage{}, nil, nil),
 		log.Instance,
 		conf.ManagerConfig{
 			ImpressionsMode: conf.ImpressionsModeDebug,
@@ -208,18 +210,27 @@ func TestSynhronizeImpressionSyncDebug(t *testing.T) {
 	impressionSync, _ := NewImpressionRecordMultiple(
 		impressionMockStorage,
 		impressionRecorder,
-		storage.NewMetricWrapper(storageMock.MockMetricStorage{
-			IncCounterCall: func(key string) {
-				if key != "testImpressions.status.200" {
-					t.Error("Unexpected counter key to increase")
+		&storageMock.MockTelemetryStorage{
+			RecordSyncLatencyCall: func(resource int, latency time.Duration) {
+				if resource != telemetry.ImpressionSync {
+					t.Error("wrong resource")
 				}
 			},
-			IncLatencyCall: func(metricName string, index int) {
-				if metricName != "testImpressions.time" {
-					t.Error("Unexpected latency key to track")
+			RecordSuccessfulSyncCall: func(resource int, when time.Time) {
+				if resource != telemetry.ImpressionSync {
+					t.Error("wrong resource")
 				}
 			},
-		}, nil, nil),
+			RecordImpressionsStatsCall: func(dataType int, count int64) {
+				if dataType != telemetry.ImpressionsDeduped {
+					t.Error("wrong datatype", dataType)
+				}
+
+				if count != 0 {
+					t.Error("wrong count", count)
+				}
+			},
+		},
 		log.Instance,
 		conf.ManagerConfig{
 			ImpressionsMode: conf.ImpressionsModeDebug,
@@ -315,13 +326,37 @@ func TestSynhronizeImpressionSyncOptimized(t *testing.T) {
 		},
 	}
 
+	timesCalled := 0
 	impressionSync, _ := NewImpressionRecordMultiple(
 		impressionMockStorage,
 		impressionRecorder,
-		storage.NewMetricWrapper(storageMock.MockMetricStorage{
-			IncCounterCall: func(key string) {},
-			IncLatencyCall: func(metricName string, index int) {},
-		}, nil, nil),
+		&storageMock.MockTelemetryStorage{
+			RecordSyncLatencyCall: func(resource int, latency time.Duration) {
+				if resource != telemetry.ImpressionSync {
+					t.Error("wrong resource")
+				}
+			},
+			RecordSuccessfulSyncCall: func(resource int, when time.Time) {
+				if resource != telemetry.ImpressionSync {
+					t.Error("wrong resource")
+				}
+			},
+			RecordImpressionsStatsCall: func(dataType int, count int64) {
+				timesCalled++
+				expectedDeduped := int64(0)
+				if timesCalled > 2 {
+					expectedDeduped = 1
+				}
+
+				if dataType != telemetry.ImpressionsDeduped {
+					t.Error("wrong datatype", dataType)
+				}
+
+				if count != expectedDeduped {
+					t.Error("wrong count", count)
+				}
+			},
+		},
 		log.Instance,
 		conf.ManagerConfig{
 			ImpressionsMode: conf.ImpressionsModeOptimized,
@@ -414,10 +449,27 @@ func TestSynhronizeImpressionPt(t *testing.T) {
 	impressionSync, _ := NewImpressionRecordMultiple(
 		impressionMockStorage,
 		impressionRecorder,
-		storage.NewMetricWrapper(storageMock.MockMetricStorage{
-			IncCounterCall: func(key string) {},
-			IncLatencyCall: func(metricName string, index int) {},
-		}, nil, nil),
+		&storageMock.MockTelemetryStorage{
+			RecordSyncLatencyCall: func(resource int, latency time.Duration) {
+				if resource != telemetry.ImpressionSync {
+					t.Error("wrong resource")
+				}
+			},
+			RecordSuccessfulSyncCall: func(resource int, when time.Time) {
+				if resource != telemetry.ImpressionSync {
+					t.Error("wrong resource")
+				}
+			},
+			RecordImpressionsStatsCall: func(dataType int, count int64) {
+				if dataType != telemetry.ImpressionsDeduped {
+					t.Error("wrong datatype")
+				}
+
+				if count != 0 {
+					t.Error("wrong count", count)
+				}
+			},
+		},
 		log.Instance,
 		conf.ManagerConfig{
 			ImpressionsMode: conf.ImpressionsModeDebug,

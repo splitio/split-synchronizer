@@ -8,7 +8,7 @@ import (
 	"syscall"
 
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/go-toolkit/v4/logging"
+	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v4/appcontext"
 	"github.com/splitio/split-synchronizer/v4/conf"
 	"github.com/splitio/split-synchronizer/v4/log"
@@ -38,10 +38,11 @@ func Ping(c *gin.Context) {
 
 // ShowStats returns stats
 func ShowStats(c *gin.Context) {
-	localTelemetryStorage := util.GetTelemetryStorage(c.Get(common.LocalMetricStorage))
-	counters := localTelemetryStorage.PeekCounters()
-	latencies := localTelemetryStorage.PeekLatencies()
-	c.JSON(http.StatusOK, gin.H{"counters": counters, "latencies": latencies})
+	// TODO(mredolatti): REbuild this
+	// localTelemetryStorage := util.GetTelemetryStorage(c.Get(common.LocalMetricStorage))
+	// counters := localTelemetryStorage.PeekCounters()
+	// latencies := localTelemetryStorage.PeekLatencies()
+	// c.JSON(http.StatusOK, gin.H{"counters": counters, "latencies": latencies})
 }
 
 // kill process helper
@@ -206,11 +207,11 @@ func DashboardSegmentKeys(c *gin.Context) {
 
 	// Storage service
 	storages := common.Storages{
-		SplitStorage:          util.GetSplitStorage(c.Get(common.SplitStorage)),
-		SegmentStorage:        util.GetSegmentStorage(c.Get(common.SegmentStorage)),
-		EventStorage:          util.GetEventStorage(c.Get(common.EventStorage)),
-		ImpressionStorage:     util.GetImpressionStorage(c.Get(common.ImpressionStorage)),
-		LocalTelemetryStorage: util.GetTelemetryStorage(c.Get(common.LocalMetricStorage)),
+		SplitStorage:      util.GetSplitStorage(c.Get(common.SplitStorage)),
+		SegmentStorage:    util.GetSegmentStorage(c.Get(common.SegmentStorage)),
+		EventStorage:      util.GetEventStorage(c.Get(common.EventStorage)),
+		ImpressionStorage: util.GetImpressionStorage(c.Get(common.ImpressionStorage)),
+		// LocalTelemetryStorage: util.GetTelemetryStorage(c.Get(common.LocalMetricStorage)),
 	}
 	// HttpClients
 	httpClients := util.GetHTTPClients(c.Get(common.HTTPClientsGin))
@@ -236,11 +237,11 @@ func createDashboard(storages common.Storages, httpClients common.HTTPClients) *
 func Dashboard(c *gin.Context) {
 	// Storage service
 	storages := common.Storages{
-		SplitStorage:          util.GetSplitStorage(c.Get(common.SplitStorage)),
-		SegmentStorage:        util.GetSegmentStorage(c.Get(common.SegmentStorage)),
-		EventStorage:          util.GetEventStorage(c.Get(common.EventStorage)),
-		ImpressionStorage:     util.GetImpressionStorage(c.Get(common.ImpressionStorage)),
-		LocalTelemetryStorage: util.GetTelemetryStorage(c.Get(common.LocalMetricStorage)),
+		SplitStorage:      util.GetSplitStorage(c.Get(common.SplitStorage)),
+		SegmentStorage:    util.GetSegmentStorage(c.Get(common.SegmentStorage)),
+		EventStorage:      util.GetEventStorage(c.Get(common.EventStorage)),
+		ImpressionStorage: util.GetImpressionStorage(c.Get(common.ImpressionStorage)),
+		// LocalTelemetryStorage: util.GetTelemetryStorage(c.Get(common.LocalMetricStorage)),
 	}
 	// HttpClients
 	httpClients := util.GetHTTPClients(c.Get(common.HTTPClientsGin))
@@ -391,11 +392,11 @@ func FlushImpressions(c *gin.Context) {
 // GetMetrics returns stats for dashboard
 func GetMetrics(c *gin.Context) {
 	storages := common.Storages{
-		SplitStorage:          util.GetSplitStorage(c.Get(common.SplitStorage)),
-		EventStorage:          util.GetEventStorage(c.Get(common.EventStorage)),
-		ImpressionStorage:     util.GetImpressionStorage(c.Get(common.ImpressionStorage)),
-		LocalTelemetryStorage: util.GetTelemetryStorage(c.Get(common.LocalMetricStorage)),
-		SegmentStorage:        util.GetSegmentStorage(c.Get(common.SegmentStorage)),
+		SplitStorage:      util.GetSplitStorage(c.Get(common.SplitStorage)),
+		EventStorage:      util.GetEventStorage(c.Get(common.EventStorage)),
+		ImpressionStorage: util.GetImpressionStorage(c.Get(common.ImpressionStorage)),
+		// LocalTelemetryStorage: util.GetTelemetryStorage(c.Get(common.LocalMetricStorage)),
+		SegmentStorage: util.GetSegmentStorage(c.Get(common.SegmentStorage)),
 	}
 
 	if util.AreValidStorages(storages) {

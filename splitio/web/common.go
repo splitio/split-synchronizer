@@ -2,14 +2,13 @@ package web
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 	"text/template"
 	"time"
 
-	"github.com/splitio/go-split-commons/v3/storage"
+	"github.com/splitio/go-split-commons/v4/storage"
 	"github.com/splitio/split-synchronizer/v4/appcontext"
 	"github.com/splitio/split-synchronizer/v4/log"
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
@@ -94,107 +93,110 @@ func ParseTemplate(name string, text string, data interface{}) string {
 	return buf.String()
 }
 
-func parseLatencySerieData(key string, label string, backgroundColor string, borderColor string, localTelemetry storage.MetricsStorage) string {
+func parseLatencySerieData(key string, label string, backgroundColor string, borderColor string, localTelemetry storage.TelemetryRuntimeConsumer) string {
 	var toReturn string
 
-	latencies := localTelemetry.PeekLatencies()
-	if ldata, ok := latencies[key]; ok {
-		if serie, err := json.Marshal(ldata); err == nil {
-			toReturn = ParseTemplate(
-				key,
-				HTMLtemplates.LatencySerieTPL,
-				HTMLtemplates.LatencySerieTPLVars{
-					Label:           label,
-					BackgroundColor: backgroundColor,
-					BorderColor:     borderColor,
-					Data:            string(serie),
-				})
-		}
-	}
+	// TODO(mredolatti): Fix this
+	// latencies := localTelemetry.PeekLatencies()
+	// if ldata, ok := latencies[key]; ok {
+	// 	if serie, err := json.Marshal(ldata); err == nil {
+	// 		toReturn = ParseTemplate(
+	// 			key,
+	// 			HTMLtemplates.LatencySerieTPL,
+	// 			HTMLtemplates.LatencySerieTPLVars{
+	// 				Label:           label,
+	// 				BackgroundColor: backgroundColor,
+	// 				BorderColor:     borderColor,
+	// 				Data:            string(serie),
+	// 			})
+	// 	}
+	// }
 
 	return toReturn
 }
 
-func parseSDKStats(localTelemetry storage.MetricsStorage) string {
+func parseSDKStats(localTelemetry storage.TelemetryRuntimeConsumer) string {
 	var toReturn string
 
-	toReturn += parseLatencySerieData(
-		"sdk.splitChanges",
-		"/api/splitChanges",
-		toRGBAString(255, 159, 64, 0.2),
-		toRGBAString(255, 159, 64, 1),
-		localTelemetry,
-	)
+	// TODO(mredolatti): refactor this
+	// toReturn += parseLatencySerieData(
+	// 	"sdk.splitChanges",
+	// 	"/api/splitChanges",
+	// 	toRGBAString(255, 159, 64, 0.2),
+	// 	toRGBAString(255, 159, 64, 1),
+	// 	localTelemetry,
+	// )
 
-	toReturn += parseLatencySerieData(
-		"sdk.segmentChanges",
-		"/api/segmentChanges",
-		toRGBAString(54, 162, 235, 0.2),
-		toRGBAString(54, 162, 235, 1),
-		localTelemetry,
-	)
+	// toReturn += parseLatencySerieData(
+	// 	"sdk.segmentChanges",
+	// 	"/api/segmentChanges",
+	// 	toRGBAString(54, 162, 235, 0.2),
+	// 	toRGBAString(54, 162, 235, 1),
+	// 	localTelemetry,
+	// )
 
-	toReturn += parseLatencySerieData(
-		"sdk.impressions",
-		"/api/testImpressions/bulk",
-		toRGBAString(75, 192, 192, 0.2),
-		toRGBAString(75, 192, 192, 1),
-		localTelemetry,
-	)
+	// toReturn += parseLatencySerieData(
+	// 	"sdk.impressions",
+	// 	"/api/testImpressions/bulk",
+	// 	toRGBAString(75, 192, 192, 0.2),
+	// 	toRGBAString(75, 192, 192, 1),
+	// 	localTelemetry,
+	// )
 
-	toReturn += parseLatencySerieData(
-		"sdk.events",
-		"/api/events/bulk",
-		toRGBAString(255, 205, 86, 0.2),
-		toRGBAString(255, 205, 86, 1),
-		localTelemetry,
-	)
+	// toReturn += parseLatencySerieData(
+	// 	"sdk.events",
+	// 	"/api/events/bulk",
+	// 	toRGBAString(255, 205, 86, 0.2),
+	// 	toRGBAString(255, 205, 86, 1),
+	// 	localTelemetry,
+	// )
 
-	toReturn += parseLatencySerieData(
-		"sdk.mySegments",
-		"/api/mySegments",
-		toRGBAString(153, 102, 255, 0.2),
-		toRGBAString(153, 102, 255, 1),
-		localTelemetry,
-	)
+	// toReturn += parseLatencySerieData(
+	// 	"sdk.mySegments",
+	// 	"/api/mySegments",
+	// 	toRGBAString(153, 102, 255, 0.2),
+	// 	toRGBAString(153, 102, 255, 1),
+	// 	localTelemetry,
+	// )
 
 	return toReturn
 }
 
-func parseBackendStats(localTelemetry storage.MetricsStorage) string {
+func parseBackendStats(localTelemetry storage.TelemetryRuntimeConsumer) string {
 	var toReturn string
 
-	toReturn += parseLatencySerieData(
-		"backend::/api/splitChanges",
-		"/api/splitChanges",
-		toRGBAString(255, 159, 64, 0.2),
-		toRGBAString(255, 159, 64, 1),
-		localTelemetry,
-	)
+	// TODO(mredolatti): Refactor this
+	// toReturn += parseLatencySerieData(
+	// 	"backend::/api/splitChanges",
+	// 	"/api/splitChanges",
+	// 	toRGBAString(255, 159, 64, 0.2),
+	// 	toRGBAString(255, 159, 64, 1),
+	// 	localTelemetry,
+	// )
 
-	toReturn += parseLatencySerieData(
-		"backend::/api/segmentChanges",
-		"/api/segmentChanges/",
-		toRGBAString(54, 162, 235, 0.2),
-		toRGBAString(54, 162, 235, 1),
-		localTelemetry,
-	)
+	// toReturn += parseLatencySerieData(
+	// 	"backend::/api/segmentChanges",
+	// 	"/api/segmentChanges/",
+	// 	toRGBAString(54, 162, 235, 0.2),
+	// 	toRGBAString(54, 162, 235, 1),
+	// 	localTelemetry,
+	// )
 
-	toReturn += parseLatencySerieData(
-		"backend::/api/testImpressions/bulk",
-		"/api/testImpressions/bulk",
-		toRGBAString(75, 192, 192, 0.2),
-		toRGBAString(75, 192, 192, 1),
-		localTelemetry,
-	)
+	// toReturn += parseLatencySerieData(
+	// 	"backend::/api/testImpressions/bulk",
+	// 	"/api/testImpressions/bulk",
+	// 	toRGBAString(75, 192, 192, 0.2),
+	// 	toRGBAString(75, 192, 192, 1),
+	// 	localTelemetry,
+	// )
 
-	toReturn += parseLatencySerieData(
-		"backend::/api/events/bulk",
-		"/api/events/bulk",
-		toRGBAString(255, 205, 86, 0.2),
-		toRGBAString(255, 205, 86, 1),
-		localTelemetry,
-	)
+	// toReturn += parseLatencySerieData(
+	// 	"backend::/api/events/bulk",
+	// 	"/api/events/bulk",
+	// 	toRGBAString(255, 205, 86, 0.2),
+	// 	toRGBAString(255, 205, 86, 1),
+	// 	localTelemetry,
+	// )
 
 	return toReturn
 }
@@ -300,7 +302,9 @@ func GetMetrics(storages common.Storages) Metrics {
 	segmentNames := storages.SplitStorage.SegmentNames()
 
 	// Counters
-	counters := storages.LocalTelemetryStorage.PeekCounters()
+	//counters := storages.LocalTelemetryStorage.PeekCounters()
+	// TODO(mredolatti): Refactor this
+	counters := make(map[string]int64)
 	backendErrorCount := int64(0)
 	for key, counter := range counters {
 		if strings.Contains(key, "backend::") && key != "backend::request.ok" {

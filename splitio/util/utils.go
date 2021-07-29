@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/splitio/go-split-commons/v3/dtos"
-	"github.com/splitio/go-toolkit/v4/hasher"
-	"github.com/splitio/go-toolkit/v4/nethelpers"
+	"github.com/splitio/go-split-commons/v4/dtos"
+	"github.com/splitio/go-toolkit/v5/hasher"
+	"github.com/splitio/go-toolkit/v5/nethelpers"
 	"github.com/splitio/split-synchronizer/v4/appcontext"
 	"github.com/splitio/split-synchronizer/v4/conf"
 )
