@@ -6,24 +6,25 @@ import (
 	"strings"
 	"sync"
 
-	cfg "github.com/splitio/go-split-commons/v3/conf"
-	"github.com/splitio/go-split-commons/v3/dtos"
-	"github.com/splitio/go-split-commons/v3/provisional"
-	"github.com/splitio/go-split-commons/v3/service"
-	"github.com/splitio/go-split-commons/v3/service/api"
-	"github.com/splitio/go-split-commons/v3/storage"
-	"github.com/splitio/go-split-commons/v3/storage/mutexmap"
-	"github.com/splitio/go-split-commons/v3/storage/redis"
-	"github.com/splitio/go-split-commons/v3/synchronizer"
-	"github.com/splitio/go-split-commons/v3/synchronizer/worker/impressionscount"
-	"github.com/splitio/go-split-commons/v3/synchronizer/worker/segment"
-	"github.com/splitio/go-split-commons/v3/synchronizer/worker/split"
-	"github.com/splitio/go-split-commons/v3/tasks"
+	cfg "github.com/splitio/go-split-commons/v4/conf"
+	"github.com/splitio/go-split-commons/v4/dtos"
+	"github.com/splitio/go-split-commons/v4/provisional"
+	"github.com/splitio/go-split-commons/v4/service/api"
+	commonUtil "github.com/splitio/go-toolkit/v5/common"
+
+	// "github.com/splitio/go-split-commons/v4/storage/mutexmap"
+	"github.com/splitio/go-split-commons/v4/storage/redis"
+	"github.com/splitio/go-split-commons/v4/synchronizer"
+	"github.com/splitio/go-split-commons/v4/synchronizer/worker/impressionscount"
+	"github.com/splitio/go-split-commons/v4/synchronizer/worker/segment"
+	"github.com/splitio/go-split-commons/v4/synchronizer/worker/split"
+	"github.com/splitio/go-split-commons/v4/tasks"
 	"github.com/splitio/split-synchronizer/v4/conf"
 	"github.com/splitio/split-synchronizer/v4/log"
 	"github.com/splitio/split-synchronizer/v4/splitio"
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/worker"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/interfaces"
 	"github.com/splitio/split-synchronizer/v4/splitio/recorder"
 	"github.com/splitio/split-synchronizer/v4/splitio/task"
 	"github.com/splitio/split-synchronizer/v4/splitio/util"
@@ -60,12 +61,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	metadata := util.GetMetadata()
 
 	// Setup fetchers & recorders
-	splitAPI := service.NewSplitAPI(
-		conf.Data.APIKey,
-		advanced,
-		log.Instance,
-		metadata,
-	)
+	splitAPI := api.NewSplitAPI(conf.Data.APIKey, advanced, log.Instance, metadata)
 
 	// Check if apikey is valid
 	if !isValidApikey(splitAPI.SplitFetcher) {
@@ -94,30 +90,30 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		os.Exit(splitio.ExitRedisInitializationFailed)
 	}
 
-	metricStorage := redis.NewMetricsStorage(redisClient, metadata, log.Instance)
-	localTelemetryStorage := mutexmap.NewMMMetricsStorage()
-	metricsWrapper := storage.NewMetricWrapper(metricStorage, localTelemetryStorage, log.Instance)
+	// metricStorage := redis.NewMetricsStorage(redisClient, metadata, log.Instance)
+	// localTelemetryStorage := mutexmap.NewMMMetricsStorage()
+	//metricsWrapper := storage.NewMetricWrapper(nil, localTelemetryStorage, log.Instance)
 	storages := common.Storages{
-		SplitStorage:          redis.NewSplitStorage(redisClient, log.Instance),
-		SegmentStorage:        redis.NewSegmentStorage(redisClient, log.Instance),
-		LocalTelemetryStorage: localTelemetryStorage,
-		ImpressionStorage:     redis.NewImpressionStorage(redisClient, dtos.Metadata{}, log.Instance),
-		EventStorage:          redis.NewEventsStorage(redisClient, dtos.Metadata{}, log.Instance),
+		SplitStorage:   redis.NewSplitStorage(redisClient, log.Instance),
+		SegmentStorage: redis.NewSegmentStorage(redisClient, log.Instance),
+		// LocalTelemetryStorage: localTelemetryStorage,
+		ImpressionStorage: redis.NewImpressionStorage(redisClient, dtos.Metadata{}, log.Instance),
+		EventStorage:      redis.NewEventsStorage(redisClient, dtos.Metadata{}, log.Instance),
 	}
 
 	// Creating Workers and Tasks
-	eventRecorder := worker.NewEventRecorderMultiple(storages.EventStorage, splitAPI.EventRecorder, metricsWrapper, log.Instance)
+	eventRecorder := worker.NewEventRecorderMultiple(storages.EventStorage, splitAPI.EventRecorder, nil, log.Instance)
 	workers := synchronizer.Workers{
-		SplitFetcher:      split.NewSplitFetcher(storages.SplitStorage, splitAPI.SplitFetcher, metricsWrapper, log.Instance),
-		SegmentFetcher:    segment.NewSegmentFetcher(storages.SplitStorage, storages.SegmentStorage, splitAPI.SegmentFetcher, metricsWrapper, log.Instance),
-		EventRecorder:     eventRecorder,
-		TelemetryRecorder: worker.NewMetricRecorderMultiple(metricsWrapper, splitAPI.MetricRecorder, log.Instance),
+		SplitFetcher:   split.NewSplitFetcher(storages.SplitStorage, splitAPI.SplitFetcher, log.Instance, interfaces.LocalTelemetry),
+		SegmentFetcher: segment.NewSegmentFetcher(storages.SplitStorage, storages.SegmentStorage, splitAPI.SegmentFetcher, log.Instance, interfaces.LocalTelemetry),
+		EventRecorder:  eventRecorder,
+		//TelemetryRecorder: worker.NewMetricRecorderMultiple(metricsWrapper, splitAPI.MetricRecorder, log.Instance),
 	}
 	splitTasks := synchronizer.SplitTasks{
-		SplitSyncTask:     tasks.NewFetchSplitsTask(workers.SplitFetcher, conf.Data.SplitsFetchRate, log.Instance),
-		SegmentSyncTask:   tasks.NewFetchSegmentsTask(workers.SegmentFetcher, conf.Data.SegmentFetchRate, advanced.SegmentWorkers, advanced.SegmentQueueSize, log.Instance),
-		TelemetrySyncTask: tasks.NewRecordTelemetryTask(workers.TelemetryRecorder, conf.Data.MetricsPostRate, log.Instance),
-		EventSyncTask:     tasks.NewRecordEventsTasks(workers.EventRecorder, advanced.EventsBulkSize, conf.Data.EventsPostRate, log.Instance, conf.Data.EventsThreads),
+		SplitSyncTask:   tasks.NewFetchSplitsTask(workers.SplitFetcher, conf.Data.SplitsFetchRate, log.Instance),
+		SegmentSyncTask: tasks.NewFetchSegmentsTask(workers.SegmentFetcher, conf.Data.SegmentFetchRate, advanced.SegmentWorkers, advanced.SegmentQueueSize, log.Instance),
+		// TelemetrySyncTask: tasks.NewRecordTelemetryTask(workers.TelemetryRecorder, conf.Data.MetricsPostRate, log.Instance),
+		EventSyncTask: tasks.NewRecordEventsTasks(workers.EventRecorder, advanced.EventsBulkSize, conf.Data.EventsPostRate, log.Instance, conf.Data.EventsThreads),
 	}
 
 	impressionListenerEnabled := strings.TrimSpace(conf.Data.ImpressionListener.Endpoint) != ""
@@ -130,10 +126,10 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	var impressionsCounter *provisional.ImpressionsCounter
 	if conf.Data.ImpressionsMode == cfg.ImpressionsModeOptimized {
 		impressionsCounter = provisional.NewImpressionsCounter()
-		workers.ImpressionsCountRecorder = impressionscount.NewRecorderSingle(impressionsCounter, splitAPI.ImpressionRecorder, metadata, log.Instance)
+		workers.ImpressionsCountRecorder = impressionscount.NewRecorderSingle(impressionsCounter, splitAPI.ImpressionRecorder, metadata, log.Instance, interfaces.LocalTelemetry)
 		splitTasks.ImpressionsCountSyncTask = tasks.NewRecordImpressionsCountTask(workers.ImpressionsCountRecorder, log.Instance)
 	}
-	impressionRecorder, err := worker.NewImpressionRecordMultiple(storages.ImpressionStorage, splitAPI.ImpressionRecorder, metricsWrapper, log.Instance, managerConfig, impressionsCounter)
+	impressionRecorder, err := worker.NewImpressionRecordMultiple(storages.ImpressionStorage, splitAPI.ImpressionRecorder, nil, log.Instance, managerConfig, impressionsCounter)
 	if err != nil {
 		log.Instance.Error(err)
 		os.Exit(splitio.ExitTaskInitialization)
@@ -156,6 +152,9 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		splitAPI.AuthClient,
 		storages.SplitStorage,
 		managerStatus,
+		interfaces.LocalTelemetry,
+		metadata,
+		commonUtil.StringRef("SARASA"), // TODO(mredolatti): Forward an appropiate key here
 	)
 	if err != nil {
 		log.Instance.Error(err)

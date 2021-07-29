@@ -3,7 +3,7 @@ package conf
 import (
 	"os"
 
-	"github.com/splitio/go-split-commons/v3/conf"
+	"github.com/splitio/go-split-commons/v4/conf"
 )
 
 // ParseAdvancedOptions parses defaults for advanced Options

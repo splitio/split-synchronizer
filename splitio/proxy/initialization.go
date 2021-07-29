@@ -6,11 +6,12 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/splitio/go-split-commons/v3/service"
-	"github.com/splitio/go-split-commons/v3/service/api"
-	"github.com/splitio/go-split-commons/v3/synchronizer"
-	"github.com/splitio/go-split-commons/v3/synchronizer/worker/metric"
-	"github.com/splitio/go-split-commons/v3/tasks"
+	"github.com/splitio/go-split-commons/v4/service/api"
+	"github.com/splitio/go-split-commons/v4/synchronizer"
+	commonUtils "github.com/splitio/go-toolkit/v5/common"
+
+	// 	"github.com/splitio/go-split-commons/v4/synchronizer/worker/metric"
+	"github.com/splitio/go-split-commons/v4/tasks"
 	"github.com/splitio/split-synchronizer/v4/conf"
 	"github.com/splitio/split-synchronizer/v4/log"
 	"github.com/splitio/split-synchronizer/v4/splitio"
@@ -74,7 +75,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	interfaces.Initialize()
 
 	// Setup fetchers & recorders
-	splitAPI := service.NewSplitAPI(
+	splitAPI := api.NewSplitAPI(
 		conf.Data.APIKey,
 		advanced,
 		log.Instance,
@@ -89,9 +90,10 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 
 	// Creating Workers and Tasks
 	workers := synchronizer.Workers{
-		SplitFetcher:      fetcher.NewSplitFetcher(splitCollection, splitAPI.SplitFetcher, interfaces.ProxyTelemetryWrapper, log.Instance),
-		SegmentFetcher:    fetcher.NewSegmentFetcher(segmentCollection, splitCollection, splitAPI.SegmentFetcher, interfaces.ProxyTelemetryWrapper, log.Instance),
-		TelemetryRecorder: metric.NewRecorderSingle(interfaces.TelemetryStorage, splitAPI.MetricRecorder, metadata),
+		SplitFetcher:   fetcher.NewSplitFetcher(splitCollection, splitAPI.SplitFetcher, interfaces.LocalTelemetry, log.Instance),
+		SegmentFetcher: fetcher.NewSegmentFetcher(segmentCollection, splitCollection, splitAPI.SegmentFetcher, interfaces.LocalTelemetry, log.Instance),
+		// TODO(mredolatti)
+		//TelemetryRecorder: metric.NewRecorderSingle(interfaces.TelemetryStorage, splitAPI.MetricRecorder, metadata),
 	}
 	splitTasks := synchronizer.SplitTasks{
 		SplitSyncTask:     tasks.NewFetchSplitsTask(workers.SplitFetcher, conf.Data.SplitsFetchRate, log.Instance),
@@ -116,6 +118,9 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		splitAPI.AuthClient,
 		splitStorage,
 		managerStatus,
+		interfaces.LocalTelemetry,
+		metadata,
+		commonUtils.StringRef("SARASA"), // TODO(mredolatti): Fix this
 	)
 	if err != nil {
 		panic(err)

@@ -6,17 +6,16 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/go-split-commons/v3/dtos"
-	"github.com/splitio/go-split-commons/v3/util"
+	"github.com/splitio/go-split-commons/v4/dtos"
 	"github.com/splitio/split-synchronizer/v4/log"
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb/collections"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/controllers"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/interfaces"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/telemetry"
 	"github.com/splitio/split-synchronizer/v4/splitio/task"
 )
 
@@ -72,6 +71,7 @@ func fetchSplitsFromDB(since int) ([]json.RawMessage, int64, error) {
 }
 
 func splitChanges(c *gin.Context) {
+	c.Set(telemetry.EndpointKey, telemetry.SplitChangesEndpoint)
 	log.Instance.Debug(fmt.Sprintf("Headers: %v", c.Request.Header))
 	sinceParam := c.DefaultQuery("since", "-1")
 	since, err := strconv.Atoi(sinceParam)
@@ -80,7 +80,6 @@ func splitChanges(c *gin.Context) {
 	}
 	log.Instance.Debug(fmt.Sprintf("SDK Fetches Splits Since: %d", since))
 
-	before := time.Now()
 	splits, till, errf := fetchSplitsFromDB(since)
 	if errf != nil {
 		switch errf {
@@ -89,13 +88,11 @@ func splitChanges(c *gin.Context) {
 		default:
 			log.Instance.Error(errf)
 		}
-		interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIError)
+		interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.SplitChangesEndpoint, http.StatusInternalServerError)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": errf.Error()})
 		return
 	}
-	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncLatency(split, bucket)
-	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIOK)
+	interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.SplitChangesEndpoint, http.StatusOK)
 	c.JSON(http.StatusOK, gin.H{"splits": splits, "since": since, "till": till})
 }
 
@@ -150,6 +147,7 @@ func fetchSegmentsFromDB(since int, segmentName string) ([]string, []string, int
 }
 
 func segmentChanges(c *gin.Context) {
+	c.Set(telemetry.EndpointKey, telemetry.SegmentChangesEndpoint)
 	log.Instance.Debug(fmt.Sprintf("Headers: %v", c.Request.Header))
 	sinceParam := c.DefaultQuery("since", "-1")
 	since, err := strconv.Atoi(sinceParam)
@@ -159,26 +157,28 @@ func segmentChanges(c *gin.Context) {
 
 	segmentName := c.Param("name")
 	log.Instance.Debug(fmt.Sprintf("SDK Fetches Segment: %s Since: %d", segmentName, since))
-	before := time.Now()
 	added, removed, till, errf := fetchSegmentsFromDB(since, segmentName)
 	if errf != nil {
-		interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIError)
+		interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.SegmentChangesEndpoint, http.StatusNotFound)
 		c.JSON(http.StatusNotFound, gin.H{"error": errf.Error()})
 		return
 	}
-	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncLatency(segment, bucket)
-	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIOK)
-	c.JSON(http.StatusOK, gin.H{"name": segmentName, "added": added,
-		"removed": removed, "since": since, "till": till})
+	c.JSON(http.StatusOK, gin.H{
+		"name":    segmentName,
+		"added":   added,
+		"removed": removed,
+		"since":   since,
+		"till":    till,
+	})
+	interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.SegmentChangesEndpoint, http.StatusOK)
 }
 
 //-----------------------------------------------------------------------------
 // MY SEGMENTS
 //-----------------------------------------------------------------------------
 func mySegments(c *gin.Context) {
+	c.Set(telemetry.EndpointKey, telemetry.MySegmentsEndpoint)
 	log.Instance.Debug(fmt.Sprintf("Headers: %v", c.Request.Header))
-	before := time.Now()
 	key := c.Param("key")
 	var mysegments = make([]dtos.MySegmentDTO, 0)
 
@@ -186,7 +186,8 @@ func mySegments(c *gin.Context) {
 	segments, errs := segmentCollection.FetchAll()
 	if errs != nil {
 		log.Instance.Warning(errs)
-		interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIError)
+		interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.MySegmentsEndpoint, http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{})
 	} else {
 		for _, segment := range segments {
 			for _, skey := range segment.Keys {
@@ -198,10 +199,8 @@ func mySegments(c *gin.Context) {
 		}
 	}
 
-	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncLatency(mySegment, bucket)
-	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIOK)
 	c.JSON(http.StatusOK, gin.H{"mySegments": mysegments})
+	interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.MySegmentsEndpoint, http.StatusOK)
 }
 
 //-----------------------------------------------------------------
@@ -251,15 +250,12 @@ func submitImpressions(
 		}
 	}
 
-	before := time.Now()
 	controllers.AddImpressions(data, sdkVersion, machineIP, machineName, impressionsMode)
-	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncLatency(impressions, bucket)
-	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIOK)
 }
 
 func postImpressionBulk(impressionListenerEnabled bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		c.Set(telemetry.EndpointKey, telemetry.ImpressionsBulkEndpoint)
 		sdkVersion := c.Request.Header.Get("SplitSDKVersion")
 		machineIP := c.Request.Header.Get("SplitSDKMachineIP")
 		machineName := c.Request.Header.Get("SplitSDKMachineName")
@@ -267,7 +263,7 @@ func postImpressionBulk(impressionListenerEnabled bool) gin.HandlerFunc {
 		data, err := ioutil.ReadAll(c.Request.Body)
 		if err != nil {
 			log.Instance.Error(err)
-			interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIError)
+			interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.ImpressionsBulkEndpoint, http.StatusInternalServerError)
 			c.JSON(http.StatusInternalServerError, nil)
 			return
 		}
@@ -282,12 +278,15 @@ func postImpressionBulk(impressionListenerEnabled bool) gin.HandlerFunc {
 
 		submitImpressions(impressionListenerEnabled, sdkVersion, machineIP, machineName, impressionsMode, data)
 		c.JSON(http.StatusOK, nil)
+		interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.ImpressionsBulkEndpoint, http.StatusOK)
 	}
 }
 
 func postImpressionBeacon(keys []string, impressionListenerEnabled bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		c.Set(telemetry.EndpointKey, telemetry.ImpressionsBulkBeaconEndpoint)
 		if c.Request.Body == nil {
+			interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.ImpressionsBulkBeaconEndpoint, http.StatusBadRequest)
 			c.JSON(http.StatusBadRequest, nil)
 			return
 		}
@@ -295,7 +294,7 @@ func postImpressionBeacon(keys []string, impressionListenerEnabled bool) gin.Han
 		data, err := ioutil.ReadAll(c.Request.Body)
 		if err != nil {
 			log.Instance.Error(err)
-			interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIError)
+			interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.ImpressionsBulkBeaconEndpoint, http.StatusInternalServerError)
 			c.JSON(http.StatusInternalServerError, nil)
 			return
 		}
@@ -309,11 +308,13 @@ func postImpressionBeacon(keys []string, impressionListenerEnabled bool) gin.Han
 		if err := json.Unmarshal([]byte(data), &body); err != nil {
 			log.Instance.Error(err)
 			c.JSON(http.StatusBadRequest, nil)
+			interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.ImpressionsBulkBeaconEndpoint, http.StatusBadRequest)
 			return
 		}
 
 		if !validateAPIKey(keys, body.Token) {
 			c.AbortWithStatus(401)
+			interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.ImpressionsBulkBeaconEndpoint, http.StatusUnauthorized)
 			return
 		}
 
@@ -321,16 +322,19 @@ func postImpressionBeacon(keys []string, impressionListenerEnabled bool) gin.Han
 		if err != nil {
 			log.Instance.Error(err)
 			c.JSON(http.StatusInternalServerError, nil)
+			interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.ImpressionsBulkBeaconEndpoint, http.StatusInternalServerError)
 			return
 		}
 
 		submitImpressions(impressionListenerEnabled, body.Sdk, "NA", "NA", "", impressions)
 		c.JSON(http.StatusNoContent, nil)
+		interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.ImpressionsBulkBeaconEndpoint, http.StatusOK)
 	}
 }
 
 func postImpressionsCount() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		c.Set(telemetry.EndpointKey, telemetry.ImpressionsCountEndpoint)
 		sdkVersion := c.Request.Header.Get("SplitSDKVersion")
 		machineIP := c.Request.Header.Get("SplitSDKMachineIP")
 		machineName := c.Request.Header.Get("SplitSDKMachineName")
@@ -338,26 +342,29 @@ func postImpressionsCount() gin.HandlerFunc {
 		if err != nil {
 			log.Instance.Error(err)
 			c.JSON(http.StatusInternalServerError, nil)
+			interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.ImpressionsCountEndpoint, http.StatusInternalServerError)
 			return
 		}
 
+		code := http.StatusOK
 		err = controllers.PostImpressionsCount(sdkVersion, machineIP, machineName, data)
 		if err != nil {
+			code = http.StatusInternalServerError
 			if httpError, ok := err.(*dtos.HTTPError); ok {
-				c.JSON(httpError.Code, nil)
-			} else {
-				c.JSON(http.StatusInternalServerError, nil)
+				code = httpError.Code
 			}
-			return
 		}
-		c.JSON(http.StatusOK, nil)
+		c.JSON(code, nil)
+		interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.ImpressionsCountEndpoint, code)
 	}
 }
 
 func postImpressionsCountBeacon(keys []string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		c.Set(telemetry.EndpointKey, telemetry.ImpressionsCountBeaconEndpoint)
 		if c.Request.Body == nil {
 			c.JSON(http.StatusBadRequest, nil)
+			interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.ImpressionsCountBeaconEndpoint, http.StatusBadRequest)
 			return
 		}
 
@@ -365,6 +372,7 @@ func postImpressionsCountBeacon(keys []string) gin.HandlerFunc {
 		if err != nil {
 			log.Instance.Error(err)
 			c.JSON(http.StatusInternalServerError, nil)
+			interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.ImpressionsCountBeaconEndpoint, http.StatusInternalServerError)
 			return
 		}
 
@@ -377,11 +385,13 @@ func postImpressionsCountBeacon(keys []string) gin.HandlerFunc {
 		if err := json.Unmarshal([]byte(data), &body); err != nil {
 			log.Instance.Error(err)
 			c.JSON(http.StatusBadRequest, nil)
+			interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.ImpressionsCountBeaconEndpoint, http.StatusBadRequest)
 			return
 		}
 
 		if !validateAPIKey(keys, body.Token) {
 			c.AbortWithStatus(401)
+			interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.ImpressionsCountBeaconEndpoint, http.StatusUnauthorized)
 			return
 		}
 
@@ -389,23 +399,26 @@ func postImpressionsCountBeacon(keys []string) gin.HandlerFunc {
 		if err != nil {
 			log.Instance.Error(err)
 			c.JSON(http.StatusInternalServerError, nil)
+			interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.ImpressionsCountBeaconEndpoint, http.StatusInternalServerError)
 			return
 		}
 
 		if len(body.Entries.PerFeature) == 0 {
 			c.JSON(http.StatusNoContent, nil)
+			interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.ImpressionsCountBeaconEndpoint, http.StatusNoContent)
 			return
 		}
 
-		controllers.PostImpressionsCount(body.Sdk, "NA", "NA", impressionsCount)
+		code := http.StatusNoContent
+		err = controllers.PostImpressionsCount(body.Sdk, "NA", "NA", impressionsCount)
 		if err != nil {
+			code = http.StatusInternalServerError
 			if httpError, ok := err.(*dtos.HTTPError); ok {
-				c.JSON(httpError.Code, nil)
-			} else {
-				c.JSON(http.StatusInternalServerError, nil)
+				code = httpError.Code
 			}
 		}
-		c.JSON(http.StatusNoContent, nil)
+		c.JSON(code, nil)
+		interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.ImpressionsCountBeaconEndpoint, code)
 	}
 }
 
@@ -414,48 +427,38 @@ func postImpressionsCountBeacon(keys []string) gin.HandlerFunc {
 //-----------------------------------------------------------------------------
 
 func postMetricsTimes(c *gin.Context) {
-	before := time.Now()
+	c.Set(telemetry.EndpointKey, telemetry.LegacyTimeEndpoint)
 	postEvent(c, "/metrics/times")
-	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncLatency(metricLatency, bucket)
-	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIOK)
 	c.JSON(http.StatusOK, "")
+	interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.LegacyTimeEndpoint, http.StatusOK)
 }
 
 func postMetricsTime(c *gin.Context) {
-	before := time.Now()
+	c.Set(telemetry.EndpointKey, telemetry.LegacyTimesEndpoint)
 	postEvent(c, "/metrics/time")
-	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncLatency(metricTime, bucket)
-	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIOK)
 	c.JSON(http.StatusOK, "")
+	interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.LegacyTimesEndpoint, http.StatusOK)
 }
 
 func postMetricsCounters(c *gin.Context) {
-	before := time.Now()
+	c.Set(telemetry.EndpointKey, telemetry.LegacyCountersEndpoint)
 	postEvent(c, "/metrics/counters")
-	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncLatency(metricCounters, bucket)
-	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIOK)
 	c.JSON(http.StatusOK, "")
+	interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.LegacyCountersEndpoint, http.StatusOK)
 }
 
 func postMetricsCounter(c *gin.Context) {
-	before := time.Now()
+	c.Set(telemetry.EndpointKey, telemetry.LegacyCounterEndpoint)
 	postEvent(c, "/metrics/counter")
-	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncLatency(metricCounter, bucket)
-	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIOK)
 	c.JSON(http.StatusOK, "")
+	interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.LegacyCounterEndpoint, http.StatusOK)
 }
 
 func postMetricsGauge(c *gin.Context) {
-	before := time.Now()
+	c.Set(telemetry.EndpointKey, telemetry.LegacyGaugeEndpoint)
 	postEvent(c, "/metrics/gauge")
-	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncLatency(metricGauge, bucket)
-	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIOK)
 	c.JSON(http.StatusOK, "")
+	interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.LegacyGaugeEndpoint, http.StatusOK)
 }
 
 func postEvent(c *gin.Context, url string) {
@@ -470,10 +473,11 @@ func postEvent(c *gin.Context, url string) {
 
 	go func() {
 		log.Instance.Debug(metadata.SDKVersion, metadata.MachineIP, string(data))
-		var e = interfaces.MetricsRecorder.RecordRaw(url, data, metadata, nil)
-		if e != nil {
-			log.Instance.Error(e)
-		}
+		// TODO(mredolatti)
+		// var e = interfaces.MetricsRecorder.RecordRaw(url, data, metadata, nil)
+		// if e != nil {
+		// 	log.Instance.Error(e)
+		// }
 	}()
 }
 
@@ -481,41 +485,41 @@ func postEvent(c *gin.Context, url string) {
 // EVENTS - RESULTS
 //-----------------------------------------------------------------------------
 func submitEvents(sdkVersion string, machineIP string, machineName string, data []byte) {
-	before := time.Now()
 	controllers.AddEvents(data, sdkVersion, machineIP, machineName)
-	bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncLatency(events, bucket)
-	interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIOK)
 }
 
 func postEvents(c *gin.Context) {
+	c.Set(telemetry.EndpointKey, telemetry.EventsBulkEndpoint)
 	sdkVersion := c.Request.Header.Get("SplitSDKVersion")
 	machineIP := c.Request.Header.Get("SplitSDKMachineIP")
 	machineName := c.Request.Header.Get("SplitSDKMachineName")
 	data, err := ioutil.ReadAll(c.Request.Body)
 	if err != nil {
 		log.Instance.Error(err)
-		interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIError)
 		c.JSON(http.StatusInternalServerError, nil)
+		interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.EventsBulkEndpoint, http.StatusInternalServerError)
 		return
 	}
 
 	submitEvents(sdkVersion, machineIP, machineName, data)
 	c.JSON(http.StatusOK, nil)
+	interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.EventsBulkEndpoint, http.StatusOK)
 }
 
 func postEventsBeacon(keys []string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		c.Set(telemetry.EndpointKey, telemetry.EventsBulkBeaconEndpoint)
 		if c.Request.Body == nil {
 			c.JSON(http.StatusBadRequest, nil)
+			interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.EventsBulkBeaconEndpoint, http.StatusBadGateway)
 			return
 		}
 
 		data, err := ioutil.ReadAll(c.Request.Body)
 		if err != nil {
 			log.Instance.Error(err)
-			interfaces.ProxyTelemetryWrapper.LocalTelemetry.IncCounter(localAPIError)
 			c.JSON(http.StatusInternalServerError, nil)
+			interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.EventsBulkBeaconEndpoint, http.StatusInternalServerError)
 			return
 		}
 
@@ -528,11 +532,13 @@ func postEventsBeacon(keys []string) gin.HandlerFunc {
 		if err := json.Unmarshal([]byte(data), &body); err != nil {
 			log.Instance.Error(err)
 			c.JSON(http.StatusBadRequest, nil)
+			interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.EventsBulkBeaconEndpoint, http.StatusBadRequest)
 			return
 		}
 
 		if !validateAPIKey(keys, body.Token) {
 			c.AbortWithStatus(401)
+			interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.EventsBulkBeaconEndpoint, http.StatusUnauthorized)
 			return
 		}
 
@@ -540,15 +546,19 @@ func postEventsBeacon(keys []string) gin.HandlerFunc {
 		if err != nil {
 			log.Instance.Error(err)
 			c.JSON(http.StatusInternalServerError, nil)
+			interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.EventsBulkBeaconEndpoint, http.StatusInternalServerError)
 			return
 		}
 
 		submitEvents(body.Sdk, "NA", "NA", events)
 		c.JSON(http.StatusNoContent, nil)
+		interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.EventsBulkBeaconEndpoint, http.StatusNoContent)
 	}
 }
 
 func auth(c *gin.Context) {
+	c.Set(telemetry.EndpointKey, telemetry.AuthEndpoint)
 	log.Instance.Debug(fmt.Sprintf("Headers: %v", c.Request.Header))
 	c.JSON(http.StatusOK, gin.H{"pushEnabled": false, "token": ""})
+	interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.AuthEndpoint, http.StatusNoContent)
 }
