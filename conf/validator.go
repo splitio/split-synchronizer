@@ -3,6 +3,7 @@ package conf
 import (
 	"fmt"
 	"math"
+	"os"
 	"strings"
 
 	cfg "github.com/splitio/go-split-commons/v3/conf"
@@ -28,10 +29,11 @@ func checkImpressionsPostRate() error {
 
 // ValidConfigs checks configs
 func ValidConfigs() error {
+	var impressionsPostRateError error
 	Data.ImpressionsMode = strings.ToLower(Data.ImpressionsMode)
 	switch Data.ImpressionsMode {
 	case cfg.ImpressionsModeOptimized:
-		return checkImpressionsPostRate()
+		impressionsPostRateError = checkImpressionsPostRate()
 	case cfg.ImpressionsModeDebug:
 		if Data.ImpressionsPostRate == 0 {
 			Data.ImpressionsPostRate = defaultImpressionSync
@@ -43,7 +45,31 @@ func ValidConfigs() error {
 	default:
 		fmt.Println(`You passed an invalid impressionsMode, impressionsMode should be one of the following values: 'debug' or 'optimized'. Defaulting to 'optimized' mode.`)
 		Data.ImpressionsMode = cfg.ImpressionsModeOptimized
-		return checkImpressionsPostRate()
+		impressionsPostRateError = checkImpressionsPostRate()
 	}
+
+	if impressionsPostRateError != nil {
+		return impressionsPostRateError
+	}
+
+	// Snapshot validation
+	if Data.Proxy.Snapshot != "" {
+		if snapshotExists(Data.Proxy.Snapshot) {
+			Data.Proxy.PersistMemoryPath = Data.Proxy.Snapshot
+		}else{
+			return fmt.Errorf("Snapshot file does not exists at %s", Data.Proxy.Snapshot)
+		}
+	}
+
 	return nil
+}
+
+// snapshotExists checks if a file exists and is not a directory before we
+// try using it to prevent further errors.
+func snapshotExists(filename string) bool {
+	info, err := os.Stat(filename)
+	if os.IsNotExist(err) {
+		return false
+	}
+	return !info.IsDir()
 }

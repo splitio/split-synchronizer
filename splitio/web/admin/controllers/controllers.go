@@ -1,11 +1,17 @@
 package controllers
 
 import (
+	"bytes"
+	"compress/gzip"
 	"errors"
+	"fmt"
+	"github.com/boltdb/bolt"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb"
 	"net/http"
 	"os"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/go-toolkit/v4/logging"
@@ -255,6 +261,31 @@ func Dashboard(c *gin.Context) {
 	}
 	log.Instance.Error("Dashboard: Could not fetch storages")
 	c.String(http.StatusInternalServerError, "%s", "Could not fetch storage")
+}
+
+// DownloadProxySnapshot download a proxy gzipped snapshot
+func DownloadProxySnapshot(c *gin.Context) {
+	snapshotName := fmt.Sprintf("split.proxy.%d.snapshot.gz", time.Now().UnixNano())
+	err := boltdb.DBB.View(func(tx *bolt.Tx) error {
+
+		c.Writer.Header().Set("Content-Type", "application/octet-stream")
+		c.Writer.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, snapshotName))
+
+		// gzip -d split.proxy.1628281170150684000.snapshot.gz
+		// curl http://localhost:3010/admin/proxy/snapshot --output split.proxy.0000.snapshot.gz
+		var b bytes.Buffer
+		gz := gzip.NewWriter(&b)
+		_, err := tx.WriteTo(gz)
+		gz.Close()
+
+		c.Writer.Header().Set("Content-Length", strconv.Itoa(b.Len()))
+		c.Writer.Write(b.Bytes())
+
+		return err
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error":err.Error()})
+	}
 }
 
 // GetEventsQueueSize returns events queue size

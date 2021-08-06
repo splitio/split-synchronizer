@@ -60,9 +60,11 @@ func gracefulShutdownProxy(sigs chan os.Signal, gracefulShutdownWaitingGroup *sy
 // Start initialize in proxy mode
 func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	// Initialization of DB
+	var startedWithSnapshot = false
 	var dbpath = boltdb.InMemoryMode
 	if conf.Data.Proxy.PersistMemoryPath != "" {
 		dbpath = conf.Data.Proxy.PersistMemoryPath
+		startedWithSnapshot = true
 	}
 	boltdb.Initialize(dbpath, nil)
 
@@ -132,7 +134,10 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		case synchronizer.Ready:
 			log.Instance.Info("Synchronizer tasks started")
 		case synchronizer.Error:
-			os.Exit(splitio.ExitTaskInitialization)
+			if !startedWithSnapshot {
+				os.Exit(splitio.ExitTaskInitialization)
+			}
+			log.Instance.Warning("Starting from a Snapshot and the Synchronizer tasks cannot be started")
 		}
 	}
 

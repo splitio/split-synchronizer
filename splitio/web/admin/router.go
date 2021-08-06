@@ -81,6 +81,10 @@ func newWebAdminServer(options *WebAdminOptions, storages common.Storages, httpC
 		server.Router().POST("/admin/impressions/flush/*size", controllers.FlushImpressions)
 	}
 
+	if appcontext.ExecutionMode() == appcontext.ProxyMode {
+		server.Router().GET("/admin/proxy/snapshot", controllers.DownloadProxySnapshot)
+	}
+
 	return server
 }
 
