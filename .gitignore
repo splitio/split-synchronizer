@@ -56,3 +56,4 @@ release/versions.html
 Gopkg.lock
 
 .vscode/*
+.idea/*
