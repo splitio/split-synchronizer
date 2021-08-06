@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb/collections"
 	"strconv"
 	"time"
 
@@ -112,14 +113,31 @@ func (d *Dashboard) HTMLSegmentKeys(segmentName string) string {
 
 	if keys != nil {
 		for _, key := range keys.List() {
-			name, _ := key.(string)
-			cn, _ := d.storages.SegmentStorage.ChangeNumber(name)
-			lastModified := time.Unix(0, cn)
-			removedColor := ""
+
+			var name string
+			var cn int64
+			var lastModified time.Time
+			var removedColor = ""
+			var removed = "false"
+
+			if k, ok := key.(collections.SegmentKey); ok {
+				name = k.Name
+				cn = k.ChangeNumber
+				lastModified = time.Unix(0, cn)
+				if k.Removed {
+					removed = strconv.FormatBool(k.Removed)
+					removedColor = "redBox"
+				}
+			} else {
+				name, _ = key.(string)
+				cn, _ = d.storages.SegmentStorage.ChangeNumber(name)
+				lastModified = time.Unix(0, cn)
+			}
+
 			segmentKeys = append(segmentKeys, HTMLtemplates.CachedSegmentKeysRowTPLVars{
 				Name:         name,
 				LastModified: lastModified.UTC().Format(time.UnixDate),
-				Removed:      strconv.FormatBool(false),
+				Removed:      removed,
 				RemovedColor: removedColor,
 			})
 		}

@@ -224,6 +224,7 @@ func parseCachedSegments(splitStorage storage.SplitStorage, segmentStorage stora
 		removedKeys := 0
 		if appcontext.ExecutionMode() == appcontext.ProxyMode {
 			removedKeys = int(segmentStorage.CountRemovedKeys(segment))
+			size -= removedKeys
 		}
 
 		// LAST MODIFIED
