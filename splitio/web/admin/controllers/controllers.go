@@ -268,9 +268,6 @@ func DownloadProxySnapshot(c *gin.Context) {
 	snapshotName := fmt.Sprintf("split.proxy.%d.snapshot.gz", time.Now().UnixNano())
 	err := boltdb.DBB.View(func(tx *bolt.Tx) error {
 
-		c.Writer.Header().Set("Content-Type", "application/octet-stream")
-		c.Writer.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, snapshotName))
-
 		// gzip -d split.proxy.1628281170150684000.snapshot.gz
 		// curl http://localhost:3010/admin/proxy/snapshot --output split.proxy.0000.snapshot.gz
 		var b bytes.Buffer
@@ -278,10 +275,16 @@ func DownloadProxySnapshot(c *gin.Context) {
 		_, err := tx.WriteTo(gz)
 		gz.Close()
 
+		if err != nil {
+			return err
+		}
+
+		c.Writer.Header().Set("Content-Type", "application/octet-stream")
+		c.Writer.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, snapshotName))
 		c.Writer.Header().Set("Content-Length", strconv.Itoa(b.Len()))
 		c.Writer.Write(b.Bytes())
 
-		return err
+		return nil
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error":err.Error()})
