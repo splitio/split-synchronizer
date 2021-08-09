@@ -1,11 +1,16 @@
 package controllers
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -734,5 +739,43 @@ func TestHealthCheckEndpointAuthFail(t *testing.T) {
 	}
 	if gs.HealthySince.Date != "0" {
 		t.Error("Should be 0")
+	}
+}
+
+func TestDownloadProxySnapshot(t *testing.T) {
+	appcontext.Initialize(appcontext.ProxyMode)
+	conf.Initialize()
+
+	// Read DB snapshot for test
+	path :=   "../../../../test/snapshot/test.snapshot"
+	gzPath, err := filepath.Abs(fmt.Sprintf("%s.gz",path))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var fileSnapshot []byte
+	var errFileSnapshot error
+	if _, err := os.Stat(gzPath); !os.IsNotExist(err) {
+		fileSnapshot, errFileSnapshot = ioutil.ReadFile(gzPath)
+		if errFileSnapshot != nil {
+			t.Error(errFileSnapshot.Error())
+		}
+	} else {
+		t.Error(err)
+	}
+
+	// loading snapshot from disk
+	boltdb.Initialize(path, nil)
+
+	router := gin.Default()
+	router.GET("/", DownloadProxySnapshot)
+
+	time.Sleep(100 * time.Millisecond)
+	w := performRequest(router, "GET", "/")
+
+	responseBody, _ := ioutil.ReadAll(w.Body)
+	res := bytes.Compare(responseBody, fileSnapshot)
+	if res != 0 {
+		t.Error("loaded snapshot is different to downloaded")
 	}
 }
