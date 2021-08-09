@@ -123,7 +123,7 @@ func (d *Dashboard) HTMLSegmentKeys(segmentName string) string {
 			if k, ok := key.(collections.SegmentKey); ok {
 				name = k.Name
 				cn = k.ChangeNumber
-				lastModified = time.Unix(0, cn)
+				lastModified = time.Unix(0, cn*1000000)
 				if k.Removed {
 					removed = strconv.FormatBool(k.Removed)
 					removedColor = "redBox"

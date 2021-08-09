@@ -234,12 +234,19 @@ func parseCachedSegments(splitStorage storage.SplitStorage, segmentStorage stora
 		}
 		lastModified := time.Unix(0, changeNumber*int64(time.Millisecond))
 
+		var renderLastModified string
+		if changeNumber == -1 {
+			renderLastModified = "-"
+		} else {
+			renderLastModified = lastModified.UTC().Format(time.UnixDate)
+		}
+
 		toRender = append(toRender,
 			&HTMLtemplates.CachedSegmentRowTPLVars{
 				ProxyMode:    appcontext.ExecutionMode() == appcontext.ProxyMode,
 				Name:         segment,
 				ActiveKeys:   strconv.Itoa(size),
-				LastModified: lastModified.UTC().Format(time.UnixDate),
+				LastModified: renderLastModified,
 				RemovedKeys:  strconv.Itoa(removedKeys),
 				TotalKeys:    strconv.Itoa(removedKeys + size),
 			})
