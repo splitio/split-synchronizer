@@ -116,6 +116,7 @@ type InMemorySection struct {
 	AdminUsername      string `json:"adminUsername" split-default-value:"" split-cli-option:"proxy-admin-username" split-cli-description:"HTTP basic auth username for admin endpoints"`
 	AdminPassword      string `json:"adminPassword" split-default-value:"" split-cli-option:"proxy-admin-password" split-cli-description:"HTTP basic auth password for admin endpoints"`
 	Title              string `json:"dashboardTitle" split-default-value:"" split-cli-option:"proxy-dashboard-title" split-cli-description:"Descriptive title to be shwon in Admin Dashboard"`
+	// TODO DEPRECATED (sarrubia) PersistMemoryPath is replaced by Snapshot. Remove it on next breaking change
 	PersistMemoryPath  string `json:"persistInFilePath" split-default-value:"" split-cli-option:"proxy-mmap-path" split-cli-description:"[DEPRECATED] File path to persist memory in proxy mode"`
 	Snapshot           string `json:"snapshot" split-default-value:"" split-cli-option:"proxy-snapshot" split-cli-description:"File path to load and persist data in proxy mode. Overwrites -proxy-mmap-path"`
 	ImpressionsMaxSize int64  `json:"impressionsMaxSize" split-default-value:"10485760" split-cli-option:"proxy-impressions-max-size" split-cli-description:"Max size, in bytes, to send impressions in proxy mode"`

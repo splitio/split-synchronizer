@@ -2,9 +2,11 @@ package proxy
 
 import (
 	"fmt"
+	"github.com/splitio/go-toolkit/v4/backoff"
 	"os"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/splitio/go-split-commons/v3/service"
 	"github.com/splitio/go-split-commons/v3/service/api"
@@ -62,8 +64,8 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	// Initialization of DB
 	var startedWithSnapshot = false
 	var dbpath = boltdb.InMemoryMode
-	if conf.Data.Proxy.PersistMemoryPath != "" {
-		dbpath = conf.Data.Proxy.PersistMemoryPath
+	if conf.Data.Proxy.Snapshot != "" {
+		dbpath = conf.Data.Proxy.Snapshot
 		startedWithSnapshot = true
 	}
 	boltdb.Initialize(dbpath, nil)
@@ -138,6 +140,27 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 				os.Exit(splitio.ExitTaskInitialization)
 			}
 			log.Instance.Warning("Starting from a Snapshot and the Synchronizer tasks cannot be started")
+			fmt.Println("* Starting from a Snapshot and the Synchronizer tasks cannot be started")
+			// trying to start sync with backoff
+			go func() {
+				b := backoff.New()
+				toSleep := time.Second
+				for {
+					syncManager.Start()
+
+					status := <-managerStatus
+					switch status {
+					case synchronizer.Ready:
+						return
+					}
+
+					time.Sleep(toSleep)
+					if toSleep < time.Minute { //if 1 minute backoff is reached do not increment it.
+						toSleep = b.Next()
+					}
+				}
+			}()
+
 		}
 	}
 

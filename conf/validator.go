@@ -54,11 +54,11 @@ func ValidConfigs() error {
 
 	// Snapshot validation
 	if Data.Proxy.Snapshot != "" {
-		if snapshotExists(Data.Proxy.Snapshot) {
-			Data.Proxy.PersistMemoryPath = Data.Proxy.Snapshot
-		}else{
-			return fmt.Errorf("Snapshot file does not exists at %s", Data.Proxy.Snapshot)
+		if !snapshotExists(Data.Proxy.Snapshot) {
+			return fmt.Errorf("snapshot file does not exists at %s", Data.Proxy.Snapshot)
 		}
+	} else { //TODO (sarrubia) remove Data.Proxy.PersistMemoryPath on next versions, this is replaced by Snapshot
+		Data.Proxy.Snapshot = Data.Proxy.PersistMemoryPath
 	}
 
 	return nil
