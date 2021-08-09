@@ -151,6 +151,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 					status := <-managerStatus
 					switch status {
 					case synchronizer.Ready:
+						log.Instance.Info("Synchronizer tasks started after many attempts")
 						return
 					}
 
