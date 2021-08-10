@@ -134,7 +134,11 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	case status := <-managerStatus:
 		switch status {
 		case synchronizer.Ready:
-			log.Instance.Info("Synchronizer tasks started")
+			if !startedWithSnapshot {
+				log.Instance.Info("Synchronizer tasks started")
+			} else {
+				log.Instance.Info("Synchronizer tasks started from snapshot")
+			}
 		case synchronizer.Error:
 			if !startedWithSnapshot {
 				os.Exit(splitio.ExitTaskInitialization)
