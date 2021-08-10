@@ -1,7 +1,7 @@
 package interfaces
 
 import (
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/telemetry"
+	"github.com/splitio/split-synchronizer/v4/splitio/common/telemetry"
 )
 
 // LocalTelemetry exposes local telemetry TODO(mredolatti): Remove this global instance

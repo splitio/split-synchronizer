@@ -1,5 +1,120 @@
 package worker
 
+import (
+	"fmt"
+
+	"github.com/splitio/go-split-commons/v4/dtos"
+	"github.com/splitio/go-split-commons/v4/service"
+	"github.com/splitio/go-toolkit/v5/logging"
+	"github.com/splitio/split-synchronizer/v4/splitio/producer/storage"
+)
+
+const (
+	tagConsumer = "consumer"
+)
+
+// TelemetryMultiSyncError is used to signal errors on multiple calls to telemetry recording apis
+type TelemetryMultiSyncError struct {
+	Errors map[dtos.Metadata]error
+}
+
+// Error returns the error formatted as a string
+func (t *TelemetryMultiSyncError) Error() string {
+	s := ""
+	for metadata, err := range t.Errors {
+		s += fmt.Sprintf("[%+v::%s],", metadata, err.Error())
+	}
+	return s
+}
+
+// TelemetryMultiWorker defines the interface for a telemetry syncrhonizer suitable for multiple sdk instances
+type TelemetryMultiWorker interface {
+	SynchronizeStats() error
+	SyncrhonizeConfigs() error
+}
+
+// TelemetryMultiWorkerImpl is a component used to syncrhonize telemetry posted in redis by sdk
+// into the split servers
+type TelemetryMultiWorkerImpl struct {
+	logger  logging.LoggerInterface
+	storage storage.RedisTelemetryConsumerMulti
+	sync    service.TelemetryRecorder
+}
+
+// NewTelemetryMultiWorker instantes a new telemetry worker
+func NewTelemetryMultiWorker(logger logging.LoggerInterface, store storage.RedisTelemetryConsumerMulti, sync service.TelemetryRecorder) *TelemetryMultiWorkerImpl {
+	return &TelemetryMultiWorkerImpl{
+		logger:  logger,
+		storage: store,
+		sync:    sync,
+	}
+}
+
+func (w *TelemetryMultiWorkerImpl) buildStats() map[dtos.Metadata]dtos.Stats {
+	latencies := w.storage.PopLatencies()
+	exceptions := w.storage.PopExceptions()
+
+	toRet := make(map[dtos.Metadata]dtos.Stats)
+	for metadata, lats := range latencies {
+		latCopy := lats
+		stats := newConsumerStats()
+		stats.MethodLatencies = &latCopy
+		if excs, ok := exceptions[metadata]; ok {
+			stats.MethodExceptions = &excs
+		}
+		toRet[metadata] = stats
+	}
+
+	for metadata, excs := range exceptions {
+		if current, ok := toRet[metadata]; !ok { // if the metadata exists, exceptions have already been stored
+			excCopy := excs
+			current = newConsumerStats()
+			current.MethodExceptions = &excCopy
+			toRet[metadata] = current
+		}
+	}
+
+	return toRet
+}
+
+func newConsumerStats() dtos.Stats {
+	return dtos.Stats{Tags: []string{tagConsumer}}
+}
+
+// SynchronizeStats syncs telemetry stats
+func (w *TelemetryMultiWorkerImpl) SynchronizeStats() error {
+	errors := make(map[dtos.Metadata]error)
+	for metadata, stats := range w.buildStats() {
+		err := w.sync.RecordStats(stats, metadata)
+		if err != nil {
+			errors[metadata] = err
+		}
+	}
+
+	if len(errors) != 0 {
+		return &TelemetryMultiSyncError{Errors: errors}
+	}
+
+	return nil
+}
+
+// SyncrhonizeConfigs syncs sdk configs
+func (w *TelemetryMultiWorkerImpl) SyncrhonizeConfigs() error {
+	errors := make(map[dtos.Metadata]error)
+	for metadata, config := range w.storage.PopConfigs() {
+		err := w.sync.RecordConfig(config, metadata)
+		if err != nil {
+			errors[metadata] = err
+		}
+	}
+
+	if len(errors) != 0 {
+		return &TelemetryMultiSyncError{Errors: errors}
+	}
+
+	return nil
+}
+
 // import (
 // 	"sync"
 //

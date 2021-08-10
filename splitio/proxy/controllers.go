@@ -11,11 +11,11 @@ import (
 	"github.com/splitio/go-split-commons/v4/dtos"
 	"github.com/splitio/split-synchronizer/v4/log"
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
+	"github.com/splitio/split-synchronizer/v4/splitio/common/telemetry"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb/collections"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/controllers"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/interfaces"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/telemetry"
 	"github.com/splitio/split-synchronizer/v4/splitio/task"
 )
 
@@ -423,65 +423,6 @@ func postImpressionsCountBeacon(keys []string) gin.HandlerFunc {
 }
 
 //-----------------------------------------------------------------------------
-// METRICS
-//-----------------------------------------------------------------------------
-
-func postMetricsTimes(c *gin.Context) {
-	c.Set(telemetry.EndpointKey, telemetry.LegacyTimeEndpoint)
-	postEvent(c, "/metrics/times")
-	c.JSON(http.StatusOK, "")
-	interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.LegacyTimeEndpoint, http.StatusOK)
-}
-
-func postMetricsTime(c *gin.Context) {
-	c.Set(telemetry.EndpointKey, telemetry.LegacyTimesEndpoint)
-	postEvent(c, "/metrics/time")
-	c.JSON(http.StatusOK, "")
-	interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.LegacyTimesEndpoint, http.StatusOK)
-}
-
-func postMetricsCounters(c *gin.Context) {
-	c.Set(telemetry.EndpointKey, telemetry.LegacyCountersEndpoint)
-	postEvent(c, "/metrics/counters")
-	c.JSON(http.StatusOK, "")
-	interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.LegacyCountersEndpoint, http.StatusOK)
-}
-
-func postMetricsCounter(c *gin.Context) {
-	c.Set(telemetry.EndpointKey, telemetry.LegacyCounterEndpoint)
-	postEvent(c, "/metrics/counter")
-	c.JSON(http.StatusOK, "")
-	interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.LegacyCounterEndpoint, http.StatusOK)
-}
-
-func postMetricsGauge(c *gin.Context) {
-	c.Set(telemetry.EndpointKey, telemetry.LegacyGaugeEndpoint)
-	postEvent(c, "/metrics/gauge")
-	c.JSON(http.StatusOK, "")
-	interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.LegacyGaugeEndpoint, http.StatusOK)
-}
-
-func postEvent(c *gin.Context, url string) {
-	metadata := dtos.Metadata{
-		SDKVersion: c.Request.Header.Get("SplitSDKVersion"),
-		MachineIP:  c.Request.Header.Get("SplitSDKMachineIP"),
-	}
-	data, err := ioutil.ReadAll(c.Request.Body)
-	if err != nil {
-		log.Instance.Error(err)
-	}
-
-	go func() {
-		log.Instance.Debug(metadata.SDKVersion, metadata.MachineIP, string(data))
-		// TODO(mredolatti)
-		// var e = interfaces.MetricsRecorder.RecordRaw(url, data, metadata, nil)
-		// if e != nil {
-		// 	log.Instance.Error(e)
-		// }
-	}()
-}
-
-//-----------------------------------------------------------------------------
 // EVENTS - RESULTS
 //-----------------------------------------------------------------------------
 func submitEvents(sdkVersion string, machineIP string, machineName string, data []byte) {
@@ -561,4 +502,71 @@ func auth(c *gin.Context) {
 	log.Instance.Debug(fmt.Sprintf("Headers: %v", c.Request.Header))
 	c.JSON(http.StatusOK, gin.H{"pushEnabled": false, "token": ""})
 	interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.AuthEndpoint, http.StatusNoContent)
+}
+
+//-----------------------------------------------------------------------------
+// DUMMY LEGACY METRICS ENDPOINTS
+//-----------------------------------------------------------------------------
+func postMetricsTimes(c *gin.Context)    { dummyHandle(c, telemetry.LegacyTimeEndpoint) }
+func postMetricsTime(c *gin.Context)     { dummyHandle(c, telemetry.LegacyTimesEndpoint) }
+func postMetricsCounters(c *gin.Context) { dummyHandle(c, telemetry.LegacyCountersEndpoint) }
+func postMetricsCounter(c *gin.Context)  { dummyHandle(c, telemetry.LegacyCounterEndpoint) }
+func postMetricsGauge(c *gin.Context)    { dummyHandle(c, telemetry.LegacyGaugeEndpoint) }
+func dummyHandle(c *gin.Context, endpoint int) {
+	interfaces.LocalTelemetry.IncrEndpointStatus(endpoint, http.StatusOK)
+	c.Set(telemetry.EndpointKey, endpoint)
+	c.JSON(http.StatusOK, "")
+}
+
+//-----------------------------------------------------------------------------
+// TELEMETRY ENDPOINTS
+//-----------------------------------------------------------------------------
+func postTelemetryConfig(c *gin.Context) {
+	c.Set(telemetry.EndpointKey, telemetry.TelemetryConfigEndpoint)
+	sdkVersion := c.Request.Header.Get("SplitSDKVersion")
+	machineIP := c.Request.Header.Get("SplitSDKMachineIP")
+	machineName := c.Request.Header.Get("SplitSDKMachineName")
+	data, err := ioutil.ReadAll(c.Request.Body)
+	if err != nil {
+		log.Instance.Error(err)
+		c.JSON(http.StatusInternalServerError, nil)
+		interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.TelemetryConfigEndpoint, http.StatusInternalServerError)
+		return
+	}
+
+	code := http.StatusOK
+	err = controllers.PostTelemetryConfig(sdkVersion, machineIP, machineName, data)
+	if err != nil {
+		code = http.StatusInternalServerError
+		if httpError, ok := err.(*dtos.HTTPError); ok {
+			code = httpError.Code
+		}
+	}
+	c.JSON(code, nil)
+	interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.TelemetryConfigEndpoint, code)
+}
+
+func postTelemetryStats(c *gin.Context) {
+	c.Set(telemetry.EndpointKey, telemetry.TelemetryRuntimeEndpoint)
+	sdkVersion := c.Request.Header.Get("SplitSDKVersion")
+	machineIP := c.Request.Header.Get("SplitSDKMachineIP")
+	machineName := c.Request.Header.Get("SplitSDKMachineName")
+	data, err := ioutil.ReadAll(c.Request.Body)
+	if err != nil {
+		log.Instance.Error(err)
+		c.JSON(http.StatusInternalServerError, nil)
+		interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.TelemetryRuntimeEndpoint, http.StatusInternalServerError)
+		return
+	}
+
+	code := http.StatusOK
+	err = controllers.PostTelemetryStats(sdkVersion, machineIP, machineName, data)
+	if err != nil {
+		code = http.StatusInternalServerError
+		if httpError, ok := err.(*dtos.HTTPError); ok {
+			code = httpError.Code
+		}
+	}
+	c.JSON(code, nil)
+	interfaces.LocalTelemetry.IncrEndpointStatus(telemetry.TelemetryRuntimeEndpoint, code)
 }

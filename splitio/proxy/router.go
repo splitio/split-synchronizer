@@ -75,18 +75,20 @@ func Run(options *Options) {
 	api.Use(middleware.ValidateAPIKeys(options.APIKeys))
 	api.Use(gzip.Gzip(gzip.DefaultCompression))
 	{
+		api.GET("/auth", auth)
 		api.GET("/splitChanges", splitChanges)
 		api.GET("/segmentChanges/:name", segmentChanges)
 		api.GET("/mySegments/:key", mySegments)
+		api.POST("/events/bulk", postEvents)
 		api.POST("/testImpressions/bulk", postImpressionBulk(options.ImpressionListenerEnabled))
 		api.POST("/testImpressions/count", postImpressionsCount())
+		api.POST("/metrics/config", postTelemetryConfig)
+		api.POST("/metrics/usage", postTelemetryStats)
 		api.POST("/metrics/times", postMetricsTimes)
 		api.POST("/metrics/counters", postMetricsCounters)
 		api.POST("/metrics/gauge", postMetricsGauge)
 		api.POST("/metrics/time", postMetricsTime)
 		api.POST("/metrics/counter", postMetricsCounter)
-		api.POST("/events/bulk", postEvents)
-		api.GET("/auth", auth)
 	}
 	router.Run(options.Port)
 }

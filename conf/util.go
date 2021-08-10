@@ -34,5 +34,10 @@ func ParseAdvancedOptions() conf.AdvancedConfig {
 		advanced.StreamingServiceURL = streamingServiceURL
 	}
 
+	telemetryServiceURL := os.Getenv("SPLITIO_TELEMETRY_SERVICE_URL")
+	if telemetryServiceURL != "" {
+		advanced.TelemetryServiceURL = telemetryServiceURL
+	}
+
 	return advanced
 }
