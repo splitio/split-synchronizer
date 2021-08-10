@@ -1,6 +1,7 @@
 package util
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -42,6 +43,14 @@ func ParseTime(date time.Time) string {
 func HashAPIKey(apikey string) uint32 {
 	murmur32 := hasher.NewMurmur332Hasher(0)
 	return murmur32.Hash([]byte(apikey))
+}
+
+// GetClientKey accepts an apikey and extracts the "client-key" portion of it
+func GetClientKey(apikey string) (string, error) {
+	if len(apikey) < 4 {
+		return "", errors.New("apikey too short")
+	}
+	return apikey[len(apikey)-4:], nil
 }
 
 // GetMetadata wrapps metadata

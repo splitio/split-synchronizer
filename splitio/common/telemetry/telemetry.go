@@ -188,7 +188,47 @@ func (p *ProxyEndpointLatencies) RecordEndpointLatency(endpoint int, latency tim
 	case LegacyGaugeEndpoint:
 		p.legacyGauge.Incr(bucket)
 	}
+}
 
+// PeekEndpointLatency records a (bucketed) latency for a specific endpoint
+func (p *ProxyEndpointLatencies) PeekEndpointLatency(endpoint int) []int64 {
+	switch endpoint {
+	case AuthEndpoint:
+		return p.auth.ReadAll()
+	case SplitChangesEndpoint:
+		return p.splitChanges.ReadAll()
+	case SegmentChangesEndpoint:
+		return p.segmentChanges.ReadAll()
+	case MySegmentsEndpoint:
+		return p.mySegments.ReadAll()
+	case ImpressionsBulkEndpoint:
+		return p.impressionsBulk.ReadAll()
+	case ImpressionsBulkBeaconEndpoint:
+		return p.impressionsBulkBeacon.ReadAll()
+	case ImpressionsCountEndpoint:
+		return p.impressionsCount.ReadAll()
+	case ImpressionsCountBeaconEndpoint:
+		return p.impressionsCountBeacon.ReadAll()
+	case EventsBulkEndpoint:
+		return p.eventsBulk.ReadAll()
+	case EventsBulkBeaconEndpoint:
+		return p.eventsBulkBeacon.ReadAll()
+	case TelemetryConfigEndpoint:
+		return p.telemetryRuntime.ReadAll()
+	case TelemetryRuntimeEndpoint:
+		return p.telemetryConfig.ReadAll()
+	case LegacyTimeEndpoint:
+		return p.legacyTime.ReadAll()
+	case LegacyTimesEndpoint:
+		return p.legacyTimes.ReadAll()
+	case LegacyCounterEndpoint:
+		return p.legacyCounter.ReadAll()
+	case LegacyCountersEndpoint:
+		return p.legacyCounters.ReadAll()
+	case LegacyGaugeEndpoint:
+		return p.legacyGauge.ReadAll()
+	}
+	return nil
 }
 
 // newProxyEndpointLatencies creates a new latency tracker
@@ -219,12 +259,17 @@ func newProxyEndpointLatencies() ProxyEndpointLatencies {
 	}
 }
 
+// ProxyTelemetryPeeker is able to peek at locally captured metrics
+type ProxyTelemetryPeeker interface {
+	PeekEndpointLatency(resource int) []int64
+}
+
 // ProxyTelemetryFacade defines the set of methods required to accept local telemetry as well as runtime telemetry
 type ProxyTelemetryFacade interface {
-	storage.TelemetryRuntimeConsumer
-	storage.TelemetryRuntimeProducer
+	storage.TelemetryStorage
 	RecordEndpointLatency(endpoint int, latency time.Duration)
 	IncrEndpointStatus(endpoint int, status int)
+	ProxyTelemetryPeeker
 }
 
 // ProxyTelemetryFacadeImpl exposes local telemetry functionality
@@ -246,5 +291,4 @@ func NewProxyTelemetryFacade() *ProxyTelemetryFacadeImpl {
 
 // Ensure interface compliance
 var _ ProxyTelemetryFacade = (*ProxyTelemetryFacadeImpl)(nil)
-var _ storage.TelemetryRuntimeProducer = (*ProxyTelemetryFacadeImpl)(nil)
-var _ storage.TelemetryRuntimeConsumer = (*ProxyTelemetryFacadeImpl)(nil)
+var _ storage.TelemetryStorage = (*ProxyTelemetryFacadeImpl)(nil)
