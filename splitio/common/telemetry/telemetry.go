@@ -128,8 +128,14 @@ func newEndpointStatusCodes() EndpointStatusCodes {
 	}
 }
 
-// ProxyEndpointLatencies keep track of the latency introudiced by each proxy endpoint
-type ProxyEndpointLatencies struct {
+// ProxyEndpointLatencies defines an interface to access proxy server endpoint latencies numbers
+type ProxyEndpointLatencies interface {
+	PeekEndpointLatency(endpoint int) []int64
+	RecordEndpointLatency(endpoint int, latency time.Duration)
+}
+
+// ProxyEndpointLatenciesImpl keep track of the latency introudiced by each proxy endpoint
+type ProxyEndpointLatenciesImpl struct {
 	auth                   inmemory.AtomicInt64Slice
 	splitChanges           inmemory.AtomicInt64Slice
 	segmentChanges         inmemory.AtomicInt64Slice
@@ -150,7 +156,7 @@ type ProxyEndpointLatencies struct {
 }
 
 // RecordEndpointLatency records a (bucketed) latency for a specific endpoint
-func (p *ProxyEndpointLatencies) RecordEndpointLatency(endpoint int, latency time.Duration) {
+func (p *ProxyEndpointLatenciesImpl) RecordEndpointLatency(endpoint int, latency time.Duration) {
 	bucket := telemetry.Bucket(latency.Milliseconds())
 	switch endpoint {
 	case AuthEndpoint:
@@ -191,7 +197,7 @@ func (p *ProxyEndpointLatencies) RecordEndpointLatency(endpoint int, latency tim
 }
 
 // PeekEndpointLatency records a (bucketed) latency for a specific endpoint
-func (p *ProxyEndpointLatencies) PeekEndpointLatency(endpoint int) []int64 {
+func (p *ProxyEndpointLatenciesImpl) PeekEndpointLatency(endpoint int) []int64 {
 	switch endpoint {
 	case AuthEndpoint:
 		return p.auth.ReadAll()
@@ -231,14 +237,14 @@ func (p *ProxyEndpointLatencies) PeekEndpointLatency(endpoint int) []int64 {
 	return nil
 }
 
-// newProxyEndpointLatencies creates a new latency tracker
-func newProxyEndpointLatencies() ProxyEndpointLatencies {
+// newProxyEndpointLatenciesImpl creates a new latency tracker
+func newProxyEndpointLatenciesImpl() ProxyEndpointLatenciesImpl {
 	init := func() inmemory.AtomicInt64Slice {
 		toRet, _ := inmemory.NewAtomicInt64Slice(telemetry.LatencyBucketCount)
 		return toRet
 	}
 
-	return ProxyEndpointLatencies{
+	return ProxyEndpointLatenciesImpl{
 		auth:                   init(),
 		splitChanges:           init(),
 		segmentChanges:         init(),
@@ -274,7 +280,7 @@ type ProxyTelemetryFacade interface {
 
 // ProxyTelemetryFacadeImpl exposes local telemetry functionality
 type ProxyTelemetryFacadeImpl struct {
-	ProxyEndpointLatencies
+	ProxyEndpointLatenciesImpl
 	EndpointStatusCodes
 	*inmemory.TelemetryStorage
 }
@@ -283,9 +289,9 @@ type ProxyTelemetryFacadeImpl struct {
 func NewProxyTelemetryFacade() *ProxyTelemetryFacadeImpl {
 	ts, _ := inmemory.NewTelemetryStorage()
 	return &ProxyTelemetryFacadeImpl{
-		ProxyEndpointLatencies: newProxyEndpointLatencies(),
-		EndpointStatusCodes:    newEndpointStatusCodes(),
-		TelemetryStorage:       ts,
+		ProxyEndpointLatenciesImpl: newProxyEndpointLatenciesImpl(),
+		EndpointStatusCodes:        newEndpointStatusCodes(),
+		TelemetryStorage:           ts,
 	}
 }
 

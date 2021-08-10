@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/go-split-commons/v4/storage"
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
+	"github.com/splitio/split-synchronizer/v4/splitio/common/telemetry"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/interfaces"
 	"github.com/splitio/split-synchronizer/v4/splitio/web/admin"
 	"github.com/splitio/split-synchronizer/v4/splitio/web/middleware"
@@ -23,6 +24,7 @@ type Options struct {
 	splitStorage              storage.SplitStorage
 	segmentStorage            storage.SegmentStorage
 	httpClients               common.HTTPClients
+	latencyStorage            telemetry.ProxyEndpointLatencies
 }
 
 // Run runs the proxy server
@@ -72,6 +74,7 @@ func Run(options *Options) {
 
 	// API routes
 	api := router.Group("/api")
+	api.Use(telemetry.NewProxyLatencyMiddleware(options.latencyStorage).Track)
 	api.Use(middleware.ValidateAPIKeys(options.APIKeys))
 	api.Use(gzip.Gzip(gzip.DefaultCompression))
 	{

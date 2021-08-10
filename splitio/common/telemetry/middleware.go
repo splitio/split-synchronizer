@@ -11,17 +11,20 @@ const EndpointKey = "ep"
 
 // LatencyMiddleware is meant to be used for capturing endpoint latencies
 type LatencyMiddleware struct {
-	tracker *ProxyEndpointLatencies
+	tracker ProxyEndpointLatencies
+}
+
+// NewProxyLatencyMiddleware instantiates a new latency tracking middleware
+func NewProxyLatencyMiddleware(lats ProxyEndpointLatencies) *LatencyMiddleware {
+	return &LatencyMiddleware{tracker: lats}
 }
 
 // Track is the function to be invoked for every request being handled
-func (m *LatencyMiddleware) Track() func(c *gin.Context) {
-	return func(c *gin.Context) {
-		before := time.Now()
-		c.Next()
-		endpoint, exists := c.Get(EndpointKey)
-		if asInt, ok := endpoint.(int); exists && ok {
-			m.tracker.RecordEndpointLatency(asInt, time.Now().Sub(before))
-		}
+func (m *LatencyMiddleware) Track(c *gin.Context) {
+	before := time.Now()
+	c.Next()
+	endpoint, exists := c.Get(EndpointKey)
+	if asInt, ok := endpoint.(int); exists && ok {
+		m.tracker.RecordEndpointLatency(asInt, time.Now().Sub(before))
 	}
 }
