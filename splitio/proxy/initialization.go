@@ -98,9 +98,10 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 
 	// Creating Workers and Tasks
 	workers := synchronizer.Workers{
-		SplitFetcher:      fetcher.NewSplitFetcher(splitCollection, splitAPI.SplitFetcher, localTelemetryStorage, log.Instance),
-		SegmentFetcher:    fetcher.NewSegmentFetcher(segmentCollection, splitCollection, splitAPI.SegmentFetcher, localTelemetryStorage, log.Instance),
-		TelemetryRecorder: telemetry.NewTelemetrySynchronizer(localTelemetryStorage, telemetryRecorder, splitStorage, segmentStorage, log.Instance, metadata, localTelemetryStorage),
+		SplitFetcher:   fetcher.NewSplitFetcher(splitCollection, splitAPI.SplitFetcher, localTelemetryStorage, log.Instance),
+		SegmentFetcher: fetcher.NewSegmentFetcher(segmentCollection, splitCollection, splitAPI.SegmentFetcher, localTelemetryStorage, log.Instance),
+		TelemetryRecorder: telemetry.NewTelemetrySynchronizer(localTelemetryStorage, telemetryRecorder, splitStorage, segmentStorage, log.Instance,
+			metadata, localTelemetryStorage),
 	}
 
 	stasks := synchronizer.SplitTasks{
@@ -193,6 +194,7 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		httpClients:               httpClients,
 		splitStorage:              splitStorage,
 		segmentStorage:            segmentStorage,
+		latencyStorage:            localTelemetryStorage,
 	}
 
 	go task.CheckEnvirontmentStatus(gracefulShutdownWaitingGroup, splitStorage, httpClients)
