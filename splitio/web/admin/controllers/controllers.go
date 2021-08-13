@@ -2,11 +2,11 @@ package controllers
 
 import (
 	"bytes"
-	"compress/gzip"
 	"errors"
 	"fmt"
 	"github.com/boltdb/bolt"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/snapshot"
 	"net/http"
 	"os"
 	"strconv"
@@ -265,24 +265,25 @@ func Dashboard(c *gin.Context) {
 
 // DownloadProxySnapshot download a proxy gzipped snapshot
 func DownloadProxySnapshot(c *gin.Context) {
-	snapshotName := fmt.Sprintf("split.proxy.%d.snapshot.gz", time.Now().UnixNano())
+	snapshotName := fmt.Sprintf("split.proxy.%d.snapshot", time.Now().UnixNano())
 	err := boltdb.DBB.View(func(tx *bolt.Tx) error {
-
-		// gzip -d split.proxy.1628281170150684000.snapshot.gz
-		// curl http://localhost:3010/admin/proxy/snapshot --output split.proxy.0000.snapshot.gz
+		// curl http://localhost:3010/admin/proxy/snapshot --output split.proxy.0001.snapshot.gz
 		var b bytes.Buffer
-		gz := gzip.NewWriter(&b)
-		_, err := tx.WriteTo(gz)
-		gz.Close()
+		_, err := tx.WriteTo(&b)
+		if err != nil {
+			return err
+		}
 
+		s := snapshot.NewWith(snapshot.Metadata{Version: 1, Storage: snapshot.StorageBoltDB}, b.Bytes())
+		encodedSnap, err := s.Encode()
 		if err != nil {
 			return err
 		}
 
 		c.Writer.Header().Set("Content-Type", "application/octet-stream")
 		c.Writer.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, snapshotName))
-		c.Writer.Header().Set("Content-Length", strconv.Itoa(b.Len()))
-		c.Writer.Write(b.Bytes())
+		c.Writer.Header().Set("Content-Length", strconv.Itoa(len(encodedSnap)))
+		c.Writer.Write(encodedSnap)
 
 		return nil
 	})

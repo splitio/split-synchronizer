@@ -3,6 +3,7 @@ package proxy
 import (
 	"fmt"
 	"github.com/splitio/go-toolkit/v4/backoff"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/snapshot"
 	"os"
 	"strconv"
 	"sync"
@@ -65,7 +66,25 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	var startedWithSnapshot = false
 	var dbpath = boltdb.InMemoryMode
 	if conf.Data.Proxy.Snapshot != "" {
-		dbpath = conf.Data.Proxy.Snapshot
+		// Backward compatible. Provided file is not an snapshot, it is a boltdb
+		if conf.Data.Proxy.PersistMemoryPath ==  conf.Data.Proxy.Snapshot {
+			// if Snapshot is empty, this one is overwritten with conf.Data.Proxy.PersistMemoryPath
+			// see the file conf/validator.go
+			dbpath = conf.Data.Proxy.Snapshot
+			log.Instance.Debug("Database created from boltdb file at", dbpath)
+		} else {
+			snap, err := snapshot.DecodeFromFile(conf.Data.Proxy.Snapshot)
+			if err != nil {
+				panic(err)
+			}
+
+			dbpath, err = snap.WriteDataToTmpFile()
+			if err != nil {
+				panic(err)
+			}
+
+			log.Instance.Debug("Database created from snapshot at", dbpath)
+		}
 		startedWithSnapshot = true
 	}
 	boltdb.Initialize(dbpath, nil)

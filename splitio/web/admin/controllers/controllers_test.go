@@ -4,13 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/snapshot"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -747,25 +745,20 @@ func TestDownloadProxySnapshot(t *testing.T) {
 	conf.Initialize()
 
 	// Read DB snapshot for test
-	path :=   "../../../../test/snapshot/test.snapshot"
-	gzPath, err := filepath.Abs(fmt.Sprintf("%s.gz",path))
-	if err != nil {
-		t.Fatal(err)
+	path :=   "../../../../test/snapshot/proxy.snapshot"
+
+	snap, err := snapshot.DecodeFromFile(path)
+	if err!= nil {
+		t.Error(err)
 	}
 
-	var fileSnapshot []byte
-	var errFileSnapshot error
-	if _, err := os.Stat(gzPath); !os.IsNotExist(err) {
-		fileSnapshot, errFileSnapshot = ioutil.ReadFile(gzPath)
-		if errFileSnapshot != nil {
-			t.Error(errFileSnapshot.Error())
-		}
-	} else {
+	tmpDataFile, err := snap.WriteDataToTmpFile()
+	if err!= nil {
 		t.Error(err)
 	}
 
 	// loading snapshot from disk
-	boltdb.Initialize(path, nil)
+	boltdb.Initialize(tmpDataFile, nil)
 
 	router := gin.Default()
 	router.GET("/", DownloadProxySnapshot)
@@ -774,8 +767,25 @@ func TestDownloadProxySnapshot(t *testing.T) {
 	w := performRequest(router, "GET", "/")
 
 	responseBody, _ := ioutil.ReadAll(w.Body)
-	res := bytes.Compare(responseBody, fileSnapshot)
-	if res != 0 {
+
+	snapRes, err := snapshot.Decode(responseBody)
+	if snapRes.Meta().Version != 1 {
+		t.Error("Invalid Metadata version")
+	}
+
+	if snapRes.Meta().Storage != 1 {
+		t.Error("Invalid Metadata storage")
+	}
+
+	dat, err :=snap.Data()
+	if err!= nil {
+		t.Error(err)
+	}
+	resData, err := snapRes.Data()
+	if err!= nil {
+		t.Error(err)
+	}
+	if bytes.Compare(dat, resData) != 0 {
 		t.Error("loaded snapshot is different to downloaded")
 	}
 }
