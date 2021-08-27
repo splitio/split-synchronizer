@@ -8,14 +8,15 @@ import (
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
+	"time"
 
-	"github.com/splitio/go-split-commons/v3/conf"
-	"github.com/splitio/go-split-commons/v3/dtos"
-	"github.com/splitio/go-split-commons/v3/service/api"
-	recorderMock "github.com/splitio/go-split-commons/v3/service/mocks"
-	"github.com/splitio/go-split-commons/v3/storage"
-	storageMock "github.com/splitio/go-split-commons/v3/storage/mocks"
-	"github.com/splitio/go-toolkit/v4/logging"
+	"github.com/splitio/go-split-commons/v4/conf"
+	"github.com/splitio/go-split-commons/v4/dtos"
+	"github.com/splitio/go-split-commons/v4/service/api"
+	recorderMock "github.com/splitio/go-split-commons/v4/service/mocks"
+	storageMock "github.com/splitio/go-split-commons/v4/storage/mocks"
+	"github.com/splitio/go-split-commons/v4/telemetry"
+	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v4/log"
 )
 
@@ -38,7 +39,7 @@ func TestSynhronizeEventError(t *testing.T) {
 	eventSync := NewEventRecorderMultiple(
 		eventMockStorage,
 		eventMockRecorder,
-		storage.NewMetricWrapper(storageMock.MockMetricStorage{}, nil, nil),
+		&storageMock.MockTelemetryStorage{},
 		log.Instance,
 	)
 
@@ -72,7 +73,7 @@ func TestSynhronizeEventWithNoEvents(t *testing.T) {
 	eventSync := NewEventRecorderMultiple(
 		eventMockStorage,
 		eventMockRecorder,
-		storage.NewMetricWrapper(storageMock.MockMetricStorage{}, nil, nil),
+		&storageMock.MockTelemetryStorage{},
 		log.Instance,
 	)
 
@@ -164,18 +165,18 @@ func TestSynhronizeEvent(t *testing.T) {
 	eventSync := NewEventRecorderMultiple(
 		eventMockStorage,
 		eventMockRecorder,
-		storage.NewMetricWrapper(storageMock.MockMetricStorage{
-			IncCounterCall: func(key string) {
-				if key != "events.status.200" {
-					t.Error("Unexpected counter key to increase")
+		&storageMock.MockTelemetryStorage{
+			RecordSyncLatencyCall: func(resource int, latency time.Duration) {
+				if resource != telemetry.EventSync {
+					t.Error("wrong resource")
 				}
 			},
-			IncLatencyCall: func(metricName string, index int) {
-				if metricName != "events.time" {
-					t.Error("Unexpected latency key to track")
+			RecordSuccessfulSyncCall: func(resource int, when time.Time) {
+				if resource != telemetry.EventSync {
+					t.Error("wrong resource")
 				}
 			},
-		}, nil, nil),
+		},
 		log.Instance,
 	)
 
@@ -286,18 +287,18 @@ func TestSynhronizeEventSync(t *testing.T) {
 	eventSync := NewEventRecorderMultiple(
 		eventMockStorage,
 		eventRecorder,
-		storage.NewMetricWrapper(storageMock.MockMetricStorage{
-			IncCounterCall: func(key string) {
-				if key != "events.status.200" {
-					t.Error("Unexpected counter key to increase")
+		&storageMock.MockTelemetryStorage{
+			RecordSyncLatencyCall: func(resource int, latency time.Duration) {
+				if resource != telemetry.EventSync {
+					t.Error("wrong resource")
 				}
 			},
-			IncLatencyCall: func(metricName string, index int) {
-				if metricName != "events.time" {
-					t.Error("Unexpected latency key to track")
+			RecordSuccessfulSyncCall: func(resource int, when time.Time) {
+				if resource != telemetry.EventSync {
+					t.Error("wrong resource")
 				}
 			},
-		}, nil, nil),
+		},
 		log.Instance,
 	)
 

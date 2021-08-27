@@ -2,16 +2,15 @@ package worker
 
 import (
 	"errors"
-	"strconv"
 	"time"
 
-	"github.com/splitio/go-split-commons/v3/dtos"
-	"github.com/splitio/go-split-commons/v3/service"
-	"github.com/splitio/go-split-commons/v3/storage"
-	"github.com/splitio/go-split-commons/v3/synchronizer/worker/event"
-	"github.com/splitio/go-split-commons/v3/util"
-	"github.com/splitio/go-toolkit/v4/common"
-	"github.com/splitio/go-toolkit/v4/logging"
+	"github.com/splitio/go-split-commons/v4/dtos"
+	"github.com/splitio/go-split-commons/v4/service"
+	"github.com/splitio/go-split-commons/v4/storage"
+	"github.com/splitio/go-split-commons/v4/synchronizer/worker/event"
+	"github.com/splitio/go-split-commons/v4/telemetry"
+	"github.com/splitio/go-toolkit/v5/common"
+	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v4/appcontext"
 	"github.com/splitio/split-synchronizer/v4/splitio"
 	"github.com/splitio/split-synchronizer/v4/splitio/task"
@@ -21,7 +20,7 @@ import (
 type RecorderEventMultiple struct {
 	eventStorage   storage.EventStorageConsumer
 	eventRecorder  service.EventsRecorder
-	metricsWrapper *storage.MetricWrapper
+	localTelemetry storage.TelemetryRuntimeProducer
 	logger         logging.LoggerInterface
 }
 
@@ -29,13 +28,13 @@ type RecorderEventMultiple struct {
 func NewEventRecorderMultiple(
 	eventStorage storage.EventStorageConsumer,
 	eventRecorder service.EventsRecorder,
-	metricsWrapper *storage.MetricWrapper,
+	localTelemetry storage.TelemetryRuntimeProducer,
 	logger logging.LoggerInterface,
 ) event.EventRecorder {
 	return &RecorderEventMultiple{
 		eventStorage:   eventStorage,
 		eventRecorder:  eventRecorder,
-		metricsWrapper: metricsWrapper,
+		localTelemetry: localTelemetry,
 		logger:         logger,
 	}
 }
@@ -85,13 +84,12 @@ func (e *RecorderEventMultiple) synchronizeEvents(bulkSize int64) error {
 		})
 		if err != nil {
 			if httpError, ok := err.(*dtos.HTTPError); ok {
-				e.metricsWrapper.StoreCounters(storage.PostEventsCounter, strconv.Itoa(httpError.Code))
+				e.localTelemetry.RecordSyncError(telemetry.EventSync, httpError.Code)
 			}
 			return err
 		}
-		bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-		e.metricsWrapper.StoreLatencies(storage.PostEventsLatency, bucket)
-		e.metricsWrapper.StoreCounters(storage.PostEventsCounter, "ok")
+		e.localTelemetry.RecordSyncLatency(telemetry.EventSync, time.Now().Sub(before))
+		e.localTelemetry.RecordSuccessfulSync(telemetry.EventSync, time.Now().UTC())
 	}
 	return nil
 }

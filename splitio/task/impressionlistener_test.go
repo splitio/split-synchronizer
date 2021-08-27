@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/splitio/go-toolkit/v4/logging"
+	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v4/log"
 	"github.com/splitio/split-synchronizer/v4/splitio/recorder"
 )

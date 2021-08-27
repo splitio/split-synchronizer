@@ -3,7 +3,7 @@ package worker
 import (
 	"fmt"
 
-	"github.com/splitio/go-split-commons/v3/dtos"
+	"github.com/splitio/go-split-commons/v4/dtos"
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
 )
 

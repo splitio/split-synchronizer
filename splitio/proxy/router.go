@@ -4,8 +4,9 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/go-split-commons/v3/storage"
+	"github.com/splitio/go-split-commons/v4/storage"
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
+	"github.com/splitio/split-synchronizer/v4/splitio/common/telemetry"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/interfaces"
 	"github.com/splitio/split-synchronizer/v4/splitio/web/admin"
 	"github.com/splitio/split-synchronizer/v4/splitio/web/middleware"
@@ -23,6 +24,7 @@ type Options struct {
 	splitStorage              storage.SplitStorage
 	segmentStorage            storage.SegmentStorage
 	httpClients               common.HTTPClients
+	latencyStorage            telemetry.ProxyEndpointLatencies
 }
 
 // Run runs the proxy server
@@ -59,7 +61,7 @@ func Run(options *Options) {
 	admin.StartAdminWebAdmin(waOptions, common.Storages{
 		SplitStorage:          options.splitStorage,
 		SegmentStorage:        options.segmentStorage,
-		LocalTelemetryStorage: interfaces.ProxyTelemetryWrapper.LocalTelemetry,
+		LocalTelemetryStorage: interfaces.LocalTelemetry,
 	}, options.httpClients, common.Recorders{})
 
 	// Beacon routes
@@ -72,21 +74,24 @@ func Run(options *Options) {
 
 	// API routes
 	api := router.Group("/api")
+	api.Use(telemetry.NewProxyLatencyMiddleware(options.latencyStorage).Track)
 	api.Use(middleware.ValidateAPIKeys(options.APIKeys))
 	api.Use(gzip.Gzip(gzip.DefaultCompression))
 	{
+		api.GET("/auth", auth)
 		api.GET("/splitChanges", splitChanges)
 		api.GET("/segmentChanges/:name", segmentChanges)
 		api.GET("/mySegments/:key", mySegments)
+		api.POST("/events/bulk", postEvents)
 		api.POST("/testImpressions/bulk", postImpressionBulk(options.ImpressionListenerEnabled))
 		api.POST("/testImpressions/count", postImpressionsCount())
+		api.POST("/metrics/config", postTelemetryConfig)
+		api.POST("/metrics/usage", postTelemetryStats)
 		api.POST("/metrics/times", postMetricsTimes)
 		api.POST("/metrics/counters", postMetricsCounters)
 		api.POST("/metrics/gauge", postMetricsGauge)
 		api.POST("/metrics/time", postMetricsTime)
 		api.POST("/metrics/counter", postMetricsCounter)
-		api.POST("/events/bulk", postEvents)
-		api.GET("/auth", auth)
 	}
 	router.Run(options.Port)
 }
