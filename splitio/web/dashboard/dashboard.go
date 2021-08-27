@@ -18,8 +18,6 @@ type Dashboard struct {
 	proxy       bool
 	storages    common.Storages
 	httpClients common.HTTPClients
-	layoutTpl   string
-	mainMenuTpl string
 }
 
 // NewDashboard returns an instance of Dashboard struct
@@ -54,20 +52,20 @@ func (d *Dashboard) HTML() string {
 	}
 
 	//Parsing main menu
-	d.mainMenuTpl = web.ParseTemplate(
+	mainMenuTpl := web.ParseTemplate(
 		"MainMenu",
 		HTMLtemplates.MainMenuTPL,
 		HTMLtemplates.MainMenuTPLVars{ProxyMode: d.proxy})
 
 	//Rendering layout
-	d.mainMenuTpl = web.ParseTemplate(
+	return web.ParseTemplate(
 		"Layout",
 		HTMLtemplates.LayoutTPL,
 		HTMLtemplates.LayoutTPLVars{
 			DashboardTitle:               d.title,
 			RunningMode:                  runningMode,
 			ProxyMode:                    d.proxy,
-			MainMenu:                     d.mainMenuTpl,
+			MainMenu:                     mainMenuTpl,
 			Uptime:                       stats.UptimeFormatted(),
 			LoggedErrors:                 metrics.LoggedErrors,
 			Version:                      splitio.Version,
@@ -101,8 +99,6 @@ func (d *Dashboard) HTML() string {
 			ImpressionsLambda:            metrics.ImpressionsLambda,
 		},
 	)
-
-	return d.mainMenuTpl
 }
 
 // HTMLSegmentKeys return a html representation of segment's keys list

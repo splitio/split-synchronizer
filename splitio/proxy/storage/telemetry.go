@@ -1,4 +1,4 @@
-package telemetry
+package storage
 
 import (
 	"sync"
@@ -270,12 +270,17 @@ type ProxyTelemetryPeeker interface {
 	PeekEndpointLatency(resource int) []int64
 }
 
+// ProxyEndpointTelemetry defines the interface that endpoints use to capture latency & status codes
+type ProxyEndpointTelemetry interface {
+	ProxyTelemetryPeeker
+	RecordEndpointLatency(endpoint int, latency time.Duration)
+	IncrEndpointStatus(endpoint int, status int)
+}
+
 // ProxyTelemetryFacade defines the set of methods required to accept local telemetry as well as runtime telemetry
 type ProxyTelemetryFacade interface {
 	storage.TelemetryStorage
-	RecordEndpointLatency(endpoint int, latency time.Duration)
-	IncrEndpointStatus(endpoint int, status int)
-	ProxyTelemetryPeeker
+	ProxyEndpointTelemetry
 }
 
 // ProxyTelemetryFacadeImpl exposes local telemetry functionality

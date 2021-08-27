@@ -39,7 +39,8 @@ func NewInstance(path string, options *bolt.Options) (*bolt.DB, error) {
 			tmpDir = tmpDir + "/"
 		}
 		dbpath = tmpDir + inMemoryDBName + strconv.Itoa(int(time.Now().UnixNano())) + ".db"
-		log.Instance.Debug("Temporary database will be created at", dbpath)
+		// TODO(mredolatti): either pass a logger or delete this message
+		// log.Instance.Debug("Temporary database will be created at", dbpath)
 	} else {
 		dbpath = path
 	}

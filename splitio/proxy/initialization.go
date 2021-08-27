@@ -11,21 +11,21 @@ import (
 	"github.com/splitio/go-split-commons/v4/service/api"
 	"github.com/splitio/go-split-commons/v4/synchronizer"
 	"github.com/splitio/go-split-commons/v4/telemetry"
+	"github.com/splitio/go-toolkit/v5/logging"
 
-	// 	"github.com/splitio/go-split-commons/v4/synchronizer/worker/metric"
 	"github.com/splitio/go-split-commons/v4/tasks"
 	"github.com/splitio/split-synchronizer/v4/conf"
 	"github.com/splitio/split-synchronizer/v4/log"
 	"github.com/splitio/split-synchronizer/v4/splitio"
+	"github.com/splitio/split-synchronizer/v4/splitio/admin"
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
-	proxyTelemetry "github.com/splitio/split-synchronizer/v4/splitio/common/telemetry"
+	ssync "github.com/splitio/split-synchronizer/v4/splitio/common/sync"
+	"github.com/splitio/split-synchronizer/v4/splitio/producer/evcalc"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb/collections"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/controllers"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/fetcher"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/interfaces"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage"
-	"github.com/splitio/split-synchronizer/v4/splitio/recorder"
+	pTasks "github.com/splitio/split-synchronizer/v4/splitio/proxy/tasks"
 	"github.com/splitio/split-synchronizer/v4/splitio/task"
 	"github.com/splitio/split-synchronizer/v4/splitio/util"
 )
@@ -40,11 +40,13 @@ func gracefulShutdownProxy(sigs chan os.Signal, gracefulShutdownWaitingGroup *sy
 
 	// Events - Emit task stop signal
 	fmt.Println(" -> Sending STOP to impression posting goroutine")
-	controllers.StopEventsRecording()
+	// TODO(mredolatti): Setup this flushing
+
+	//controllers.StopEventsRecording()
 
 	// Impressions - Emit task stop signal
 	fmt.Println(" -> Sending STOP to event posting goroutine")
-	controllers.StopImpressionsRecording()
+	// controllers.StopImpressionsRecording()
 
 	// Healthcheck - Emit task stop signal
 	fmt.Println(" -> Sending STOP to healthcheck goroutine")
@@ -62,12 +64,12 @@ func gracefulShutdownProxy(sigs chan os.Signal, gracefulShutdownWaitingGroup *sy
 }
 
 // Start initialize in proxy mode
-func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
+func Start(logger logging.LoggerInterface, sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) error {
 
 	clientKey, err := util.GetClientKey(conf.Data.APIKey)
 	if err != nil {
-		log.Instance.Error(err)
-		os.Exit(1) // TODO(mredolatti): set an appropriate exitcode here
+		logger.Error(err)
+		return fmt.Errorf("error parsing client key from provided apikey: %w", err)
 	}
 
 	// Initialization of DB
@@ -75,53 +77,63 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	if conf.Data.Proxy.PersistMemoryPath != "" {
 		dbpath = conf.Data.Proxy.PersistMemoryPath
 	}
-	boltdb.Initialize(dbpath, nil)
+	dbInstance, err := boltdb.NewInstance(dbpath, nil)
+	if err != nil {
+		return fmt.Errorf("error instantiating boltdb: %w", err)
+	}
 
 	// Getting initial config data
 	advanced := conf.ParseAdvancedOptions()
 	metadata := util.GetMetadata()
 
-	// Initialization common
-	interfaces.Initialize()
-
 	// Setup fetchers & recorders
-	splitAPI := api.NewSplitAPI(conf.Data.APIKey, advanced, log.Instance, metadata)
+	splitAPI := api.NewSplitAPI(conf.Data.APIKey, advanced, logger, metadata)
 
 	// Instantiating storages
-	splitCollection := collections.NewSplitChangesCollection(boltdb.DBB)
+	splitCollection := collections.NewSplitChangesCollection(dbInstance)
 	splitStorage := storage.NewSplitStorage(splitCollection)
-	segmentCollection := collections.NewSegmentChangesCollection(boltdb.DBB)
+	segmentCollection := collections.NewSegmentChangesCollection(dbInstance)
 	segmentStorage := storage.NewSegmentStorage(segmentCollection)
 
-	telemetryRecorder := api.NewHTTPTelemetryRecorder(conf.Data.APIKey, advanced, log.Instance)
-	localTelemetryStorage := proxyTelemetry.NewProxyTelemetryFacade()
+	// Local telemetry
+	localTelemetryStorage := storage.NewProxyTelemetryFacade()
+	telemetryRecorder := api.NewHTTPTelemetryRecorder(conf.Data.APIKey, advanced, logger)
+	telemetryConfigTask := pTasks.NewTelemetryConfigFlushTask(telemetryRecorder, logger, 5, 500, 2) // TODO(mredolatti): use proper config options!
+	telemetryUsageTask := pTasks.NewTelemetryUsageFlushTask(telemetryRecorder, logger, 5, 500, 2)   // TODO(mredolatti): use proper config options!
+	impressionRecorder := api.NewHTTPImpressionRecorder(conf.Data.APIKey, advanced, logger)
+	impressionTask := pTasks.NewImpressionsFlushTask(impressionRecorder, logger, 5, 2, conf.Data.ImpressionsThreads)
+	eventsRecorder := api.NewHTTPEventsRecorder(conf.Data.APIKey, advanced, logger)
+	eventsTask := pTasks.NewEventsFlushTask(eventsRecorder, logger, 5, 500, 2) // TODO(mredolatti): use proper config options.
 
 	// Creating Workers and Tasks
 	workers := synchronizer.Workers{
-		SplitFetcher:   fetcher.NewSplitFetcher(splitCollection, splitAPI.SplitFetcher, localTelemetryStorage, log.Instance),
-		SegmentFetcher: fetcher.NewSegmentFetcher(segmentCollection, splitCollection, splitAPI.SegmentFetcher, localTelemetryStorage, log.Instance),
-		TelemetryRecorder: telemetry.NewTelemetrySynchronizer(localTelemetryStorage, telemetryRecorder, splitStorage, segmentStorage, log.Instance,
+		SplitFetcher:   fetcher.NewSplitFetcher(splitCollection, splitAPI.SplitFetcher, localTelemetryStorage, logger),
+		SegmentFetcher: fetcher.NewSegmentFetcher(segmentCollection, splitCollection, splitAPI.SegmentFetcher, localTelemetryStorage, logger),
+		TelemetryRecorder: telemetry.NewTelemetrySynchronizer(localTelemetryStorage, telemetryRecorder, splitStorage, segmentStorage, logger,
 			metadata, localTelemetryStorage),
 	}
 
 	stasks := synchronizer.SplitTasks{
-		SplitSyncTask: tasks.NewFetchSplitsTask(workers.SplitFetcher, conf.Data.SplitsFetchRate, log.Instance),
+		SplitSyncTask: tasks.NewFetchSplitsTask(workers.SplitFetcher, conf.Data.SplitsFetchRate, logger),
 		SegmentSyncTask: tasks.NewFetchSegmentsTask(workers.SegmentFetcher, conf.Data.SegmentFetchRate, advanced.SegmentWorkers,
-			advanced.SegmentQueueSize, log.Instance),
-		TelemetrySyncTask: tasks.NewRecordTelemetryTask(workers.TelemetryRecorder, conf.Data.MetricsPostRate, log.Instance),
+			advanced.SegmentQueueSize, logger),
+		TelemetrySyncTask:  tasks.NewRecordTelemetryTask(workers.TelemetryRecorder, conf.Data.MetricsPostRate, logger),
+		ImpressionSyncTask: impressionTask,
+		EventSyncTask:      eventsTask,
 	}
 
 	// Creating Synchronizer for tasks
-	syncImpl := synchronizer.NewSynchronizer(advanced, stasks, workers, log.Instance, nil)
+	//sync := synchronizer.NewSynchronizer(advanced, stasks, workers, logger, nil)
+	sync := ssync.NewSynchronizer(advanced, stasks, workers, logger, nil, []tasks.Task{telemetryConfigTask, telemetryUsageTask})
 
-	managerStatus := make(chan int, 1)
+	mstatus := make(chan int, 1)
 	syncManager, err := synchronizer.NewSynchronizerManager(
-		syncImpl,
-		log.Instance,
+		sync,
+		logger,
 		advanced,
 		splitAPI.AuthClient,
 		splitStorage,
-		managerStatus,
+		mstatus,
 		localTelemetryStorage,
 		metadata,
 		&clientKey,
@@ -136,69 +148,93 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 	// Run Sync Manager
 	before := time.Now()
 	go syncManager.Start()
-	select {
-	case status := <-managerStatus:
-		switch status {
-		case synchronizer.Ready:
-			log.Instance.Info("Synchronizer tasks started")
-			workers.TelemetryRecorder.SynchronizeConfig(
-				telemetry.InitConfig{
-					AdvancedConfig: advanced,
-					TaskPeriods: cfg.TaskPeriods{
-						SplitSync:      conf.Data.SplitsFetchRate,
-						SegmentSync:    conf.Data.SegmentFetchRate,
-						ImpressionSync: conf.Data.ImpressionsPostRate,
-						TelemetrySync:  10, // TODO(mredolatti): Expose this as a config option
-					},
-					ManagerConfig: cfg.ManagerConfig{
-						ImpressionsMode: conf.Data.ImpressionsMode,
-						ListenerEnabled: conf.Data.ImpressionListener.Endpoint != "",
-					},
+	status := <-mstatus
+	switch status {
+	case synchronizer.Ready:
+		logger.Info("Synchronizer tasks started")
+		workers.TelemetryRecorder.SynchronizeConfig(
+			telemetry.InitConfig{
+				AdvancedConfig: advanced,
+				TaskPeriods: cfg.TaskPeriods{
+					SplitSync:      conf.Data.SplitsFetchRate,
+					SegmentSync:    conf.Data.SegmentFetchRate,
+					ImpressionSync: conf.Data.ImpressionsPostRate,
+					TelemetrySync:  10, // TODO(mredolatti): Expose this as a config option
 				},
-				time.Now().Sub(before).Milliseconds(),
-				map[string]int64{conf.Data.APIKey: 1},
-				nil,
-			)
-		case synchronizer.Error:
-			log.Instance.Error("Initial synchronization failed. Either split is unreachable or the APIKey is incorrect. Aborting execution.")
-			os.Exit(splitio.ExitTaskInitialization)
-		}
+				ManagerConfig: cfg.ManagerConfig{
+					ImpressionsMode: conf.Data.ImpressionsMode,
+					ListenerEnabled: conf.Data.ImpressionListener.Endpoint != "",
+				},
+			},
+			time.Now().Sub(before).Milliseconds(),
+			map[string]int64{conf.Data.APIKey: 1},
+			nil,
+		)
+	case synchronizer.Error:
+		logger.Error("Initial synchronization failed. Either split is unreachable or the APIKey is incorrect. Aborting execution.")
+		os.Exit(splitio.ExitTaskInitialization)
 	}
 
-	if conf.Data.ImpressionListener.Endpoint != "" {
-		go task.PostImpressionsToListener(recorder.ImpressionListenerSubmitter{
-			Endpoint: conf.Data.ImpressionListener.Endpoint,
-		})
+	// TODO(mredolatti): setup impression listener properly
+	// if conf.Data.ImpressionListener.Endpoint != "" {
+	// 	go task.PostImpressionsToListener(recorder.ImpressionListenerSubmitter{
+	// 		Endpoint: conf.Data.ImpressionListener.Endpoint,
+	// 	})
+	// }
+
+	rtm := common.NewRuntime()
+	impressionEvictionMonitor := evcalc.New(1) // TODO(mredolatti): set the correct thread count
+	eventEvictionMonitor := evcalc.New(1)      // TODO(mredolatti): set the correct thread count
+
+	storages := common.Storages{
+		SplitStorage:          splitStorage,
+		SegmentStorage:        segmentStorage,
+		LocalTelemetryStorage: localTelemetryStorage,
 	}
 
-	// Initialization routes
-	controllers.InitializeImpressionWorkers(conf.Data.Proxy.ImpressionsMaxSize, int64(conf.Data.ImpressionsPostRate), gracefulShutdownWaitingGroup)
-	controllers.InitializeEventWorkers(conf.Data.Proxy.EventsMaxSize, int64(conf.Data.EventsPostRate), gracefulShutdownWaitingGroup)
-	controllers.InitializeImpressionsCountRecorder()
-	controllers.InitializeTelemetryRecorder()
-
-	httpClients := common.HTTPClients{
-		SdkClient:    api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.SdkURL, log.Instance, metadata),
-		EventsClient: api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.EventsURL, log.Instance, metadata),
-		AuthClient:   api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.AuthServiceURL, log.Instance, metadata),
+	// --------------------------- ADMIN DASHBOARD ------------------------------
+	adminServer, err := admin.NewServer(&admin.Options{
+		Host:              "0.0.0.0",
+		Port:              conf.Data.Proxy.AdminPort,
+		Name:              "Split Synchronizer dashboard (producer mode)",
+		Proxy:             true,
+		Username:          conf.Data.Proxy.AdminUsername,
+		Password:          conf.Data.Proxy.AdminPassword,
+		Logger:            logger,
+		Storages:          storages,
+		ImpressionsEvCalc: impressionEvictionMonitor,
+		EventsEvCalc:      eventEvictionMonitor,
+		Runtime:           rtm,
+	})
+	if err != nil {
+		panic(err.Error())
 	}
+	go adminServer.ListenAndServe()
 
 	proxyOptions := &Options{
-		Port:                      ":" + strconv.Itoa(conf.Data.Proxy.Port),
-		APIKeys:                   conf.Data.Proxy.Auth.APIKeys,
-		AdminPort:                 conf.Data.Proxy.AdminPort,
-		AdminUsername:             conf.Data.Proxy.AdminUsername,
-		AdminPassword:             conf.Data.Proxy.AdminPassword,
-		DebugOn:                   conf.Data.Logger.DebugOn,
-		ImpressionListenerEnabled: conf.Data.ImpressionListener.Endpoint != "",
-		httpClients:               httpClients,
-		splitStorage:              splitStorage,
-		segmentStorage:            segmentStorage,
-		latencyStorage:            localTelemetryStorage,
+		Port:                    ":" + strconv.Itoa(conf.Data.Proxy.Port),
+		APIKeys:                 conf.Data.Proxy.Auth.APIKeys,
+		DebugOn:                 conf.Data.Logger.DebugOn,
+		Logger:                  logger,
+		SplitBoltDBCollection:   &splitCollection,
+		SegmentBoltDBCollection: &segmentCollection,
+		Telemetry:               localTelemetryStorage,
+		ImpressionsSink:         impressionTask,
 	}
 
-	go task.CheckEnvirontmentStatus(gracefulShutdownWaitingGroup, splitStorage, httpClients)
+	proxyAPI := New(proxyOptions)
+	return proxyAPI.Start()
 
-	// Run webserver loop
-	Run(proxyOptions)
+	// TODO(mredolatti): configure and start webadmin
+	// AdminPort:                 conf.Data.Proxy.AdminPort,
+	// AdminUsername:             conf.Data.Proxy.AdminUsername,
+	// AdminPassword:             conf.Data.Proxy.AdminPassword,
+	// ImpressionListenerEnabled: conf.Data.ImpressionListener.Endpoint != "",
+	// httpClients:    httpClients,
+	// splitStorage:   splitStorage,
+	// segmentStorage: segmentStorage,
+	// latencyStorage: localTelemetryStorage,
+
+	// go task.CheckEnvirontmentStatus(gracefulShutdownWaitingGroup, splitStorage, httpClients)
+
 }
