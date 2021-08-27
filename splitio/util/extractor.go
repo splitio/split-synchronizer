@@ -1,7 +1,7 @@
 package util
 
 import (
-	"github.com/splitio/go-split-commons/v3/storage"
+	"github.com/splitio/go-split-commons/v4/storage"
 	"github.com/splitio/split-synchronizer/v4/appcontext"
 	"github.com/splitio/split-synchronizer/v4/log"
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
@@ -75,22 +75,23 @@ func GetSegmentStorage(segmentStorage interface{}, exists bool) storage.SegmentS
 	return st
 }
 
-// GetTelemetryStorage gets storage
-func GetTelemetryStorage(metricStorage interface{}, exists bool) storage.MetricsStorage {
-	if !exists {
-		return nil
-	}
-	if metricStorage == nil {
-		log.Instance.Warning("MetricsStorage could not be fetched")
-		return nil
-	}
-	st, ok := metricStorage.(storage.MetricsStorage)
-	if !ok {
-		log.Instance.Warning("MetricsStorage could not be fetched")
-		return nil
-	}
-	return st
-}
+// TODO(mredolatti): ?
+// // GetTelemetryStorage gets storage
+// func GetTelemetryStorage(metricStorage interface{}, exists bool) storage.MetricsStorage {
+// 	if !exists {
+// 		return nil
+// 	}
+// 	if metricStorage == nil {
+// 		log.Instance.Warning("MetricsStorage could not be fetched")
+// 		return nil
+// 	}
+// 	st, ok := metricStorage.(storage.MetricsStorage)
+// 	if !ok {
+// 		log.Instance.Warning("MetricsStorage could not be fetched")
+// 		return nil
+// 	}
+// 	return st
+// }
 
 // GetHTTPClients gets client
 func GetHTTPClients(httpClients interface{}, exists bool) *common.HTTPClients {

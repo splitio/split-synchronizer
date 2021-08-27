@@ -1,8 +1,8 @@
 package storage
 
 import (
-	"github.com/splitio/go-split-commons/v3/storage"
-	"github.com/splitio/go-toolkit/v4/datastructures/set"
+	"github.com/splitio/go-split-commons/v4/storage"
+	"github.com/splitio/go-toolkit/v5/datastructures/set"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb/collections"
 )
 
@@ -16,6 +16,12 @@ func NewSegmentStorage(segmentCollection collections.SegmentChangesCollection) s
 	return SegmentStorage{
 		segmentCollection: segmentCollection,
 	}
+}
+
+// SegmentKeysCount returns 0
+func (s SegmentStorage) SegmentKeysCount() int64 {
+	// TODO(mredolatti): Do we need this?
+	return 0
 }
 
 // ChangeNumber storage

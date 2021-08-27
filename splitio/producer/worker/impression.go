@@ -1,22 +1,19 @@
 package worker
 
 import (
-	"strconv"
-
 	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
-	"github.com/splitio/go-split-commons/v3/conf"
-	"github.com/splitio/go-split-commons/v3/dtos"
-	"github.com/splitio/go-split-commons/v3/provisional"
-	"github.com/splitio/go-split-commons/v3/service"
-	"github.com/splitio/go-split-commons/v3/storage"
-	"github.com/splitio/go-split-commons/v3/synchronizer/worker/impression"
-	"github.com/splitio/go-split-commons/v3/util"
-	commonToolkit "github.com/splitio/go-toolkit/v4/common"
-	"github.com/splitio/go-toolkit/v4/logging"
+	"github.com/splitio/go-split-commons/v4/conf"
+	"github.com/splitio/go-split-commons/v4/dtos"
+	"github.com/splitio/go-split-commons/v4/provisional"
+	"github.com/splitio/go-split-commons/v4/service"
+	"github.com/splitio/go-split-commons/v4/storage"
+	"github.com/splitio/go-split-commons/v4/telemetry"
+	commonToolkit "github.com/splitio/go-toolkit/v5/common"
+	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v4/appcontext"
 	"github.com/splitio/split-synchronizer/v4/splitio"
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
@@ -31,7 +28,7 @@ const (
 type RecorderImpressionMultiple struct {
 	impressionStorage         storage.ImpressionStorageConsumer
 	impressionRecorder        service.ImpressionsRecorder
-	metricsWrapper            *storage.MetricWrapper
+	localTelemetry            storage.TelemetryRuntimeProducer
 	impressionListenerEnabled bool
 	logger                    logging.LoggerInterface
 	impressionManager         provisional.ImpressionManager
@@ -42,19 +39,19 @@ type RecorderImpressionMultiple struct {
 func NewImpressionRecordMultiple(
 	impressionStorage storage.ImpressionStorageConsumer,
 	impressionRecorder service.ImpressionsRecorder,
-	metricsWrapper *storage.MetricWrapper,
+	localTelemetry storage.TelemetryRuntimeProducer,
 	logger logging.LoggerInterface,
 	managerConfig conf.ManagerConfig,
 	impressionsCounter *provisional.ImpressionsCounter,
-) (impression.ImpressionRecorder, error) {
-	impressionManager, err := provisional.NewImpressionManager(managerConfig, impressionsCounter)
+) (*RecorderImpressionMultiple, error) {
+	impressionManager, err := provisional.NewImpressionManager(managerConfig, impressionsCounter, localTelemetry)
 	if err != nil {
 		return nil, err
 	}
 	return &RecorderImpressionMultiple{
 		impressionStorage:         impressionStorage,
 		impressionRecorder:        impressionRecorder,
-		metricsWrapper:            metricsWrapper,
+		localTelemetry:            localTelemetry,
 		impressionListenerEnabled: managerConfig.ListenerEnabled,
 		logger:                    logger,
 		impressionManager:         impressionManager,
@@ -113,13 +110,12 @@ func (r *RecorderImpressionMultiple) recordImpressions(impressionsToSend map[dto
 		})
 		if err != nil {
 			if httpError, ok := err.(*dtos.HTTPError); ok {
-				r.metricsWrapper.StoreCounters(storage.TestImpressionsCounter, strconv.Itoa(httpError.Code))
+				r.localTelemetry.RecordSyncError(telemetry.ImpressionSync, httpError.Code)
 			}
 			return err
 		}
-		bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-		r.metricsWrapper.StoreLatencies(storage.TestImpressionsLatency, bucket)
-		r.metricsWrapper.StoreCounters(storage.TestImpressionsCounter, "ok")
+		r.localTelemetry.RecordSyncLatency(telemetry.ImpressionSync, time.Now().Sub(before))
+		r.localTelemetry.RecordSuccessfulSync(telemetry.ImpressionSync, time.Now().UTC())
 	}
 	return nil
 }

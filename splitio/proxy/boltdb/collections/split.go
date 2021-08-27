@@ -8,8 +8,8 @@ import (
 	"sync"
 
 	"github.com/boltdb/bolt"
-	"github.com/splitio/go-split-commons/v3/dtos"
-	"github.com/splitio/go-toolkit/v4/datastructures/set"
+	"github.com/splitio/go-split-commons/v4/dtos"
+	"github.com/splitio/go-toolkit/v5/datastructures/set"
 	"github.com/splitio/split-synchronizer/v4/log"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb"
 )

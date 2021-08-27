@@ -13,7 +13,7 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/splitio/go-toolkit/v4/logging"
+	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v4/appcontext"
 	"github.com/splitio/split-synchronizer/v4/splitio/producer"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy"

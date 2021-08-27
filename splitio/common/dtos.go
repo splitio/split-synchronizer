@@ -1,17 +1,19 @@
 package common
 
 import (
-	"github.com/splitio/go-split-commons/v3/service/api"
-	"github.com/splitio/go-split-commons/v3/storage"
-	"github.com/splitio/go-split-commons/v3/synchronizer/worker/event"
-	"github.com/splitio/go-split-commons/v3/synchronizer/worker/impression"
+	"github.com/splitio/go-split-commons/v4/service/api"
+	"github.com/splitio/go-split-commons/v4/storage"
+	"github.com/splitio/go-split-commons/v4/synchronizer/worker/event"
+	"github.com/splitio/go-split-commons/v4/synchronizer/worker/impression"
 )
+
+// TODO(mredolatti): Check this and why it's in a DTOs package
 
 // Storages wraps storages in one struct
 type Storages struct {
 	SplitStorage          storage.SplitStorage
 	SegmentStorage        storage.SegmentStorage
-	LocalTelemetryStorage storage.MetricsStorage
+	LocalTelemetryStorage storage.TelemetryRuntimeConsumer
 	EventStorage          storage.EventsStorage
 	ImpressionStorage     storage.ImpressionStorage
 }

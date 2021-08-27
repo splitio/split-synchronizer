@@ -1,15 +1,14 @@
 package fetcher
 
 import (
-	"strconv"
 	"time"
 
-	"github.com/splitio/go-split-commons/v3/dtos"
-	"github.com/splitio/go-split-commons/v3/service"
-	"github.com/splitio/go-split-commons/v3/storage"
-	"github.com/splitio/go-split-commons/v3/synchronizer/worker/split"
-	"github.com/splitio/go-split-commons/v3/util"
-	"github.com/splitio/go-toolkit/v4/logging"
+	"github.com/splitio/go-split-commons/v4/dtos"
+	"github.com/splitio/go-split-commons/v4/service"
+	"github.com/splitio/go-split-commons/v4/storage"
+	"github.com/splitio/go-split-commons/v4/synchronizer/worker/split"
+	"github.com/splitio/go-split-commons/v4/telemetry"
+	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb/collections"
 )
 
@@ -17,16 +16,16 @@ import (
 type SplitFetcherProxy struct {
 	splitStorage   collections.SplitChangesCollection
 	splitFetcher   service.SplitFetcher
-	metricsWrapper *storage.MetricWrapper
+	localTelemetry storage.TelemetryRuntimeProducer
 	logger         logging.LoggerInterface
 }
 
 // NewSplitFetcher build new fetcher for proxy
-func NewSplitFetcher(splitStorage collections.SplitChangesCollection, splitFetcher service.SplitFetcher, metricsWrapper *storage.MetricWrapper, logger logging.LoggerInterface) split.Updater {
+func NewSplitFetcher(splitStorage collections.SplitChangesCollection, splitFetcher service.SplitFetcher, localTelemetry storage.TelemetryRuntimeProducer, logger logging.LoggerInterface) split.Updater {
 	return &SplitFetcherProxy{
 		splitStorage:   splitStorage,
 		splitFetcher:   splitFetcher,
-		metricsWrapper: metricsWrapper,
+		localTelemetry: localTelemetry,
 		logger:         logger,
 	}
 }
@@ -47,7 +46,7 @@ func (s *SplitFetcherProxy) SynchronizeSplits(till *int64, requestNoCache bool) 
 		splits, err := s.splitFetcher.Fetch(changeNumber, requestNoCache)
 		if err != nil {
 			if httpError, ok := err.(*dtos.HTTPError); ok {
-				s.metricsWrapper.StoreCounters(storage.SplitChangesCounter, strconv.Itoa(httpError.Code))
+				s.localTelemetry.RecordSyncError(telemetry.SplitSync, httpError.Code)
 			}
 			return nil, err
 		}
@@ -68,9 +67,9 @@ func (s *SplitFetcherProxy) SynchronizeSplits(till *int64, requestNoCache bool) 
 				continue
 			}
 		}
-		bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-		s.metricsWrapper.StoreCounters(storage.SplitChangesCounter, "ok")
-		s.metricsWrapper.StoreLatencies(storage.SplitChangesLatency, bucket)
+
+		s.localTelemetry.RecordSyncLatency(telemetry.SplitSync, time.Now().Sub(before))
+		s.localTelemetry.RecordSuccessfulSync(telemetry.SplitSync, time.Now())
 		if splits.Till == splits.Since || (till != nil && splits.Till >= *till) {
 			return nil, nil
 		}

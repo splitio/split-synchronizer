@@ -2,15 +2,13 @@ package controllers
 
 import (
 	"encoding/json"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/splitio/go-split-commons/v3/dtos"
-	"github.com/splitio/go-split-commons/v3/service/api"
-	"github.com/splitio/go-split-commons/v3/storage"
-	"github.com/splitio/go-split-commons/v3/util"
+	"github.com/splitio/go-split-commons/v4/dtos"
+	"github.com/splitio/go-split-commons/v4/service/api"
+	"github.com/splitio/go-split-commons/v4/telemetry"
 	"github.com/splitio/split-synchronizer/v4/conf"
 	"github.com/splitio/split-synchronizer/v4/log"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/interfaces"
@@ -214,13 +212,12 @@ func sendImpressions() {
 					if errp != nil {
 						log.Instance.Error(errp)
 						if httpError, ok := errp.(*dtos.HTTPError); ok {
-							interfaces.ProxyTelemetryWrapper.StoreCounters(storage.TestImpressionsCounter, strconv.Itoa(httpError.Code))
+							interfaces.LocalTelemetry.RecordSyncError(telemetry.ImpressionSync, httpError.Code)
 						}
 					} else {
-						bucket := util.Bucket(time.Now().Sub(before).Nanoseconds())
-						interfaces.ProxyTelemetryWrapper.StoreLatencies(storage.TestImpressionsLatency, bucket)
-						interfaces.ProxyTelemetryWrapper.StoreCounters(storage.TestImpressionsCounter, "ok")
+						interfaces.LocalTelemetry.RecordSuccessfulSync(telemetry.ImpressionSync, time.Now())
 					}
+					interfaces.LocalTelemetry.RecordSyncLatency(telemetry.ImpressionSync, time.Now().Sub(before))
 				}
 			}
 		}

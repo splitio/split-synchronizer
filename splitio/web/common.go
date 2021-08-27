@@ -9,10 +9,13 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/splitio/go-split-commons/v3/storage"
+	"github.com/splitio/go-split-commons/v4/storage"
+	"github.com/splitio/go-split-commons/v4/telemetry"
+
 	"github.com/splitio/split-synchronizer/v4/appcontext"
 	"github.com/splitio/split-synchronizer/v4/log"
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
+	syncTelemetry "github.com/splitio/split-synchronizer/v4/splitio/common/telemetry"
 	"github.com/splitio/split-synchronizer/v4/splitio/task"
 	"github.com/splitio/split-synchronizer/v4/splitio/web/dashboard/HTMLtemplates"
 )
@@ -94,107 +97,116 @@ func ParseTemplate(name string, text string, data interface{}) string {
 	return buf.String()
 }
 
-func parseLatencySerieData(key string, label string, backgroundColor string, borderColor string, localTelemetry storage.MetricsStorage) string {
+func parseSDKStats(localTelemetry storage.TelemetryRuntimeConsumer) string {
 	var toReturn string
 
-	latencies := localTelemetry.PeekLatencies()
-	if ldata, ok := latencies[key]; ok {
-		if serie, err := json.Marshal(ldata); err == nil {
-			toReturn = ParseTemplate(
-				key,
-				HTMLtemplates.LatencySerieTPL,
-				HTMLtemplates.LatencySerieTPLVars{
-					Label:           label,
-					BackgroundColor: backgroundColor,
-					BorderColor:     borderColor,
-					Data:            string(serie),
-				})
-		}
+	asPeeker, ok := localTelemetry.(syncTelemetry.ProxyTelemetryPeeker)
+	if !ok {
+		return toReturn
 	}
 
+	splitLatencies := asPeeker.PeekEndpointLatency(syncTelemetry.SplitChangesEndpoint)
+	serialized, _ := json.Marshal(splitLatencies)
+	toReturn += ParseTemplate("sdk.SplitChanges", HTMLtemplates.LatencySerieTPL,
+		HTMLtemplates.LatencySerieTPLVars{
+			Label:           "/api/splitChanges",
+			BackgroundColor: toRGBAString(255, 159, 64, 0.2),
+			BorderColor:     toRGBAString(255, 159, 64, 1),
+			Data:            string(serialized),
+		})
+
+	segmentsLatencies := asPeeker.PeekEndpointLatency(syncTelemetry.SegmentChangesEndpoint)
+	serialized, _ = json.Marshal(segmentsLatencies)
+	toReturn += ParseTemplate("sdk.segmentChanges", HTMLtemplates.LatencySerieTPL,
+		HTMLtemplates.LatencySerieTPLVars{
+			Label:           "/api/segmentChanges",
+			BackgroundColor: toRGBAString(54, 162, 235, 0.2),
+			BorderColor:     toRGBAString(54, 162, 235, 1),
+			Data:            string(serialized),
+		})
+
+	impressionLatencies := asPeeker.PeekEndpointLatency(syncTelemetry.ImpressionsBulkEndpoint)
+	serialized, _ = json.Marshal(impressionLatencies)
+	toReturn += ParseTemplate("sdk.impressions", HTMLtemplates.LatencySerieTPL,
+		HTMLtemplates.LatencySerieTPLVars{
+			Label:           "/api/testImpressions/bulk",
+			BackgroundColor: toRGBAString(75, 192, 192, 0.2),
+			BorderColor:     toRGBAString(75, 192, 192, 1),
+			Data:            string(serialized),
+		})
+
+	eventLatencies := asPeeker.PeekEndpointLatency(syncTelemetry.EventsBulkEndpoint)
+	serialized, _ = json.Marshal(eventLatencies)
+	toReturn += ParseTemplate("sdk.events", HTMLtemplates.LatencySerieTPL,
+		HTMLtemplates.LatencySerieTPLVars{
+			Label:           "/api/events/bulk",
+			BackgroundColor: toRGBAString(255, 205, 86, 0.2),
+			BorderColor:     toRGBAString(255, 205, 86, 1),
+			Data:            string(serialized),
+		})
+
+	mySegmentsLatencies := asPeeker.PeekEndpointLatency(syncTelemetry.MySegmentsEndpoint)
+	serialized, _ = json.Marshal(mySegmentsLatencies)
+	toReturn += ParseTemplate("sdk.mySegments", HTMLtemplates.LatencySerieTPL,
+		HTMLtemplates.LatencySerieTPLVars{
+			Label:           "/api/events/bulk",
+			BackgroundColor: toRGBAString(153, 102, 255, 0.2),
+			BorderColor:     toRGBAString(153, 102, 255, 1),
+			Data:            string(serialized),
+		})
+
+	// TODO(mredolatti): we should start tracking beacon endpoints as well
+
 	return toReturn
 }
 
-func parseSDKStats(localTelemetry storage.MetricsStorage) string {
+func parseBackendStats(localTelemetry storage.TelemetryRuntimeConsumer) string {
 	var toReturn string
 
-	toReturn += parseLatencySerieData(
-		"sdk.splitChanges",
-		"/api/splitChanges",
-		toRGBAString(255, 159, 64, 0.2),
-		toRGBAString(255, 159, 64, 1),
-		localTelemetry,
-	)
+	asPeeker, ok := localTelemetry.(storage.TelemetryPeeker)
+	if !ok {
+		return toReturn
+	}
 
-	toReturn += parseLatencySerieData(
-		"sdk.segmentChanges",
-		"/api/segmentChanges",
-		toRGBAString(54, 162, 235, 0.2),
-		toRGBAString(54, 162, 235, 1),
-		localTelemetry,
-	)
+	splitLatencies := asPeeker.PeekHttpLatencies(telemetry.SplitSync)
+	serialized, _ := json.Marshal(splitLatencies)
+	toReturn += ParseTemplate("backend::/api/splitChanges", HTMLtemplates.LatencySerieTPL,
+		HTMLtemplates.LatencySerieTPLVars{
+			Label:           "/api/splitChanges",
+			BackgroundColor: toRGBAString(255, 159, 64, 0.2),
+			BorderColor:     toRGBAString(255, 159, 64, 1),
+			Data:            string(serialized),
+		})
 
-	toReturn += parseLatencySerieData(
-		"sdk.impressions",
-		"/api/testImpressions/bulk",
-		toRGBAString(75, 192, 192, 0.2),
-		toRGBAString(75, 192, 192, 1),
-		localTelemetry,
-	)
+	segmentsLatencies := asPeeker.PeekHttpLatencies(telemetry.SegmentSync)
+	serialized, _ = json.Marshal(segmentsLatencies)
+	toReturn += ParseTemplate("backend::/api/segmentChanges", HTMLtemplates.LatencySerieTPL,
+		HTMLtemplates.LatencySerieTPLVars{
+			Label:           "/api/segmentChanges",
+			BackgroundColor: toRGBAString(54, 162, 235, 0.2),
+			BorderColor:     toRGBAString(54, 162, 235, 1),
+			Data:            string(serialized),
+		})
 
-	toReturn += parseLatencySerieData(
-		"sdk.events",
-		"/api/events/bulk",
-		toRGBAString(255, 205, 86, 0.2),
-		toRGBAString(255, 205, 86, 1),
-		localTelemetry,
-	)
+	impressionLatencies := asPeeker.PeekHttpLatencies(telemetry.ImpressionSync)
+	serialized, _ = json.Marshal(impressionLatencies)
+	toReturn += ParseTemplate("backend::/api/testImpressions/bulk", HTMLtemplates.LatencySerieTPL,
+		HTMLtemplates.LatencySerieTPLVars{
+			Label:           "/api/testImpressions/bulk",
+			BackgroundColor: toRGBAString(75, 192, 192, 0.2),
+			BorderColor:     toRGBAString(75, 192, 192, 1),
+			Data:            string(serialized),
+		})
 
-	toReturn += parseLatencySerieData(
-		"sdk.mySegments",
-		"/api/mySegments",
-		toRGBAString(153, 102, 255, 0.2),
-		toRGBAString(153, 102, 255, 1),
-		localTelemetry,
-	)
-
-	return toReturn
-}
-
-func parseBackendStats(localTelemetry storage.MetricsStorage) string {
-	var toReturn string
-
-	toReturn += parseLatencySerieData(
-		"backend::/api/splitChanges",
-		"/api/splitChanges",
-		toRGBAString(255, 159, 64, 0.2),
-		toRGBAString(255, 159, 64, 1),
-		localTelemetry,
-	)
-
-	toReturn += parseLatencySerieData(
-		"backend::/api/segmentChanges",
-		"/api/segmentChanges/",
-		toRGBAString(54, 162, 235, 0.2),
-		toRGBAString(54, 162, 235, 1),
-		localTelemetry,
-	)
-
-	toReturn += parseLatencySerieData(
-		"backend::/api/testImpressions/bulk",
-		"/api/testImpressions/bulk",
-		toRGBAString(75, 192, 192, 0.2),
-		toRGBAString(75, 192, 192, 1),
-		localTelemetry,
-	)
-
-	toReturn += parseLatencySerieData(
-		"backend::/api/events/bulk",
-		"/api/events/bulk",
-		toRGBAString(255, 205, 86, 0.2),
-		toRGBAString(255, 205, 86, 1),
-		localTelemetry,
-	)
+	eventLatencies := asPeeker.PeekHttpLatencies(telemetry.EventSync)
+	serialized, _ = json.Marshal(eventLatencies)
+	toReturn += ParseTemplate("backend::/api/events/bulk", HTMLtemplates.LatencySerieTPL,
+		HTMLtemplates.LatencySerieTPLVars{
+			Label:           "/api/events/bulk",
+			BackgroundColor: toRGBAString(255, 205, 86, 0.2),
+			BorderColor:     toRGBAString(255, 205, 86, 1),
+			Data:            string(serialized),
+		})
 
 	return toReturn
 }
@@ -300,7 +312,9 @@ func GetMetrics(storages common.Storages) Metrics {
 	segmentNames := storages.SplitStorage.SegmentNames()
 
 	// Counters
-	counters := storages.LocalTelemetryStorage.PeekCounters()
+	//counters := storages.LocalTelemetryStorage.PeekCounters()
+	// TODO(mredolatti): Refactor this
+	counters := make(map[string]int64)
 	backendErrorCount := int64(0)
 	for key, counter := range counters {
 		if strings.Contains(key, "backend::") && key != "backend::request.ok" {
