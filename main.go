@@ -85,7 +85,7 @@ func loadConfiguration(configFile *string, cliParametersMap configMap) error {
 	return conf.ValidConfigs()
 }
 
-func loadLogger() {
+func setupLogger() logging.LoggerInterface {
 	var err error
 	var commonWriter io.Writer
 	var fullWriter io.Writer
@@ -134,7 +134,17 @@ func loadLogger() {
 		}
 	}
 
-	log.Initialize(verboseWriter, debugWriter, commonWriter, commonWriter, fullWriter, level)
+	buffered := [5]bool{}
+	buffered[logging.LevelError-logging.LevelError] = true
+	buffered[logging.LevelWarning-logging.LevelError] = true
+	buffered[logging.LevelInfo-logging.LevelError] = true
+	buffered[logging.LevelDebug-logging.LevelError] = false
+	buffered[logging.LevelVerbose-logging.LevelError] = false
+	return log.NewHistoricLoggerWrapper(
+		log.Initialize(verboseWriter, debugWriter, commonWriter, commonWriter, fullWriter, level),
+		buffered,
+		5,
+	)
 }
 
 func main() {
@@ -165,17 +175,17 @@ func main() {
 	}
 
 	// These functions rely on the config module being successfully populated
-	loadLogger()
+	logger := setupLogger()
 
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	if *cliFlags.asProxy {
 		appcontext.Initialize(appcontext.ProxyMode)
 		log.PostStartedMessageToSlack()
-		proxy.Start(sigs, gracefulShutdownWaitingGroup)
+		fmt.Println(proxy.Start(logger, sigs, gracefulShutdownWaitingGroup))
 	} else {
 		appcontext.Initialize(appcontext.ProducerMode)
 		log.PostStartedMessageToSlack()
-		producer.Start(sigs, gracefulShutdownWaitingGroup)
+		producer.Start(logger, sigs, gracefulShutdownWaitingGroup)
 	}
 }

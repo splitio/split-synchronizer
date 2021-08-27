@@ -14,8 +14,9 @@ import (
 
 	"github.com/splitio/split-synchronizer/v4/appcontext"
 	"github.com/splitio/split-synchronizer/v4/log"
+	"github.com/splitio/split-synchronizer/v4/splitio/admin/views"
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
-	syncTelemetry "github.com/splitio/split-synchronizer/v4/splitio/common/telemetry"
+	syncTelemetry "github.com/splitio/split-synchronizer/v4/splitio/proxy/storage"
 	"github.com/splitio/split-synchronizer/v4/splitio/task"
 	"github.com/splitio/split-synchronizer/v4/splitio/web/dashboard/HTMLtemplates"
 )
@@ -33,17 +34,19 @@ type Metrics struct {
 	BackendRequestOkFormatted    string   `json:"backendRequestOkFormatted"`
 	BackendRequestErrorFormatted string   `json:"backendRequestErrorFormatted"`
 	SplitRows                    string   `json:"splitRows"`
-	SegmentRows                  string   `json:"segmentRows"`
-	LatenciesGroupDataBackend    string   `json:"latenciesGroupDataBackend"`
-	BackendRequestOk             string   `json:"backendRequestOk"`
-	BackendRequestError          string   `json:"backendRequestError"`
-	LatenciesGroupData           string   `json:"latenciesGroupData"`
-	RequestOk                    string   `json:"requestOk"`
-	RequestError                 string   `json:"requestError"`
-	ImpressionsQueueSize         string   `json:"impressionsQueueSize"`
-	EventsQueueSize              string   `json:"eventsQueueSize"`
-	EventsLambda                 string   `json:"eventsLambda"`
-	ImpressionsLambda            string   `json:"impressionsLambda"`
+	Splits                       views.CachedSplitsTPLVars
+	SegmentRows                  string `json:"segmentRows"`
+	Segments                     []views.CachedSegmentRowTPLVars
+	LatenciesGroupDataBackend    string `json:"latenciesGroupDataBackend"`
+	BackendRequestOk             string `json:"backendRequestOk"`
+	BackendRequestError          string `json:"backendRequestError"`
+	LatenciesGroupData           string `json:"latenciesGroupData"`
+	RequestOk                    string `json:"requestOk"`
+	RequestError                 string `json:"requestError"`
+	ImpressionsQueueSize         string `json:"impressionsQueueSize"`
+	EventsQueueSize              string `json:"eventsQueueSize"`
+	EventsLambda                 string `json:"eventsLambda"`
+	ImpressionsLambda            string `json:"impressionsLambda"`
 }
 
 func formatNumber(n int64) string {
