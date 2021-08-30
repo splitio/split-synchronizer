@@ -6,7 +6,6 @@ import (
 	"syscall"
 
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/split-synchronizer/v4/log"
 )
 
 const (
@@ -25,7 +24,7 @@ func (c *ShutdownController) StopProcess(ctx *gin.Context) {
 	switch stopType {
 	case forcedShutdown:
 		toReturn = stopType
-		log.PostShutdownMessageToSlack(true)
+		// log.PostShutdownMessageToSlack(true)
 		defer kill(syscall.SIGKILL)
 	case gracefulShutdown:
 		toReturn = stopType

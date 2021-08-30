@@ -6,6 +6,9 @@ import "sync"
 type Monitor interface {
 	StoreDataFlushed(timestamp int64, countFlushed int, countInStorage int64)
 	Lambda() float64
+	Acquire() bool
+	Release()
+	Busy() bool
 }
 
 // record struct that has all the required information of one flushing process
@@ -21,6 +24,7 @@ type MonitorImpl struct {
 	maxLength     int
 	mutex         sync.RWMutex
 	lambda        float64
+	busy          bool
 }
 
 // New constructs a new eviction calculation monitor
@@ -30,22 +34,6 @@ func New(threads int) *MonitorImpl {
 		maxLength:     100 * threads,
 		lambda:        1,
 	}
-}
-
-func calculateAmountFlushed(records []record) int {
-	amountFlushed := 0
-	for _, i := range records {
-		amountFlushed += i.DataFlushed
-	}
-	return amountFlushed
-}
-
-func (m *MonitorImpl) calculateLambda() float64 {
-	t := int64(calculateAmountFlushed(m.flushingStats))
-	dataInT1 := m.flushingStats[0].DataInStorage
-	dataInT2 := m.flushingStats[len(m.flushingStats)-1].DataInStorage
-	amountGeneratedBetweenT1andT2 := float64(dataInT2 - dataInT1 + t)
-	return float64(t) / amountGeneratedBetweenT1andT2
 }
 
 // StoreDataFlushed stores data flushed into the monitor
@@ -69,4 +57,46 @@ func (m *MonitorImpl) Lambda() float64 {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	return m.lambda
+}
+
+// Acquire requests permission to flush whichever resource this monitor is associated to
+func (m *MonitorImpl) Acquire() bool {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	if m.busy {
+		return false
+	}
+
+	m.busy = true
+	return true
+}
+
+// Release signals the end of a syncrhonization operation which was previously acquired
+func (m *MonitorImpl) Release() {
+	m.mutex.Lock()
+	m.busy = false
+	m.mutex.Unlock()
+}
+
+// Busy returns true if the permission is currently acquired and hasn't yet been released
+func (m *MonitorImpl) Busy() bool {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	return m.busy
+}
+
+func calculateAmountFlushed(records []record) int {
+	amountFlushed := 0
+	for _, i := range records {
+		amountFlushed += i.DataFlushed
+	}
+	return amountFlushed
+}
+
+func (m *MonitorImpl) calculateLambda() float64 {
+	t := int64(calculateAmountFlushed(m.flushingStats))
+	dataInT1 := m.flushingStats[0].DataInStorage
+	dataInT2 := m.flushingStats[len(m.flushingStats)-1].DataInStorage
+	amountGeneratedBetweenT1andT2 := float64(dataInT2 - dataInT1 + t)
+	return float64(t) / amountGeneratedBetweenT1andT2
 }

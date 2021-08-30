@@ -101,7 +101,7 @@ func (c *SdkServerController) MySegments(ctx *gin.Context) {
 	key := ctx.Param("key")
 	var mysegments = make([]dtos.MySegmentDTO, 0)
 
-	segmentCollection := collections.NewSegmentChangesCollection(boltdb.DBB)
+	segmentCollection := collections.NewSegmentChangesCollection(boltdb.DBB, c.logger)
 	segments, errs := segmentCollection.FetchAll()
 	if errs != nil {
 		c.logger.Warning(errs)

@@ -11,17 +11,16 @@ import (
 	"github.com/splitio/go-split-commons/v4/telemetry"
 	"github.com/splitio/go-toolkit/v5/common"
 	"github.com/splitio/go-toolkit/v5/logging"
-	"github.com/splitio/split-synchronizer/v4/appcontext"
-	"github.com/splitio/split-synchronizer/v4/splitio"
-	"github.com/splitio/split-synchronizer/v4/splitio/task"
+	"github.com/splitio/split-synchronizer/v4/splitio/producer/evcalc"
 )
 
 // RecorderEventMultiple struct for event sync
 type RecorderEventMultiple struct {
-	eventStorage   storage.EventStorageConsumer
-	eventRecorder  service.EventsRecorder
-	localTelemetry storage.TelemetryRuntimeProducer
-	logger         logging.LoggerInterface
+	eventStorage    storage.EventStorageConsumer
+	eventRecorder   service.EventsRecorder
+	localTelemetry  storage.TelemetryRuntimeProducer
+	evictionMonitor evcalc.Monitor
+	logger          logging.LoggerInterface
 }
 
 // NewEventRecorderMultiple creates new event synchronizer for posting events
@@ -29,13 +28,15 @@ func NewEventRecorderMultiple(
 	eventStorage storage.EventStorageConsumer,
 	eventRecorder service.EventsRecorder,
 	localTelemetry storage.TelemetryRuntimeProducer,
+	evictionMonitor evcalc.Monitor,
 	logger logging.LoggerInterface,
 ) event.EventRecorder {
 	return &RecorderEventMultiple{
-		eventStorage:   eventStorage,
-		eventRecorder:  eventRecorder,
-		localTelemetry: localTelemetry,
-		logger:         logger,
+		eventStorage:    eventStorage,
+		eventRecorder:   eventRecorder,
+		localTelemetry:  localTelemetry,
+		evictionMonitor: evictionMonitor,
+		logger:          logger,
 	}
 }
 
@@ -71,9 +72,7 @@ func (e *RecorderEventMultiple) synchronizeEvents(bulkSize int64) error {
 
 	for metadata, events := range eventsToSend {
 		before := time.Now()
-		if appcontext.ExecutionMode() == appcontext.ProducerMode {
-			task.StoreDataFlushed(before.UnixNano(), len(events), e.eventStorage.Count(), "events")
-		}
+		e.evictionMonitor.StoreDataFlushed(before.UnixNano(), len(events), e.eventStorage.Count())
 		err := common.WithAttempts(3, func() error {
 			err := e.eventRecorder.Record(events, metadata)
 			if err != nil {
@@ -96,7 +95,7 @@ func (e *RecorderEventMultiple) synchronizeEvents(bulkSize int64) error {
 
 // SynchronizeEvents syncs events
 func (e *RecorderEventMultiple) SynchronizeEvents(bulkSize int64) error {
-	if task.IsOperationRunning(task.EventsOperation) {
+	if e.evictionMonitor.Busy() {
 		e.logger.Debug("Another task executed by the user is performing operations on Events. Skipping.")
 		return nil
 	}
@@ -106,27 +105,27 @@ func (e *RecorderEventMultiple) SynchronizeEvents(bulkSize int64) error {
 
 // FlushEvents flushes events
 func (e *RecorderEventMultiple) FlushEvents(bulkSize int64) error {
-	if task.RequestOperation(task.EventsOperation) {
-		defer task.FinishOperation(task.EventsOperation)
+	if e.evictionMonitor.Acquire() {
+		defer e.evictionMonitor.Release()
 	} else {
 		e.logger.Debug("Cannot execute flush. Another operation is performing operations on Events.")
 		return errors.New("Cannot execute flush. Another operation is performing operations on Events")
 	}
-	elementsToFlush := splitio.MaxSizeToFlush
+	elementsToFlush := maxFlushSize
 	if bulkSize != 0 {
 		elementsToFlush = bulkSize
 	}
 
 	for elementsToFlush > 0 && e.eventStorage.Count() > 0 {
-		maxSize := splitio.DefaultSize
-		if elementsToFlush < splitio.DefaultSize {
+		maxSize := defaultFlushSize
+		if elementsToFlush < defaultFlushSize {
 			maxSize = elementsToFlush
 		}
 		err := e.synchronizeEvents(maxSize)
 		if err != nil {
 			return err
 		}
-		elementsToFlush = elementsToFlush - splitio.DefaultSize
+		elementsToFlush = elementsToFlush - defaultFlushSize
 	}
 	return nil
 }

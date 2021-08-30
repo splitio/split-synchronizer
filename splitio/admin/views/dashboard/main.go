@@ -59,6 +59,7 @@ const main = `
     </div>
 
     <div class="tab-content">
+      {{template "Cards" .}}
       {{template "UpstreamStats" .}}
       {{if .ProxyMode}}{{template "SdkStats" .}}{{end}}
       {{if not .ProxyMode}}{{template "QueueManager" .}}{{end}}
@@ -166,6 +167,7 @@ type ChartJSData struct {
 func AssembleDashboardTemplate() (*template.Template, error) {
 	return template.New("DashboardLayout").Funcs(funcs).Parse(strings.Join([]string{
 		// Embedded template definitions (MUST appear before the main layout)
+		cards,
 		charjs,
 		bootstrapStyle,
 		bootstrapTheme,

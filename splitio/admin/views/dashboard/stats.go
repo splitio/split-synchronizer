@@ -1,7 +1,7 @@
 package dashboard
 
-const sdkStats = `
-{{define "SdkStats"}}
+const cards = `
+{{define "Cards"}}
   <div role="tabpanel" class="tab-pane active" id="split-dashboard">
     <div class="row">
       <div class="col-md-3">
@@ -223,43 +223,43 @@ const sdkStats = `
       </div>
     </div>
   </div>
-  
-  {{if .ProxyMode}}
-    <!-- SDK STATS -->
-    <div role="tabpanel" class="tab-pane" id="sdk-stats">
-  
-      <div class="row">
-        <div class="col-md-6">
-          <div class="greenBox metricBox">
-            <h4>Successful Requests</h4>
-            <h1 id="requests_ok" class="centerText"></h1>
-          </div>
-        </div>
-        <div class="col-md-6">
-          <div class="redBox metricBox">
-            <h4>Error Requests</h4>
-            <h1 id="requests_error" class="centerText"></h1>
-          </div>
+{{end}}
+`
+
+const sdkStats = `
+{{define "SdkStats"}}
+  <!-- SDK STATS -->
+  <div role="tabpanel" class="tab-pane" id="sdk-stats">
+    <div class="row">
+      <div class="col-md-6">
+        <div class="greenBox metricBox">
+          <h4>Successful Requests</h4>
+          <h1 id="requests_ok" class="centerText"></h1>
         </div>
       </div>
-  
-      <div class="row">
-        <div class="col-md-8">
-          <div class="bg-primary metricBox">
-            <h4>Latencies group <small>(microseconds)</small></h4>
-            <canvas id="LatencyBucket"></canvas>
-          </div>
-        </div>
-        <div class="col-md-4">
-          <div class="bg-primary metricBox">
-            <h4>Requests: Ok vs Error</h4>
-            <canvas id="RequestStatus"></canvas>
-          </div>
+      <div class="col-md-6">
+        <div class="redBox metricBox">
+          <h4>Error Requests</h4>
+          <h1 id="requests_error" class="centerText"></h1>
         </div>
       </div>
-  
     </div>
-  {{end}}
+
+    <div class="row">
+      <div class="col-md-8">
+        <div class="bg-primary metricBox">
+          <h4>Latencies group <small>(microseconds)</small></h4>
+          <canvas id="LatencyBucket"></canvas>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="bg-primary metricBox">
+          <h4>Requests: Ok vs Error</h4>
+          <canvas id="RequestStatus"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
 {{end}}
 `
 

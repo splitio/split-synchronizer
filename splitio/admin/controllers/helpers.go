@@ -7,6 +7,7 @@ import (
 	"github.com/splitio/go-split-commons/v4/telemetry"
 
 	"github.com/splitio/split-synchronizer/v4/splitio/admin/views/dashboard"
+	"github.com/splitio/split-synchronizer/v4/splitio/producer/evcalc"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb/collections"
 	proxyStorage "github.com/splitio/split-synchronizer/v4/splitio/proxy/storage"
 )
@@ -186,161 +187,67 @@ func bundleLocalSyncLatencies(localTelemetry storage.TelemetryRuntimeConsumer) [
 	}
 }
 
-// func formatNumber(n int64) string {
-// 	//Hundred
-// 	if n < 1000 {
-// 		return fmt.Sprintf("%d", n)
-// 	}
-//
-// 	//Thousand
-// 	if n < 1000000 {
-// 		k := float64(n) / float64(1000)
-// 		return fmt.Sprintf("%.2f k", k)
-// 	}
-//
-// 	//Million
-// 	if n < 1000000000 {
-// 		m := float64(n) / float64(1000000)
-// 		return fmt.Sprintf("%.2f M", m)
-// 	}
-//
-// 	//Billion
-// 	if n < 1000000000000 {
-// 		g := float64(n) / float64(1000000000)
-// 		return fmt.Sprintf("%.2f G", g)
-// 	}
-//
-// 	//Trillion
-// 	if n < 1000000000000000 {
-// 		t := float64(n) / float64(1000000000000)
-// 		return fmt.Sprintf("%.2f T", t)
-// 	}
-//
-// 	//Quadrillion
-// 	q := float64(n) / float64(1000000000000000)
-// 	return fmt.Sprintf("%.2f P", q)
-// }
-//
-// func toRGBAString(r int, g int, b int, a float32) string {
-// 	if a < 1 {
-// 		return fmt.Sprintf("rgba(%d, %d, %d, %.1f)", r, g, b, a)
-// 	}
-//
-// 	return fmt.Sprintf("rgba(%d, %d, %d, %d)", r, g, b, int(a))
-// }
+func getEventsSize(eventStorage storage.EventsStorage) int64 {
+	if eventStorage == nil {
+		return 0
+	}
+	return eventStorage.Count()
+}
 
-// func bundleLocalSyncLatencies(localTelemetry storage.TelemetryRuntimeConsumer) string {
-// 	asPeeker, ok := localTelemetry.(storage.TelemetryPeeker)
-// 	if !ok {
-// 		return ""
-// 	}
-//
-// 	latencies := []views.LatencyForChart{
-// 		views.NewLatencyBucketsForChart(
-// 			"/api/splitChanges",
-// 			asPeeker.PeekHTTPLatencies(telemetry.SplitSync),
-// 			toRGBAString(255, 159, 64, 0.2),
-// 			toRGBAString(255, 159, 64, 1)),
-// 		views.NewLatencyBucketsForChart(
-// 			"/api/segmentChanges",
-// 			asPeeker.PeekHTTPLatencies(telemetry.SegmentSync),
-// 			toRGBAString(54, 162, 235, 0.2),
-// 			toRGBAString(54, 162, 235, 1)),
-// 		views.NewLatencyBucketsForChart(
-// 			"/api/testImpressions/bulk",
-// 			asPeeker.PeekHTTPLatencies(telemetry.ImpressionSync),
-// 			toRGBAString(75, 192, 192, 0.2),
-// 			toRGBAString(75, 192, 192, 1)),
-// 		views.NewLatencyBucketsForChart(
-// 			"/api/events/bulk",
-// 			asPeeker.PeekHTTPLatencies(telemetry.EventSync),
-// 			toRGBAString(255, 205, 86, 0.2),
-// 			toRGBAString(255, 205, 86, 1)),
-// 	}
-//
-// 	serialized, _ := json.Marshal(latencies)
-// 	return string(serialized)
-// }
-//
-// func bundleSegmentInsights(splitStorage storage.SplitStorage, segmentStorage storage.SegmentStorage) []views.CachedSegmentRowTPLVars {
-// 	cachedSegments := splitStorage.SegmentNames()
-//
-// 	toRender := make([]views.CachedSegmentRowTPLVars, 0, cachedSegments.Size())
-// 	for _, s := range cachedSegments.List() {
-//
-// 		segment, _ := s.(string)
-// 		activeKeys := segmentStorage.Keys(segment)
-// 		size := 0
-// 		if activeKeys != nil {
-// 			size = activeKeys.Size()
-// 		}
-//
-// 		removedKeys := 0
-// 		if appcontext.ExecutionMode() == appcontext.ProxyMode {
-// 			removedKeys = int(segmentStorage.CountRemovedKeys(segment))
-// 		}
-//
-// 		// LAST MODIFIED
-// 		changeNumber, err := segmentStorage.ChangeNumber(segment)
-// 		if err != nil {
-// 			log.Instance.Warning(fmt.Sprintf("Error fetching last update for segment %s\n", segment))
-// 		}
-// 		lastModified := time.Unix(0, changeNumber*int64(time.Millisecond))
-//
-// 		toRender = append(toRender,
-// 			views.CachedSegmentRowTPLVars{
-// 				ProxyMode:    appcontext.ExecutionMode() == appcontext.ProxyMode,
-// 				Name:         segment,
-// 				ActiveKeys:   strconv.Itoa(size),
-// 				LastModified: lastModified.UTC().Format(time.UnixDate),
-// 				RemovedKeys:  strconv.Itoa(removedKeys),
-// 				TotalKeys:    strconv.Itoa(removedKeys + size),
-// 			})
-// 	}
-//
-// 	return toRender
-// }
-//
-// func parseEventsSize(eventStorage storage.EventsStorage) string {
-// 	if appcontext.ExecutionMode() == appcontext.ProxyMode {
-// 		return "0"
-// 	}
-//
-// 	size := eventStorage.Count()
-// 	eventsSize := strconv.FormatInt(size, 10)
-//
-// 	return eventsSize
-// }
-//
-// func parseImpressionSize(impressionStorage storage.ImpressionStorage) string {
-// 	if appcontext.ExecutionMode() == appcontext.ProxyMode {
-// 		return "0"
-// 	}
-//
-// 	size := impressionStorage.Count()
-// 	impressionsSize := strconv.FormatInt(size, 10)
-//
-// 	return impressionsSize
-// }
-//
-// func parseEventsLambda() string {
-// 	if appcontext.ExecutionMode() == appcontext.ProxyMode {
-// 		return "0"
-// 	}
-// 	lambda := task.GetEventsLambda()
-// 	if lambda > 10 {
-// 		lambda = 10
-// 	}
-// 	return strconv.FormatFloat(lambda, 'f', 2, 64)
-// }
-//
-// func parseImpressionsLambda() string {
-// 	if appcontext.ExecutionMode() == appcontext.ProxyMode {
-// 		return "0"
-// 	}
-// 	lambda := task.GetImpressionsLambda()
-// 	if lambda > 10 {
-// 		lambda = 10
-// 	}
-// 	return strconv.FormatFloat(lambda, 'f', 2, 64)
-// }
+func getImpressionSize(impressionStorage storage.ImpressionStorage) int64 {
+	if impressionStorage == nil {
+		return 0
+	}
+
+	return impressionStorage.Count()
+}
+
+func getLambda(monitor evcalc.Monitor) float64 {
+	if monitor == nil {
+		return 0
+	}
+	return monitor.Lambda()
+}
+
+func getUpstreamRequestCount(metrics storage.TelemetryRuntimeConsumer) (ok int64, errored int64) {
+	asPeeker := metrics.(storage.TelemetryPeeker)
+	resources := []int{telemetry.SplitSync, telemetry.SegmentSync, telemetry.ImpressionSync, telemetry.ImpressionCountSync, telemetry.EventSync}
+	var totalCount int64
+	var errorCount int64
+	for _, res := range resources {
+		for _, bucket := range asPeeker.PeekHTTPLatencies(res) {
+			totalCount += bucket
+		}
+
+		for _, counter := range asPeeker.PeekHTTPErrors(res) {
+			errorCount += int64(counter)
+		}
+	}
+
+	return totalCount - errorCount, errorCount
+}
+
+func getProxyRequestCount(metrics storage.TelemetryRuntimeConsumer) (ok int64, errored int64) {
+	asPeeker, k := metrics.(proxyStorage.ProxyTelemetryPeeker)
+	if !k { // This will be the case when runnning in producer mode
+		return 0, 0
+	}
+
+	resources := []int{proxyStorage.AuthEndpoint, proxyStorage.SplitChangesEndpoint, proxyStorage.SegmentChangesEndpoint,
+		proxyStorage.MySegmentsEndpoint, proxyStorage.ImpressionsBulkEndpoint, proxyStorage.ImpressionsBulkBeaconEndpoint,
+		proxyStorage.ImpressionsCountEndpoint, proxyStorage.ImpressionsBulkBeaconEndpoint, proxyStorage.EventsBulkEndpoint,
+		proxyStorage.EventsBulkBeaconEndpoint}
+	var okCount int64
+	var errorCount int64
+	for _, res := range resources {
+		for code, count := range asPeeker.PeekEndpointStatus(res) {
+			if code >= 200 && code < 300 {
+				okCount += count
+				continue
+			}
+			errorCount = +count
+		}
+	}
+
+	return okCount, errorCount
+}

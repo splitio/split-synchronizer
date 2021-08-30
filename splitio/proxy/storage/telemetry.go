@@ -41,6 +41,17 @@ func (s *statusCodeMap) incr(code int) {
 	s.mutex.Unlock()
 }
 
+func (s *statusCodeMap) peek() map[int]int64 {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	tmp := make(map[int]int64)
+	for k, v := range s.codes {
+		tmp[k] = v
+	}
+
+	return tmp
+}
+
 func newStatusCodeMap() statusCodeMap {
 	return statusCodeMap{codes: make(map[int]int64)}
 }
@@ -104,6 +115,47 @@ func (e *EndpointStatusCodes) IncrEndpointStatus(endpoint int, status int) {
 	case LegacyGaugeEndpoint:
 		e.legacyGauge.incr(status)
 	}
+}
+
+// PeekEndpointStatus increments the count of a specific status code for a specific endpoint
+func (e *EndpointStatusCodes) PeekEndpointStatus(endpoint int) map[int]int64 {
+	switch endpoint {
+	case AuthEndpoint:
+		return e.auth.peek()
+	case SplitChangesEndpoint:
+		return e.splitChanges.peek()
+	case SegmentChangesEndpoint:
+		return e.segmentChanges.peek()
+	case MySegmentsEndpoint:
+		return e.mySegments.peek()
+	case ImpressionsBulkEndpoint:
+		return e.impressionsBulk.peek()
+	case ImpressionsBulkBeaconEndpoint:
+		return e.impressionsBulkBeacon.peek()
+	case ImpressionsCountEndpoint:
+		return e.impressionsCount.peek()
+	case ImpressionsCountBeaconEndpoint:
+		return e.impressionsCountBeacon.peek()
+	case EventsBulkEndpoint:
+		return e.eventsBulk.peek()
+	case EventsBulkBeaconEndpoint:
+		return e.eventsBulkBeacon.peek()
+	case TelemetryConfigEndpoint:
+		return e.telemetryConfig.peek()
+	case TelemetryRuntimeEndpoint:
+		return e.telemetryRuntime.peek()
+	case LegacyTimeEndpoint:
+		return e.legacyTime.peek()
+	case LegacyTimesEndpoint:
+		return e.legacyTimes.peek()
+	case LegacyCounterEndpoint:
+		return e.legacyCounter.peek()
+	case LegacyCountersEndpoint:
+		return e.legacyCounters.peek()
+	case LegacyGaugeEndpoint:
+		return e.legacyGauge.peek()
+	}
+	return nil
 }
 
 func newEndpointStatusCodes() EndpointStatusCodes {
@@ -268,6 +320,7 @@ func newProxyEndpointLatenciesImpl() ProxyEndpointLatenciesImpl {
 // ProxyTelemetryPeeker is able to peek at locally captured metrics
 type ProxyTelemetryPeeker interface {
 	PeekEndpointLatency(resource int) []int64
+	PeekEndpointStatus(resource int) map[int]int64
 }
 
 // ProxyEndpointTelemetry defines the interface that endpoints use to capture latency & status codes
