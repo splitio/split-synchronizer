@@ -195,4 +195,6 @@ func main() {
 		logger.Error("Failed to initialize the split sync: ", initError)
 		os.Exit(initError.ExitCode())
 	}
+
+	os.Exit(common.ExitUndefined)
 }
