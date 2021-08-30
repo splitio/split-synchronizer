@@ -9,10 +9,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/go-toolkit/v5/logging"
 
-	"github.com/splitio/split-synchronizer/v4/log"
 	"github.com/splitio/split-synchronizer/v4/splitio"
 	"github.com/splitio/split-synchronizer/v4/splitio/admin/views/dashboard"
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
+	"github.com/splitio/split-synchronizer/v4/splitio/log"
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/evcalc"
 )
 
@@ -22,7 +22,6 @@ type DashboardController struct {
 	proxy             bool
 	logger            logging.LoggerInterface
 	storages          common.Storages
-	httpClients       common.HTTPClients
 	layout            *template.Template
 	impressionsEvCalc evcalc.Monitor
 	eventsEvCalc      evcalc.Monitor
@@ -35,7 +34,6 @@ func NewDashboardController(
 	proxy bool,
 	logger logging.LoggerInterface,
 	storages common.Storages,
-	httpClients common.HTTPClients,
 	impressionEvCalc evcalc.Monitor,
 	eventsEvCalc evcalc.Monitor,
 	runtime common.Runtime,
@@ -46,7 +44,6 @@ func NewDashboardController(
 		logger:            logger,
 		runtime:           runtime,
 		storages:          storages,
-		httpClients:       httpClients,
 		eventsEvCalc:      eventsEvCalc,
 		impressionsEvCalc: impressionEvCalc,
 	}
@@ -129,33 +126,31 @@ func (c *DashboardController) renderDashboard() ([]byte, error) {
 
 func (c *DashboardController) gatherStats() *dashboard.GlobalStats {
 	var errorMessages []string
+	var errorCount int64
 	if asHistoricLogger, ok := c.logger.(log.HistoricLogger); ok {
 		errorMessages = asHistoricLogger.Messages(logging.LevelError)
+		errorCount = asHistoricLogger.TotalCount(logging.LevelError)
 	}
 
-	var impCount int64 = 0
-	var evCount int64 = 0
-	if c.storages.ImpressionStorage != nil && c.storages.EventStorage != nil {
-		impCount = c.storages.ImpressionStorage.Count()
-		evCount = c.storages.EventStorage.Count()
-	}
+	upstreamOkReqs, upstreamErrorReqs := getUpstreamRequestCount(c.storages.LocalTelemetryStorage)
+	proxyOkReqs, proxyErrorReqs := getProxyRequestCount(c.storages.LocalTelemetryStorage)
 
 	return &dashboard.GlobalStats{
 		Splits:                 bundleSplitInfo(c.storages.SplitStorage),
 		Segments:               bundleSegmentInfo(c.storages.SplitStorage, c.storages.SegmentStorage),
 		Latencies:              bundleProxyLatencies(c.storages.LocalTelemetryStorage),
 		BackendLatencies:       bundleLocalSyncLatencies(c.storages.LocalTelemetryStorage),
-		ImpressionsQueueSize:   impCount,
-		EventsQueueSize:        evCount,
+		ImpressionsQueueSize:   getImpressionSize(c.storages.ImpressionStorage),
+		EventsQueueSize:        getEventsSize(c.storages.EventStorage),
 		ImpressionsLambda:      c.impressionsEvCalc.Lambda(),
 		EventsLambda:           c.eventsEvCalc.Lambda(),
-		RequestsOk:             0, // TODO
-		RequestsErrored:        0, // TODO
-		SdksTotalRequests:      0, // TODO
-		BackendRequestsOk:      0, // TODO
-		BackendRequestsErrored: 0, // TODO
-		BackendTotalRequests:   0, // TODO
-		LoggedErrors:           0, // TODO
+		RequestsOk:             proxyOkReqs,
+		RequestsErrored:        proxyErrorReqs,
+		SdksTotalRequests:      proxyOkReqs + proxyErrorReqs,
+		BackendRequestsOk:      upstreamOkReqs,
+		BackendRequestsErrored: upstreamErrorReqs,
+		BackendTotalRequests:   upstreamOkReqs + upstreamErrorReqs,
+		LoggedErrors:           errorCount,
 		LoggedMessages:         errorMessages,
 		Uptime:                 int64(c.runtime.Uptime().Seconds()),
 	}

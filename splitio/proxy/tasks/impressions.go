@@ -8,6 +8,7 @@ import (
 	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/go-toolkit/v5/workerpool"
 
+	"github.com/splitio/split-synchronizer/v4/splitio/common/impressionlistener"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/internal"
 )
 
@@ -16,6 +17,7 @@ type ImpressionWorker struct {
 	name     string
 	logger   logging.LoggerInterface
 	recorder *api.HTTPImpressionRecorder
+	listener impressionlistener.ImpressionBulkListener
 }
 
 // Name returns the name of the worker
@@ -38,12 +40,28 @@ func (w *ImpressionWorker) DoWork(message interface{}) error {
 		return nil
 	}
 
+	if w.listener != nil {
+		err := w.listener.Submit(asImpressions.Payload, &asImpressions.Metadata)
+		if err != nil {
+			w.logger.Error("error queuing impressions for listener: ", err)
+		}
+	}
+
 	extraHeaders := map[string]string{"SDKImpressionsMode": asImpressions.Mode}
-	w.recorder.RecordRaw("/testImpressions/bulk", asImpressions.Payload, asImpressions.Metadata, extraHeaders)
+	err := w.recorder.RecordRaw("/testImpressions/bulk", asImpressions.Payload, asImpressions.Metadata, extraHeaders)
+
+	if err != nil {
+		return fmt.Errorf("error posting impressions to split servers: %w", err)
+	}
 	return nil
 }
 
-func newImpressionWorkerFactory(name string, recorder *api.HTTPImpressionRecorder, logger logging.LoggerInterface) WorkerFactory {
+func newImpressionWorkerFactory(
+	name string,
+	recorder *api.HTTPImpressionRecorder,
+	logger logging.LoggerInterface,
+	listener impressionlistener.ImpressionBulkListener,
+) WorkerFactory {
 	var i *int = common.IntRef(0)
 	return func() workerpool.Worker {
 		defer func() { *i++ }()
@@ -52,6 +70,19 @@ func newImpressionWorkerFactory(name string, recorder *api.HTTPImpressionRecorde
 }
 
 // NewImpressionsFlushTask creates a new impressions flushing task
-func NewImpressionsFlushTask(recorder *api.HTTPImpressionRecorder, logger logging.LoggerInterface, period int, queueSize int, threads int) *DeferredRecordingTaskImpl {
-	return newDeferredFlushTask(logger, newImpressionWorkerFactory("impressions-worker", recorder, logger), period, queueSize, threads)
+func NewImpressionsFlushTask(
+	recorder *api.HTTPImpressionRecorder,
+	logger logging.LoggerInterface,
+	period int,
+	queueSize int,
+	threads int,
+	listener impressionlistener.ImpressionBulkListener,
+) *DeferredRecordingTaskImpl {
+	return newDeferredFlushTask(
+		logger,
+		newImpressionWorkerFactory("impressions-worker", recorder, logger, listener),
+		period,
+		queueSize,
+		threads,
+	)
 }

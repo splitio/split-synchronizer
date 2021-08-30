@@ -2,25 +2,25 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/url"
 	"os"
-	"os/signal"
 	"strings"
-	"sync"
-	"syscall"
+	"time"
 
 	"github.com/splitio/go-toolkit/v5/logging"
-	"github.com/splitio/split-synchronizer/v4/appcontext"
+	"github.com/splitio/split-synchronizer/v4/splitio/common"
 	"github.com/splitio/split-synchronizer/v4/splitio/producer"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy"
 
 	"github.com/splitio/split-synchronizer/v4/conf"
-	"github.com/splitio/split-synchronizer/v4/log"
 	"github.com/splitio/split-synchronizer/v4/splitio"
+	syncLog "github.com/splitio/split-synchronizer/v4/splitio/log"
 )
 
 type configMap map[string]interface{}
@@ -31,9 +31,6 @@ type flagInformation struct {
 	versionInfo            *bool
 	cliParametersMap       configMap
 }
-
-var gracefulShutdownWaitingGroup = &sync.WaitGroup{}
-var sigs = make(chan os.Signal, 1)
 
 func parseCLIFlags() *flagInformation {
 	cliFlags := &flagInformation{
@@ -115,7 +112,7 @@ func setupLogger() logging.LoggerInterface {
 
 	_, err = url.ParseRequestURI(conf.Data.Logger.SlackWebhookURL)
 	if err == nil {
-		slackWriter = &log.SlackWriter{WebHookURL: conf.Data.Logger.SlackWebhookURL, Channel: conf.Data.Logger.SlackChannel, RefreshRate: 30}
+		slackWriter = syncLog.NewSlackWriter(conf.Data.Logger.SlackWebhookURL, conf.Data.Logger.SlackChannel, 30*time.Second)
 	}
 
 	commonWriter = io.MultiWriter(stdoutWriter, fileWriter)
@@ -140,11 +137,17 @@ func setupLogger() logging.LoggerInterface {
 	buffered[logging.LevelInfo-logging.LevelError] = true
 	buffered[logging.LevelDebug-logging.LevelError] = false
 	buffered[logging.LevelVerbose-logging.LevelError] = false
-	return log.NewHistoricLoggerWrapper(
-		log.Initialize(verboseWriter, debugWriter, commonWriter, commonWriter, fullWriter, level),
-		buffered,
-		5,
-	)
+	return syncLog.NewHistoricLoggerWrapper(logging.NewLogger(&logging.LoggerOptions{
+		StandardLoggerFlags: log.Ldate | log.Ltime | log.Lshortfile,
+		Prefix:              "SPLITIO-AGENT ",
+		VerboseWriter:       verboseWriter,
+		DebugWriter:         debugWriter,
+		InfoWriter:          commonWriter,
+		WarningWriter:       commonWriter,
+		ErrorWriter:         fullWriter,
+		LogLevel:            level,
+		ExtraFramesToSkip:   1,
+	}), buffered, 5)
 }
 
 func main() {
@@ -154,7 +157,7 @@ func main() {
 	//print the version
 	if *cliFlags.versionInfo {
 		fmt.Printf("\nSplit Synchronizer - Version: %s (%s) \n", splitio.Version, splitio.CommitVersion)
-		os.Exit(splitio.SuccessfulOperation)
+		return
 	}
 
 	//Show initial banner
@@ -164,28 +167,32 @@ func main() {
 	//writing a default configuration file if it is required by user
 	if *cliFlags.writeDefaultConfigFile != "" {
 		conf.WriteDefaultConfigFile(*cliFlags.writeDefaultConfigFile)
-		os.Exit(splitio.SuccessfulOperation)
+		return
 	}
 
 	//Initialize modules
 	err := loadConfiguration(cliFlags.configFile, cliFlags.cliParametersMap)
 	if err != nil {
 		fmt.Printf("\nSplit Synchronizer - Initialization error: %s\n", err)
-		os.Exit(splitio.ExitInvalidConfiguration)
+		os.Exit(common.ExitInvalidConfiguration)
 	}
 
-	// These functions rely on the config module being successfully populated
 	logger := setupLogger()
-
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-
 	if *cliFlags.asProxy {
-		appcontext.Initialize(appcontext.ProxyMode)
-		log.PostStartedMessageToSlack()
-		fmt.Println(proxy.Start(logger, sigs, gracefulShutdownWaitingGroup))
+		// log.PostStartedMessageToSlack() // TODO(mredolatti)
+		err = proxy.Start(logger)
 	} else {
-		appcontext.Initialize(appcontext.ProducerMode)
-		log.PostStartedMessageToSlack()
-		producer.Start(logger, sigs, gracefulShutdownWaitingGroup)
+		// log.PostStartedMessageToSlack() // TODO(mredolatti)
+		err = producer.Start(logger)
+	}
+
+	if err == nil {
+		return
+	}
+
+	var initError *common.InitializationError
+	if errors.As(err, &initError) {
+		logger.Error("Failed to initialize the split sync: ", initError)
+		os.Exit(initError.ExitCode())
 	}
 }

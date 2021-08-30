@@ -9,7 +9,6 @@ import (
 	"github.com/splitio/go-split-commons/v4/dtos"
 	"github.com/splitio/go-toolkit/v5/logging"
 
-	"github.com/splitio/split-synchronizer/v4/log"
 	tmw "github.com/splitio/split-synchronizer/v4/splitio/proxy/controllers/middleware"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/internal"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage"
@@ -60,7 +59,7 @@ func (c *EventsServerController) TestImpressionsBulk(ctx *gin.Context) {
 	impressionsMode := parseImpressionsMode(ctx.Request.Header.Get("SplitSDKImpressionsMode"))
 	data, err := ioutil.ReadAll(ctx.Request.Body)
 	if err != nil {
-		log.Instance.Error(err)
+		c.logger.Error(err)
 		c.telemetry.IncrEndpointStatus(storage.ImpressionsBulkEndpoint, http.StatusInternalServerError)
 		ctx.JSON(http.StatusInternalServerError, nil)
 		return
@@ -86,7 +85,7 @@ func (c *EventsServerController) TestImpressionsBulk(ctx *gin.Context) {
 func (c *EventsServerController) TestImpressionsBeacon(ctx *gin.Context) {
 	ctx.Set(tmw.EndpointKey, storage.ImpressionsBulkBeaconEndpoint)
 	if ctx.Request.Body == nil {
-		log.Instance.Error("Nil body when testImpressions/beacon request.")
+		c.logger.Error("Nil body when testImpressions/beacon request.")
 
 		c.telemetry.IncrEndpointStatus(storage.ImpressionsBulkBeaconEndpoint, http.StatusBadRequest)
 		ctx.JSON(http.StatusBadRequest, nil)
@@ -95,7 +94,7 @@ func (c *EventsServerController) TestImpressionsBeacon(ctx *gin.Context) {
 
 	data, err := ioutil.ReadAll(ctx.Request.Body)
 	if err != nil {
-		log.Instance.Error("Error reading testImpressions/beacon request body: ", err)
+		c.logger.Error("Error reading testImpressions/beacon request body: ", err)
 		c.telemetry.IncrEndpointStatus(storage.ImpressionsBulkBeaconEndpoint, http.StatusInternalServerError)
 		ctx.JSON(http.StatusInternalServerError, nil)
 		return
@@ -108,14 +107,14 @@ func (c *EventsServerController) TestImpressionsBeacon(ctx *gin.Context) {
 	}
 	var body BeaconImpressions
 	if err := json.Unmarshal([]byte(data), &body); err != nil {
-		log.Instance.Error("Error unmarshaling json in testImpressions/beacon request body: ", err)
+		c.logger.Error("Error unmarshaling json in testImpressions/beacon request body: ", err)
 		ctx.JSON(http.StatusBadRequest, nil)
 		c.telemetry.IncrEndpointStatus(storage.ImpressionsBulkBeaconEndpoint, http.StatusBadRequest)
 		return
 	}
 
 	if !c.apikeyValidator(&body.Token) {
-		log.Instance.Error("Unknown/invalid token when parsing testImpressions/beacon request", err)
+		c.logger.Error("Unknown/invalid token when parsing testImpressions/beacon request", err)
 		ctx.AbortWithStatus(401)
 		c.telemetry.IncrEndpointStatus(storage.ImpressionsBulkBeaconEndpoint, http.StatusUnauthorized)
 		return
@@ -246,7 +245,7 @@ func (c *EventsServerController) EventsBulkBeacon(ctx *gin.Context) {
 
 	data, err := ioutil.ReadAll(ctx.Request.Body)
 	if err != nil {
-		log.Instance.Error(err)
+		c.logger.Error(err)
 		ctx.JSON(http.StatusInternalServerError, nil)
 		c.telemetry.IncrEndpointStatus(storage.EventsBulkBeaconEndpoint, http.StatusInternalServerError)
 		return
@@ -259,7 +258,7 @@ func (c *EventsServerController) EventsBulkBeacon(ctx *gin.Context) {
 	}
 	var body BeaconEvents
 	if err := json.Unmarshal([]byte(data), &body); err != nil {
-		log.Instance.Error(err)
+		c.logger.Error(err)
 		ctx.JSON(http.StatusBadRequest, nil)
 		c.telemetry.IncrEndpointStatus(storage.EventsBulkBeaconEndpoint, http.StatusBadRequest)
 		return

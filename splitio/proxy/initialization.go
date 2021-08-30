@@ -2,9 +2,7 @@ package proxy
 
 import (
 	"fmt"
-	"os"
 	"strconv"
-	"sync"
 	"time"
 
 	cfg "github.com/splitio/go-split-commons/v4/conf"
@@ -15,10 +13,9 @@ import (
 
 	"github.com/splitio/go-split-commons/v4/tasks"
 	"github.com/splitio/split-synchronizer/v4/conf"
-	"github.com/splitio/split-synchronizer/v4/log"
-	"github.com/splitio/split-synchronizer/v4/splitio"
 	"github.com/splitio/split-synchronizer/v4/splitio/admin"
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
+	"github.com/splitio/split-synchronizer/v4/splitio/common/impressionlistener"
 	ssync "github.com/splitio/split-synchronizer/v4/splitio/common/sync"
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/evcalc"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb"
@@ -26,50 +23,15 @@ import (
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/fetcher"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage"
 	pTasks "github.com/splitio/split-synchronizer/v4/splitio/proxy/tasks"
-	"github.com/splitio/split-synchronizer/v4/splitio/task"
 	"github.com/splitio/split-synchronizer/v4/splitio/util"
 )
 
-func gracefulShutdownProxy(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup, syncManager synchronizer.Manager) {
-	<-sigs
-
-	log.PostShutdownMessageToSlack(false)
-
-	fmt.Println("\n\n * Starting graceful shutdown")
-	fmt.Println("")
-
-	// Events - Emit task stop signal
-	fmt.Println(" -> Sending STOP to impression posting goroutine")
-	// TODO(mredolatti): Setup this flushing
-
-	//controllers.StopEventsRecording()
-
-	// Impressions - Emit task stop signal
-	fmt.Println(" -> Sending STOP to event posting goroutine")
-	// controllers.StopImpressionsRecording()
-
-	// Healthcheck - Emit task stop signal
-	fmt.Println(" -> Sending STOP to healthcheck goroutine")
-	task.StopHealtcheck()
-
-	// Stopping Sync Manager in charge of PeriodicFetchers and PeriodicRecorders as well as Streaming
-	fmt.Println(" -> Sending STOP to Synchronizer")
-	syncManager.Stop()
-
-	fmt.Println(" * Waiting goroutines stop")
-	gracefulShutdownWaitingGroup.Wait()
-
-	fmt.Println(" * Shutting it down - see you soon!")
-	os.Exit(splitio.SuccessfulOperation)
-}
-
 // Start initialize in proxy mode
-func Start(logger logging.LoggerInterface, sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) error {
+func Start(logger logging.LoggerInterface) error {
 
 	clientKey, err := util.GetClientKey(conf.Data.APIKey)
 	if err != nil {
-		logger.Error(err)
-		return fmt.Errorf("error parsing client key from provided apikey: %w", err)
+		return common.NewInitError(fmt.Errorf("error parsing client key from provided apikey: %w", err), common.ExitInvalidApikey)
 	}
 
 	// Initialization of DB
@@ -79,20 +41,20 @@ func Start(logger logging.LoggerInterface, sigs chan os.Signal, gracefulShutdown
 	}
 	dbInstance, err := boltdb.NewInstance(dbpath, nil)
 	if err != nil {
-		return fmt.Errorf("error instantiating boltdb: %w", err)
+		return common.NewInitError(fmt.Errorf("error instantiating boltdb: %w", err), common.ExitErrorDB)
 	}
 
 	// Getting initial config data
 	advanced := conf.ParseAdvancedOptions()
-	metadata := util.GetMetadata()
+	metadata := util.GetMetadata(true)
 
 	// Setup fetchers & recorders
 	splitAPI := api.NewSplitAPI(conf.Data.APIKey, advanced, logger, metadata)
 
 	// Instantiating storages
-	splitCollection := collections.NewSplitChangesCollection(dbInstance)
+	splitCollection := collections.NewSplitChangesCollection(dbInstance, logger)
 	splitStorage := storage.NewSplitStorage(splitCollection)
-	segmentCollection := collections.NewSegmentChangesCollection(dbInstance)
+	segmentCollection := collections.NewSegmentChangesCollection(dbInstance, logger)
 	segmentStorage := storage.NewSegmentStorage(segmentCollection)
 
 	// Local telemetry
@@ -101,7 +63,18 @@ func Start(logger logging.LoggerInterface, sigs chan os.Signal, gracefulShutdown
 	telemetryConfigTask := pTasks.NewTelemetryConfigFlushTask(telemetryRecorder, logger, 5, 500, 2) // TODO(mredolatti): use proper config options!
 	telemetryUsageTask := pTasks.NewTelemetryUsageFlushTask(telemetryRecorder, logger, 5, 500, 2)   // TODO(mredolatti): use proper config options!
 	impressionRecorder := api.NewHTTPImpressionRecorder(conf.Data.APIKey, advanced, logger)
-	impressionTask := pTasks.NewImpressionsFlushTask(impressionRecorder, logger, 5, 2, conf.Data.ImpressionsThreads)
+
+	var impListener impressionlistener.ImpressionBulkListener
+	if conf.Data.ImpressionListener.Endpoint != "" {
+		// TODO(mredolatti): make the listener queue size configurable
+		var err error
+		impListener, err = impressionlistener.NewImpressionBulkListener(conf.Data.ImpressionListener.Endpoint, 20, nil)
+		if err != nil {
+			return common.NewInitError(fmt.Errorf("error instantiating impression listener: %w", err), common.ExitTaskInitialization)
+		}
+
+	}
+	impressionTask := pTasks.NewImpressionsFlushTask(impressionRecorder, logger, 5, 2, conf.Data.ImpressionsThreads, impListener)
 	eventsRecorder := api.NewHTTPEventsRecorder(conf.Data.APIKey, advanced, logger)
 	eventsTask := pTasks.NewEventsFlushTask(eventsRecorder, logger, 5, 500, 2) // TODO(mredolatti): use proper config options.
 
@@ -139,11 +112,11 @@ func Start(logger logging.LoggerInterface, sigs chan os.Signal, gracefulShutdown
 		&clientKey,
 	)
 	if err != nil {
-		panic(err)
+		return common.NewInitError(fmt.Errorf("error instantiating sync manager: %w", err), common.ExitTaskInitialization)
 	}
 
-	// Proxy mode - graceful shutdown
-	go gracefulShutdownProxy(sigs, gracefulShutdownWaitingGroup, syncManager)
+	// Proxy mode - graceful shutdown// TODO!
+	// go gracefulShutdownProxy(sigs, gracefulShutdownWaitingGroup, syncManager)
 
 	// Run Sync Manager
 	before := time.Now()
@@ -163,7 +136,7 @@ func Start(logger logging.LoggerInterface, sigs chan os.Signal, gracefulShutdown
 				},
 				ManagerConfig: cfg.ManagerConfig{
 					ImpressionsMode: conf.Data.ImpressionsMode,
-					ListenerEnabled: conf.Data.ImpressionListener.Endpoint != "",
+					ListenerEnabled: false, // listener is not by impression, this is not needed in split-sync
 				},
 			},
 			time.Now().Sub(before).Milliseconds(),
@@ -172,7 +145,7 @@ func Start(logger logging.LoggerInterface, sigs chan os.Signal, gracefulShutdown
 		)
 	case synchronizer.Error:
 		logger.Error("Initial synchronization failed. Either split is unreachable or the APIKey is incorrect. Aborting execution.")
-		os.Exit(splitio.ExitTaskInitialization)
+		return common.NewInitError(fmt.Errorf("error instantiating sync manager: %w", err), common.ExitTaskInitialization)
 	}
 
 	// TODO(mredolatti): setup impression listener properly
@@ -182,7 +155,7 @@ func Start(logger logging.LoggerInterface, sigs chan os.Signal, gracefulShutdown
 	// 	})
 	// }
 
-	rtm := common.NewRuntime()
+	rtm := common.NewRuntime(false, syncManager, logger, nil, nil)
 	impressionEvictionMonitor := evcalc.New(1) // TODO(mredolatti): set the correct thread count
 	eventEvictionMonitor := evcalc.New(1)      // TODO(mredolatti): set the correct thread count
 
@@ -207,7 +180,7 @@ func Start(logger logging.LoggerInterface, sigs chan os.Signal, gracefulShutdown
 		Runtime:           rtm,
 	})
 	if err != nil {
-		panic(err.Error())
+		return common.NewInitError(fmt.Errorf("error starting admin server: %w", err), common.ExitAdminError)
 	}
 	go adminServer.ListenAndServe()
 
@@ -223,18 +196,10 @@ func Start(logger logging.LoggerInterface, sigs chan os.Signal, gracefulShutdown
 	}
 
 	proxyAPI := New(proxyOptions)
-	return proxyAPI.Start()
+	go proxyAPI.Start()
 
-	// TODO(mredolatti): configure and start webadmin
-	// AdminPort:                 conf.Data.Proxy.AdminPort,
-	// AdminUsername:             conf.Data.Proxy.AdminUsername,
-	// AdminPassword:             conf.Data.Proxy.AdminPassword,
-	// ImpressionListenerEnabled: conf.Data.ImpressionListener.Endpoint != "",
-	// httpClients:    httpClients,
-	// splitStorage:   splitStorage,
-	// segmentStorage: segmentStorage,
-	// latencyStorage: localTelemetryStorage,
-
-	// go task.CheckEnvirontmentStatus(gracefulShutdownWaitingGroup, splitStorage, httpClients)
-
+	//
+	rtm.RegisterShutdownHandler()
+	rtm.Block()
+	return nil
 }

@@ -21,7 +21,6 @@ type Options struct {
 	Password          string
 	Logger            logging.LoggerInterface
 	Storages          common.Storages
-	HTTPClients       common.HTTPClients
 	ImpressionsEvCalc evcalc.Monitor
 	EventsEvCalc      evcalc.Monitor
 	Runtime           common.Runtime
@@ -33,7 +32,6 @@ func NewServer(options *Options) (*http.Server, error) {
 		options.Proxy,
 		options.Logger,
 		options.Storages,
-		options.HTTPClients,
 		options.ImpressionsEvCalc,
 		options.EventsEvCalc,
 		options.Runtime,
