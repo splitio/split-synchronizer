@@ -13,6 +13,7 @@ const (
 	ExitErrorDB
 	ExitTaskInitialization
 	ExitAdminError
+	ExitUndefined
 )
 
 // InitializationError wraps an error and an exit code
