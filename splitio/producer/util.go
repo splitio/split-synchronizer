@@ -108,12 +108,6 @@ func isValidApikey(splitFetcher service.SplitFetcher) bool {
 	return err == nil
 }
 
-func startLoop(loopTime int64) {
-	for {
-		time.Sleep(time.Duration(loopTime) * time.Millisecond)
-	}
-}
-
 func sanitizeRedis(miscStorage *redis.MiscStorage, logger logging.LoggerInterface) error {
 	if miscStorage == nil {
 		return errors.New("Could not sanitize redis")
