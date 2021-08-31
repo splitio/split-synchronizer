@@ -1,0 +1,88 @@
+name: cd
+on:
+  push:
+    branches:
+      - main
+      - master
+jobs:
+  push-docker-image:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+    steps:
+      - name: Login to Artifactory
+        uses: docker/login-action@v1
+        with:
+          registry: splitio-docker.jfrog.io
+          username: ${{ secrets.ARTIFACTORY_DOCKER_USER }}
+          password: ${{ secrets.ARTIFACTORY_DOCKER_PASS }}
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '^1.13.1'
+      - name: Set build version
+        run: echo "VERSION=$(tail -n 1 splitio/version.go | awk '{print $4}' | tr -d '"')" >> $GITHUB_ENV
+      - name: Execute build
+        run: |
+          mkdir -p ./release/deploy/synchronizer/$VERSION
+          cd ./release; sh build.sh
+      - name: Run test
+        run: go test -v -cover $(go list ./... | grep -v /vendor/)
+      - name: Setup deploy
+        run: |
+          cd ./release
+          cat versions.pre.html versions.html versions.pos.html > ./deploy/synchronizer/versions.html
+          cp install_linux_*.bin ./deploy/synchronizer/$VERSION/
+          cp install_osx_*.bin ./deploy/synchronizer/$VERSION/
+          cp split-sync-win_*.zip ./deploy/synchronizer/$VERSION/
+          cd ./deploy/synchronizer/$VERSION
+          cp install_linux_*.bin ../install_linux.bin
+          cp install_osx_*.bin ../install_osx.bin
+          cp split-sync-win_*.zip ../split-sync-win.zip
+      - name: Docker Build and Push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          push: true
+          tags: splitio-docker.jfrog.io/${{ github.event.repository.name }}:${{ github.sha }}
+      - name: Deploy to S3
+        uses: jakejarvis/s3-sync-action@v0.5.1
+        env:
+          AWS_S3_BUCKET: 'downloads.split.io'
+          AWS_ACCESS_KEY_ID: ${{ secrets.ARTIFACTS_SYNCHRONIZER_AWS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.ARTIFACTS_SYNCHRONIZER_AWS_SECRET }}
+          AWS_REGION: 'us-east-1'
+          SOURCE_DIR: './release/deploy'
+      - name: SonarQube Scan (Push)
+        if: github.event_name == 'push'
+        uses: SonarSource/sonarcloud-github-action@v1.5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+        with:
+          projectBaseDir: .
+          args: >
+            -Dsonar.host.url=${{ secrets.SONARQUBE_HOST }}
+            -Dsonar.projectName=${{ github.event.repository.name }}
+            -Dsonar.projectKey=${{ github.event.repository.name }}
+            -Dsonar.projectVersion=${{ env.VERSION }}
+            -Dsonar.exclusions='**/*_test.go,**/vendor/**,**/testdata/*'
+            -Dsonar.go.coverage.reportPaths=coverage.out
+            -Dsonar.links.ci="https://github.com/splitio/${{ github.event.repository.name }}/actions"
+            -Dsonar.links.scm="https://github.com/splitio/${{ github.event.repository.name }}"
+
+  deploy-to-stage:
+    name: Deploy to Stage
+    runs-on: ubuntu-latest
+    needs: push-docker-image
+    steps:
+      - name: Deploy to R2D2 in stage
+        run: |
+          curl --header "Content-Type: application/json" \
+            --request PUT \
+            --data '{	"service": "${{ github.event.repository.name }}", "environment": "stage", "tag": "${{ github.sha }}", "token": "${{ secrets.SLACK_TOKEN }}"}' \
+            https://r2d2.split-stage.io/deployment
