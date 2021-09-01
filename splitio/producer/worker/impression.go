@@ -14,10 +14,10 @@ import (
 	"github.com/splitio/go-split-commons/v4/telemetry"
 	commonToolkit "github.com/splitio/go-toolkit/v5/common"
 	"github.com/splitio/go-toolkit/v5/logging"
-	"github.com/splitio/split-synchronizer/v4/appcontext"
-	"github.com/splitio/split-synchronizer/v4/splitio"
+
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
-	"github.com/splitio/split-synchronizer/v4/splitio/task"
+	"github.com/splitio/split-synchronizer/v4/splitio/common/impressionlistener"
+	"github.com/splitio/split-synchronizer/v4/splitio/producer/evcalc"
 )
 
 const (
@@ -26,36 +26,40 @@ const (
 
 // RecorderImpressionMultiple struct for impression sync
 type RecorderImpressionMultiple struct {
-	impressionStorage         storage.ImpressionStorageConsumer
-	impressionRecorder        service.ImpressionsRecorder
-	localTelemetry            storage.TelemetryRuntimeProducer
-	impressionListenerEnabled bool
-	logger                    logging.LoggerInterface
-	impressionManager         provisional.ImpressionManager
-	mode                      string
+	impressionStorage  storage.ImpressionStorageConsumer
+	impressionRecorder service.ImpressionsRecorder
+	localTelemetry     storage.TelemetryRuntimeProducer
+	listener           impressionlistener.ImpressionBulkListener
+	logger             logging.LoggerInterface
+	impressionManager  provisional.ImpressionManager
+	mode               string
+	evictionMonitor    evcalc.Monitor
 }
 
 // NewImpressionRecordMultiple creates new impression synchronizer for posting impressions
 func NewImpressionRecordMultiple(
 	impressionStorage storage.ImpressionStorageConsumer,
 	impressionRecorder service.ImpressionsRecorder,
+	listener impressionlistener.ImpressionBulkListener,
 	localTelemetry storage.TelemetryRuntimeProducer,
 	logger logging.LoggerInterface,
 	managerConfig conf.ManagerConfig,
 	impressionsCounter *provisional.ImpressionsCounter,
+	evictionMonitor evcalc.Monitor,
 ) (*RecorderImpressionMultiple, error) {
 	impressionManager, err := provisional.NewImpressionManager(managerConfig, impressionsCounter, localTelemetry)
 	if err != nil {
 		return nil, err
 	}
 	return &RecorderImpressionMultiple{
-		impressionStorage:         impressionStorage,
-		impressionRecorder:        impressionRecorder,
-		localTelemetry:            localTelemetry,
-		impressionListenerEnabled: managerConfig.ListenerEnabled,
-		logger:                    logger,
-		impressionManager:         impressionManager,
-		mode:                      managerConfig.ImpressionsMode,
+		impressionStorage:  impressionStorage,
+		impressionRecorder: impressionRecorder,
+		listener:           listener,
+		localTelemetry:     localTelemetry,
+		logger:             logger,
+		impressionManager:  impressionManager,
+		mode:               managerConfig.ImpressionsMode,
+		evictionMonitor:    evictionMonitor,
 	}, nil
 }
 
@@ -96,9 +100,7 @@ func (r *RecorderImpressionMultiple) fetch(bulkSize int64) (map[dtos.Metadata][]
 func (r *RecorderImpressionMultiple) recordImpressions(impressionsToSend map[dtos.Metadata][]dtos.ImpressionsDTO) error {
 	for metadata, impressions := range impressionsToSend {
 		before := time.Now()
-		if appcontext.ExecutionMode() == appcontext.ProducerMode {
-			task.StoreDataFlushed(before.UnixNano(), len(impressions), r.impressionStorage.Count(), "impressions")
-		}
+		r.evictionMonitor.StoreDataFlushed(before.UnixNano(), len(impressions), r.impressionStorage.Count())
 		err := commonToolkit.WithAttempts(3, func() error {
 			r.logger.Debug("impressionsToSend: ", len(impressions))
 			err := r.impressionRecorder.Record(impressions, metadata, map[string]string{"SplitSDKImpressionsMode": r.mode})
@@ -121,20 +123,19 @@ func (r *RecorderImpressionMultiple) recordImpressions(impressionsToSend map[dto
 }
 
 func (r *RecorderImpressionMultiple) sendDataToListener(impressionsToListener map[dtos.Metadata][]common.ImpressionsListener) {
+	if r.listener == nil {
+		return
+	}
 	for metadata, impressions := range impressionsToListener {
 		rawImpressions, err := json.Marshal(impressions)
 		if err != nil {
-			r.logger.Error("JSON encoding failed for the following impressions", impressions)
+			r.logger.Error("JSON encoding failed for the following impressions", impressions, metadata)
 			continue
 		}
-		err = task.QueueImpressionsForListener(&task.ImpressionBulk{
-			Data:        json.RawMessage(rawImpressions),
-			SdkVersion:  metadata.SDKVersion,
-			MachineIP:   metadata.MachineIP,
-			MachineName: metadata.MachineName,
-		})
+
+		err = r.listener.Submit(rawImpressions, &metadata)
 		if err != nil {
-			r.logger.Error(err)
+			r.logger.Error("error queuing impressions for listener: ", err)
 		}
 	}
 }
@@ -149,15 +150,14 @@ func (r *RecorderImpressionMultiple) synchronizeImpressions(bulkSize int64) erro
 	if err != nil {
 		return err
 	}
-	if r.impressionListenerEnabled {
-		r.sendDataToListener(impressionsForListener)
-	}
+
+	r.sendDataToListener(impressionsForListener)
 	return nil
 }
 
 // SynchronizeImpressions syncs impressions
 func (r *RecorderImpressionMultiple) SynchronizeImpressions(bulkSize int64) error {
-	if task.IsOperationRunning(task.ImpressionsOperation) {
+	if r.evictionMonitor.Busy() {
 		r.logger.Debug("Another task executed by the user is performing operations on Impressions. Skipping.")
 		return nil
 	}
@@ -167,28 +167,28 @@ func (r *RecorderImpressionMultiple) SynchronizeImpressions(bulkSize int64) erro
 
 // FlushImpressions flushes impressions
 func (r *RecorderImpressionMultiple) FlushImpressions(bulkSize int64) error {
-	if task.RequestOperation(task.ImpressionsOperation) {
-		defer task.FinishOperation(task.ImpressionsOperation)
+	if r.evictionMonitor.Acquire() {
+		defer r.evictionMonitor.Release()
 	} else {
 		r.logger.Debug("Cannot execute flush. Another operation is performing operations on Impressions.")
 		return errors.New("Cannot execute flush. Another operation is performing operations on Impressions")
 	}
-	elementsToFlush := splitio.MaxSizeToFlush
+	elementsToFlush := maxFlushSize
 
 	if bulkSize != 0 {
 		elementsToFlush = bulkSize
 	}
 
 	for elementsToFlush > 0 && r.impressionStorage.Count() > 0 {
-		maxSize := splitio.DefaultSize
-		if elementsToFlush < splitio.DefaultSize {
+		maxSize := defaultFlushSize
+		if elementsToFlush < defaultFlushSize {
 			maxSize = elementsToFlush
 		}
 		err := r.synchronizeImpressions(maxSize)
 		if err != nil {
 			return err
 		}
-		elementsToFlush = elementsToFlush - splitio.DefaultSize
+		elementsToFlush = elementsToFlush - defaultFlushSize
 	}
 	return nil
 }

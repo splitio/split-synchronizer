@@ -9,8 +9,8 @@ import (
 	"github.com/splitio/go-split-commons/v4/dtos"
 	"github.com/splitio/go-toolkit/v5/hasher"
 	"github.com/splitio/go-toolkit/v5/nethelpers"
-	"github.com/splitio/split-synchronizer/v4/appcontext"
 	"github.com/splitio/split-synchronizer/v4/conf"
+	"github.com/splitio/split-synchronizer/v4/splitio"
 )
 
 // ParseTime parses a date to format d h m s
@@ -54,7 +54,7 @@ func GetClientKey(apikey string) (string, error) {
 }
 
 // GetMetadata wrapps metadata
-func GetMetadata() dtos.Metadata {
+func GetMetadata(proxy bool) dtos.Metadata {
 	instanceName := "unknown"
 	ipAddress := "unknown"
 	if conf.Data.IPAddressesEnabled {
@@ -65,9 +65,14 @@ func GetMetadata() dtos.Metadata {
 		}
 	}
 
+	appName := "SplitSyncProducerMode-"
+	if proxy {
+		appName = "SplitSyncProxyMode-"
+	}
+
 	return dtos.Metadata{
 		MachineIP:   ipAddress,
 		MachineName: instanceName,
-		SDKVersion:  appcontext.VersionHeader(),
+		SDKVersion:  appName + splitio.Version,
 	}
 }

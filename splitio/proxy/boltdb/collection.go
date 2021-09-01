@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/boltdb/bolt"
-	"github.com/splitio/split-synchronizer/v4/log"
+	"github.com/splitio/go-toolkit/v5/logging"
 )
 
 var mutex = &sync.Mutex{}
@@ -20,7 +20,8 @@ type Collection struct {
 	//DB is a pointer to bolt DB
 	DB *bolt.DB
 	//Name is the collection name used for bucket name
-	Name string
+	Name   string
+	logger logging.LoggerInterface
 }
 
 // Delete removess an item into collection under key parameter
@@ -98,7 +99,7 @@ func (c Collection) Save(item CollectionItem) (uint64, error) {
 	})
 
 	if updateError != nil {
-		log.Instance.Error(updateError)
+		c.logger.Error(updateError)
 		return 0, updateError
 	}
 
@@ -108,7 +109,7 @@ func (c Collection) Save(item CollectionItem) (uint64, error) {
 // Update an item into collection with current item ID
 func (c Collection) Update(item CollectionItem) error {
 	if !(item.ID() > 0) {
-		log.Instance.Error("Trying to update an item with ID 0")
+		c.logger.Error("Trying to update an item with ID 0")
 		return errors.New("Invalid ID, it must be grater than zero")
 	}
 
@@ -136,7 +137,7 @@ func (c Collection) Update(item CollectionItem) error {
 	})
 
 	if updateError != nil {
-		log.Instance.Error(updateError)
+		c.logger.Error(updateError)
 		return updateError
 	}
 
