@@ -10,19 +10,20 @@ import (
 	"github.com/boltdb/bolt"
 	"github.com/splitio/go-split-commons/v4/dtos"
 	"github.com/splitio/go-toolkit/v5/datastructures/set"
-	"github.com/splitio/split-synchronizer/v4/log"
+	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb"
 )
 
 const splitChangesCollectionName = "SPLIT_CHANGES_COLLECTION"
 
 // NewSplitChangesCollection returns an instance of SplitChangesCollection
-func NewSplitChangesCollection(dbb *bolt.DB) SplitChangesCollection {
+func NewSplitChangesCollection(dbb *bolt.DB, logger logging.LoggerInterface) SplitChangesCollection {
 	baseCollection := boltdb.Collection{DB: dbb, Name: splitChangesCollectionName}
 	sCollection := SplitChangesCollection{
 		Collection:   baseCollection,
 		changeNumber: 0,
 		mutexTill:    &sync.RWMutex{},
+		logger:       logger,
 	}
 	return sCollection
 }
@@ -57,6 +58,7 @@ type SplitChangesCollection struct {
 	boltdb.Collection
 	mutexTill    *sync.RWMutex
 	changeNumber int64
+	logger       logging.LoggerInterface
 }
 
 // Delete an item
@@ -94,7 +96,7 @@ func (c *SplitChangesCollection) FetchAll() (SplitsChangesItems, error) {
 
 		errq := dec.Decode(&q)
 		if errq != nil {
-			log.Instance.Error("decode error:", errq, "|", string(v))
+			c.logger.Error("decode error:", errq, "|", string(v))
 			continue
 		}
 		toReturn = append(toReturn, q)
