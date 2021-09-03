@@ -18,7 +18,7 @@ func TestThresholdCounter(t *testing.T) {
 
 	counter.NotifyEvent()
 	res := counter.IsHealthy()
-	if !res {
+	if !res.Healthy {
 		t.Errorf("Healthy should be true")
 	}
 
@@ -26,7 +26,7 @@ func TestThresholdCounter(t *testing.T) {
 
 	counter.NotifyEvent()
 	res = counter.IsHealthy()
-	if !res {
+	if !res.Healthy {
 		t.Errorf("Healthy should be true")
 	}
 
@@ -34,7 +34,7 @@ func TestThresholdCounter(t *testing.T) {
 
 	time.Sleep(time.Duration(2) * time.Second)
 	res = counter.IsHealthy()
-	if res {
+	if res.Healthy {
 		t.Errorf("Healthy should be false")
 	}
 

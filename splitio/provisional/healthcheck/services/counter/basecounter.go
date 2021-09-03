@@ -24,7 +24,7 @@ const (
 	Low
 )
 
-// Config description
+// Config counter config
 type Config struct {
 	CounterType           int
 	MaxErrorsAllowed      int
@@ -39,7 +39,7 @@ type Config struct {
 	TaskPeriod            int
 }
 
-// BaseCounterInterface description
+// BaseCounterInterface interface
 type BaseCounterInterface interface {
 	NotifyServiceHit(statusCode int, message string)
 	IsHealthy() HealthyResult
@@ -47,7 +47,7 @@ type BaseCounterInterface interface {
 	Stop()
 }
 
-// BaseCounterImp description
+// BaseCounterImp counter implementatiom
 type BaseCounterImp struct {
 	lock         sync.RWMutex
 	logger       logging.LoggerInterface
@@ -60,7 +60,7 @@ type BaseCounterImp struct {
 	task         *asynctask.AsyncTask
 }
 
-// HealthyResult description
+// HealthyResult result
 type HealthyResult struct {
 	Name         string
 	Severity     int
@@ -70,7 +70,7 @@ type HealthyResult struct {
 	LastHit      *time.Time
 }
 
-// IsHealthy description
+// IsHealthy return counter health
 func (c *BaseCounterImp) IsHealthy() HealthyResult {
 	c.lock.Lock()
 	defer c.lock.Unlock()

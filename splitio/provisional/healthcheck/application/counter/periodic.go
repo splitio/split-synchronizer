@@ -5,54 +5,53 @@ import (
 	"github.com/splitio/go-toolkit/logging"
 )
 
-// PeriodicImp description
+// PeriodicImp periodic counter struct
 type PeriodicImp struct {
 	ApplicationCounterImp
-	errorsCount              int
 	maxErrorsAllowedInPeriod int
 	task                     *asynctask.AsyncTask
 }
 
-// GetErrorsCount description
-func (c *PeriodicImp) GetErrorsCount() *int {
-	return &c.errorsCount
+// GetErrorCount return errors count
+func (c *PeriodicImp) GetErrorCount() *int {
+	return &c.errorCount
 }
 
-// NotifyEvent description
+// NotifyEvent increase errorCount and check the health
 func (c *PeriodicImp) NotifyEvent() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	c.errorsCount++
+	c.errorCount++
 
-	if c.errorsCount >= c.maxErrorsAllowedInPeriod {
+	if c.errorCount >= c.maxErrorsAllowedInPeriod {
 		c.healthy = false
 	}
 
 	c.updateLastHit()
 }
 
-// Reset description
+// Reset errorCount
 func (c *PeriodicImp) Reset(value int) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	c.errorsCount = value
+	c.errorCount = value
 
 	return nil
 }
 
-// Start description
+// Start counter
 func (c *PeriodicImp) Start() {
 	c.task.Start()
 }
 
-// Stop description
+// Stop counter
 func (c *PeriodicImp) Stop() {
 	c.task.Stop(false)
 }
 
-// NewCounterPeriodic description
+// NewCounterPeriodic create new periodic counter
 func NewCounterPeriodic(
 	config Config,
 	logger logging.LoggerInterface,

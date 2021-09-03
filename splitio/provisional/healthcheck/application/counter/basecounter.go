@@ -7,18 +7,23 @@ import (
 	"github.com/splitio/go-toolkit/logging"
 )
 
-// BaseCounterInterface description
+// BaseCounterInterface application counter interface
 type BaseCounterInterface interface {
-	IsHealthy() bool
+	IsHealthy() HealthyResult
 	NotifyEvent()
 	Reset(value int) error
 	GetType() int
-	GetLastHit() *time.Time
-	GetName() string
 	Start()
 	Stop()
-	GetErrorsCount() *int
-	GetSeverity() int
+}
+
+// HealthyResult description
+type HealthyResult struct {
+	Name       string
+	Severity   int
+	Healthy    bool
+	LastHit    *time.Time
+	ErrorCount int
 }
 
 const (
@@ -39,7 +44,7 @@ const (
 	Low
 )
 
-// Config description
+// Config counter configuration
 type Config struct {
 	Name                     string
 	CounterType              int
@@ -59,6 +64,7 @@ type ApplicationCounterImp struct {
 	running     bool
 	period      int
 	severity    int
+	errorCount  int
 	lock        sync.RWMutex
 	logger      logging.LoggerInterface
 }
@@ -68,32 +74,27 @@ func (c *ApplicationCounterImp) updateLastHit() {
 	c.lastHit = &now
 }
 
-// GetSeverity description
-func (c *ApplicationCounterImp) GetSeverity() int {
-	return c.severity
-}
-
-// GetType description
+// GetType return counter type
 func (c *ApplicationCounterImp) GetType() int {
 	return c.counterType
 }
 
-// GetLastHit description
-func (c *ApplicationCounterImp) GetLastHit() *time.Time {
-	return c.lastHit
+// IsHealthy return the counter health
+func (c *ApplicationCounterImp) IsHealthy() HealthyResult {
+	/*
+
+		ErrorCount: counter.GetErrorCount(),
+	*/
+	return HealthyResult{
+		Name:       c.name,
+		Healthy:    c.healthy,
+		Severity:   c.severity,
+		LastHit:    c.lastHit,
+		ErrorCount: c.errorCount,
+	}
 }
 
-// GetName description
-func (c *ApplicationCounterImp) GetName() string {
-	return c.name
-}
-
-// IsHealthy description
-func (c *ApplicationCounterImp) IsHealthy() bool {
-	return c.healthy
-}
-
-// NewApplicationCounterImp description
+// NewApplicationCounterImp create an application counter
 func NewApplicationCounterImp(
 	name string,
 	counterType int,

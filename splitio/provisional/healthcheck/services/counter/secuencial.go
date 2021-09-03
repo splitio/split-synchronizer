@@ -40,7 +40,7 @@ func (c *SecuencialImp) registerError(message string) {
 	}
 }
 
-// NotifyServiceHit description
+// NotifyServiceHit process hit
 func (c *SecuencialImp) NotifyServiceHit(statusCode int, message string) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
@@ -57,7 +57,7 @@ func (c *SecuencialImp) NotifyServiceHit(statusCode int, message string) {
 	c.lastHit = &now
 }
 
-// NewCounterSecuencial description
+// NewCounterSecuencial create sucuencial counter
 func NewCounterSecuencial(
 	config Config,
 	logger logging.LoggerInterface,

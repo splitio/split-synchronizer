@@ -46,7 +46,7 @@ func (c *ByPercentageImp) calculateHealthy() {
 	c.healthy = isHealthy
 }
 
-// NotifyServiceHit description
+// NotifyServiceHit process hit
 func (c *ByPercentageImp) NotifyServiceHit(statusCode int, message string) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
@@ -70,7 +70,7 @@ func (c *ByPercentageImp) NotifyServiceHit(statusCode int, message string) {
 	c.lastHit = &now
 }
 
-// NewCounterByPercentage description
+// NewCounterByPercentage new ByPercentage counter
 func NewCounterByPercentage(
 	config Config,
 	logger logging.LoggerInterface,

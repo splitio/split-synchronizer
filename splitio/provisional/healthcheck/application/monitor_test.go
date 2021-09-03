@@ -45,7 +45,7 @@ func TestMonitor(t *testing.T) {
 		Period:      10,
 		Periodic:    true,
 		TaskFunc: func(l logging.LoggerInterface, c counter.BaseCounterInterface) error {
-			if c.IsHealthy() {
+			if c.IsHealthy().Healthy {
 				c.Reset(0)
 			}
 

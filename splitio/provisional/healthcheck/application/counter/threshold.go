@@ -14,13 +14,13 @@ type ThresholdImp struct {
 	reset  chan struct{}
 }
 
-// GetErrorsCount description
-func (c *ThresholdImp) GetErrorsCount() *int {
+// GetErrorCount get error count
+func (c *ThresholdImp) GetErrorCount() *int {
 	// no-op
 	return nil
 }
 
-// NotifyEvent description
+// NotifyEvent reset the timer
 func (c *ThresholdImp) NotifyEvent() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
@@ -29,7 +29,7 @@ func (c *ThresholdImp) NotifyEvent() {
 	c.updateLastHit()
 }
 
-// Reset description
+// Reset the threshold value
 func (c *ThresholdImp) Reset(newThreshold int) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
@@ -44,7 +44,7 @@ func (c *ThresholdImp) Reset(newThreshold int) error {
 	return nil
 }
 
-// Start description
+// Start counter and timer
 func (c *ThresholdImp) Start() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
@@ -71,7 +71,7 @@ func (c *ThresholdImp) Start() {
 	}()
 }
 
-// Stop description
+// Stop counter
 func (c *ThresholdImp) Stop() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
@@ -84,7 +84,7 @@ func (c *ThresholdImp) Stop() {
 	c.cancel <- struct{}{}
 }
 
-// NewCounterThresholdImp description
+// NewCounterThresholdImp create Threshold counter
 func NewCounterThresholdImp(
 	config Config,
 	logger logging.LoggerInterface,
