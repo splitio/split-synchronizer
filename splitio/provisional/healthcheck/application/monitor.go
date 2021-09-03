@@ -25,11 +25,11 @@ type HealthDto struct {
 
 // ItemDto description
 type ItemDto struct {
-	Name        string     `json:"name"`
-	Healthy     bool       `json:"healthy"`
-	LastHit     *time.Time `json:"lastHit,omitempty"`
-	ErrorsCount *int       `json:"errorsCount,omitempty"`
-	Severity    int        `json:"-"`
+	Name       string     `json:"name"`
+	Healthy    bool       `json:"healthy"`
+	LastHit    *time.Time `json:"lastHit,omitempty"`
+	ErrorCount int        `json:"errorCount,omitempty"`
+	Severity   int        `json:"-"`
 }
 
 func (m *MonitorImp) getHealthySince(healthy bool) *time.Time {
@@ -50,7 +50,7 @@ func checkIfIsHealthy(result []ItemDto) bool {
 	return true
 }
 
-// GetHealthStatus description
+// GetHealthStatus get application health
 func (m *MonitorImp) GetHealthStatus() HealthDto {
 	m.lock.Lock()
 	defer m.lock.Unlock()
@@ -58,12 +58,13 @@ func (m *MonitorImp) GetHealthStatus() HealthDto {
 	var items []ItemDto
 
 	for _, counter := range m.counters {
+		res := counter.IsHealthy()
 		items = append(items, ItemDto{
-			Name:        counter.GetName(),
-			Healthy:     counter.IsHealthy(),
-			LastHit:     counter.GetLastHit(),
-			ErrorsCount: counter.GetErrorsCount(),
-			Severity:    counter.GetSeverity(),
+			Name:       res.Name,
+			Healthy:    res.Healthy,
+			LastHit:    res.LastHit,
+			ErrorCount: res.ErrorCount,
+			Severity:   res.Severity,
 		})
 	}
 
@@ -77,7 +78,7 @@ func (m *MonitorImp) GetHealthStatus() HealthDto {
 	}
 }
 
-// NotifyEvent description
+// NotifyEvent notify to counter an event
 func (m *MonitorImp) NotifyEvent(counterType int) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
@@ -89,7 +90,7 @@ func (m *MonitorImp) NotifyEvent(counterType int) {
 	}
 }
 
-// Reset description
+// Reset counter value
 func (m *MonitorImp) Reset(counterType int, value int) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
@@ -101,7 +102,7 @@ func (m *MonitorImp) Reset(counterType int, value int) {
 	}
 }
 
-// Start description
+// Start counters
 func (m *MonitorImp) Start() {
 	m.lock.Lock()
 	defer m.lock.Unlock()
@@ -111,7 +112,7 @@ func (m *MonitorImp) Start() {
 	}
 }
 
-// Stop description
+// Stop counters
 func (m *MonitorImp) Stop() {
 	m.lock.Lock()
 	defer m.lock.Unlock()
@@ -121,7 +122,7 @@ func (m *MonitorImp) Stop() {
 	}
 }
 
-// NewMonitorImp description
+// NewMonitorImp create a new application monitor
 func NewMonitorImp(
 	cfgs []counter.Config,
 	logger logging.LoggerInterface,

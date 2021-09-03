@@ -21,23 +21,23 @@ func TestPeriodicCounter(t *testing.T) {
 	counter.Start()
 
 	res := counter.IsHealthy()
-	if !res {
+	if !res.Healthy {
 		t.Errorf("Healthy should be true")
 	}
 
 	counter.NotifyEvent()
 	res = counter.IsHealthy()
-	if !res {
+	if !res.Healthy {
 		t.Errorf("Healthy should be true")
 	}
 
 	counter.Reset(0)
 	res = counter.IsHealthy()
-	if !res {
+	if !res.Healthy {
 		t.Errorf("Healthy should be true")
 	}
 
-	count := counter.GetErrorsCount()
+	count := counter.GetErrorCount()
 	if *count != 0 {
 		t.Errorf("Errors should be 0")
 	}
@@ -45,11 +45,11 @@ func TestPeriodicCounter(t *testing.T) {
 	counter.NotifyEvent()
 	counter.NotifyEvent()
 	res = counter.IsHealthy()
-	if res {
+	if res.Healthy {
 		t.Errorf("Healthy should be false")
 	}
 
-	count = counter.GetErrorsCount()
+	count = counter.GetErrorCount()
 	if *count != 2 {
 		t.Errorf("Errors should be 2")
 	}

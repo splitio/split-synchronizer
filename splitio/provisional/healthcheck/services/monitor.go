@@ -23,12 +23,12 @@ type MonitorImp struct {
 
 // HealthDto description
 type HealthDto struct {
-	Status       string         `json:"serviceStatus"`
-	Dependencies []DependecyDto `json:"dependencies"`
+	Status string    `json:"serviceStatus"`
+	Items  []ItemDto `json:"dependencies"`
 }
 
-// DependecyDto description
-type DependecyDto struct {
+// ItemDto description
+type ItemDto struct {
 	Service      string     `json:"service"`
 	Healthy      bool       `json:"healthy"`
 	Message      string     `json:"message,omitempty"`
@@ -56,12 +56,12 @@ func (m *MonitorImp) Stop() {
 	}
 }
 
-// GetHealthStatus description
+// GetHealthStatus return services health
 func (m *MonitorImp) GetHealthStatus() HealthDto {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
-	var dependencies []DependecyDto
+	var items []ItemDto
 
 	criticalCount := 0
 	degradedCount := 0
@@ -78,7 +78,7 @@ func (m *MonitorImp) GetHealthStatus() HealthDto {
 			}
 		}
 
-		dependencies = append(dependencies, DependecyDto{
+		items = append(items, ItemDto{
 			Service:      res.Name,
 			Healthy:      res.Healthy,
 			Message:      res.LastMessage,
@@ -96,12 +96,12 @@ func (m *MonitorImp) GetHealthStatus() HealthDto {
 	}
 
 	return HealthDto{
-		Status:       status,
-		Dependencies: dependencies,
+		Status: status,
+		Items:  items,
 	}
 }
 
-// NewMonitorImp description
+// NewMonitorImp create services monitor
 func NewMonitorImp(
 	cfgs []counter.Config,
 	logger logging.LoggerInterface,
