@@ -10,6 +10,7 @@ import (
 	"github.com/splitio/go-toolkit/v5/logging"
 
 	"github.com/splitio/split-synchronizer/v4/splitio"
+	adminCommon "github.com/splitio/split-synchronizer/v4/splitio/admin/common"
 	"github.com/splitio/split-synchronizer/v4/splitio/admin/views/dashboard"
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
 	"github.com/splitio/split-synchronizer/v4/splitio/log"
@@ -18,14 +19,15 @@ import (
 
 // DashboardController contains handlers for rendering the dashboard and its associated FE queries
 type DashboardController struct {
-	title             string
-	proxy             bool
-	logger            logging.LoggerInterface
-	storages          common.Storages
-	layout            *template.Template
-	impressionsEvCalc evcalc.Monitor
-	eventsEvCalc      evcalc.Monitor
-	runtime           common.Runtime
+	title              string
+	proxy              bool
+	logger             logging.LoggerInterface
+	storages           adminCommon.Storages
+	layout             *template.Template
+	impressionsEvCalc  evcalc.Monitor
+	eventsEvCalc       evcalc.Monitor
+	runtime            common.Runtime
+	dataControllerPath *string
 }
 
 // NewDashboardController instantiates a new dashboard controller
@@ -33,19 +35,27 @@ func NewDashboardController(
 	name string,
 	proxy bool,
 	logger logging.LoggerInterface,
-	storages common.Storages,
+	storages adminCommon.Storages,
 	impressionEvCalc evcalc.Monitor,
 	eventsEvCalc evcalc.Monitor,
 	runtime common.Runtime,
+	dataController *DataManagerController,
 ) (*DashboardController, error) {
+
+	var dataControllerPath *string
+	if dataController != nil {
+		dataControllerPath = dataController.BasePath()
+	}
+
 	toReturn := &DashboardController{
-		title:             name,
-		proxy:             proxy,
-		logger:            logger,
-		runtime:           runtime,
-		storages:          storages,
-		eventsEvCalc:      eventsEvCalc,
-		impressionsEvCalc: impressionEvCalc,
+		title:              name,
+		proxy:              proxy,
+		logger:             logger,
+		runtime:            runtime,
+		storages:           storages,
+		eventsEvCalc:       eventsEvCalc,
+		impressionsEvCalc:  impressionEvCalc,
+		dataControllerPath: dataControllerPath,
 	}
 
 	var err error
@@ -109,13 +119,14 @@ func (c *DashboardController) renderDashboard() ([]byte, error) {
 
 	var layoutBuffer bytes.Buffer
 	err := c.layout.Execute(&layoutBuffer, dashboard.DashboardInitializationVars{
-		DashboardTitle: c.title,
-		RunningMode:    runningMode,
-		Version:        splitio.Version,
-		ProxyMode:      c.proxy,
-		RefreshTime:    10000,
-		Stats:          *c.gatherStats(),
-		Health:         *c.gatherHealthInfo(),
+		DashboardTitle:     c.title,
+		RunningMode:        runningMode,
+		Version:            splitio.Version,
+		ProxyMode:          c.proxy,
+		RefreshTime:        10000,
+		Stats:              *c.gatherStats(),
+		Health:             *c.gatherHealthInfo(),
+		DataControllerPath: c.dataControllerPath,
 	})
 
 	if err != nil {

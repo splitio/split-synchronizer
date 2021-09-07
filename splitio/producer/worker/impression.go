@@ -26,7 +26,7 @@ const (
 
 // RecorderImpressionMultiple struct for impression sync
 type RecorderImpressionMultiple struct {
-	impressionStorage  storage.ImpressionStorageConsumer
+	impressionStorage  storage.ImpressionMultiSdkConsumer
 	impressionRecorder service.ImpressionsRecorder
 	localTelemetry     storage.TelemetryRuntimeProducer
 	listener           impressionlistener.ImpressionBulkListener
@@ -38,7 +38,7 @@ type RecorderImpressionMultiple struct {
 
 // NewImpressionRecordMultiple creates new impression synchronizer for posting impressions
 func NewImpressionRecordMultiple(
-	impressionStorage storage.ImpressionStorageConsumer,
+	impressionStorage storage.ImpressionMultiSdkConsumer,
 	impressionRecorder service.ImpressionsRecorder,
 	listener impressionlistener.ImpressionBulkListener,
 	localTelemetry storage.TelemetryRuntimeProducer,
