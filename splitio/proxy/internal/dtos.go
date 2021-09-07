@@ -10,27 +10,30 @@ type RawData struct {
 	Payload  []byte
 }
 
-// RawImpressions  represents a raw impression's bulk with associated impressions mode
-type RawImpressions struct {
-	RawData
-	Mode string
-}
-
-// RawEvents represent the raw data submitted by an sdk when posting impressions
-type RawEvents = RawData
-
-// RawTelemetryConfig represent the raw data submitted by an sdk when posting sdk config
-type RawTelemetryConfig = RawData
-
-// RawTelemetryUsage represent the raw data submitted by an sdk when posting usage metrics
-type RawTelemetryUsage = RawData
-
 func newRawData(metadata dtos.Metadata, payload []byte) *RawData {
 	return &RawEvents{
 		Metadata: metadata,
 		Payload:  payload,
 	}
 }
+
+// RawImpressions  represents a raw impression's bulk with associated impressions mode
+type RawImpressions struct {
+	RawData
+	Mode string
+}
+
+// RawEvents represents the raw data submitted by an sdk when posting impressions
+type RawEvents = RawData
+
+// RawTelemetryConfig represents the raw data submitted by an sdk when posting sdk config
+type RawTelemetryConfig = RawData
+
+// RawTelemetryUsage represents the raw data submitted by an sdk when posting usage metrics
+type RawTelemetryUsage = RawData
+
+// RawImpressionCount represents the raw data submitted by an sdk when posting impression counts
+type RawImpressionCount = RawData
 
 // NewRawImpressions constructs a RawImpressions wrapper object
 func NewRawImpressions(metadata dtos.Metadata, mode string, payload []byte) *RawImpressions {
@@ -41,6 +44,11 @@ func NewRawImpressions(metadata dtos.Metadata, mode string, payload []byte) *Raw
 		},
 		Mode: mode,
 	}
+}
+
+// NewRawImpressionCounts constructs a RawImpressionCount wrapper object
+func NewRawImpressionCounts(metadata dtos.Metadata, payload []byte) *RawImpressionCount {
+	return newRawData(metadata, payload)
 }
 
 // NewRawEvents constructs a RawEvents wrapper object

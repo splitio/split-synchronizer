@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/splitio/go-split-commons/v4/service"
 	"github.com/splitio/go-toolkit/v5/logging"
 
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb/collections"
+	"github.com/splitio/split-synchronizer/v4/splitio/common/impressionlistener"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/controllers"
 	proxyMW "github.com/splitio/split-synchronizer/v4/splitio/proxy/controllers/middleware"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage"
 	proxyStorage "github.com/splitio/split-synchronizer/v4/splitio/proxy/storage"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/tasks"
 
@@ -19,18 +21,47 @@ import (
 
 // Options struct to set options for Proxy mode.
 type Options struct {
-	Logger                  logging.LoggerInterface
-	Port                    string
-	APIKeys                 []string
-	ImpressionListener      string
-	DebugOn                 bool
-	SplitBoltDBCollection   *collections.SplitChangesCollection
-	SegmentBoltDBCollection *collections.SegmentChangesCollection
-	ImpressionsSink         tasks.DeferredRecordingTask
-	EventsSink              tasks.DeferredRecordingTask
-	TelemetryConfigSink     tasks.DeferredRecordingTask
-	TelemetryUsageSink      tasks.DeferredRecordingTask
-	Telemetry               proxyStorage.ProxyEndpointTelemetry
+	// Logger to propagate everywhere
+	Logger logging.LoggerInterface
+
+	// HTTP port to use for the server
+	Port string
+
+	// APIKeys used for authenticating proxy requests
+	APIKeys []string
+
+	// ImpressionListener to forward incoming impression bulks to
+	ImpressionListener impressionlistener.ImpressionBulkListener
+
+	// Whether to do verbose logging in the gin framework
+	DebugOn bool
+
+	// used for on-demand splitchanges fetching when a requested summary is not cached
+	SplitFetcher service.SplitFetcher
+
+	// used to resolve splitChanges requests
+	ProxySplitStorage storage.ProxySplitStorage
+
+	// used to resolve segmentChanges & mySegments requests
+	ProxySegmentStorage storage.ProxySegmentStorage
+
+	// what to do with received impression bulk payloads
+	ImpressionsSink tasks.DeferredRecordingTask
+
+	// what to do with received impression count payloads
+	ImpressionCountSink tasks.DeferredRecordingTask
+
+	// what to do with received event bulk payloads
+	EventsSink tasks.DeferredRecordingTask
+
+	// what to do with incoming telemetry.config payloads
+	TelemetryConfigSink tasks.DeferredRecordingTask
+
+	// what to do with incoming telemetry.runtime payloads
+	TelemetryUsageSink tasks.DeferredRecordingTask
+
+	// used to record local metrics
+	Telemetry proxyStorage.ProxyEndpointTelemetry
 }
 
 // API bundles all components required to answer API calls from split sdks
@@ -104,8 +135,9 @@ func New(options *Options) *API {
 func setupSdkController(options *Options) *controllers.SdkServerController {
 	return controllers.NewSdkServerController(
 		options.Logger,
-		options.SplitBoltDBCollection,
-		options.SegmentBoltDBCollection,
+		options.SplitFetcher,
+		options.ProxySplitStorage,
+		options.ProxySegmentStorage,
 		options.Telemetry,
 	)
 }
@@ -115,8 +147,9 @@ func setupEventsController(options *Options, apikeyValidator *proxyMW.APIKeyVali
 		options.Logger,
 		options.Telemetry,
 		options.ImpressionsSink,
+		options.ImpressionCountSink,
 		options.EventsSink,
-		nil, // TODO(mredolatti): add impressions listener
+		options.ImpressionListener,
 		apikeyValidator.IsValid,
 	)
 }
