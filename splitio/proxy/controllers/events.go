@@ -9,28 +9,22 @@ import (
 	"github.com/splitio/go-split-commons/v4/dtos"
 	"github.com/splitio/go-toolkit/v5/logging"
 
+	"github.com/splitio/split-synchronizer/v4/splitio/common/impressionlistener"
 	tmw "github.com/splitio/split-synchronizer/v4/splitio/proxy/controllers/middleware"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/internal"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/tasks"
 )
 
-// TEMPORARY TYPES -- SHOULD BE MOVED SOMEWHERE ELSE
-// \{
-type impressionListener interface {
-	PushRaw(metadata dtos.Metadata, data []byte) error
-}
-
-// \}
-
 // EventsServerController bundles all request handler for sdk-server apis
 type EventsServerController struct {
-	logger          logging.LoggerInterface
-	telemetry       storage.ProxyEndpointTelemetry
-	impressionsSink tasks.DeferredRecordingTask
-	eventsSink      tasks.DeferredRecordingTask
-	listener        impressionListener
-	apikeyValidator func(*string) bool
+	logger              logging.LoggerInterface
+	telemetry           storage.ProxyEndpointTelemetry
+	impressionsSink     tasks.DeferredRecordingTask
+	impressionCountSink tasks.DeferredRecordingTask
+	eventsSink          tasks.DeferredRecordingTask
+	listener            impressionlistener.ImpressionBulkListener
+	apikeyValidator     func(*string) bool
 }
 
 // NewEventsServerController returns a new events server controller
@@ -38,17 +32,19 @@ func NewEventsServerController(
 	logger logging.LoggerInterface,
 	telemetry storage.ProxyEndpointTelemetry,
 	impressionsSink tasks.DeferredRecordingTask,
+	impressionCountSink tasks.DeferredRecordingTask,
 	eventsSink tasks.DeferredRecordingTask,
-	listener impressionListener,
+	listener impressionlistener.ImpressionBulkListener,
 	apikeyValidator func(*string) bool,
 ) *EventsServerController {
 	return &EventsServerController{
-		logger:          logger,
-		telemetry:       telemetry,
-		impressionsSink: impressionsSink,
-		eventsSink:      eventsSink,
-		listener:        listener,
-		apikeyValidator: apikeyValidator,
+		logger:              logger,
+		telemetry:           telemetry,
+		impressionsSink:     impressionsSink,
+		impressionCountSink: impressionCountSink,
+		eventsSink:          eventsSink,
+		listener:            listener,
+		apikeyValidator:     apikeyValidator,
 	}
 }
 
@@ -65,7 +61,7 @@ func (c *EventsServerController) TestImpressionsBulk(ctx *gin.Context) {
 		return
 	}
 	if c.listener != nil {
-		err = c.listener.PushRaw(metadata, data)
+		err = c.listener.Submit(data, &metadata)
 	}
 
 	err = c.impressionsSink.Stage(internal.NewRawImpressions(metadata, impressionsMode, data))
@@ -137,9 +133,8 @@ func (c *EventsServerController) TestImpressionsBeacon(ctx *gin.Context) {
 func (c *EventsServerController) TestImpressionsCount(ctx *gin.Context) {
 	ctx.Set(tmw.EndpointKey, storage.ImpressionsCountEndpoint)
 
-	// TODO(mredolatti): uncomment this once the impression coun post logic is done
-	// metadata := metadataFromHeaders(ctx)
-	_, err := ioutil.ReadAll(ctx.Request.Body)
+	metadata := metadataFromHeaders(ctx)
+	data, err := ioutil.ReadAll(ctx.Request.Body)
 	if err != nil {
 		c.logger.Error("Error reading request body in testImpressions/count endpoint: ", err)
 		ctx.JSON(http.StatusInternalServerError, nil)
@@ -148,14 +143,15 @@ func (c *EventsServerController) TestImpressionsCount(ctx *gin.Context) {
 	}
 
 	code := http.StatusOK
-	// TODO(mredolatti)
-	// err = controllers.PostImpressionsCount(sdkVersion, machineIP, machineName, data)
-	// if err != nil {
-	// 	code = http.StatusInternalServerError
-	// 	if httpError, ok := err.(*dtos.HTTPError); ok {
-	// 		code = httpError.Code
-	// 	}
-	// }
+	err = c.impressionCountSink.Stage(internal.NewRawImpressionCounts(metadata, data))
+	if err != nil {
+		if err == tasks.ErrQueueFull {
+			ctx.AbortWithStatusJSON(500, "Impressions count queue is full, please retry later.")
+		} else {
+			ctx.AbortWithStatusJSON(500, "Unknown error when trying to push impressions into the staging queue")
+		}
+		return
+	}
 	ctx.JSON(code, nil)
 	c.telemetry.IncrEndpointStatus(storage.ImpressionsCountEndpoint, code)
 }
@@ -197,14 +193,17 @@ func (c *EventsServerController) TestImpressionsCountBeacon(ctx *gin.Context) {
 	}
 
 	code := http.StatusNoContent
-	// TODO(mredolatti)
-	// err = controllers.PostImpressionsCount(body.Sdk, "NA", "NA", impressionsCount)
-	// if err != nil {
-	// 	code = http.StatusInternalServerError
-	// 	if httpError, ok := err.(*dtos.HTTPError); ok {
-	// 		code = httpError.Code
-	// 	}
-	// }
+
+	err = c.impressionCountSink.Stage(internal.NewRawImpressionCounts(dtos.Metadata{SDKVersion: body.Sdk, MachineIP: "NA", MachineName: "NA"}, body.Entries))
+	if err != nil {
+		if err == tasks.ErrQueueFull {
+			ctx.AbortWithStatusJSON(500, "Impressions count queue is full, please retry later.")
+		} else {
+			ctx.AbortWithStatusJSON(500, "Unknown error when trying to push impressions into the staging queue")
+		}
+		return
+	}
+
 	ctx.JSON(code, nil)
 	c.telemetry.IncrEndpointStatus(storage.ImpressionsCountBeaconEndpoint, code)
 }

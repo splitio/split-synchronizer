@@ -16,7 +16,7 @@ import (
 
 // RecorderEventMultiple struct for event sync
 type RecorderEventMultiple struct {
-	eventStorage    storage.EventStorageConsumer
+	eventStorage    storage.EventMultiSdkConsumer
 	eventRecorder   service.EventsRecorder
 	localTelemetry  storage.TelemetryRuntimeProducer
 	evictionMonitor evcalc.Monitor
@@ -25,7 +25,7 @@ type RecorderEventMultiple struct {
 
 // NewEventRecorderMultiple creates new event synchronizer for posting events
 func NewEventRecorderMultiple(
-	eventStorage storage.EventStorageConsumer,
+	eventStorage storage.EventMultiSdkConsumer,
 	eventRecorder service.EventsRecorder,
 	localTelemetry storage.TelemetryRuntimeProducer,
 	evictionMonitor evcalc.Monitor,

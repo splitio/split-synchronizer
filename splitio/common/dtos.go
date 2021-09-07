@@ -1,36 +1,5 @@
 package common
 
-import (
-	"github.com/splitio/go-split-commons/v4/service/api"
-	"github.com/splitio/go-split-commons/v4/storage"
-	"github.com/splitio/go-split-commons/v4/synchronizer/worker/event"
-	"github.com/splitio/go-split-commons/v4/synchronizer/worker/impression"
-)
-
-// TODO(mredolatti): Check this and why it's in a DTOs package
-
-// Storages wraps storages in one struct
-type Storages struct {
-	SplitStorage          storage.SplitStorage
-	SegmentStorage        storage.SegmentStorage
-	LocalTelemetryStorage storage.TelemetryRuntimeConsumer
-	EventStorage          storage.EventsStorage
-	ImpressionStorage     storage.ImpressionStorage
-}
-
-// HTTPClients wraps http clients for healthcheck
-type HTTPClients struct {
-	AuthClient   api.Client
-	SdkClient    api.Client
-	EventsClient api.Client
-}
-
-// Recorders wraps recorders for dashboards
-type Recorders struct {
-	Impression impression.ImpressionRecorder
-	Event      event.EventRecorder
-}
-
 // ImpressionListener struct for payload
 type ImpressionListener struct {
 	KeyName      string `json:"keyName"`

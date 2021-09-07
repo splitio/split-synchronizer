@@ -21,6 +21,7 @@ import (
 	"github.com/splitio/go-split-commons/v4/tasks"
 	"github.com/splitio/split-synchronizer/v4/conf"
 	"github.com/splitio/split-synchronizer/v4/splitio/admin"
+	adminCommon "github.com/splitio/split-synchronizer/v4/splitio/admin/common"
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
 	"github.com/splitio/split-synchronizer/v4/splitio/common/impressionlistener"
 	ssync "github.com/splitio/split-synchronizer/v4/splitio/common/sync"
@@ -81,7 +82,7 @@ func Start(logger logging.LoggerInterface) error {
 	sdkTelemetryStorage := storage.NewRedisTelemetryCosumerclient(redisClient, logger)
 
 	// These storages are forwarded to the dashboard, the sdk-telemetry is irrelevant there
-	storages := common.Storages{
+	storages := adminCommon.Storages{
 		SplitStorage:          redis.NewSplitStorage(redisClient, logger),
 		SegmentStorage:        redis.NewSegmentStorage(redisClient, logger),
 		LocalTelemetryStorage: syncTelemetryStorage,
@@ -163,21 +164,23 @@ func Start(logger logging.LoggerInterface) error {
 		return common.NewInitError(fmt.Errorf("error instantiating sync manager: %w", err), common.ExitTaskInitialization)
 	}
 
-	rtm := common.NewRuntime(false, syncManager, logger, nil, nil)
+	rtm := common.NewRuntime(false, syncManager, logger, conf.Data.Producer.Admin.Title, nil, nil)
 
 	// --------------------------- ADMIN DASHBOARD ------------------------------
 	adminServer, err := admin.NewServer(&admin.Options{
-		Host:              "0.0.0.0",
-		Port:              conf.Data.Producer.Admin.Port,
-		Name:              "Split Synchronizer dashboard (producer mode)",
-		Proxy:             false,
-		Username:          conf.Data.Proxy.AdminUsername,
-		Password:          conf.Data.Producer.Admin.Password,
-		Logger:            logger,
-		Storages:          storages,
-		ImpressionsEvCalc: impressionEvictionMonitor,
-		EventsEvCalc:      eventEvictionMonitor,
-		Runtime:           rtm,
+		Host:                "0.0.0.0",
+		Port:                conf.Data.Producer.Admin.Port,
+		Name:                "Split Synchronizer dashboard (producer mode)",
+		Proxy:               false,
+		Username:            conf.Data.Proxy.AdminUsername,
+		Password:            conf.Data.Producer.Admin.Password,
+		Logger:              logger,
+		Storages:            storages,
+		ImpressionsEvCalc:   impressionEvictionMonitor,
+		ImpressionsRecorder: impressionRecorder,
+		EventRecorder:       eventRecorder,
+		EventsEvCalc:        eventEvictionMonitor,
+		Runtime:             rtm,
 	})
 	if err != nil {
 		panic(err.Error())
