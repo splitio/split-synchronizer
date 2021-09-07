@@ -93,7 +93,7 @@ const mainScript = `
       if(confirm("This action will drop all the impressions, are you sure?")) {
         console.log("Dropping impressions")
   
-        $.post("/admin/impressions/drop", function(data) {
+        $.post("{{.DataControllerPath}}/impressions/drop", function(data) {
           console.log("Response:", data);
         })
       }
@@ -102,11 +102,11 @@ const mainScript = `
     function flushImpressions(){
       if(confirm("This action will flush impressions to the server, are you sure?")) {
         console.log("Flushing impressions")
-  
+	const baseUrl = "{{.DataControllerPath}}/impressions/flush"
         const size = document.getElementById("impressionsSize").value;
-        const api = size === "" ? "/admin/impressions/flush" : "/admin/impressions/flush?size=" + size;
+        const finalUrl = size === "" ? baseUrl : (baseUrl + "?size=" + size);
   
-        $.post(api, function(data) {
+        $.post(finalUrl, function(data) {
           console.log("Response:", data);
         })
       }
@@ -116,7 +116,7 @@ const mainScript = `
       if(confirm("This action will drop all the events, are you sure?")) {
         console.log("Dropping events")
   
-        $.post("/admin/events/drop", function(data) {
+        $.post("{{.DataControllerPath}}/events/drop", function(data) {
           console.log("Response:", data);
         })
       }
@@ -125,9 +125,10 @@ const mainScript = `
     function flushEvents(){
       if(confirm("This action will flush events to the server, are you sure?")) {
         console.log("Flushing events")
+	const baseUrl = "/admin/events/flush"
   
         const size = document.getElementById("eventsSize").value;
-        const api = size === "" ? "/admin/events/flush" : "/admin/events/flush?size=" + size;
+        const api = size === "" ? baseUrl : (baseUrl + "?size=" + size);
   
         $.post(api, function(data) {
           console.log("Response:", data);

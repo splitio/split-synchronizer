@@ -22,7 +22,7 @@ var ErrShutdownAlreadyRegistered = errors.New("shutdown handler already schedule
 type Runtime interface {
 	Uptime() time.Duration
 	Shutdown()
-	ShutdownWithMessage(message string)
+	Kill()
 }
 
 // RuntimeImpl provides an implementation for the Runtime interface
@@ -31,11 +31,12 @@ type RuntimeImpl struct {
 	startup            time.Time
 	shutdownRegistered *sync.AtomicBool
 	logger             logging.LoggerInterface
+	dashboardTitle     string
 	slackWriter        *log.SlackWriter
 	syncManager        synchronizer.Manager
 	impListener        impressionlistener.ImpressionBulkListener
 	blocker            chan struct{}
-	osSignals          chan<- os.Signal
+	osSignals          chan os.Signal
 }
 
 // NewRuntime constructs a RuntimeImpl object
@@ -43,6 +44,7 @@ func NewRuntime(
 	proxy bool,
 	syncManager synchronizer.Manager,
 	logger logging.LoggerInterface,
+	dashboardTitle string,
 	listener impressionlistener.ImpressionBulkListener,
 	slackWriter *log.SlackWriter,
 ) *RuntimeImpl {
@@ -50,11 +52,13 @@ func NewRuntime(
 		proxy:              proxy,
 		startup:            time.Now(),
 		logger:             logger,
+		dashboardTitle:     dashboardTitle,
 		slackWriter:        slackWriter,
 		syncManager:        syncManager,
 		impListener:        listener,
 		blocker:            make(chan struct{}),
 		shutdownRegistered: sync.NewAtomicBool(false),
+		osSignals:          make(chan os.Signal, 1),
 	}
 }
 
@@ -64,12 +68,10 @@ func (r *RuntimeImpl) RegisterShutdownHandler() error {
 		return ErrShutdownAlreadyRegistered
 	}
 
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	signal.Notify(r.osSignals, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	go func() {
-		<-signals
+		<-r.osSignals
 		r.Shutdown()
-
 	}()
 
 	return nil
@@ -84,6 +86,10 @@ func (r *RuntimeImpl) Uptime() time.Duration {
 func (r *RuntimeImpl) Shutdown() {
 	r.logger.Info("\n\n * Starting graceful shutdown")
 	r.logger.Info(" * Waiting goroutines stop")
+	if r.slackWriter != nil {
+		message, attachments := buildSlackShutdownMessage(r.dashboardTitle, false)
+		r.slackWriter.PostNow(message, attachments)
+	}
 	r.syncManager.Stop()
 	if r.impListener != nil {
 		r.impListener.Stop(true)
@@ -97,7 +103,40 @@ func (r *RuntimeImpl) Block() {
 	<-r.blocker
 }
 
-// ShutdownWithMessage logs a message and then sends a SIGTERM to the current process
-func (r *RuntimeImpl) ShutdownWithMessage(message string) {
-	// TODO(mredolatti): implement!
+// Kill sends a SIGKILL and aborts the app immediately
+func (r *RuntimeImpl) Kill() {
+	if r.slackWriter != nil {
+		message, attachments := buildSlackShutdownMessage(r.dashboardTitle, true)
+		r.slackWriter.PostNow(message, attachments)
+	}
+	r.osSignals <- syscall.SIGKILL
+}
+
+func buildSlackShutdownMessage(title string, kill bool) ([]byte, []log.SlackMessageAttachment) {
+	var color string
+	var message string
+	if kill {
+		color = "danger"
+		message = "*[KILL]* Force shutdown signal sent - see you soon!"
+	} else {
+		color = "good"
+		message = "*[Important]* Shutting down split-sync - see you soon!"
+	}
+
+	var attach []log.SlackMessageAttachment
+	if title != "" {
+		fields := make([]log.SlackMessageAttachmentFields, 0)
+		fields = append(fields)
+		attach = []log.SlackMessageAttachment{log.SlackMessageAttachment{
+			Fallback: "Shutting Split-Sync down",
+			Color:    color,
+			Fields: []log.SlackMessageAttachmentFields{{
+				Title: title,
+				Value: "Shutting it down, see you soon!",
+				Short: false,
+			}},
+		}}
+	}
+
+	return []byte(message), attach
 }
