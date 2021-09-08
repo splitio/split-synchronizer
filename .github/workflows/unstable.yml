@@ -1,0 +1,27 @@
+name: unstable
+on:
+  push:
+    branches:
+      - '*'
+      - '!master'
+      - '!main'
+
+jobs:
+  push-docker-image:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login to Artifactory
+        uses: docker/login-action@v1
+        with:
+          registry: splitio-docker-dev.jfrog.io
+          username: ${{ secrets.ARTIFACTORY_DOCKER_USER }}
+          password: ${{ secrets.ARTIFACTORY_DOCKER_PASS }}
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Docker Build and Push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          push: true
+          tags: splitio-docker-dev.jfrog.io/${{ github.event.repository.name }}:${{ github.sha }}
