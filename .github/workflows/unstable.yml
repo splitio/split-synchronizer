@@ -26,4 +26,4 @@ jobs:
         with:
           context: .
           push: true
-          tags: splitio-docker-dev.jfrog.io/${{ github.event.repository.name }}:$SHORT_SHA
+          tags: splitio-docker-dev.jfrog.io/${{ github.event.repository.name }}:${{ env.SHORT_SHA }}
