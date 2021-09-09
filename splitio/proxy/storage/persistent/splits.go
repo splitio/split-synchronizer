@@ -1,4 +1,4 @@
-package collections
+package persistent
 
 import (
 	"bytes"
@@ -7,26 +7,12 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/boltdb/bolt"
 	"github.com/splitio/go-split-commons/v4/dtos"
 	"github.com/splitio/go-toolkit/v5/datastructures/set"
 	"github.com/splitio/go-toolkit/v5/logging"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb"
 )
 
 const splitChangesCollectionName = "SPLIT_CHANGES_COLLECTION"
-
-// NewSplitChangesCollection returns an instance of SplitChangesCollection
-func NewSplitChangesCollection(dbb *bolt.DB, logger logging.LoggerInterface) SplitChangesCollection {
-	baseCollection := boltdb.Collection{DB: dbb, Name: splitChangesCollectionName}
-	sCollection := SplitChangesCollection{
-		Collection:   baseCollection,
-		changeNumber: 0,
-		mutexTill:    &sync.RWMutex{},
-		logger:       logger,
-	}
-	return sCollection
-}
 
 // SplitChangesItem represents an SplitChanges service response
 type SplitChangesItem struct {
@@ -55,31 +41,42 @@ func (slice SplitsChangesItems) Swap(i, j int) {
 
 // SplitChangesCollection represents a collection of SplitChangesItem
 type SplitChangesCollection struct {
-	boltdb.Collection
-	mutexTill    *sync.RWMutex
+	collection   CollectionWrapper
 	changeNumber int64
-	logger       logging.LoggerInterface
+	cnMutex      sync.Mutex
+}
+
+// NewSplitChangesCollection returns an instance of SplitChangesCollection
+func NewSplitChangesCollection(db DBWrapper, logger logging.LoggerInterface) *SplitChangesCollection {
+	return &SplitChangesCollection{
+		collection:   &BoltDBCollectionWrapper{db: db, name: splitChangesCollectionName, logger: logger},
+		changeNumber: 0,
+	}
 }
 
 // Delete an item
 func (c *SplitChangesCollection) Delete(item *SplitChangesItem) error {
 	key := []byte(item.Name)
-	err := c.Collection.Delete(key)
+	err := c.collection.Delete(key)
 	return err
 }
 
 // Add an item
 func (c *SplitChangesCollection) Add(item *SplitChangesItem) error {
 	key := []byte(item.Name)
+	err := c.collection.SaveAs(key, item)
 
-	err := c.Collection.SaveAs(key, item)
+	c.cnMutex.Lock()
+	c.changeNumber = item.ChangeNumber
+	c.cnMutex.Unlock()
+
 	return err
 }
 
 // FetchAll return a SplitChangesItem
 func (c *SplitChangesCollection) FetchAll() (SplitsChangesItems, error) {
 
-	items, err := c.Collection.FetchAll()
+	items, err := c.collection.FetchAll()
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +93,7 @@ func (c *SplitChangesCollection) FetchAll() (SplitsChangesItems, error) {
 
 		errq := dec.Decode(&q)
 		if errq != nil {
-			c.logger.Error("decode error:", errq, "|", string(v))
+			c.collection.Logger().Error("decode error:", errq, "|", string(v))
 			continue
 		}
 		toReturn = append(toReturn, q)
@@ -109,16 +106,16 @@ func (c *SplitChangesCollection) FetchAll() (SplitsChangesItems, error) {
 
 // ChangeNumber returns changeNumber
 func (c *SplitChangesCollection) ChangeNumber() int64 {
-	c.mutexTill.RLock()
-	defer c.mutexTill.RUnlock()
+	c.cnMutex.Lock()
+	defer c.cnMutex.Unlock()
 	return c.changeNumber
 }
 
 // SetChangeNumber sets changeNumber
 func (c *SplitChangesCollection) SetChangeNumber(since int64) {
-	c.mutexTill.Lock()
-	defer c.mutexTill.Unlock()
+	c.cnMutex.Lock()
 	c.changeNumber = since
+	c.cnMutex.Unlock()
 }
 
 // SegmentNames returns segments

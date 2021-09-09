@@ -12,19 +12,12 @@ import (
 
 	"github.com/splitio/go-split-commons/v4/dtos"
 	"github.com/splitio/go-split-commons/v4/util"
-	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v4/conf"
-	"github.com/splitio/split-synchronizer/v4/log"
 )
 
 func TestPostImpressionsCount(t *testing.T) {
 	call := 0
 	conf.Initialize()
-	if log.Instance == nil {
-		stdoutWriter := ioutil.Discard //os.Stdout
-		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
-	}
-
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		sdkVersion := r.Header.Get("SplitSDKVersion")

@@ -1,11 +1,8 @@
-package boltdb
+package persistent
 
-import "encoding/binary"
-
-// KeyInt returns an 8-byte big endian representation of v.
-func KeyInt(v uint64) []byte {
-	return itob(v)
-}
+import (
+	"encoding/binary"
+)
 
 // itob returns an 8-byte big endian representation of v.
 func itob(v uint64) []byte {

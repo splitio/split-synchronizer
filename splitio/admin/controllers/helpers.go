@@ -8,8 +8,8 @@ import (
 
 	"github.com/splitio/split-synchronizer/v4/splitio/admin/views/dashboard"
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/evcalc"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb/collections"
 	proxyStorage "github.com/splitio/split-synchronizer/v4/splitio/proxy/storage"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage/persistent"
 )
 
 func bundleSplitInfo(splitStorage storage.SplitStorageConsumer) []dashboard.SplitSummary {
@@ -43,6 +43,14 @@ func bundleSplitInfo(splitStorage storage.SplitStorageConsumer) []dashboard.Spli
 func bundleSegmentInfo(splitStorage storage.SplitStorage, segmentStorage storage.SegmentStorageConsumer) []dashboard.SegmentSummary {
 	names := splitStorage.SegmentNames()
 	summaries := make([]dashboard.SegmentSummary, 0, names.Size())
+
+	// see if the segment storage is able to count segment keys and if so provide an appropriate function.
+	// otherwise, just return 0.
+	removedKeyCounter := func(segmentName string) int { return 0 }
+	if withRemovedKeyCount, ok := segmentStorage.(proxyStorage.ProxySegmentStorage); ok {
+		removedKeyCounter = func(segmentName string) int { return withRemovedKeyCount.CountRemovedKeys(segmentName) }
+	}
+
 	for _, name := range names.List() {
 		strName, ok := name.(string)
 		if !ok {
@@ -51,7 +59,7 @@ func bundleSegmentInfo(splitStorage storage.SplitStorage, segmentStorage storage
 
 		keys := segmentStorage.Keys(strName)
 		cn, _ := segmentStorage.ChangeNumber(strName)
-		removed := int(segmentStorage.CountRemovedKeys(strName))
+		removed := removedKeyCounter(strName)
 		summaries = append(summaries, dashboard.SegmentSummary{
 			Name:         strName,
 			ActiveKeys:   keys.Size(),
@@ -72,7 +80,7 @@ func bundleSegmentKeysInfo(name string, segmentStorage storage.SegmentStorageCon
 	if keys != nil {
 		for _, key := range keys.List() {
 			switch k := key.(type) {
-			case collections.SegmentKey:
+			case persistent.SegmentKey:
 				segmentKeys = append(segmentKeys, dashboard.SegmentKeySummary{
 					Name:         k.Name,
 					Removed:      k.Removed,
@@ -187,14 +195,15 @@ func bundleLocalSyncLatencies(localTelemetry storage.TelemetryRuntimeConsumer) [
 	}
 }
 
-func getEventsSize(eventStorage storage.EventsStorage) int64 {
+func getEventsSize(eventStorage storage.EventMultiSdkConsumer) int64 {
 	if eventStorage == nil {
 		return 0
 	}
+
 	return eventStorage.Count()
 }
 
-func getImpressionSize(impressionStorage storage.ImpressionStorage) int64 {
+func getImpressionSize(impressionStorage storage.ImpressionMultiSdkConsumer) int64 {
 	if impressionStorage == nil {
 		return 0
 	}

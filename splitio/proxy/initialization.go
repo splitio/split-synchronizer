@@ -8,20 +8,21 @@ import (
 	cfg "github.com/splitio/go-split-commons/v4/conf"
 	"github.com/splitio/go-split-commons/v4/service/api"
 	"github.com/splitio/go-split-commons/v4/synchronizer"
+	"github.com/splitio/go-split-commons/v4/synchronizer/worker/segment"
+	"github.com/splitio/go-split-commons/v4/synchronizer/worker/split"
+	"github.com/splitio/go-split-commons/v4/tasks"
 	"github.com/splitio/go-split-commons/v4/telemetry"
 	"github.com/splitio/go-toolkit/v5/logging"
 
-	"github.com/splitio/go-split-commons/v4/tasks"
 	"github.com/splitio/split-synchronizer/v4/conf"
 	"github.com/splitio/split-synchronizer/v4/splitio/admin"
+	adminCommon "github.com/splitio/split-synchronizer/v4/splitio/admin/common"
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
 	"github.com/splitio/split-synchronizer/v4/splitio/common/impressionlistener"
 	ssync "github.com/splitio/split-synchronizer/v4/splitio/common/sync"
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/evcalc"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb/collections"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/fetcher"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage/persistent"
 	pTasks "github.com/splitio/split-synchronizer/v4/splitio/proxy/tasks"
 	"github.com/splitio/split-synchronizer/v4/splitio/util"
 )
@@ -35,11 +36,11 @@ func Start(logger logging.LoggerInterface) error {
 	}
 
 	// Initialization of DB
-	var dbpath = boltdb.InMemoryMode
+	var dbpath = persistent.BoltInMemoryMode
 	if conf.Data.Proxy.PersistMemoryPath != "" {
 		dbpath = conf.Data.Proxy.PersistMemoryPath
 	}
-	dbInstance, err := boltdb.NewInstance(dbpath, nil)
+	dbInstance, err := persistent.NewBoltWrapper(dbpath, nil)
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error instantiating boltdb: %w", err), common.ExitErrorDB)
 	}
@@ -52,10 +53,8 @@ func Start(logger logging.LoggerInterface) error {
 	splitAPI := api.NewSplitAPI(conf.Data.APIKey, advanced, logger, metadata)
 
 	// Instantiating storages
-	splitCollection := collections.NewSplitChangesCollection(dbInstance, logger)
-	splitStorage := storage.NewSplitStorage(splitCollection)
-	segmentCollection := collections.NewSegmentChangesCollection(dbInstance, logger)
-	segmentStorage := storage.NewSegmentStorage(segmentCollection)
+	splitStorage := storage.NewProxySplitStorage(dbInstance, logger)
+	segmentStorage := storage.NewProxySegmentStorage(dbInstance, logger)
 
 	// Local telemetry
 	localTelemetryStorage := storage.NewProxyTelemetryFacade()
@@ -64,24 +63,17 @@ func Start(logger logging.LoggerInterface) error {
 	telemetryUsageTask := pTasks.NewTelemetryUsageFlushTask(telemetryRecorder, logger, 5, 500, 2)   // TODO(mredolatti): use proper config options!
 	impressionRecorder := api.NewHTTPImpressionRecorder(conf.Data.APIKey, advanced, logger)
 
-	var impListener impressionlistener.ImpressionBulkListener
-	if conf.Data.ImpressionListener.Endpoint != "" {
-		// TODO(mredolatti): make the listener queue size configurable
-		var err error
-		impListener, err = impressionlistener.NewImpressionBulkListener(conf.Data.ImpressionListener.Endpoint, 20, nil)
-		if err != nil {
-			return common.NewInitError(fmt.Errorf("error instantiating impression listener: %w", err), common.ExitTaskInitialization)
-		}
-
-	}
-	impressionTask := pTasks.NewImpressionsFlushTask(impressionRecorder, logger, 5, 2, conf.Data.ImpressionsThreads, impListener)
+	impressionTask := pTasks.NewImpressionsFlushTask(impressionRecorder, logger, 5, 2, conf.Data.ImpressionsThreads)
+	impressionCountTask := pTasks.NewImpressionCountFlushTask(impressionRecorder, logger, 5, 2, 1) // pass appropriate config
 	eventsRecorder := api.NewHTTPEventsRecorder(conf.Data.APIKey, advanced, logger)
 	eventsTask := pTasks.NewEventsFlushTask(eventsRecorder, logger, 5, 500, 2) // TODO(mredolatti): use proper config options.
 
 	// Creating Workers and Tasks
 	workers := synchronizer.Workers{
-		SplitFetcher:   fetcher.NewSplitFetcher(splitCollection, splitAPI.SplitFetcher, localTelemetryStorage, logger),
-		SegmentFetcher: fetcher.NewSegmentFetcher(segmentCollection, splitCollection, splitAPI.SegmentFetcher, localTelemetryStorage, logger),
+		// SplitFetcher:   fetcher.NewSplitFetcher(splitCollection, splitAPI.SplitFetcher, localTelemetryStorage, logger),
+		SplitFetcher: split.NewSplitFetcher(splitStorage, splitAPI.SplitFetcher, logger, localTelemetryStorage),
+		//SegmentFetcher: fetcher.NewSegmentFetcher(segmentCollection, splitCollection, splitAPI.SegmentFetcher, localTelemetryStorage, logger),
+		SegmentFetcher: segment.NewSegmentFetcher(splitStorage, segmentStorage, splitAPI.SegmentFetcher, logger, localTelemetryStorage),
 		TelemetryRecorder: telemetry.NewTelemetrySynchronizer(localTelemetryStorage, telemetryRecorder, splitStorage, segmentStorage, logger,
 			metadata, localTelemetryStorage),
 	}
@@ -90,9 +82,10 @@ func Start(logger logging.LoggerInterface) error {
 		SplitSyncTask: tasks.NewFetchSplitsTask(workers.SplitFetcher, conf.Data.SplitsFetchRate, logger),
 		SegmentSyncTask: tasks.NewFetchSegmentsTask(workers.SegmentFetcher, conf.Data.SegmentFetchRate, advanced.SegmentWorkers,
 			advanced.SegmentQueueSize, logger),
-		TelemetrySyncTask:  tasks.NewRecordTelemetryTask(workers.TelemetryRecorder, conf.Data.MetricsPostRate, logger),
-		ImpressionSyncTask: impressionTask,
-		EventSyncTask:      eventsTask,
+		TelemetrySyncTask:        tasks.NewRecordTelemetryTask(workers.TelemetryRecorder, conf.Data.MetricsPostRate, logger),
+		ImpressionSyncTask:       impressionTask,
+		ImpressionsCountSyncTask: impressionCountTask,
+		EventSyncTask:            eventsTask,
 	}
 
 	// Creating Synchronizer for tasks
@@ -114,9 +107,6 @@ func Start(logger logging.LoggerInterface) error {
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error instantiating sync manager: %w", err), common.ExitTaskInitialization)
 	}
-
-	// Proxy mode - graceful shutdown// TODO!
-	// go gracefulShutdownProxy(sigs, gracefulShutdownWaitingGroup, syncManager)
 
 	// Run Sync Manager
 	before := time.Now()
@@ -148,18 +138,11 @@ func Start(logger logging.LoggerInterface) error {
 		return common.NewInitError(fmt.Errorf("error instantiating sync manager: %w", err), common.ExitTaskInitialization)
 	}
 
-	// TODO(mredolatti): setup impression listener properly
-	// if conf.Data.ImpressionListener.Endpoint != "" {
-	// 	go task.PostImpressionsToListener(recorder.ImpressionListenerSubmitter{
-	// 		Endpoint: conf.Data.ImpressionListener.Endpoint,
-	// 	})
-	// }
-
-	rtm := common.NewRuntime(false, syncManager, logger, nil, nil)
+	rtm := common.NewRuntime(false, syncManager, logger, conf.Data.Proxy.Title, nil, nil)
 	impressionEvictionMonitor := evcalc.New(1) // TODO(mredolatti): set the correct thread count
 	eventEvictionMonitor := evcalc.New(1)      // TODO(mredolatti): set the correct thread count
 
-	storages := common.Storages{
+	storages := adminCommon.Storages{
 		SplitStorage:          splitStorage,
 		SegmentStorage:        segmentStorage,
 		LocalTelemetryStorage: localTelemetryStorage,
@@ -185,20 +168,33 @@ func Start(logger logging.LoggerInterface) error {
 	go adminServer.ListenAndServe()
 
 	proxyOptions := &Options{
-		Port:                    ":" + strconv.Itoa(conf.Data.Proxy.Port),
-		APIKeys:                 conf.Data.Proxy.Auth.APIKeys,
-		DebugOn:                 conf.Data.Logger.DebugOn,
-		Logger:                  logger,
-		SplitBoltDBCollection:   &splitCollection,
-		SegmentBoltDBCollection: &segmentCollection,
-		Telemetry:               localTelemetryStorage,
-		ImpressionsSink:         impressionTask,
+		Port:                ":" + strconv.Itoa(conf.Data.Proxy.Port),
+		APIKeys:             conf.Data.Proxy.Auth.APIKeys,
+		DebugOn:             conf.Data.Logger.DebugOn,
+		Logger:              logger,
+		ProxySplitStorage:   splitStorage,
+		SplitFetcher:        splitAPI.SplitFetcher,
+		ProxySegmentStorage: segmentStorage,
+		Telemetry:           localTelemetryStorage,
+		ImpressionsSink:     impressionTask,
+		ImpressionCountSink: impressionCountTask,
+		EventsSink:          eventsTask,
+		TelemetryConfigSink: telemetryConfigTask,
+		TelemetryUsageSink:  telemetryUsageTask,
+	}
+
+	if conf.Data.ImpressionListener.Endpoint != "" {
+		// TODO(mredolatti): make the listener queue size configurable
+		var err error
+		proxyOptions.ImpressionListener, err = impressionlistener.NewImpressionBulkListener(conf.Data.ImpressionListener.Endpoint, 20, nil)
+		if err != nil {
+			return common.NewInitError(fmt.Errorf("error instantiating impression listener: %w", err), common.ExitTaskInitialization)
+		}
 	}
 
 	proxyAPI := New(proxyOptions)
 	go proxyAPI.Start()
 
-	//
 	rtm.RegisterShutdownHandler()
 	rtm.Block()
 	return nil

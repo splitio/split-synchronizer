@@ -2,6 +2,7 @@ package worker
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/splitio/go-split-commons/v4/dtos"
@@ -14,9 +15,12 @@ import (
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/evcalc"
 )
 
+// ErrEventsSyncFailed is returned when events synchronization fails
+var ErrEventsSyncFailed = errors.New("event synchronization failed for at least one sdk instance")
+
 // RecorderEventMultiple struct for event sync
 type RecorderEventMultiple struct {
-	eventStorage    storage.EventStorageConsumer
+	eventStorage    storage.EventMultiSdkConsumer
 	eventRecorder   service.EventsRecorder
 	localTelemetry  storage.TelemetryRuntimeProducer
 	evictionMonitor evcalc.Monitor
@@ -25,7 +29,7 @@ type RecorderEventMultiple struct {
 
 // NewEventRecorderMultiple creates new event synchronizer for posting events
 func NewEventRecorderMultiple(
-	eventStorage storage.EventStorageConsumer,
+	eventStorage storage.EventMultiSdkConsumer,
 	eventRecorder service.EventsRecorder,
 	localTelemetry storage.TelemetryRuntimeProducer,
 	evictionMonitor evcalc.Monitor,
@@ -40,66 +44,13 @@ func NewEventRecorderMultiple(
 	}
 }
 
-func (e *RecorderEventMultiple) fetchEvents(bulkSize int64) (map[dtos.Metadata][]dtos.EventDTO, error) {
-	storedEvents, err := e.eventStorage.PopNWithMetadata(bulkSize) //PopN has a mutex, so this function can be async without issues
-	if err != nil {
-		e.logger.Error("(Task) Post Events fails fetching events from storage", err.Error())
-		return nil, err
-	}
-	// grouping the information by instanceID/instanceIP
-	collectedData := make(map[dtos.Metadata][]dtos.EventDTO)
-
-	for _, stored := range storedEvents {
-		_, instanceExists := collectedData[stored.Metadata]
-		if !instanceExists {
-			collectedData[stored.Metadata] = make([]dtos.EventDTO, 0)
-		}
-
-		collectedData[stored.Metadata] = append(
-			collectedData[stored.Metadata],
-			stored.Event,
-		)
-	}
-
-	return collectedData, nil
-}
-
-func (e *RecorderEventMultiple) synchronizeEvents(bulkSize int64) error {
-	eventsToSend, err := e.fetchEvents(bulkSize)
-	if err != nil {
-		return err
-	}
-
-	for metadata, events := range eventsToSend {
-		before := time.Now()
-		e.evictionMonitor.StoreDataFlushed(before.UnixNano(), len(events), e.eventStorage.Count())
-		err := common.WithAttempts(3, func() error {
-			err := e.eventRecorder.Record(events, metadata)
-			if err != nil {
-				e.logger.Error("Error posting events")
-			}
-
-			return nil
-		})
-		if err != nil {
-			if httpError, ok := err.(*dtos.HTTPError); ok {
-				e.localTelemetry.RecordSyncError(telemetry.EventSync, httpError.Code)
-			}
-			return err
-		}
-		e.localTelemetry.RecordSyncLatency(telemetry.EventSync, time.Now().Sub(before))
-		e.localTelemetry.RecordSuccessfulSync(telemetry.EventSync, time.Now().UTC())
-	}
-	return nil
-}
-
 // SynchronizeEvents syncs events
 func (e *RecorderEventMultiple) SynchronizeEvents(bulkSize int64) error {
+	// We don't lock here since we might have multiple threads calling SynchronizeEvents, which is harmless.
 	if e.evictionMonitor.Busy() {
-		e.logger.Debug("Another task executed by the user is performing operations on Events. Skipping.")
+		e.logger.Info("A user requested drop/flush is in progress. Skipping this iteration of periodic event flush")
 		return nil
 	}
-
 	return e.synchronizeEvents(bulkSize)
 }
 
@@ -128,4 +79,57 @@ func (e *RecorderEventMultiple) FlushEvents(bulkSize int64) error {
 		elementsToFlush = elementsToFlush - defaultFlushSize
 	}
 	return nil
+}
+
+func (e *RecorderEventMultiple) synchronizeEvents(bulkSize int64) error {
+	eventsToSend, err := e.fetchEvents(bulkSize)
+	if err != nil {
+		return fmt.Errorf("error fetching events from storage: %w", err)
+	}
+
+	errs := 0
+	for metadata, events := range eventsToSend {
+		before := time.Now()
+		e.evictionMonitor.StoreDataFlushed(before, len(events), e.eventStorage.Count())
+		err := common.WithAttempts(3, func() error {
+			err := e.eventRecorder.Record(events, metadata)
+			if err != nil {
+				if httpError, ok := err.(*dtos.HTTPError); ok {
+					e.localTelemetry.RecordSyncError(telemetry.EventSync, httpError.Code)
+				}
+			}
+			return err
+		})
+		if err != nil {
+			errs++
+			e.logger.Error(fmt.Sprintf("Error posting events for metadata '%+v' after 3 attempts. Data will be discarded", metadata))
+		}
+
+		e.localTelemetry.RecordSyncLatency(telemetry.EventSync, time.Now().Sub(before))
+		e.localTelemetry.RecordSuccessfulSync(telemetry.EventSync, time.Now().UTC())
+	}
+
+	if errs > 0 {
+		return ErrEventsSyncFailed
+	}
+	return nil
+}
+
+func (e *RecorderEventMultiple) fetchEvents(bulkSize int64) (map[dtos.Metadata][]dtos.EventDTO, error) {
+	storedEvents, err := e.eventStorage.PopNWithMetadata(bulkSize) //PopN has a mutex, so this function can be async without issues
+	if err != nil {
+		return nil, fmt.Errorf("error popping events w/metadata: %w", err)
+	}
+	// grouping the information by instanceID/instanceIP
+	collectedData := make(map[dtos.Metadata][]dtos.EventDTO)
+
+	for _, stored := range storedEvents {
+		_, instanceExists := collectedData[stored.Metadata]
+		if !instanceExists {
+			collectedData[stored.Metadata] = make([]dtos.EventDTO, 0)
+		}
+
+		collectedData[stored.Metadata] = append(collectedData[stored.Metadata], stored.Event)
+	}
+	return collectedData, nil
 }
