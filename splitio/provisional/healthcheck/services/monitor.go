@@ -2,9 +2,9 @@ package services
 
 import (
 	"sync"
-	"time"
 
-	"github.com/splitio/go-toolkit/logging"
+	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/services"
+	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/services/counter"
 )
 
@@ -19,21 +19,6 @@ type MonitorImp struct {
 	Counters []counter.BaseCounterInterface
 	lock     sync.RWMutex
 	logger   logging.LoggerInterface
-}
-
-// HealthDto description
-type HealthDto struct {
-	Status string    `json:"serviceStatus"`
-	Items  []ItemDto `json:"dependencies"`
-}
-
-// ItemDto description
-type ItemDto struct {
-	Service      string     `json:"service"`
-	Healthy      bool       `json:"healthy"`
-	Message      string     `json:"message,omitempty"`
-	HealthySince *time.Time `json:"healthySince,omitempty"`
-	LastHit      *time.Time `json:"lastHit,omitempty"`
 }
 
 // Start stop counters
@@ -57,11 +42,11 @@ func (m *MonitorImp) Stop() {
 }
 
 // GetHealthStatus return services health
-func (m *MonitorImp) GetHealthStatus() HealthDto {
+func (m *MonitorImp) GetHealthStatus() hcCommon.HealthDto {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
-	var items []ItemDto
+	var items []hcCommon.ItemDto
 
 	criticalCount := 0
 	degradedCount := 0
@@ -78,7 +63,7 @@ func (m *MonitorImp) GetHealthStatus() HealthDto {
 			}
 		}
 
-		items = append(items, ItemDto{
+		items = append(items, hcCommon.ItemDto{
 			Service:      res.Name,
 			Healthy:      res.Healthy,
 			Message:      res.LastMessage,
@@ -95,7 +80,7 @@ func (m *MonitorImp) GetHealthStatus() HealthDto {
 		status = degradedStatus
 	}
 
-	return HealthDto{
+	return hcCommon.HealthDto{
 		Status: status,
 		Items:  items,
 	}
@@ -110,7 +95,7 @@ func NewMonitorImp(
 
 	for _, cfg := range cfgs {
 		switch cfg.CounterType {
-		case counter.ByPercentage:
+		case hcCommon.ByPercentage:
 			serviceCounters = append(serviceCounters, counter.NewCounterByPercentage(cfg, logger))
 		default:
 			serviceCounters = append(serviceCounters, counter.NewCounterSecuencial(cfg, logger))

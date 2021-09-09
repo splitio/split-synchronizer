@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/splitio/go-toolkit/logging"
+	"github.com/splitio/go-toolkit/v5/logging"
 )
 
 // BaseCounterInterface application counter interface
@@ -25,17 +25,6 @@ type HealthyResult struct {
 	LastHit    *time.Time
 	ErrorCount int
 }
-
-const (
-	// Splits counter type
-	Splits = iota
-	// Segments counter type
-	Segments
-	// Storage counter type
-	Storage
-	// SyncErros counter type
-	SyncErros
-)
 
 const (
 	// Critical severity
@@ -81,10 +70,6 @@ func (c *ApplicationCounterImp) GetType() int {
 
 // IsHealthy return the counter health
 func (c *ApplicationCounterImp) IsHealthy() HealthyResult {
-	/*
-
-		ErrorCount: counter.GetErrorCount(),
-	*/
 	return HealthyResult{
 		Name:       c.name,
 		Healthy:    c.healthy,

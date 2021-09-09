@@ -4,7 +4,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/splitio/go-toolkit/logging"
+	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
+	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application/counter"
 )
 
@@ -16,22 +17,6 @@ type MonitorImp struct {
 	logger       logging.LoggerInterface
 }
 
-// HealthDto description
-type HealthDto struct {
-	Healthy      bool       `json:"healthy"`
-	HealthySince *time.Time `json:"healthySince"`
-	Items        []ItemDto  `json:"items"`
-}
-
-// ItemDto description
-type ItemDto struct {
-	Name       string     `json:"name"`
-	Healthy    bool       `json:"healthy"`
-	LastHit    *time.Time `json:"lastHit,omitempty"`
-	ErrorCount int        `json:"errorCount,omitempty"`
-	Severity   int        `json:"-"`
-}
-
 func (m *MonitorImp) getHealthySince(healthy bool) *time.Time {
 	if !healthy {
 		m.healthySince = nil
@@ -40,7 +25,7 @@ func (m *MonitorImp) getHealthySince(healthy bool) *time.Time {
 	return m.healthySince
 }
 
-func checkIfIsHealthy(result []ItemDto) bool {
+func checkIfIsHealthy(result []hcCommon.ItemDto) bool {
 	for _, r := range result {
 		if r.Healthy == false && r.Severity == counter.Critical {
 			return false
@@ -51,15 +36,15 @@ func checkIfIsHealthy(result []ItemDto) bool {
 }
 
 // GetHealthStatus get application health
-func (m *MonitorImp) GetHealthStatus() HealthDto {
+func (m *MonitorImp) GetHealthStatus() hcCommon.HealthDto {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
-	var items []ItemDto
+	var items []hcCommon.ItemDto
 
 	for _, counter := range m.counters {
 		res := counter.IsHealthy()
-		items = append(items, ItemDto{
+		items = append(items, hcCommon.ItemDto{
 			Name:       res.Name,
 			Healthy:    res.Healthy,
 			LastHit:    res.LastHit,
@@ -71,7 +56,7 @@ func (m *MonitorImp) GetHealthStatus() HealthDto {
 	healthy := checkIfIsHealthy(items)
 	since := m.getHealthySince(healthy)
 
-	return HealthDto{
+	return hcCommon.HealthDto{
 		Healthy:      healthy,
 		Items:        items,
 		HealthySince: since,

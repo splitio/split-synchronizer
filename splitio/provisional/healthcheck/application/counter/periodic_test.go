@@ -3,7 +3,7 @@ package counter
 import (
 	"testing"
 
-	"github.com/splitio/go-toolkit/logging"
+	"github.com/splitio/go-toolkit/v5/logging"
 )
 
 func TestPeriodicCounter(t *testing.T) {
@@ -37,8 +37,7 @@ func TestPeriodicCounter(t *testing.T) {
 		t.Errorf("Healthy should be true")
 	}
 
-	count := counter.GetErrorCount()
-	if *count != 0 {
+	if counter.errorCount != 0 {
 		t.Errorf("Errors should be 0")
 	}
 
@@ -49,8 +48,7 @@ func TestPeriodicCounter(t *testing.T) {
 		t.Errorf("Healthy should be false")
 	}
 
-	count = counter.GetErrorCount()
-	if *count != 2 {
+	if counter.errorCount != 2 {
 		t.Errorf("Errors should be 2")
 	}
 

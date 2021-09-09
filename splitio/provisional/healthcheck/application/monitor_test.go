@@ -4,11 +4,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/splitio/go-toolkit/logging"
+	"github.com/splitio/go-split-commons/v4/healthcheck/application"
+	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
+	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application/counter"
 )
 
-func assertItemsHealthy(t *testing.T, items []ItemDto, splitsExpected bool, segmentsExpected bool, errorsExpected bool) {
+func assertItemsHealthy(t *testing.T, items []hcCommon.ItemDto, splitsExpected bool, segmentsExpected bool, errorsExpected bool) {
 	for _, item := range items {
 		if item.Name == "Splits" && item.Healthy != splitsExpected {
 			t.Errorf("SplitsCounter.Healthy should be %v", splitsExpected)
@@ -27,21 +29,21 @@ func TestMonitor(t *testing.T) {
 
 	splits := counter.Config{
 		Name:        "Splits",
-		CounterType: counter.Splits,
+		CounterType: application.Splits,
 		Period:      10,
 		Severity:    counter.Critical,
 	}
 
 	segments := counter.Config{
 		Name:        "Segments",
-		CounterType: counter.Segments,
+		CounterType: application.Segments,
 		Period:      10,
 		Severity:    counter.Critical,
 	}
 
 	syncErrors := counter.Config{
 		Name:        "Sync-Errors",
-		CounterType: counter.SyncErros,
+		CounterType: application.SyncErros,
 		Period:      10,
 		Periodic:    true,
 		TaskFunc: func(l logging.LoggerInterface, c counter.BaseCounterInterface) error {
@@ -61,9 +63,9 @@ func TestMonitor(t *testing.T) {
 
 	monitor.Start()
 
-	monitor.NotifyEvent(counter.SyncErros)
-	monitor.NotifyEvent(counter.SyncErros)
-	monitor.NotifyEvent(counter.SyncErros)
+	monitor.NotifyEvent(application.SyncErros)
+	monitor.NotifyEvent(application.SyncErros)
+	monitor.NotifyEvent(application.SyncErros)
 	res := monitor.GetHealthStatus()
 	if !res.Healthy {
 		t.Errorf("Healthy should be true")
@@ -71,8 +73,8 @@ func TestMonitor(t *testing.T) {
 
 	assertItemsHealthy(t, res.Items, true, true, false)
 
-	monitor.NotifyEvent(counter.Splits)
-	monitor.NotifyEvent(counter.Segments)
+	monitor.NotifyEvent(application.Splits)
+	monitor.NotifyEvent(application.Segments)
 
 	res = monitor.GetHealthStatus()
 	if !res.Healthy {
@@ -81,7 +83,7 @@ func TestMonitor(t *testing.T) {
 
 	assertItemsHealthy(t, res.Items, true, true, false)
 
-	monitor.Reset(counter.Splits, 1)
+	monitor.Reset(application.Splits, 1)
 
 	time.Sleep(time.Duration(2) * time.Second)
 	res = monitor.GetHealthStatus()

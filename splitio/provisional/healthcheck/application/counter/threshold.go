@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/splitio/go-toolkit/logging"
+	"github.com/splitio/go-toolkit/v5/logging"
 )
 
 // ThresholdImp description

@@ -3,7 +3,8 @@ package services
 import (
 	"testing"
 
-	"github.com/splitio/go-toolkit/logging"
+	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/services"
+	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/services/counter"
 )
 
@@ -15,7 +16,7 @@ func TestGetHealthStatusByPercentage(t *testing.T) {
 		ServiceURL:            "https://events.test.io/api",
 		ServiceHealthEndpoint: "/version",
 		TaskPeriod:            100,
-		CounterType:           counter.ByPercentage,
+		CounterType:           hcCommon.ByPercentage,
 		MaxLen:                2,
 		PercentageToBeHealthy: 100,
 		Severity:              counter.Critical,
@@ -28,7 +29,7 @@ func TestGetHealthStatusByPercentage(t *testing.T) {
 		ServiceURL:            "https://streaming.test.io",
 		ServiceHealthEndpoint: "/health",
 		TaskPeriod:            100,
-		CounterType:           counter.ByPercentage,
+		CounterType:           hcCommon.ByPercentage,
 		MaxLen:                2,
 		PercentageToBeHealthy: 100,
 		Severity:              counter.Degraded,
@@ -114,7 +115,7 @@ func TestGetHealthStatusSecuencial(t *testing.T) {
 		ServiceURL:            "https://events.test.io/api",
 		ServiceHealthEndpoint: "/version",
 		TaskPeriod:            100,
-		CounterType:           counter.Secuencial,
+		CounterType:           hcCommon.Sequential,
 		Severity:              counter.Critical,
 		MaxErrorsAllowed:      3,
 		MinSuccessExpected:    5,
@@ -126,7 +127,7 @@ func TestGetHealthStatusSecuencial(t *testing.T) {
 		ServiceURL:            "https://streaming.test.io",
 		ServiceHealthEndpoint: "/health",
 		TaskPeriod:            100,
-		CounterType:           counter.Secuencial,
+		CounterType:           hcCommon.Sequential,
 		MaxLen:                2,
 		PercentageToBeHealthy: 100,
 		Severity:              counter.Degraded,

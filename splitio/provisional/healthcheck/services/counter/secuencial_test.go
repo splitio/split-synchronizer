@@ -3,7 +3,7 @@ package counter
 import (
 	"testing"
 
-	"github.com/splitio/go-toolkit/logging"
+	"github.com/splitio/go-toolkit/v5/logging"
 )
 
 func TestNotifyServiceHitSecuencial(t *testing.T) {

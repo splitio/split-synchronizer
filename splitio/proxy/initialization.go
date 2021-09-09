@@ -14,6 +14,7 @@ import (
 	"github.com/splitio/go-split-commons/v4/telemetry"
 	"github.com/splitio/go-toolkit/v5/logging"
 
+	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
 	"github.com/splitio/split-synchronizer/v4/conf"
 	"github.com/splitio/split-synchronizer/v4/splitio/admin"
 	adminCommon "github.com/splitio/split-synchronizer/v4/splitio/admin/common"
@@ -21,6 +22,8 @@ import (
 	"github.com/splitio/split-synchronizer/v4/splitio/common/impressionlistener"
 	ssync "github.com/splitio/split-synchronizer/v4/splitio/common/sync"
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/evcalc"
+	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application"
+	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application/counter"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage/persistent"
 	pTasks "github.com/splitio/split-synchronizer/v4/splitio/proxy/tasks"
@@ -68,12 +71,18 @@ func Start(logger logging.LoggerInterface) error {
 	eventsRecorder := api.NewHTTPEventsRecorder(conf.Data.APIKey, advanced, logger)
 	eventsTask := pTasks.NewEventsFlushTask(eventsRecorder, logger, 5, 500, 2) // TODO(mredolatti): use proper config options.
 
+	// Healcheck Monitor
+	var cfgs []counter.Config
+	cfgs = append(cfgs, counter.Config{Name: "Splits", CounterType: hcCommon.Splits, Period: 600, Severity: counter.Critical})
+	cfgs = append(cfgs, counter.Config{Name: "Segments", CounterType: hcCommon.Segments, Period: 60000, Severity: counter.Critical})
+	appMonitor := application.NewMonitorImp(cfgs, logger)
+
 	// Creating Workers and Tasks
 	workers := synchronizer.Workers{
 		// SplitFetcher:   fetcher.NewSplitFetcher(splitCollection, splitAPI.SplitFetcher, localTelemetryStorage, logger),
-		SplitFetcher: split.NewSplitFetcher(splitStorage, splitAPI.SplitFetcher, logger, localTelemetryStorage),
+		SplitFetcher: split.NewSplitFetcher(splitStorage, splitAPI.SplitFetcher, logger, localTelemetryStorage, appMonitor),
 		//SegmentFetcher: fetcher.NewSegmentFetcher(segmentCollection, splitCollection, splitAPI.SegmentFetcher, localTelemetryStorage, logger),
-		SegmentFetcher: segment.NewSegmentFetcher(splitStorage, segmentStorage, splitAPI.SegmentFetcher, logger, localTelemetryStorage),
+		SegmentFetcher: segment.NewSegmentFetcher(splitStorage, segmentStorage, splitAPI.SegmentFetcher, logger, localTelemetryStorage, appMonitor),
 		TelemetryRecorder: telemetry.NewTelemetrySynchronizer(localTelemetryStorage, telemetryRecorder, splitStorage, segmentStorage, logger,
 			metadata, localTelemetryStorage),
 	}

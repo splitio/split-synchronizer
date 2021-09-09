@@ -12,6 +12,8 @@ import (
 	"github.com/splitio/go-split-commons/v4/telemetry"
 	"github.com/splitio/go-toolkit/v5/logging"
 
+	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
+	storageCommon "github.com/splitio/go-split-commons/v4/storage"
 	"github.com/splitio/go-split-commons/v4/storage/inmemory"
 	"github.com/splitio/go-split-commons/v4/storage/redis"
 	"github.com/splitio/go-split-commons/v4/synchronizer"
@@ -29,6 +31,8 @@ import (
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/storage"
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/task"
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/worker"
+	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application"
+	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application/counter"
 	"github.com/splitio/split-synchronizer/v4/splitio/util"
 )
 
@@ -94,10 +98,13 @@ func Start(logger logging.LoggerInterface) error {
 	eventEvictionMonitor := evcalc.New(1) // TODO(mredolatti): set the correct thread count
 	eventRecorder := worker.NewEventRecorderMultiple(storages.EventStorage, splitAPI.EventRecorder, syncTelemetryStorage, eventEvictionMonitor, logger)
 
+	// Healcheck Monitor
+	appMonitor := application.NewMonitorImp(getAppCountersConfig(storages.SplitStorage), logger)
+
 	workers := synchronizer.Workers{
-		SplitFetcher: split.NewSplitFetcher(storages.SplitStorage, splitAPI.SplitFetcher, logger, syncTelemetryStorage),
+		SplitFetcher: split.NewSplitFetcher(storages.SplitStorage, splitAPI.SplitFetcher, logger, syncTelemetryStorage, appMonitor),
 		SegmentFetcher: segment.NewSegmentFetcher(storages.SplitStorage, storages.SegmentStorage, splitAPI.SegmentFetcher,
-			logger, syncTelemetryStorage),
+			logger, syncTelemetryStorage, appMonitor),
 		EventRecorder: eventRecorder,
 		TelemetryRecorder: telemetry.NewTelemetrySynchronizer(syncTelemetryStorage, splitAPI.TelemetryRecorder,
 			storages.SplitStorage, storages.SegmentStorage, logger, metadata, syncTelemetryStorage),
@@ -219,4 +226,43 @@ func Start(logger logging.LoggerInterface) error {
 	rtm.RegisterShutdownHandler()
 	rtm.Block()
 	return nil
+}
+
+func getAppCountersConfig(storage storageCommon.SplitStorage) []counter.Config {
+	var cfgs []counter.Config
+
+	splitsConfig := counter.Config{
+		Name:        "Splits",
+		CounterType: hcCommon.Splits,
+		Period:      600,
+		Severity:    counter.Critical,
+	}
+
+	segmentsConfig := counter.Config{
+		Name:        "Segments",
+		CounterType: hcCommon.Segments,
+		Period:      60000,
+		Severity:    counter.Critical,
+	}
+
+	storageConfig := counter.Config{
+		Name:        "Storage",
+		CounterType: hcCommon.Storage,
+		Periodic:    true,
+		Period:      30,
+		TaskFunc: func(l logging.LoggerInterface, c counter.BaseCounterInterface) error {
+			_, err := storage.ChangeNumber()
+			if err != nil {
+				c.NotifyEvent()
+			}
+
+			return nil
+		},
+		MaxErrorsAllowedInPeriod: 2,
+		Severity:                 counter.Low,
+	}
+
+	cfgs = append(cfgs, splitsConfig, segmentsConfig, storageConfig)
+
+	return cfgs
 }

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/splitio/go-toolkit/asynctask"
-	"github.com/splitio/go-toolkit/logging"
+	"github.com/splitio/go-toolkit/v5/asynctask"
+	"github.com/splitio/go-toolkit/v5/logging"
 )
 
 // ByPercentageImp description
