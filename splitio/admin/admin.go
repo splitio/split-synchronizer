@@ -16,6 +16,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const basepath = "/admin"
+
 // Options encapsulates dependencies & config options for the Admin server
 type Options struct {
 	Host                string
@@ -37,10 +39,10 @@ type Options struct {
 func NewServer(options *Options) (*http.Server, error) {
 
 	router := gin.New()
-	admin := router.Group("/admin")
-	dataController := setupDataController(options)
+	admin := router.Group(basepath)
+	dataController := setupDataController(options, basepath)
 	if dataController != nil {
-		dataController.Register(admin, "/admin")
+		dataController.Register(admin)
 	}
 
 	dashboardController, err := controllers.NewDashboardController(
@@ -71,7 +73,7 @@ func NewServer(options *Options) (*http.Server, error) {
 	}, nil
 }
 
-func setupDataController(opts *Options) *controllers.DataManagerController {
+func setupDataController(opts *Options, basepath string) *controllers.DataManagerController {
 	if opts.Proxy {
 		return nil
 	}
@@ -83,5 +85,12 @@ func setupDataController(opts *Options) *controllers.DataManagerController {
 		return nil
 	}
 
-	return controllers.NewDataManagerController(asImpressionDropper, asEventsDropper, opts.ImpressionsRecorder, opts.EventRecorder, opts.Logger)
+	return controllers.NewDataManagerController(
+		asImpressionDropper,
+		asEventsDropper,
+		opts.ImpressionsRecorder,
+		opts.EventRecorder,
+		opts.Logger,
+		basepath,
+	)
 }

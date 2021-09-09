@@ -27,7 +27,7 @@ type DashboardController struct {
 	impressionsEvCalc  evcalc.Monitor
 	eventsEvCalc       evcalc.Monitor
 	runtime            common.Runtime
-	dataControllerPath *string
+	dataControllerPath string
 }
 
 // NewDashboardController instantiates a new dashboard controller
@@ -42,7 +42,7 @@ func NewDashboardController(
 	dataController *DataManagerController,
 ) (*DashboardController, error) {
 
-	var dataControllerPath *string
+	var dataControllerPath string
 	if dataController != nil {
 		dataControllerPath = dataController.BasePath()
 	}

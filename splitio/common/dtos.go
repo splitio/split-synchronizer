@@ -1,7 +1,7 @@
 package common
 
-// ImpressionListener struct for payload
-type ImpressionListener struct {
+// ImpressionForListener struct for payload
+type ImpressionForListener struct {
 	KeyName      string `json:"keyName"`
 	Treatment    string `json:"treatment"`
 	Time         int64  `json:"time"`
@@ -11,8 +11,8 @@ type ImpressionListener struct {
 	Pt           int64  `json:"pt,omitempty"`
 }
 
-// ImpressionsListener struct for payload
-type ImpressionsListener struct {
-	TestName       string               `json:"testName"`
-	KeyImpressions []ImpressionListener `json:"keyImpressions"`
+// ImpressionsForListener struct for payload
+type ImpressionsForListener struct {
+	TestName       string                  `json:"testName"`
+	KeyImpressions []ImpressionForListener `json:"keyImpressions"`
 }

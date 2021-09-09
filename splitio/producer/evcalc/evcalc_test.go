@@ -7,7 +7,7 @@ import (
 
 func TestEvictionCalculator(t *testing.T) {
 	monitor := New(1)
-	monitor.StoreDataFlushed(time.Now().UnixNano(), 100, 0)
+	monitor.StoreDataFlushed(time.Now(), 100, 0)
 	lambda := monitor.Lambda()
 	if lambda != 1 {
 		t.Error("Lambda should be 1 instead of ", lambda)
@@ -16,7 +16,7 @@ func TestEvictionCalculator(t *testing.T) {
 
 func TestEvictionCalculatorWithInStorage(t *testing.T) {
 	monitor := New(1)
-	monitor.StoreDataFlushed(time.Now().UnixNano(), 100, 100)
+	monitor.StoreDataFlushed(time.Now(), 100, 100)
 	lambda := monitor.Lambda()
 	if lambda != 1 {
 		t.Error("Lambda should be 1 instead of", lambda)
@@ -29,8 +29,8 @@ func TestEvictionCalculatorWithInStorage(t *testing.T) {
 
 func TestEvictionCalculatorRegisteringTwo(t *testing.T) {
 	monitor := New(1)
-	monitor.StoreDataFlushed(time.Now().UnixNano(), 100, 100)
-	monitor.StoreDataFlushed(time.Now().UnixNano(), 100, 0)
+	monitor.StoreDataFlushed(time.Now(), 100, 100)
+	monitor.StoreDataFlushed(time.Now(), 100, 0)
 	lambda := monitor.Lambda()
 	if lambda != 2 {
 		t.Error("Lambda should be 1 instead of", lambda)
@@ -43,9 +43,9 @@ func TestEvictionCalculatorRegisteringTwo(t *testing.T) {
 
 func TestEvictionCalculatorWithMoreDataThatCanFlush(t *testing.T) {
 	monitor := New(1)
-	monitor.StoreDataFlushed(time.Now().UnixNano(), 100, 100)
-	monitor.StoreDataFlushed(time.Now().UnixNano(), 100, 150)
-	monitor.StoreDataFlushed(time.Now().UnixNano(), 100, 200)
+	monitor.StoreDataFlushed(time.Now(), 100, 100)
+	monitor.StoreDataFlushed(time.Now(), 100, 150)
+	monitor.StoreDataFlushed(time.Now(), 100, 200)
 
 	lambda := monitor.Lambda()
 	if lambda != 0.75 {
@@ -60,7 +60,7 @@ func TestEvictionCalculatorWithMoreDataThatCanFlush(t *testing.T) {
 func TestEvictionCalculatorWithMoreDataThatCanFlushAndMoreDataThatCanStore(t *testing.T) {
 	monitor := New(1)
 	for i := 0; i < 120; i++ {
-		monitor.StoreDataFlushed(time.Now().UnixNano(), 100, 100+(int64(i*10)))
+		monitor.StoreDataFlushed(time.Now(), 100, 100+(int64(i*10)))
 	}
 
 	lambda := monitor.Lambda()
