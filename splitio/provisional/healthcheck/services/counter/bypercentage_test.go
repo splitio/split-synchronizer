@@ -4,7 +4,7 @@ import (
 	"container/list"
 	"testing"
 
-	"github.com/splitio/go-toolkit/logging"
+	"github.com/splitio/go-toolkit/v5/logging"
 )
 
 func TestNotifyServiceHitByPercentage(t *testing.T) {

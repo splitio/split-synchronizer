@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/splitio/go-toolkit/logging"
+	"github.com/splitio/go-toolkit/v5/logging"
 )
 
 func TestThresholdCounter(t *testing.T) {

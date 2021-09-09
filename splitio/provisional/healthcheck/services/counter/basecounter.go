@@ -4,15 +4,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/splitio/go-toolkit/asynctask"
-	"github.com/splitio/go-toolkit/logging"
-)
-
-const (
-	// ByPercentage counter type
-	ByPercentage = iota
-	// Secuencial counter type
-	Secuencial
+	"github.com/splitio/go-toolkit/v5/asynctask"
+	"github.com/splitio/go-toolkit/v5/logging"
 )
 
 const (

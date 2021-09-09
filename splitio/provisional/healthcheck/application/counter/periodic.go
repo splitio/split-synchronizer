@@ -1,8 +1,8 @@
 package counter
 
 import (
-	"github.com/splitio/go-toolkit/asynctask"
-	"github.com/splitio/go-toolkit/logging"
+	"github.com/splitio/go-toolkit/v5/asynctask"
+	"github.com/splitio/go-toolkit/v5/logging"
 )
 
 // PeriodicImp periodic counter struct
@@ -10,11 +10,6 @@ type PeriodicImp struct {
 	ApplicationCounterImp
 	maxErrorsAllowedInPeriod int
 	task                     *asynctask.AsyncTask
-}
-
-// GetErrorCount return errors count
-func (c *PeriodicImp) GetErrorCount() *int {
-	return &c.errorCount
 }
 
 // NotifyEvent increase errorCount and check the health
