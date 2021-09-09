@@ -1,10 +1,13 @@
 package evcalc
 
-import "sync"
+import (
+	"sync"
+	"time"
+)
 
 // Monitor specifies the interface for a lambda calculator
 type Monitor interface {
-	StoreDataFlushed(timestamp int64, countFlushed int, countInStorage int64)
+	StoreDataFlushed(timestamp time.Time, countFlushed int, countInStorage int64)
 	Lambda() float64
 	Acquire() bool
 	Release()
@@ -13,7 +16,7 @@ type Monitor interface {
 
 // record struct that has all the required information of one flushing process
 type record struct {
-	Timestamp     int64
+	Timestamp     time.Time
 	DataFlushed   int
 	DataInStorage int64
 }
@@ -37,7 +40,7 @@ func New(threads int) *MonitorImpl {
 }
 
 // StoreDataFlushed stores data flushed into the monitor
-func (m *MonitorImpl) StoreDataFlushed(timestamp int64, countFlushed int, countInStorage int64) {
+func (m *MonitorImpl) StoreDataFlushed(timestamp time.Time, countFlushed int, countInStorage int64) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
@@ -100,3 +103,5 @@ func (m *MonitorImpl) calculateLambda() float64 {
 	amountGeneratedBetweenT1andT2 := float64(dataInT2 - dataInT1 + t)
 	return float64(t) / amountGeneratedBetweenT1andT2
 }
+
+var _ Monitor = (*MonitorImpl)(nil)
