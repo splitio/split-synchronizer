@@ -105,7 +105,7 @@ type DashboardInitializationVars struct {
 	Version            string
 	ProxyMode          bool
 	RefreshTime        int64
-	DataControllerPath *string
+	DataControllerPath string
 	Stats              GlobalStats `json:"stats"`
 	Health             Health      `json:"health"`
 }

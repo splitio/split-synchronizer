@@ -7,7 +7,7 @@ import (
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
 )
 
-func toImpressionsDTO(impressionsMap map[string][]dtos.ImpressionDTO) ([]dtos.ImpressionsDTO, error) {
+func toImpressionsDTO(impressionsMap impressionsByFeature) ([]dtos.ImpressionsDTO, error) {
 	if impressionsMap == nil {
 		return nil, fmt.Errorf("Impressions map cannot be null")
 	}
@@ -22,11 +22,15 @@ func toImpressionsDTO(impressionsMap map[string][]dtos.ImpressionDTO) ([]dtos.Im
 	return toReturn, nil
 }
 
-func wrapData(impressions []dtos.Impression, collectedData map[dtos.Metadata]map[string][]dtos.ImpressionDTO, metadata dtos.Metadata) map[dtos.Metadata]map[string][]dtos.ImpressionDTO {
+func wrapData(
+	impressions []dtos.Impression,
+	collectedData impressionsByMetadataByFeature,
+	metadata dtos.Metadata,
+) impressionsByMetadataByFeature {
 	for _, impression := range impressions { // To prevent errors use range instead of first element
 		_, instanceExists := collectedData[metadata]
 		if !instanceExists {
-			collectedData[metadata] = make(map[string][]dtos.ImpressionDTO)
+			collectedData[metadata] = make(impressionsByFeature)
 		}
 		_, featureExists := collectedData[metadata][impression.FeatureName]
 		if !featureExists {
@@ -48,19 +52,22 @@ func wrapData(impressions []dtos.Impression, collectedData map[dtos.Metadata]map
 	return collectedData
 }
 
-func wrapDataForListener(impressions []dtos.Impression, collectedData map[dtos.Metadata]map[string][]common.ImpressionListener, metadata dtos.Metadata) map[dtos.Metadata]map[string][]common.ImpressionListener {
+func wrapDataForListener(
+	impressions []dtos.Impression,
+	collectedData listenerImpressionsByMetadataByFeature, metadata dtos.Metadata,
+) listenerImpressionsByMetadataByFeature {
 	for _, impression := range impressions { // To prevent errors use range instead of first element
 		_, instanceExists := collectedData[metadata]
 		if !instanceExists {
-			collectedData[metadata] = make(map[string][]common.ImpressionListener)
+			collectedData[metadata] = make(listenerImpressionsByFeature)
 		}
 		_, featureExists := collectedData[metadata][impression.FeatureName]
 		if !featureExists {
-			collectedData[metadata][impression.FeatureName] = make([]common.ImpressionListener, 0)
+			collectedData[metadata][impression.FeatureName] = make([]common.ImpressionForListener, 0)
 		}
 		collectedData[metadata][impression.FeatureName] = append(
 			collectedData[metadata][impression.FeatureName],
-			common.ImpressionListener{
+			common.ImpressionForListener{
 				BucketingKey: impression.BucketingKey,
 				ChangeNumber: impression.ChangeNumber,
 				KeyName:      impression.KeyName,
@@ -74,14 +81,14 @@ func wrapDataForListener(impressions []dtos.Impression, collectedData map[dtos.M
 	return collectedData
 }
 
-func toListenerDTO(impressionsMap map[string][]common.ImpressionListener) ([]common.ImpressionsListener, error) {
+func toListenerDTO(impressionsMap listenerImpressionsByFeature) ([]common.ImpressionsForListener, error) {
 	if impressionsMap == nil {
 		return nil, fmt.Errorf("Impressions map cannot be null")
 	}
 
-	toReturn := make([]common.ImpressionsListener, 0)
+	toReturn := make([]common.ImpressionsForListener, 0)
 	for feature, impressions := range impressionsMap {
-		toReturn = append(toReturn, common.ImpressionsListener{
+		toReturn = append(toReturn, common.ImpressionsForListener{
 			TestName:       feature,
 			KeyImpressions: impressions,
 		})
@@ -89,9 +96,9 @@ func toListenerDTO(impressionsMap map[string][]common.ImpressionListener) ([]com
 	return toReturn, nil
 }
 
-func wrapDTOListener(collectedData map[dtos.Metadata]map[string][]common.ImpressionListener) map[dtos.Metadata][]common.ImpressionsListener {
+func wrapDTOListener(collectedData listenerImpressionsByMetadataByFeature) listenerImpressionsByMetadata {
 	var err error
-	impressions := make(map[dtos.Metadata][]common.ImpressionsListener)
+	impressions := make(map[dtos.Metadata][]common.ImpressionsForListener)
 	for metadata, impsForMetadata := range collectedData {
 		impressions[metadata], err = toListenerDTO(impsForMetadata)
 		if err != nil {
