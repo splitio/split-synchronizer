@@ -100,13 +100,14 @@ type Health struct {
 }
 
 type DashboardInitializationVars struct {
-	DashboardTitle string
-	RunningMode    string
-	Version        string
-	ProxyMode      bool
-	RefreshTime    int64
-	Stats          GlobalStats `json:"stats"`
-	Health         Health      `json:"health"`
+	DashboardTitle     string
+	RunningMode        string
+	Version            string
+	ProxyMode          bool
+	RefreshTime        int64
+	DataControllerPath string
+	Stats              GlobalStats `json:"stats"`
+	Health             Health      `json:"health"`
 }
 
 // SplitSummary encapsulates a minimalistic view of split properties to be presented in the dashboard

@@ -1,27 +1,14 @@
-package collections
+package persistent
 
 import (
 	"bytes"
 	"encoding/gob"
 	"sync"
 
-	"github.com/boltdb/bolt"
 	"github.com/splitio/go-toolkit/v5/logging"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb"
 )
 
 const segmentChangesCollectionName = "SEGMENT_CHANGES_COLLECTION"
-
-// NewSegmentChangesCollection returns an instance of SegmentChangesCollection
-func NewSegmentChangesCollection(dbb *bolt.DB, logger logging.LoggerInterface) SegmentChangesCollection {
-	baseCollection := boltdb.Collection{DB: dbb, Name: segmentChangesCollectionName}
-	var sCollection = SegmentChangesCollection{
-		Collection:        baseCollection,
-		mutexSegmentsTill: &sync.RWMutex{},
-		segmentsTill:      make(map[string]int64, 0),
-	}
-	return sCollection
-}
 
 // SegmentKey represents a segment key data
 type SegmentKey struct {
@@ -38,23 +25,30 @@ type SegmentChangesItem struct {
 
 // SegmentChangesCollection represents a collection of SplitChangesItem
 type SegmentChangesCollection struct {
-	boltdb.Collection
-	mutexSegmentsTill *sync.RWMutex
-	segmentsTill      map[string]int64
-	logger            logging.LoggerInterface
+	collection   CollectionWrapper
+	segmentsTill map[string]int64
+	cnMutex      sync.Mutex
+}
+
+// NewSegmentChangesCollection returns an instance of SegmentChangesCollection
+func NewSegmentChangesCollection(db DBWrapper, logger logging.LoggerInterface) *SegmentChangesCollection {
+	return &SegmentChangesCollection{
+		collection:   &BoltDBCollectionWrapper{db: db, name: segmentChangesCollectionName, logger: logger},
+		segmentsTill: make(map[string]int64, 0),
+	}
 }
 
 // Add an item
 func (c *SegmentChangesCollection) Add(item *SegmentChangesItem) error {
 	key := []byte(item.Name)
-	err := c.Collection.SaveAs(key, item)
+	err := c.collection.SaveAs(key, item)
 	return err
 }
 
 // Fetch return a SegmentChangesItem
 func (c *SegmentChangesCollection) Fetch(name string) (*SegmentChangesItem, error) {
 	key := []byte(name)
-	item, err := c.Collection.FetchBy(key)
+	item, err := c.collection.FetchBy(key)
 	if err != nil {
 		return nil, err
 	}
@@ -70,14 +64,14 @@ func (c *SegmentChangesCollection) Fetch(name string) (*SegmentChangesItem, erro
 	var q SegmentChangesItem
 	errq := dec.Decode(&q)
 	if errq != nil {
-		c.logger.Error("decode error:", errq)
+		c.collection.Logger().Error("decode error:", errq)
 	}
 	return &q, nil
 }
 
 // FetchAll return a list of SegmentChangesItem
 func (c *SegmentChangesCollection) FetchAll() ([]SegmentChangesItem, error) {
-	items, err := c.Collection.FetchAll()
+	items, err := c.collection.FetchAll()
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +87,7 @@ func (c *SegmentChangesCollection) FetchAll() ([]SegmentChangesItem, error) {
 		decodeBuffer.Write(item)
 		errq := gob.NewDecoder(&decodeBuffer).Decode(&q)
 		if errq != nil {
-			c.logger.Error("decode error:", errq)
+			c.collection.Logger().Error("decode error:", errq)
 			continue
 		}
 
@@ -105,8 +99,8 @@ func (c *SegmentChangesCollection) FetchAll() ([]SegmentChangesItem, error) {
 
 // ChangeNumber returns changeNumber
 func (c *SegmentChangesCollection) ChangeNumber(segment string) int64 {
-	c.mutexSegmentsTill.RLock()
-	defer c.mutexSegmentsTill.RUnlock()
+	c.cnMutex.Lock()
+	defer c.cnMutex.Unlock()
 	value, exists := c.segmentsTill[segment]
 	if exists {
 		return value
@@ -116,7 +110,7 @@ func (c *SegmentChangesCollection) ChangeNumber(segment string) int64 {
 
 // SetChangeNumber sets changeNumber
 func (c *SegmentChangesCollection) SetChangeNumber(segment string, since int64) {
-	c.mutexSegmentsTill.Lock()
-	defer c.mutexSegmentsTill.Unlock()
+	c.cnMutex.Lock()
+	defer c.cnMutex.Unlock()
 	c.segmentsTill[segment] = since
 }

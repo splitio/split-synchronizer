@@ -2,10 +2,9 @@ package controllers
 
 import (
 	"net/http"
-	"os"
-	"syscall"
 
 	"github.com/gin-gonic/gin"
+	"github.com/splitio/split-synchronizer/v4/splitio/common"
 )
 
 const (
@@ -14,7 +13,14 @@ const (
 )
 
 // ShutdownController bundles handlers that can shut down the synchronizer app
-type ShutdownController struct{}
+type ShutdownController struct {
+	runtime common.Runtime
+}
+
+// NewShutdownController instantiates a shutdown request handling controller
+func NewShutdownController(runtime common.Runtime) *ShutdownController {
+	return &ShutdownController{runtime: runtime}
+}
 
 // StopProcess handles requests to shut down the synchronizer app
 func (c *ShutdownController) StopProcess(ctx *gin.Context) {
@@ -24,11 +30,9 @@ func (c *ShutdownController) StopProcess(ctx *gin.Context) {
 	switch stopType {
 	case forcedShutdown:
 		toReturn = stopType
-		// log.PostShutdownMessageToSlack(true)
-		defer kill(syscall.SIGKILL)
+		c.runtime.Kill()
 	case gracefulShutdown:
-		toReturn = stopType
-		defer kill(syscall.SIGINT)
+		c.runtime.Shutdown()
 	default:
 		ctx.String(http.StatusBadRequest, "Invalid sign type: %s", toReturn)
 		return
@@ -36,13 +40,4 @@ func (c *ShutdownController) StopProcess(ctx *gin.Context) {
 
 	ctx.String(http.StatusOK, "%s: %s", "Signal has been sent", toReturn)
 
-}
-
-// kill process helper
-func kill(sig syscall.Signal) error {
-	p, err := os.FindProcess(os.Getpid())
-	if err != nil {
-		return err
-	}
-	return p.Signal(sig)
 }

@@ -12,35 +12,11 @@ import (
 	"time"
 
 	"github.com/splitio/go-split-commons/v4/dtos"
-	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v4/conf"
-	"github.com/splitio/split-synchronizer/v4/log"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/interfaces"
 )
-
-func TestEventBufferCounter(t *testing.T) {
-	var p = eventPoolBufferSizeStruct{size: 0}
-
-	p.Addition(1)
-	p.Addition(2)
-	if !p.GreaterThan(2) || p.GreaterThan(4) {
-		t.Error("Error on Addition method")
-	}
-
-	p.Reset()
-	if !p.GreaterThan(-1) || p.GreaterThan(1) {
-		t.Error("Error on Reset")
-	}
-
-}
 
 func TestAddEvents(t *testing.T) {
 	conf.Initialize()
-	if log.Instance == nil {
-		stdoutWriter := ioutil.Discard //os.Stdout
-		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
-	}
-	interfaces.Initialize()
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
