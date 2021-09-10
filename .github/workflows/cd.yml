@@ -4,6 +4,7 @@ on:
     branches:
       - main
       - master
+
 jobs:
   push-docker-image:
     name: Build and Push Docker Image
@@ -74,15 +75,3 @@ jobs:
             -Dsonar.go.coverage.reportPaths=coverage.out
             -Dsonar.links.ci="https://github.com/splitio/${{ github.event.repository.name }}/actions"
             -Dsonar.links.scm="https://github.com/splitio/${{ github.event.repository.name }}"
-
-  deploy-to-stage:
-    name: Deploy to Stage
-    runs-on: ubuntu-latest
-    needs: push-docker-image
-    steps:
-      - name: Deploy to R2D2 in stage
-        run: |
-          curl --header "Content-Type: application/json" \
-            --request PUT \
-            --data '{	"service": "${{ github.event.repository.name }}", "environment": "stage", "tag": "${{ github.sha }}", "token": "${{ secrets.SLACK_TOKEN }}"}' \
-            https://r2d2.split-stage.io/deployment
