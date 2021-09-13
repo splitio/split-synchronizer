@@ -4,45 +4,9 @@ import (
 	"sync"
 	"time"
 
+	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
-
-// BaseCounterInterface application counter interface
-type BaseCounterInterface interface {
-	IsHealthy() HealthyResult
-	NotifyEvent()
-	Reset(value int) error
-	GetType() int
-	Start()
-	Stop()
-}
-
-// HealthyResult description
-type HealthyResult struct {
-	Name       string
-	Severity   int
-	Healthy    bool
-	LastHit    *time.Time
-	ErrorCount int
-}
-
-const (
-	// Critical severity
-	Critical = iota
-	// Low severity
-	Low
-)
-
-// Config counter configuration
-type Config struct {
-	Name                     string
-	CounterType              int
-	Periodic                 bool
-	TaskFunc                 func(l logging.LoggerInterface, c BaseCounterInterface) error
-	Period                   int
-	MaxErrorsAllowedInPeriod int
-	Severity                 int
-}
 
 // ApplicationCounterImp description
 type ApplicationCounterImp struct {
@@ -69,8 +33,8 @@ func (c *ApplicationCounterImp) GetType() int {
 }
 
 // IsHealthy return the counter health
-func (c *ApplicationCounterImp) IsHealthy() HealthyResult {
-	return HealthyResult{
+func (c *ApplicationCounterImp) IsHealthy() hcCommon.HealthyResult {
+	return hcCommon.HealthyResult{
 		Name:       c.name,
 		Healthy:    c.healthy,
 		Severity:   c.severity,

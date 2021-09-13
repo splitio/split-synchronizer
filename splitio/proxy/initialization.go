@@ -14,7 +14,8 @@ import (
 	"github.com/splitio/go-split-commons/v4/telemetry"
 	"github.com/splitio/go-toolkit/v5/logging"
 
-	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
+	hcAppCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
+	hcServicesCommon "github.com/splitio/go-split-commons/v4/healthcheck/services"
 	"github.com/splitio/split-synchronizer/v4/conf"
 	"github.com/splitio/split-synchronizer/v4/splitio/admin"
 	adminCommon "github.com/splitio/split-synchronizer/v4/splitio/admin/common"
@@ -22,8 +23,8 @@ import (
 	"github.com/splitio/split-synchronizer/v4/splitio/common/impressionlistener"
 	ssync "github.com/splitio/split-synchronizer/v4/splitio/common/sync"
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/evcalc"
-	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application"
-	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application/counter"
+	hcApplication "github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application"
+	hcServices "github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/services"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage/persistent"
 	pTasks "github.com/splitio/split-synchronizer/v4/splitio/proxy/tasks"
@@ -72,10 +73,14 @@ func Start(logger logging.LoggerInterface) error {
 	eventsTask := pTasks.NewEventsFlushTask(eventsRecorder, logger, 5, 500, 2) // TODO(mredolatti): use proper config options.
 
 	// Healcheck Monitor
-	var cfgs []counter.Config
-	cfgs = append(cfgs, counter.Config{Name: "Splits", CounterType: hcCommon.Splits, Period: 600, Severity: counter.Critical})
-	cfgs = append(cfgs, counter.Config{Name: "Segments", CounterType: hcCommon.Segments, Period: 60000, Severity: counter.Critical})
-	appMonitor := application.NewMonitorImp(cfgs, logger)
+	var cfgs []hcAppCommon.Config
+	cfgs = append(cfgs, hcAppCommon.Config{Name: "Splits", CounterType: hcAppCommon.Splits, Period: 3600, Severity: hcAppCommon.Critical})
+	cfgs = append(cfgs, hcAppCommon.Config{Name: "Segments", CounterType: hcAppCommon.Segments, Period: 3600, Severity: hcAppCommon.Critical})
+	appMonitor := hcApplication.NewMonitorImp(cfgs, logger)
+	appMonitor.Start()
+
+	servicesMonitor := hcServices.NewMonitorImp(getServicesCountersConfig(), logger)
+	servicesMonitor.Start()
 
 	// Creating Workers and Tasks
 	workers := synchronizer.Workers{
@@ -171,6 +176,8 @@ func Start(logger logging.LoggerInterface) error {
 		ImpressionsEvCalc: impressionEvictionMonitor,
 		EventsEvCalc:      eventEvictionMonitor,
 		Runtime:           rtm,
+		HcAppMonitor:      appMonitor,
+		HcServicesMonitor: servicesMonitor,
 	})
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error starting admin server: %w", err), common.ExitAdminError)
@@ -208,4 +215,65 @@ func Start(logger logging.LoggerInterface) error {
 	rtm.RegisterShutdownHandler()
 	rtm.Block()
 	return nil
+}
+
+func getServicesCountersConfig() []hcServicesCommon.Config {
+	var cfgs []hcServicesCommon.Config
+
+	telemetryConfig := hcServicesCommon.Config{
+		Name:                  "Telemetry",
+		ServiceURL:            "https://telemetry.split-stage.io",
+		ServiceHealthEndpoint: "/version",
+		TaskPeriod:            3600,
+		CounterType:           hcServicesCommon.ByPercentage,
+		MaxLen:                10,
+		PercentageToBeHealthy: 70,
+		Severity:              hcServicesCommon.Low,
+	}
+
+	authConfig := hcServicesCommon.Config{
+		Name:                  "Auth",
+		ServiceURL:            "https://auth.split-stage.io",
+		ServiceHealthEndpoint: "/version",
+		TaskPeriod:            3600,
+		CounterType:           hcServicesCommon.ByPercentage,
+		MaxLen:                10,
+		PercentageToBeHealthy: 70,
+		Severity:              hcServicesCommon.Degraded,
+	}
+
+	apiConfig := hcServicesCommon.Config{
+		Name:                  "API",
+		ServiceURL:            "https://sdk.split-stage.io/api",
+		ServiceHealthEndpoint: "/version",
+		TaskPeriod:            3600,
+		CounterType:           hcServicesCommon.ByPercentage,
+		MaxLen:                10,
+		PercentageToBeHealthy: 70,
+		Severity:              hcServicesCommon.Critical,
+	}
+
+	eventsConfig := hcServicesCommon.Config{
+		Name:                  "Events",
+		ServiceURL:            "https://events.split-stage.io/api",
+		ServiceHealthEndpoint: "/version",
+		TaskPeriod:            3600,
+		CounterType:           hcServicesCommon.ByPercentage,
+		MaxLen:                10,
+		PercentageToBeHealthy: 70,
+		Severity:              hcServicesCommon.Critical,
+	}
+
+	streamingConfig := hcServicesCommon.Config{
+		Name:                  "Streaming",
+		ServiceURL:            "https://streaming.split.io",
+		ServiceHealthEndpoint: "/health",
+		TaskPeriod:            3600,
+		CounterType:           hcServicesCommon.ByPercentage,
+		MaxLen:                10,
+		PercentageToBeHealthy: 70,
+		Severity:              hcServicesCommon.Degraded,
+	}
+
+	return append(cfgs, telemetryConfig, authConfig, apiConfig, eventsConfig, streamingConfig)
 }

@@ -9,9 +9,9 @@ import (
 )
 
 func TestGetHealthStatusByPercentage(t *testing.T) {
-	var serviceCounters []counter.BaseCounterInterface
+	var serviceCounters []hcCommon.CounterInterface
 
-	eventsConfig := counter.Config{
+	eventsConfig := hcCommon.Config{
 		Name:                  "EVENTS",
 		ServiceURL:            "https://events.test.io/api",
 		ServiceHealthEndpoint: "/version",
@@ -19,12 +19,12 @@ func TestGetHealthStatusByPercentage(t *testing.T) {
 		CounterType:           hcCommon.ByPercentage,
 		MaxLen:                2,
 		PercentageToBeHealthy: 100,
-		Severity:              counter.Critical,
+		Severity:              hcCommon.Critical,
 	}
 
 	criticalCounter := counter.NewCounterByPercentage(eventsConfig, logging.NewLogger(nil))
 
-	streamingConfig := counter.Config{
+	streamingConfig := hcCommon.Config{
 		Name:                  "STREAMING",
 		ServiceURL:            "https://streaming.test.io",
 		ServiceHealthEndpoint: "/health",
@@ -32,7 +32,7 @@ func TestGetHealthStatusByPercentage(t *testing.T) {
 		CounterType:           hcCommon.ByPercentage,
 		MaxLen:                2,
 		PercentageToBeHealthy: 100,
-		Severity:              counter.Degraded,
+		Severity:              hcCommon.Degraded,
 	}
 
 	degradedCounter := counter.NewCounterByPercentage(streamingConfig, logging.NewLogger(nil))
@@ -108,21 +108,21 @@ func TestGetHealthStatusByPercentage(t *testing.T) {
 }
 
 func TestGetHealthStatusSecuencial(t *testing.T) {
-	var serviceCounters []counter.BaseCounterInterface
+	var serviceCounters []hcCommon.CounterInterface
 
-	eventsConfig := counter.Config{
+	eventsConfig := hcCommon.Config{
 		Name:                  "EVENTS",
 		ServiceURL:            "https://events.test.io/api",
 		ServiceHealthEndpoint: "/version",
 		TaskPeriod:            100,
 		CounterType:           hcCommon.Sequential,
-		Severity:              counter.Critical,
+		Severity:              hcCommon.Critical,
 		MaxErrorsAllowed:      3,
 		MinSuccessExpected:    5,
 	}
 	criticalCounter := counter.NewCounterSecuencial(eventsConfig, logging.NewLogger(nil))
 
-	streamingConfig := counter.Config{
+	streamingConfig := hcCommon.Config{
 		Name:                  "STREAMING",
 		ServiceURL:            "https://streaming.test.io",
 		ServiceHealthEndpoint: "/health",
@@ -130,7 +130,7 @@ func TestGetHealthStatusSecuencial(t *testing.T) {
 		CounterType:           hcCommon.Sequential,
 		MaxLen:                2,
 		PercentageToBeHealthy: 100,
-		Severity:              counter.Degraded,
+		Severity:              hcCommon.Degraded,
 		MaxErrorsAllowed:      3,
 		MinSuccessExpected:    5,
 	}

@@ -4,41 +4,10 @@ import (
 	"sync"
 	"time"
 
+	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/services"
 	"github.com/splitio/go-toolkit/v5/asynctask"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
-
-const (
-	// Critical severity
-	Critical = iota
-	// Degraded severity
-	Degraded
-	// Low severity
-	Low
-)
-
-// Config counter config
-type Config struct {
-	CounterType           int
-	MaxErrorsAllowed      int
-	MinSuccessExpected    int
-	MaxLen                int
-	PercentageToBeHealthy int
-	Name                  string
-	ServiceURL            string
-	ServiceHealthEndpoint string
-	Severity              int
-	TaskFunc              func(l logging.LoggerInterface, c BaseCounterInterface) error
-	TaskPeriod            int
-}
-
-// BaseCounterInterface interface
-type BaseCounterInterface interface {
-	NotifyServiceHit(statusCode int, message string)
-	IsHealthy() HealthyResult
-	Start()
-	Stop()
-}
 
 // BaseCounterImp counter implementatiom
 type BaseCounterImp struct {
@@ -53,22 +22,12 @@ type BaseCounterImp struct {
 	task         *asynctask.AsyncTask
 }
 
-// HealthyResult result
-type HealthyResult struct {
-	Name         string
-	Severity     int
-	Healthy      bool
-	LastMessage  string
-	HealthySince *time.Time
-	LastHit      *time.Time
-}
-
 // IsHealthy return counter health
-func (c *BaseCounterImp) IsHealthy() HealthyResult {
+func (c *BaseCounterImp) IsHealthy() hcCommon.HealthyResult {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	return HealthyResult{
+	return hcCommon.HealthyResult{
 		Name:         c.name,
 		Severity:     c.severity,
 		Healthy:      c.healthy,

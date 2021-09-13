@@ -16,7 +16,7 @@ const (
 
 // MonitorImp description
 type MonitorImp struct {
-	Counters []counter.BaseCounterInterface
+	Counters []hcCommon.CounterInterface
 	lock     sync.RWMutex
 	logger   logging.LoggerInterface
 }
@@ -56,9 +56,9 @@ func (m *MonitorImp) GetHealthStatus() hcCommon.HealthDto {
 
 		if !res.Healthy {
 			switch res.Severity {
-			case counter.Critical:
+			case hcCommon.Critical:
 				criticalCount++
-			case counter.Degraded:
+			case hcCommon.Degraded:
 				degradedCount++
 			}
 		}
@@ -88,10 +88,10 @@ func (m *MonitorImp) GetHealthStatus() hcCommon.HealthDto {
 
 // NewMonitorImp create services monitor
 func NewMonitorImp(
-	cfgs []counter.Config,
+	cfgs []hcCommon.Config,
 	logger logging.LoggerInterface,
 ) *MonitorImp {
-	var serviceCounters []counter.BaseCounterInterface
+	var serviceCounters []hcCommon.CounterInterface
 
 	for _, cfg := range cfgs {
 		switch cfg.CounterType {

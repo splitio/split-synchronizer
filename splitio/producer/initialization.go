@@ -12,7 +12,8 @@ import (
 	"github.com/splitio/go-split-commons/v4/telemetry"
 	"github.com/splitio/go-toolkit/v5/logging"
 
-	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
+	hcAppCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
+	hcServicesCommon "github.com/splitio/go-split-commons/v4/healthcheck/services"
 	storageCommon "github.com/splitio/go-split-commons/v4/storage"
 	"github.com/splitio/go-split-commons/v4/storage/inmemory"
 	"github.com/splitio/go-split-commons/v4/storage/redis"
@@ -31,8 +32,8 @@ import (
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/storage"
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/task"
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/worker"
-	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application"
-	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application/counter"
+	hcApplication "github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application"
+	hcServices "github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/services"
 	"github.com/splitio/split-synchronizer/v4/splitio/util"
 )
 
@@ -99,7 +100,11 @@ func Start(logger logging.LoggerInterface) error {
 	eventRecorder := worker.NewEventRecorderMultiple(storages.EventStorage, splitAPI.EventRecorder, syncTelemetryStorage, eventEvictionMonitor, logger)
 
 	// Healcheck Monitor
-	appMonitor := application.NewMonitorImp(getAppCountersConfig(storages.SplitStorage), logger)
+	appMonitor := hcApplication.NewMonitorImp(getAppCountersConfig(storages.SplitStorage), logger)
+	appMonitor.Start()
+
+	servicesMonitor := hcServices.NewMonitorImp(getServicesCountersConfig(), logger)
+	servicesMonitor.Start()
 
 	workers := synchronizer.Workers{
 		SplitFetcher: split.NewSplitFetcher(storages.SplitStorage, splitAPI.SplitFetcher, logger, syncTelemetryStorage, appMonitor),
@@ -189,6 +194,8 @@ func Start(logger logging.LoggerInterface) error {
 		EventRecorder:       eventRecorder,
 		EventsEvCalc:        eventEvictionMonitor,
 		Runtime:             rtm,
+		HcAppMonitor:        appMonitor,
+		HcServicesMonitor:   servicesMonitor,
 	})
 	if err != nil {
 		panic(err.Error())
@@ -229,29 +236,29 @@ func Start(logger logging.LoggerInterface) error {
 	return nil
 }
 
-func getAppCountersConfig(storage storageCommon.SplitStorage) []counter.Config {
-	var cfgs []counter.Config
+func getAppCountersConfig(storage storageCommon.SplitStorage) []hcAppCommon.Config {
+	var cfgs []hcAppCommon.Config
 
-	splitsConfig := counter.Config{
+	splitsConfig := hcAppCommon.Config{
 		Name:        "Splits",
-		CounterType: hcCommon.Splits,
-		Period:      600,
-		Severity:    counter.Critical,
+		CounterType: hcAppCommon.Splits,
+		Period:      3600,
+		Severity:    hcAppCommon.Critical,
 	}
 
-	segmentsConfig := counter.Config{
+	segmentsConfig := hcAppCommon.Config{
 		Name:        "Segments",
-		CounterType: hcCommon.Segments,
-		Period:      60000,
-		Severity:    counter.Critical,
+		CounterType: hcAppCommon.Segments,
+		Period:      3600,
+		Severity:    hcAppCommon.Critical,
 	}
 
-	storageConfig := counter.Config{
+	storageConfig := hcAppCommon.Config{
 		Name:        "Storage",
-		CounterType: hcCommon.Storage,
+		CounterType: hcAppCommon.Storage,
 		Periodic:    true,
-		Period:      30,
-		TaskFunc: func(l logging.LoggerInterface, c counter.BaseCounterInterface) error {
+		Period:      3600,
+		TaskFunc: func(l logging.LoggerInterface, c hcAppCommon.CounterInterface) error {
 			_, err := storage.ChangeNumber()
 			if err != nil {
 				c.NotifyEvent()
@@ -260,10 +267,71 @@ func getAppCountersConfig(storage storageCommon.SplitStorage) []counter.Config {
 			return nil
 		},
 		MaxErrorsAllowedInPeriod: 2,
-		Severity:                 counter.Low,
+		Severity:                 hcAppCommon.Low,
 	}
 
 	cfgs = append(cfgs, splitsConfig, segmentsConfig, storageConfig)
 
 	return cfgs
+}
+
+func getServicesCountersConfig() []hcServicesCommon.Config {
+	var cfgs []hcServicesCommon.Config
+
+	telemetryConfig := hcServicesCommon.Config{
+		Name:                  "Telemetry",
+		ServiceURL:            "https://telemetry.split-stage.io",
+		ServiceHealthEndpoint: "/version",
+		TaskPeriod:            3600,
+		CounterType:           hcServicesCommon.ByPercentage,
+		MaxLen:                10,
+		PercentageToBeHealthy: 70,
+		Severity:              hcServicesCommon.Low,
+	}
+
+	authConfig := hcServicesCommon.Config{
+		Name:                  "Auth",
+		ServiceURL:            "https://auth.split-stage.io",
+		ServiceHealthEndpoint: "/version",
+		TaskPeriod:            3600,
+		CounterType:           hcServicesCommon.ByPercentage,
+		MaxLen:                10,
+		PercentageToBeHealthy: 70,
+		Severity:              hcServicesCommon.Degraded,
+	}
+
+	apiConfig := hcServicesCommon.Config{
+		Name:                  "API",
+		ServiceURL:            "https://sdk.split-stage.io/api",
+		ServiceHealthEndpoint: "/version",
+		TaskPeriod:            3600,
+		CounterType:           hcServicesCommon.ByPercentage,
+		MaxLen:                10,
+		PercentageToBeHealthy: 70,
+		Severity:              hcServicesCommon.Critical,
+	}
+
+	eventsConfig := hcServicesCommon.Config{
+		Name:                  "Events",
+		ServiceURL:            "https://events.split-stage.io/api",
+		ServiceHealthEndpoint: "/version",
+		TaskPeriod:            3600,
+		CounterType:           hcServicesCommon.ByPercentage,
+		MaxLen:                10,
+		PercentageToBeHealthy: 70,
+		Severity:              hcServicesCommon.Critical,
+	}
+
+	streamingConfig := hcServicesCommon.Config{
+		Name:                  "Streaming",
+		ServiceURL:            "https://streaming.split.io",
+		ServiceHealthEndpoint: "/health",
+		TaskPeriod:            3600,
+		CounterType:           hcServicesCommon.ByPercentage,
+		MaxLen:                10,
+		PercentageToBeHealthy: 70,
+		Severity:              hcServicesCommon.Degraded,
+	}
+
+	return append(cfgs, telemetryConfig, authConfig, apiConfig, eventsConfig, streamingConfig)
 }

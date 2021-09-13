@@ -11,7 +11,7 @@ import (
 
 // MonitorImp description
 type MonitorImp struct {
-	counters     []counter.BaseCounterInterface
+	counters     []hcCommon.CounterInterface
 	healthySince *time.Time
 	lock         sync.RWMutex
 	logger       logging.LoggerInterface
@@ -27,7 +27,7 @@ func (m *MonitorImp) getHealthySince(healthy bool) *time.Time {
 
 func checkIfIsHealthy(result []hcCommon.ItemDto) bool {
 	for _, r := range result {
-		if r.Healthy == false && r.Severity == counter.Critical {
+		if r.Healthy == false && r.Severity == hcCommon.Critical {
 			return false
 		}
 	}
@@ -109,10 +109,10 @@ func (m *MonitorImp) Stop() {
 
 // NewMonitorImp create a new application monitor
 func NewMonitorImp(
-	cfgs []counter.Config,
+	cfgs []hcCommon.Config,
 	logger logging.LoggerInterface,
 ) *MonitorImp {
-	var appcounters []counter.BaseCounterInterface
+	var appcounters []hcCommon.CounterInterface
 
 	for _, cfg := range cfgs {
 		if cfg.Periodic {

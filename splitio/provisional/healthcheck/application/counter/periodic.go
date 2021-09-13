@@ -1,6 +1,7 @@
 package counter
 
 import (
+	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
 	"github.com/splitio/go-toolkit/v5/asynctask"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
@@ -48,7 +49,7 @@ func (c *PeriodicImp) Stop() {
 
 // NewCounterPeriodic create new periodic counter
 func NewCounterPeriodic(
-	config Config,
+	config hcCommon.Config,
 	logger logging.LoggerInterface,
 ) *PeriodicImp {
 	counter := &PeriodicImp{

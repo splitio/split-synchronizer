@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/services"
 	"github.com/splitio/go-toolkit/v5/asynctask"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
@@ -59,7 +60,7 @@ func (c *SecuencialImp) NotifyServiceHit(statusCode int, message string) {
 
 // NewCounterSecuencial create sucuencial counter
 func NewCounterSecuencial(
-	config Config,
+	config hcCommon.Config,
 	logger logging.LoggerInterface,
 ) *SecuencialImp {
 	counter := &SecuencialImp{

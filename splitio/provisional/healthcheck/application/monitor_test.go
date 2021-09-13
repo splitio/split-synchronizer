@@ -7,7 +7,6 @@ import (
 	"github.com/splitio/go-split-commons/v4/healthcheck/application"
 	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
 	"github.com/splitio/go-toolkit/v5/logging"
-	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application/counter"
 )
 
 func assertItemsHealthy(t *testing.T, items []hcCommon.ItemDto, splitsExpected bool, segmentsExpected bool, errorsExpected bool) {
@@ -25,28 +24,28 @@ func assertItemsHealthy(t *testing.T, items []hcCommon.ItemDto, splitsExpected b
 }
 
 func TestMonitor(t *testing.T) {
-	var cfgs []counter.Config
+	var cfgs []hcCommon.Config
 
-	splits := counter.Config{
+	splits := hcCommon.Config{
 		Name:        "Splits",
 		CounterType: application.Splits,
 		Period:      10,
-		Severity:    counter.Critical,
+		Severity:    hcCommon.Critical,
 	}
 
-	segments := counter.Config{
+	segments := hcCommon.Config{
 		Name:        "Segments",
 		CounterType: application.Segments,
 		Period:      10,
-		Severity:    counter.Critical,
+		Severity:    hcCommon.Critical,
 	}
 
-	syncErrors := counter.Config{
+	syncErrors := hcCommon.Config{
 		Name:        "Sync-Errors",
 		CounterType: application.SyncErros,
 		Period:      10,
 		Periodic:    true,
-		TaskFunc: func(l logging.LoggerInterface, c counter.BaseCounterInterface) error {
+		TaskFunc: func(l logging.LoggerInterface, c hcCommon.CounterInterface) error {
 			if c.IsHealthy().Healthy {
 				c.Reset(0)
 			}
@@ -54,7 +53,7 @@ func TestMonitor(t *testing.T) {
 			return nil
 		},
 		MaxErrorsAllowedInPeriod: 1,
-		Severity:                 counter.Low,
+		Severity:                 hcCommon.Low,
 	}
 
 	cfgs = append(cfgs, splits, segments, syncErrors)
