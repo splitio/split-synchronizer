@@ -3,16 +3,17 @@ package counter
 import (
 	"testing"
 
+	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
 
 func TestPeriodicCounter(t *testing.T) {
 
-	counter := NewCounterPeriodic(Config{
+	counter := NewCounterPeriodic(hcCommon.Config{
 		Name:                     "Test",
 		CounterType:              0,
 		Periodic:                 true,
-		TaskFunc:                 func(l logging.LoggerInterface, c BaseCounterInterface) error { return nil },
+		TaskFunc:                 func(l logging.LoggerInterface, c hcCommon.CounterInterface) error { return nil },
 		Period:                   2,
 		MaxErrorsAllowedInPeriod: 2,
 		Severity:                 0,

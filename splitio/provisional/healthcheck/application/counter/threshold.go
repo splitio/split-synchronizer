@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
 
@@ -86,7 +87,7 @@ func (c *ThresholdImp) Stop() {
 
 // NewCounterThresholdImp create Threshold counter
 func NewCounterThresholdImp(
-	config Config,
+	config hcCommon.Config,
 	logger logging.LoggerInterface,
 ) *ThresholdImp {
 	return &ThresholdImp{

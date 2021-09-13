@@ -4,11 +4,12 @@ import (
 	"testing"
 	"time"
 
+	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
 
 func TestThresholdCounter(t *testing.T) {
-	counter := NewCounterThresholdImp(Config{
+	counter := NewCounterThresholdImp(hcCommon.Config{
 		Name:        "Test",
 		CounterType: 0,
 		Severity:    0,

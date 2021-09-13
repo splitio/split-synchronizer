@@ -9,6 +9,6 @@ require (
 	github.com/gin-gonic/gin v1.7.3
 	github.com/json-iterator/go v1.1.10 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
-	github.com/splitio/go-split-commons/v4 v4.0.0-rc8
+	github.com/splitio/go-split-commons/v4 v4.0.0-rc9
 	github.com/splitio/go-toolkit/v5 v5.0.0-rc1
 )
