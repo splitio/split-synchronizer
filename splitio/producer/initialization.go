@@ -153,7 +153,7 @@ func Start(logger logging.LoggerInterface) error {
 
 	sdkTelemetryWorker := worker.NewTelemetryMultiWorker(logger, sdkTelemetryStorage, splitAPI.TelemetryRecorder)
 	sdkTelemetryTask := task.NewTelemetrySyncTask(sdkTelemetryWorker, logger, 10)
-	syncImpl := ssync.NewSynchronizer(advanced, splitTasks, workers, logger, nil, []tasks.Task{sdkTelemetryTask})
+	syncImpl := ssync.NewSynchronizer(advanced, splitTasks, workers, logger, nil, []tasks.Task{sdkTelemetryTask}, appMonitor)
 	managerStatus := make(chan int, 1)
 	syncManager, err := synchronizer.NewSynchronizerManager(
 		syncImpl,
@@ -165,6 +165,7 @@ func Start(logger logging.LoggerInterface) error {
 		syncTelemetryStorage,
 		metadata,
 		&clientKey,
+		appMonitor,
 	)
 
 	if err != nil {

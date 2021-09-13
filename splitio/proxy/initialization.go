@@ -99,7 +99,7 @@ func Start(logger logging.LoggerInterface) error {
 
 	// Creating Synchronizer for tasks
 	//sync := synchronizer.NewSynchronizer(advanced, stasks, workers, logger, nil)
-	sync := ssync.NewSynchronizer(advanced, stasks, workers, logger, nil, []tasks.Task{telemetryConfigTask, telemetryUsageTask})
+	sync := ssync.NewSynchronizer(advanced, stasks, workers, logger, nil, []tasks.Task{telemetryConfigTask, telemetryUsageTask}, appMonitor)
 
 	mstatus := make(chan int, 1)
 	syncManager, err := synchronizer.NewSynchronizerManager(
@@ -112,6 +112,7 @@ func Start(logger logging.LoggerInterface) error {
 		localTelemetryStorage,
 		metadata,
 		&clientKey,
+		appMonitor,
 	)
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error instantiating sync manager: %w", err), common.ExitTaskInitialization)
