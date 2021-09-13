@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
+	hcAppCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
+	hcServicesCommon "github.com/splitio/go-split-commons/v4/healthcheck/services"
 	"github.com/splitio/go-split-commons/v4/storage"
 	"github.com/splitio/go-split-commons/v4/synchronizer/worker/event"
 	"github.com/splitio/go-split-commons/v4/synchronizer/worker/impression"
@@ -33,6 +35,8 @@ type Options struct {
 	EventRecorder       event.EventRecorder
 	EventsEvCalc        evcalc.Monitor
 	Runtime             common.Runtime
+	HcAppMonitor        hcAppCommon.MonitorInterface
+	HcServicesMonitor   hcServicesCommon.MonitorInterface
 }
 
 // NewServer instantiates a new admin server
@@ -54,6 +58,8 @@ func NewServer(options *Options) (*http.Server, error) {
 		options.EventsEvCalc,
 		options.Runtime,
 		dataController,
+		options.HcAppMonitor,
+		options.HcServicesMonitor,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error instantiating dashboard controller: %w", err)

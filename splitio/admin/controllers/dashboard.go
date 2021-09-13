@@ -9,6 +9,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/go-toolkit/v5/logging"
 
+	hcAppCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
+	hcServicesCommon "github.com/splitio/go-split-commons/v4/healthcheck/services"
 	"github.com/splitio/split-synchronizer/v4/splitio"
 	adminCommon "github.com/splitio/split-synchronizer/v4/splitio/admin/common"
 	"github.com/splitio/split-synchronizer/v4/splitio/admin/views/dashboard"
@@ -28,6 +30,8 @@ type DashboardController struct {
 	eventsEvCalc       evcalc.Monitor
 	runtime            common.Runtime
 	dataControllerPath string
+	appMonitor         hcAppCommon.MonitorInterface
+	servicesMonitor    hcServicesCommon.MonitorInterface
 }
 
 // NewDashboardController instantiates a new dashboard controller
@@ -40,6 +44,8 @@ func NewDashboardController(
 	eventsEvCalc evcalc.Monitor,
 	runtime common.Runtime,
 	dataController *DataManagerController,
+	appMonitor hcAppCommon.MonitorInterface,
+	servicesMonitor hcServicesCommon.MonitorInterface,
 ) (*DashboardController, error) {
 
 	var dataControllerPath string
@@ -56,6 +62,8 @@ func NewDashboardController(
 		eventsEvCalc:       eventsEvCalc,
 		impressionsEvCalc:  impressionEvCalc,
 		dataControllerPath: dataControllerPath,
+		appMonitor:         appMonitor,
+		servicesMonitor:    servicesMonitor,
 	}
 
 	var err error
@@ -71,7 +79,8 @@ func (c *DashboardController) Register(router gin.IRouter) {
 	router.GET("/dashboard", c.dashboard)
 	router.GET("/dashboard/segmentKeys/:segment", c.segmentKeys)
 	router.GET("/dashboard/stats", c.stats)
-	router.GET("/dashboard/health", c.health)
+	router.GET("/dashboard/application/health", c.appHealth)
+	router.GET("/dashboard/services/health", c.servicesHealth)
 }
 
 // Endpoint functions \{
@@ -104,9 +113,14 @@ func (c *DashboardController) segmentKeys(ctx *gin.Context) {
 	ctx.JSON(200, bundleSegmentKeysInfo(segmentName, c.storages.SegmentStorage))
 }
 
-// health endpoint returns different health parameters of the app and split service
-func (c *DashboardController) health(ctx *gin.Context) {
-	ctx.JSON(http.StatusOK, c.gatherHealthInfo())
+// appHealth endpoint returns different health parameters of the app and split service
+func (c *DashboardController) appHealth(ctx *gin.Context) {
+	ctx.JSON(http.StatusOK, c.gatApplicationHealthInfo())
+}
+
+// servicesHealth endpoint returns split services healthy
+func (c *DashboardController) servicesHealth(ctx *gin.Context) {
+	ctx.JSON(http.StatusOK, c.getServicesHealthInfo())
 }
 
 // \} -- end of endpoint functions
@@ -125,8 +139,9 @@ func (c *DashboardController) renderDashboard() ([]byte, error) {
 		ProxyMode:          c.proxy,
 		RefreshTime:        10000,
 		Stats:              *c.gatherStats(),
-		Health:             *c.gatherHealthInfo(),
+		Health:             c.gatApplicationHealthInfo(),
 		DataControllerPath: c.dataControllerPath,
+		ServicesHealth:     c.getServicesHealthInfo(),
 	})
 
 	if err != nil {
@@ -167,13 +182,10 @@ func (c *DashboardController) gatherStats() *dashboard.GlobalStats {
 	}
 }
 
-func (c *DashboardController) gatherHealthInfo() *dashboard.Health {
-	// TODO(sanzamauro): Populate this accordingly
-	return &dashboard.Health{
-		SDKServerStatus:   false,
-		EventServerStatus: false,
-		AuthServerStatus:  false,
-		StorageStatus:     false,
-		HealthySince:      0,
-	}
+func (c *DashboardController) gatApplicationHealthInfo() hcAppCommon.HealthDto {
+	return c.appMonitor.GetHealthStatus()
+}
+
+func (c *DashboardController) getServicesHealthInfo() hcServicesCommon.HealthDto {
+	return c.servicesMonitor.GetHealthStatus()
 }
