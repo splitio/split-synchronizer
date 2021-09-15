@@ -94,14 +94,6 @@ type GlobalStats struct {
 	Uptime                 int64            `json:"uptime"`
 }
 
-type Health struct {
-	SDKServerStatus   bool  `json:"sdkServerStatus"`
-	EventServerStatus bool  `json:"eventsServerStatus"`
-	AuthServerStatus  bool  `json:"authServerStatus"`
-	StorageStatus     bool  `json:"storageStatus"`
-	HealthySince      int64 `json:"healthySince"`
-}
-
 type DashboardInitializationVars struct {
 	DashboardTitle     string
 	RunningMode        string

@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/splitio/go-split-commons/v4/conf"
+	"github.com/splitio/go-split-commons/v4/dtos"
 	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/services"
+	"github.com/splitio/go-split-commons/v4/service/api"
 	"github.com/splitio/go-toolkit/v5/asynctask"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
@@ -37,7 +40,7 @@ func (c *ByPercentageImp) calculateHealthy() {
 	c.logger.Debug(fmt.Sprintf("%s alive: %v. Success percentage: %d", c.name, isHealthy, percentageok))
 
 	if isHealthy && !c.healthy {
-		now := time.Now()
+		now := time.Now().Unix()
 		c.healthySince = &now
 		c.lastMessage = ""
 	} else if !isHealthy {
@@ -67,7 +70,7 @@ func (c *ByPercentageImp) NotifyServiceHit(statusCode int, message string) {
 
 	c.calculateHealthy()
 
-	now := time.Now()
+	now := time.Now().Unix()
 	c.lastHit = &now
 }
 
@@ -83,9 +86,29 @@ func NewCounterByPercentage(
 		percentageToBeHealthy: config.PercentageToBeHealthy,
 	}
 
-	counter.task = asynctask.NewAsyncTask(config.Name, func(l logging.LoggerInterface) error {
-		return config.TaskFunc(l, counter)
-	}, config.TaskPeriod, nil, nil, logger)
+	client := api.NewHTTPClient("", conf.AdvancedConfig{}, config.ServiceURL, logger, dtos.Metadata{})
+
+	taskFunc := func(logger logging.LoggerInterface) error {
+		status := 200
+		message := ""
+
+		_, err := client.Get(config.ServiceHealthEndpoint, nil)
+		if err != nil {
+			status = -1
+			message = err.Error()
+			if httperror, ok := err.(*dtos.HTTPError); ok {
+				status = httperror.Code
+				message = httperror.Message
+			}
+
+		}
+
+		counter.NotifyServiceHit(status, message)
+
+		return nil
+	}
+
+	counter.task = asynctask.NewAsyncTask(config.Name, taskFunc, config.TaskPeriod, nil, nil, logger)
 
 	return counter
 }

@@ -12,12 +12,12 @@ import (
 // MonitorImp description
 type MonitorImp struct {
 	counters     []hcCommon.CounterInterface
-	healthySince *time.Time
+	healthySince *int64
 	lock         sync.RWMutex
 	logger       logging.LoggerInterface
 }
 
-func (m *MonitorImp) getHealthySince(healthy bool) *time.Time {
+func (m *MonitorImp) getHealthySince(healthy bool) *int64 {
 	if !healthy {
 		m.healthySince = nil
 	}
@@ -122,7 +122,7 @@ func NewMonitorImp(
 		}
 	}
 
-	now := time.Now()
+	now := time.Now().Unix()
 	return &MonitorImp{
 		logger:       logger,
 		counters:     appcounters,

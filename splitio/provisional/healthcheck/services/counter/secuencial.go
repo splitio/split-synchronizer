@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/splitio/go-split-commons/v4/conf"
+	"github.com/splitio/go-split-commons/v4/dtos"
 	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/services"
+	"github.com/splitio/go-split-commons/v4/service/api"
 	"github.com/splitio/go-toolkit/v5/asynctask"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
@@ -23,7 +26,7 @@ func (c *SecuencialImp) registerSuccess() {
 	c.errorsCount = 0
 
 	if !c.healthy && c.successCount >= c.minSuccessExpected {
-		now := time.Now()
+		now := time.Now().Unix()
 		c.healthy = true
 		c.healthySince = &now
 		c.lastMessage = ""
@@ -54,7 +57,7 @@ func (c *SecuencialImp) NotifyServiceHit(statusCode int, message string) {
 		c.registerError(message)
 	}
 
-	now := time.Now()
+	now := time.Now().Unix()
 	c.lastHit = &now
 }
 
@@ -69,9 +72,29 @@ func NewCounterSecuencial(
 		minSuccessExpected: config.MinSuccessExpected,
 	}
 
-	counter.task = asynctask.NewAsyncTask(config.Name, func(l logging.LoggerInterface) error {
-		return config.TaskFunc(l, counter)
-	}, config.TaskPeriod, nil, nil, logger)
+	client := api.NewHTTPClient("", conf.AdvancedConfig{}, config.ServiceURL, logger, dtos.Metadata{})
+
+	taskFunc := func(logger logging.LoggerInterface) error {
+		status := 200
+		message := ""
+
+		_, err := client.Get(config.ServiceHealthEndpoint, nil)
+		if err != nil {
+			status = -1
+			message = err.Error()
+			if httperror, ok := err.(*dtos.HTTPError); ok {
+				status = httperror.Code
+				message = httperror.Message
+			}
+
+		}
+
+		counter.NotifyServiceHit(status, message)
+
+		return nil
+	}
+
+	counter.task = asynctask.NewAsyncTask(config.Name, taskFunc, config.TaskPeriod, nil, nil, logger)
 
 	return counter
 }
