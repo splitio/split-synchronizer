@@ -12,7 +12,7 @@ import (
 type ApplicationCounterImp struct {
 	name        string
 	counterType int
-	lastHit     *time.Time
+	lastHit     *int64
 	healthy     bool
 	running     bool
 	period      int
@@ -23,7 +23,7 @@ type ApplicationCounterImp struct {
 }
 
 func (c *ApplicationCounterImp) updateLastHit() {
-	now := time.Now()
+	now := time.Now().Unix()
 	c.lastHit = &now
 }
 

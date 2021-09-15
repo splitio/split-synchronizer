@@ -15,9 +15,9 @@ type BaseCounterImp struct {
 	logger       logging.LoggerInterface
 	severity     int
 	lastMessage  string
-	lastHit      *time.Time
+	lastHit      *int64
 	healthy      bool
-	healthySince *time.Time
+	healthySince *int64
 	name         string
 	task         *asynctask.AsyncTask
 }
@@ -53,7 +53,7 @@ func NewBaseCounterImp(
 	severity int,
 	logger logging.LoggerInterface,
 ) *BaseCounterImp {
-	now := time.Now()
+	now := time.Now().Unix()
 	return &BaseCounterImp{
 		name:         name,
 		lock:         sync.RWMutex{},
