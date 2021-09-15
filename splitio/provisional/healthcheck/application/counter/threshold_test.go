@@ -9,7 +9,7 @@ import (
 )
 
 func TestThresholdCounter(t *testing.T) {
-	counter := NewCounterThresholdImp(hcCommon.Config{
+	counter := NewCounterThresholdImp(&hcCommon.Config{
 		Name:        "Test",
 		CounterType: 0,
 		Severity:    0,

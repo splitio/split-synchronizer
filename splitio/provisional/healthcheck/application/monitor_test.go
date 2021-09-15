@@ -24,23 +24,23 @@ func assertItemsHealthy(t *testing.T, items []hcCommon.ItemDto, splitsExpected b
 }
 
 func TestMonitor(t *testing.T) {
-	var cfgs []hcCommon.Config
+	var cfgs []*hcCommon.Config
 
-	splits := hcCommon.Config{
+	splits := &hcCommon.Config{
 		Name:        "Splits",
 		CounterType: application.Splits,
 		Period:      10,
 		Severity:    hcCommon.Critical,
 	}
 
-	segments := hcCommon.Config{
+	segments := &hcCommon.Config{
 		Name:        "Segments",
 		CounterType: application.Segments,
 		Period:      10,
 		Severity:    hcCommon.Critical,
 	}
 
-	syncErrors := hcCommon.Config{
+	syncErrors := &hcCommon.Config{
 		Name:        "Sync-Errors",
 		CounterType: application.SyncErros,
 		Period:      10,

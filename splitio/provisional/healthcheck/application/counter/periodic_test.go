@@ -9,7 +9,7 @@ import (
 
 func TestPeriodicCounter(t *testing.T) {
 
-	counter := NewCounterPeriodic(hcCommon.Config{
+	counter := NewCounterPeriodic(&hcCommon.Config{
 		Name:                     "Test",
 		CounterType:              0,
 		Periodic:                 true,

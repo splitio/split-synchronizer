@@ -63,7 +63,7 @@ func (c *SecuencialImp) NotifyServiceHit(statusCode int, message string) {
 
 // NewCounterSecuencial create sucuencial counter
 func NewCounterSecuencial(
-	config hcCommon.Config,
+	config *hcCommon.Config,
 	logger logging.LoggerInterface,
 ) *SecuencialImp {
 	counter := &SecuencialImp{

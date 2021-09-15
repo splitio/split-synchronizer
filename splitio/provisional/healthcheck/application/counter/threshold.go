@@ -27,7 +27,7 @@ func (c *ThresholdImp) NotifyEvent() {
 	defer c.lock.Unlock()
 
 	c.reset <- struct{}{}
-	c.updateLastHit()
+	c.UpdateLastHit()
 }
 
 // Reset the threshold value
@@ -87,7 +87,7 @@ func (c *ThresholdImp) Stop() {
 
 // NewCounterThresholdImp create Threshold counter
 func NewCounterThresholdImp(
-	config hcCommon.Config,
+	config *hcCommon.Config,
 	logger logging.LoggerInterface,
 ) *ThresholdImp {
 	return &ThresholdImp{

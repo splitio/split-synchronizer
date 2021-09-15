@@ -109,7 +109,7 @@ func (m *MonitorImp) Stop() {
 
 // NewMonitorImp create a new application monitor
 func NewMonitorImp(
-	cfgs []hcCommon.Config,
+	cfgs []*hcCommon.Config,
 	logger logging.LoggerInterface,
 ) *MonitorImp {
 	var appcounters []hcCommon.CounterInterface
