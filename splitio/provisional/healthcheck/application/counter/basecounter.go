@@ -22,7 +22,8 @@ type ApplicationCounterImp struct {
 	logger      logging.LoggerInterface
 }
 
-func (c *ApplicationCounterImp) updateLastHit() {
+// UpdateLastHit update last hit
+func (c *ApplicationCounterImp) UpdateLastHit() {
 	now := time.Now().Unix()
 	c.lastHit = &now
 }

@@ -88,7 +88,7 @@ func (m *MonitorImp) GetHealthStatus() hcCommon.HealthDto {
 
 // NewMonitorImp create services monitor
 func NewMonitorImp(
-	cfgs []hcCommon.Config,
+	cfgs []*hcCommon.Config,
 	logger logging.LoggerInterface,
 ) *MonitorImp {
 	var serviceCounters []hcCommon.CounterInterface

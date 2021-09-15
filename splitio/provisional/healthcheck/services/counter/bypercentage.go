@@ -76,7 +76,7 @@ func (c *ByPercentageImp) NotifyServiceHit(statusCode int, message string) {
 
 // NewCounterByPercentage new ByPercentage counter
 func NewCounterByPercentage(
-	config hcCommon.Config,
+	config *hcCommon.Config,
 	logger logging.LoggerInterface,
 ) *ByPercentageImp {
 	counter := &ByPercentageImp{

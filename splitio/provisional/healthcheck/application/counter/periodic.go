@@ -24,7 +24,7 @@ func (c *PeriodicImp) NotifyEvent() {
 		c.healthy = false
 	}
 
-	c.updateLastHit()
+	c.UpdateLastHit()
 }
 
 // Reset errorCount
@@ -49,7 +49,7 @@ func (c *PeriodicImp) Stop() {
 
 // NewCounterPeriodic create new periodic counter
 func NewCounterPeriodic(
-	config hcCommon.Config,
+	config *hcCommon.Config,
 	logger logging.LoggerInterface,
 ) *PeriodicImp {
 	counter := &PeriodicImp{

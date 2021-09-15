@@ -22,7 +22,7 @@ func TestGetHealthStatusByPercentage(t *testing.T) {
 		Severity:              hcCommon.Critical,
 	}
 
-	criticalCounter := counter.NewCounterByPercentage(eventsConfig, logging.NewLogger(nil))
+	criticalCounter := counter.NewCounterByPercentage(&eventsConfig, logging.NewLogger(nil))
 
 	streamingConfig := hcCommon.Config{
 		Name:                  "STREAMING",
@@ -35,7 +35,7 @@ func TestGetHealthStatusByPercentage(t *testing.T) {
 		Severity:              hcCommon.Degraded,
 	}
 
-	degradedCounter := counter.NewCounterByPercentage(streamingConfig, logging.NewLogger(nil))
+	degradedCounter := counter.NewCounterByPercentage(&streamingConfig, logging.NewLogger(nil))
 
 	serviceCounters = append(serviceCounters, criticalCounter, degradedCounter)
 
@@ -120,7 +120,7 @@ func TestGetHealthStatusSecuencial(t *testing.T) {
 		MaxErrorsAllowed:      3,
 		MinSuccessExpected:    5,
 	}
-	criticalCounter := counter.NewCounterSecuencial(eventsConfig, logging.NewLogger(nil))
+	criticalCounter := counter.NewCounterSecuencial(&eventsConfig, logging.NewLogger(nil))
 
 	streamingConfig := hcCommon.Config{
 		Name:                  "STREAMING",
@@ -134,7 +134,7 @@ func TestGetHealthStatusSecuencial(t *testing.T) {
 		MaxErrorsAllowed:      3,
 		MinSuccessExpected:    5,
 	}
-	degradedCounter := counter.NewCounterSecuencial(streamingConfig, logging.NewLogger(nil))
+	degradedCounter := counter.NewCounterSecuencial(&streamingConfig, logging.NewLogger(nil))
 
 	serviceCounters = append(serviceCounters, criticalCounter, degradedCounter)
 
