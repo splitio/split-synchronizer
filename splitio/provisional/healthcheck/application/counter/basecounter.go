@@ -8,11 +8,11 @@ import (
 	"github.com/splitio/go-toolkit/v5/logging"
 )
 
-// ApplicationCounterImp description
-type ApplicationCounterImp struct {
+type applicationCounterImp struct {
 	name        string
 	counterType int
-	lastHit     *int64
+	monitorType int
+	lastHit     *time.Time
 	healthy     bool
 	running     bool
 	period      int
@@ -23,43 +23,26 @@ type ApplicationCounterImp struct {
 }
 
 // UpdateLastHit update last hit
-func (c *ApplicationCounterImp) UpdateLastHit() {
-	now := time.Now().Unix()
+func (c *applicationCounterImp) UpdateLastHit() {
+	now := time.Now()
 	c.lastHit = &now
 }
 
-// GetType return counter type
-func (c *ApplicationCounterImp) GetType() int {
-	return c.counterType
+// GetMonitorType return monitor type
+func (c *applicationCounterImp) GetMonitorType() int {
+	return c.monitorType
 }
 
 // IsHealthy return the counter health
-func (c *ApplicationCounterImp) IsHealthy() hcCommon.HealthyResult {
+func (c *applicationCounterImp) IsHealthy() hcCommon.HealthyResult {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
 	return hcCommon.HealthyResult{
 		Name:       c.name,
 		Healthy:    c.healthy,
 		Severity:   c.severity,
 		LastHit:    c.lastHit,
 		ErrorCount: c.errorCount,
-	}
-}
-
-// NewApplicationCounterImp create an application counter
-func NewApplicationCounterImp(
-	name string,
-	counterType int,
-	period int,
-	severity int,
-	logger logging.LoggerInterface,
-) *ApplicationCounterImp {
-	return &ApplicationCounterImp{
-		name:        name,
-		lock:        sync.RWMutex{},
-		logger:      logger,
-		healthy:     true,
-		running:     false,
-		counterType: counterType,
-		period:      period,
-		severity:    severity,
 	}
 }

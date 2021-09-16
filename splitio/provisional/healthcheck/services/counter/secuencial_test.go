@@ -1,6 +1,7 @@
 package counter
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/splitio/go-toolkit/v5/logging"
@@ -8,7 +9,13 @@ import (
 
 func TestNotifyServiceHitSecuencial(t *testing.T) {
 	c := SecuencialImp{
-		BaseCounterImp:     *NewBaseCounterImp("TestCounter", 0, logging.NewLogger(nil)),
+		baseCounterImp: baseCounterImp{
+			name:     "TestCounter",
+			lock:     sync.RWMutex{},
+			logger:   logging.NewLogger(nil),
+			severity: 0,
+			healthy:  true,
+		},
 		maxErrorsAllowed:   2,
 		minSuccessExpected: 3,
 	}

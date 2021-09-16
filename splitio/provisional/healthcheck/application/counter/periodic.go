@@ -1,6 +1,8 @@
 package counter
 
 import (
+	"sync"
+
 	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
 	"github.com/splitio/go-toolkit/v5/asynctask"
 	"github.com/splitio/go-toolkit/v5/logging"
@@ -8,7 +10,7 @@ import (
 
 // PeriodicImp periodic counter struct
 type PeriodicImp struct {
-	ApplicationCounterImp
+	applicationCounterImp
 	maxErrorsAllowedInPeriod int
 	task                     *asynctask.AsyncTask
 }
@@ -53,7 +55,17 @@ func NewPeriodicCounter(
 	logger logging.LoggerInterface,
 ) *PeriodicImp {
 	counter := &PeriodicImp{
-		ApplicationCounterImp:    *NewApplicationCounterImp(config.Name, config.CounterType, config.Period, config.Severity, logger),
+		applicationCounterImp: applicationCounterImp{
+			name:        config.Name,
+			lock:        sync.RWMutex{},
+			logger:      logger,
+			healthy:     true,
+			running:     false,
+			counterType: config.CounterType,
+			period:      config.Period,
+			severity:    config.Severity,
+			monitorType: config.MonitorType,
+		},
 		maxErrorsAllowedInPeriod: config.MaxErrorsAllowedInPeriod,
 	}
 

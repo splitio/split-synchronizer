@@ -2,6 +2,7 @@ package counter
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/splitio/go-split-commons/v4/conf"
@@ -14,7 +15,7 @@ import (
 
 // SecuencialImp description
 type SecuencialImp struct {
-	BaseCounterImp
+	baseCounterImp
 	maxErrorsAllowed   int
 	minSuccessExpected int
 	errorsCount        int
@@ -26,7 +27,7 @@ func (c *SecuencialImp) registerSuccess() {
 	c.errorsCount = 0
 
 	if !c.healthy && c.successCount >= c.minSuccessExpected {
-		now := time.Now().Unix()
+		now := time.Now()
 		c.healthy = true
 		c.healthySince = &now
 		c.lastMessage = ""
@@ -57,7 +58,7 @@ func (c *SecuencialImp) NotifyServiceHit(statusCode int, message string) {
 		c.registerError(message)
 	}
 
-	now := time.Now().Unix()
+	now := time.Now()
 	c.lastHit = &now
 }
 
@@ -66,8 +67,16 @@ func NewCounterSecuencial(
 	config *hcCommon.Config,
 	logger logging.LoggerInterface,
 ) *SecuencialImp {
+	now := time.Now()
 	counter := &SecuencialImp{
-		BaseCounterImp:     *NewBaseCounterImp(config.Name, config.Severity, logger),
+		baseCounterImp: baseCounterImp{
+			name:         config.Name,
+			lock:         sync.RWMutex{},
+			logger:       logger,
+			severity:     config.Severity,
+			healthy:      true,
+			healthySince: &now,
+		},
 		maxErrorsAllowed:   config.MaxErrorsAllowed,
 		minSuccessExpected: config.MinSuccessExpected,
 	}
