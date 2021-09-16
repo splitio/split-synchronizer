@@ -9,14 +9,14 @@ import (
 
 func TestPeriodicCounter(t *testing.T) {
 
-	counter := NewCounterPeriodic(&hcCommon.Config{
+	counter := NewPeriodicCounter(&hcCommon.Config{
 		Name:                     "Test",
 		CounterType:              0,
-		Periodic:                 true,
 		TaskFunc:                 func(l logging.LoggerInterface, c hcCommon.CounterInterface) error { return nil },
 		Period:                   2,
 		MaxErrorsAllowedInPeriod: 2,
 		Severity:                 0,
+		MonitorType:              hcCommon.Periodic,
 	}, logging.NewLogger(nil))
 
 	counter.Start()

@@ -85,8 +85,8 @@ func (c *ThresholdImp) Stop() {
 	c.cancel <- struct{}{}
 }
 
-// NewCounterThresholdImp create Threshold counter
-func NewCounterThresholdImp(
+// NewThresholdCounter create Threshold counter
+func NewThresholdCounter(
 	config *hcCommon.Config,
 	logger logging.LoggerInterface,
 ) *ThresholdImp {

@@ -44,7 +44,6 @@ func TestMonitor(t *testing.T) {
 		Name:        "Sync-Errors",
 		CounterType: application.SyncErros,
 		Period:      10,
-		Periodic:    true,
 		TaskFunc: func(l logging.LoggerInterface, c hcCommon.CounterInterface) error {
 			if c.IsHealthy().Healthy {
 				c.Reset(0)
