@@ -64,24 +64,24 @@ func (m *MonitorImp) GetHealthStatus() hcCommon.HealthDto {
 }
 
 // NotifyEvent notify to counter an event
-func (m *MonitorImp) NotifyEvent(counterType int) {
+func (m *MonitorImp) NotifyEvent(monitorType int) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
 	for _, counter := range m.counters {
-		if counter.GetType() == counterType {
+		if counter.GetType() == monitorType {
 			counter.NotifyEvent()
 		}
 	}
 }
 
 // Reset counter value
-func (m *MonitorImp) Reset(counterType int, value int) {
+func (m *MonitorImp) Reset(monitorType int, value int) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
 	for _, counter := range m.counters {
-		if counter.GetType() == counterType {
+		if counter.GetType() == monitorType {
 			counter.Reset(value)
 		}
 	}
@@ -115,10 +115,11 @@ func NewMonitorImp(
 	var appcounters []hcCommon.CounterInterface
 
 	for _, cfg := range cfgs {
-		if cfg.Periodic {
-			appcounters = append(appcounters, counter.NewCounterPeriodic(cfg, logger))
-		} else {
-			appcounters = append(appcounters, counter.NewCounterThresholdImp(cfg, logger))
+		switch cfg.CounterType {
+		case hcCommon.Threshold:
+			appcounters = append(appcounters, counter.NewThresholdCounter(cfg, logger))
+		default:
+			appcounters = append(appcounters, counter.NewPeriodicCounter(cfg, logger))
 		}
 	}
 

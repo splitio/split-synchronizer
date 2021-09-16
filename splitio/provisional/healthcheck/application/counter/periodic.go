@@ -47,8 +47,8 @@ func (c *PeriodicImp) Stop() {
 	c.task.Stop(false)
 }
 
-// NewCounterPeriodic create new periodic counter
-func NewCounterPeriodic(
+// NewPeriodicCounter create new periodic counter
+func NewPeriodicCounter(
 	config *hcCommon.Config,
 	logger logging.LoggerInterface,
 ) *PeriodicImp {

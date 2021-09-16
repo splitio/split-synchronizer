@@ -9,11 +9,12 @@ import (
 )
 
 func TestThresholdCounter(t *testing.T) {
-	counter := NewCounterThresholdImp(&hcCommon.Config{
+	counter := NewThresholdCounter(&hcCommon.Config{
 		Name:        "Test",
 		CounterType: 0,
 		Severity:    0,
 		Period:      3,
+		MonitorType: hcCommon.Threshold,
 	}, logging.NewLogger(nil))
 	counter.Start()
 

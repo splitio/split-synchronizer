@@ -242,7 +242,7 @@ func getAppCountersConfig(storage storageCommon.SplitStorage) []*hcAppCommon.Con
 	splitsConfig := hcAppCommon.NewApplicationConfig("Splits", hcAppCommon.Splits)
 	segmentsConfig := hcAppCommon.NewApplicationConfig("Segments", hcAppCommon.Segments)
 	storageConfig := hcAppCommon.NewApplicationConfig("Storage", hcAppCommon.Storage)
-	storageConfig.Periodic = true
+	storageConfig.CounterType = hcAppCommon.Periodic
 	storageConfig.MaxErrorsAllowedInPeriod = 2
 	storageConfig.Severity = hcAppCommon.Low
 	storageConfig.TaskFunc = func(l logging.LoggerInterface, c hcAppCommon.CounterInterface) error {
