@@ -2,6 +2,7 @@ package counter
 
 import (
 	"container/list"
+	"sync"
 	"testing"
 
 	"github.com/splitio/go-toolkit/v5/logging"
@@ -9,7 +10,13 @@ import (
 
 func TestNotifyServiceHitByPercentage(t *testing.T) {
 	c := ByPercentageImp{
-		BaseCounterImp:        *NewBaseCounterImp("TestCounter", 1, logging.NewLogger(nil)),
+		baseCounterImp: baseCounterImp{
+			name:     "TestCounter",
+			lock:     sync.RWMutex{},
+			logger:   logging.NewLogger(nil),
+			severity: 1,
+			healthy:  true,
+		},
 		maxLen:                6,
 		cache:                 new(list.List),
 		percentageToBeHealthy: 60,

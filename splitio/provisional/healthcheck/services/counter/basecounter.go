@@ -9,23 +9,22 @@ import (
 	"github.com/splitio/go-toolkit/v5/logging"
 )
 
-// BaseCounterImp counter implementatiom
-type BaseCounterImp struct {
+type baseCounterImp struct {
 	lock         sync.RWMutex
 	logger       logging.LoggerInterface
 	severity     int
 	lastMessage  string
-	lastHit      *int64
+	lastHit      *time.Time
 	healthy      bool
-	healthySince *int64
+	healthySince *time.Time
 	name         string
 	task         *asynctask.AsyncTask
 }
 
 // IsHealthy return counter health
-func (c *BaseCounterImp) IsHealthy() hcCommon.HealthyResult {
-	c.lock.Lock()
-	defer c.lock.Unlock()
+func (c *baseCounterImp) IsHealthy() hcCommon.HealthyResult {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
 
 	return hcCommon.HealthyResult{
 		Name:         c.name,
@@ -38,28 +37,11 @@ func (c *BaseCounterImp) IsHealthy() hcCommon.HealthyResult {
 }
 
 // Start counter task
-func (c *BaseCounterImp) Start() {
+func (c *baseCounterImp) Start() {
 	c.task.Start()
 }
 
 // Stop counter task
-func (c *BaseCounterImp) Stop() {
+func (c *baseCounterImp) Stop() {
 	c.task.Stop(false)
-}
-
-// NewBaseCounterImp description
-func NewBaseCounterImp(
-	name string,
-	severity int,
-	logger logging.LoggerInterface,
-) *BaseCounterImp {
-	now := time.Now().Unix()
-	return &BaseCounterImp{
-		name:         name,
-		lock:         sync.RWMutex{},
-		logger:       logger,
-		severity:     severity,
-		healthy:      true,
-		healthySince: &now,
-	}
 }

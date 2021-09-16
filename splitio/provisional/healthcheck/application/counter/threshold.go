@@ -2,6 +2,7 @@ package counter
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
@@ -10,15 +11,9 @@ import (
 
 // ThresholdImp description
 type ThresholdImp struct {
-	ApplicationCounterImp
+	applicationCounterImp
 	cancel chan struct{}
 	reset  chan struct{}
-}
-
-// GetErrorCount get error count
-func (c *ThresholdImp) GetErrorCount() *int {
-	// no-op
-	return nil
 }
 
 // NotifyEvent reset the timer
@@ -54,19 +49,23 @@ func (c *ThresholdImp) Start() {
 		c.logger.Debug(fmt.Sprintf("%s counter is alredy running.", c.name))
 		return
 	}
+	c.running = true
 
 	go func() {
 		timer := time.NewTimer(time.Duration(c.period) * time.Second)
-		c.running = true
-		for c.running {
+		defer timer.Stop()
+		defer func() { c.lock.Lock(); c.running = false; c.lock.Unlock() }()
+		for {
 			select {
 			case <-timer.C:
+				c.lock.Lock()
 				c.healthy = false
-				c.running = false
+				c.lock.Unlock()
+				return
 			case <-c.reset:
 				timer.Reset(time.Duration(c.period) * time.Second)
 			case <-c.cancel:
-				c.running = false
+				return
 			}
 		}
 	}()
@@ -91,8 +90,18 @@ func NewThresholdCounter(
 	logger logging.LoggerInterface,
 ) *ThresholdImp {
 	return &ThresholdImp{
-		ApplicationCounterImp: *NewApplicationCounterImp(config.Name, config.CounterType, config.Period, config.Severity, logger),
-		cancel:                make(chan struct{}, 1),
-		reset:                 make(chan struct{}, 1),
+		applicationCounterImp: applicationCounterImp{
+			name:        config.Name,
+			lock:        sync.RWMutex{},
+			logger:      logger,
+			healthy:     true,
+			running:     false,
+			counterType: config.CounterType,
+			period:      config.Period,
+			severity:    config.Severity,
+			monitorType: config.MonitorType,
+		},
+		cancel: make(chan struct{}, 1),
+		reset:  make(chan struct{}, 1),
 	}
 }

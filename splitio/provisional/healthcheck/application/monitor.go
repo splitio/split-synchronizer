@@ -12,12 +12,12 @@ import (
 // MonitorImp description
 type MonitorImp struct {
 	counters     []hcCommon.CounterInterface
-	healthySince *int64
+	healthySince *time.Time
 	lock         sync.RWMutex
 	logger       logging.LoggerInterface
 }
 
-func (m *MonitorImp) getHealthySince(healthy bool) *int64 {
+func (m *MonitorImp) getHealthySince(healthy bool) *time.Time {
 	if !healthy {
 		m.healthySince = nil
 	}
@@ -69,7 +69,7 @@ func (m *MonitorImp) NotifyEvent(monitorType int) {
 	defer m.lock.Unlock()
 
 	for _, counter := range m.counters {
-		if counter.GetType() == monitorType {
+		if counter.GetMonitorType() == monitorType {
 			counter.NotifyEvent()
 		}
 	}
@@ -81,7 +81,7 @@ func (m *MonitorImp) Reset(monitorType int, value int) {
 	defer m.lock.Unlock()
 
 	for _, counter := range m.counters {
-		if counter.GetType() == monitorType {
+		if counter.GetMonitorType() == monitorType {
 			counter.Reset(value)
 		}
 	}
@@ -123,7 +123,7 @@ func NewMonitorImp(
 		}
 	}
 
-	now := time.Now().Unix()
+	now := time.Now()
 	return &MonitorImp{
 		logger:       logger,
 		counters:     appcounters,

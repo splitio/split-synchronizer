@@ -3,6 +3,7 @@ package counter
 import (
 	"container/list"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/splitio/go-split-commons/v4/conf"
@@ -15,7 +16,7 @@ import (
 
 // ByPercentageImp description
 type ByPercentageImp struct {
-	BaseCounterImp
+	baseCounterImp
 	maxLen                int
 	percentageToBeHealthy int
 	cache                 *list.List
@@ -40,7 +41,7 @@ func (c *ByPercentageImp) calculateHealthy() {
 	c.logger.Debug(fmt.Sprintf("%s alive: %v. Success percentage: %d", c.name, isHealthy, percentageok))
 
 	if isHealthy && !c.healthy {
-		now := time.Now().Unix()
+		now := time.Now()
 		c.healthySince = &now
 		c.lastMessage = ""
 	} else if !isHealthy {
@@ -70,7 +71,7 @@ func (c *ByPercentageImp) NotifyServiceHit(statusCode int, message string) {
 
 	c.calculateHealthy()
 
-	now := time.Now().Unix()
+	now := time.Now()
 	c.lastHit = &now
 }
 
@@ -79,8 +80,16 @@ func NewCounterByPercentage(
 	config *hcCommon.Config,
 	logger logging.LoggerInterface,
 ) *ByPercentageImp {
+	now := time.Now()
 	counter := &ByPercentageImp{
-		BaseCounterImp:        *NewBaseCounterImp(config.Name, config.Severity, logger),
+		baseCounterImp: baseCounterImp{
+			name:         config.Name,
+			lock:         sync.RWMutex{},
+			logger:       logger,
+			severity:     config.Severity,
+			healthy:      true,
+			healthySince: &now,
+		},
 		maxLen:                config.MaxLen,
 		cache:                 new(list.List),
 		percentageToBeHealthy: config.PercentageToBeHealthy,
