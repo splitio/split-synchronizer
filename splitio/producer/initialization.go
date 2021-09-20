@@ -248,13 +248,9 @@ func getAppCountersConfig(storage storageCommon.SplitStorage) []*hcAppCommon.Con
 	storageConfig.TaskFunc = func(l logging.LoggerInterface, c hcAppCommon.CounterInterface) error {
 		_, err := storage.ChangeNumber()
 		if err != nil {
-			l.Error(err.Error())
-			fmt.Println("### - storage error", err.Error())
 			c.NotifyEvent()
 			return nil
 		}
-
-		fmt.Println("### - storage success")
 
 		c.UpdateLastHit()
 		return nil

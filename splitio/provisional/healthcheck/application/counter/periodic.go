@@ -24,9 +24,11 @@ func (c *PeriodicImp) NotifyEvent() {
 
 	if c.errorCount >= c.maxErrorsAllowedInPeriod {
 		c.healthy = false
+	} else {
+		c.healthy = true
 	}
 
-	c.UpdateLastHit()
+	c.updateLastHit()
 }
 
 // Reset errorCount
