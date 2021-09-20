@@ -1,6 +1,7 @@
 package counter
 
 import (
+	"fmt"
 	"sync"
 
 	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
@@ -12,6 +13,7 @@ import (
 type PeriodicImp struct {
 	applicationCounterImp
 	maxErrorsAllowedInPeriod int
+	goroutineFunc            func(c hcCommon.CounterInterface)
 	task                     *asynctask.AsyncTask
 }
 
@@ -43,12 +45,36 @@ func (c *PeriodicImp) Reset(value int) error {
 
 // Start counter
 func (c *PeriodicImp) Start() {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	if c.running {
+		c.logger.Debug(fmt.Sprintf("%s counter is alredy running.", c.name))
+		return
+	}
+
 	c.task.Start()
+	c.running = true
+
+	go func() {
+		for c.running {
+			c.goroutineFunc(c)
+		}
+	}()
 }
 
 // Stop counter
 func (c *PeriodicImp) Stop() {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	if !c.running {
+		c.logger.Debug(fmt.Sprintf("%s counter is alredy stopped.", c.name))
+		return
+	}
+
 	c.task.Stop(false)
+	c.running = false
 }
 
 // NewPeriodicCounter create new periodic counter
@@ -69,6 +95,7 @@ func NewPeriodicCounter(
 			monitorType: config.MonitorType,
 		},
 		maxErrorsAllowedInPeriod: config.MaxErrorsAllowedInPeriod,
+		goroutineFunc:            config.GoroutineFunc,
 	}
 
 	counter.task = asynctask.NewAsyncTask(config.Name, func(l logging.LoggerInterface) error {
