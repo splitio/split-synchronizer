@@ -22,10 +22,17 @@ type applicationCounterImp struct {
 	logger      logging.LoggerInterface
 }
 
-// UpdateLastHit update last hit
-func (c *applicationCounterImp) UpdateLastHit() {
+func (c *applicationCounterImp) updateLastHit() {
 	now := time.Now()
 	c.lastHit = &now
+}
+
+// UpdateLastHit update last hit
+func (c *applicationCounterImp) UpdateLastHit() {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	c.updateLastHit()
 }
 
 // GetMonitorType return monitor type

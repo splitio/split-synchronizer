@@ -22,7 +22,7 @@ func (c *ThresholdImp) NotifyEvent() {
 	defer c.lock.Unlock()
 
 	c.reset <- struct{}{}
-	c.UpdateLastHit()
+	c.updateLastHit()
 }
 
 // Reset the threshold value
