@@ -236,6 +236,17 @@ func Start(logger logging.LoggerInterface) error {
 	return nil
 }
 
+func goroutineFunc(c hcAppCommon.CounterInterface, storage storageCommon.SplitStorage) {
+	time.Sleep(time.Duration(10) * time.Minute)
+
+	_, err := storage.ChangeNumber()
+	if err != nil {
+		c.NotifyEvent()
+	} else {
+		c.UpdateLastHit()
+	}
+}
+
 func getAppCountersConfig(storage storageCommon.SplitStorage) []*hcAppCommon.Config {
 	var cfgs []*hcAppCommon.Config
 
@@ -245,15 +256,16 @@ func getAppCountersConfig(storage storageCommon.SplitStorage) []*hcAppCommon.Con
 	storageConfig.CounterType = hcAppCommon.Periodic
 	storageConfig.MaxErrorsAllowedInPeriod = 2
 	storageConfig.Severity = hcAppCommon.Low
-	storageConfig.TaskFunc = func(l logging.LoggerInterface, c hcAppCommon.CounterInterface) error {
+	storageConfig.TaskFunc = func(l logging.LoggerInterface, c hcAppCommon.CounterInterface) error { c.Reset(0); return nil }
+	storageConfig.GoroutineFunc = func(c hcAppCommon.CounterInterface) {
+		time.Sleep(time.Duration(10) * time.Minute)
+
 		_, err := storage.ChangeNumber()
 		if err != nil {
 			c.NotifyEvent()
-			return nil
+		} else {
+			c.UpdateLastHit()
 		}
-
-		c.UpdateLastHit()
-		return nil
 	}
 
 	cfgs = append(cfgs, splitsConfig, segmentsConfig, storageConfig)
