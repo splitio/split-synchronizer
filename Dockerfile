@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.13-alpine AS builder
+FROM golang:1.17.1-alpine3.14 AS builder
 
 WORKDIR /go/src/github.com/splitio/split-synchronizer
 
