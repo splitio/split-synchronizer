@@ -1,4 +1,4 @@
-4.0.4 (Sep 17, 2021)
+4.0.4 (Sep 22, 2021)
  - Added /v2/auth endpoint for proxy mode.
  - Update docker base image to patch security vulnerabilities.
 
