@@ -552,3 +552,5 @@ func auth(c *gin.Context) {
 	log.Instance.Debug(fmt.Sprintf("Headers: %v", c.Request.Header))
 	c.JSON(http.StatusOK, gin.H{"pushEnabled": false, "token": ""})
 }
+
+func dummyAlwaysOk(c *gin.Context) {}

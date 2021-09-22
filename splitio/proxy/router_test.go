@@ -13,12 +13,14 @@ import (
 	"github.com/splitio/split-synchronizer/v4/conf"
 	"github.com/splitio/split-synchronizer/v4/log"
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/interfaces"
 )
 
 func TestRouterWithoutHeaders(t *testing.T) {
 	stdoutWriter := ioutil.Discard //os.Stdout
 	log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
 	conf.Initialize()
+	interfaces.Initialize()
 	proxyOptions := &Options{
 		Port:                      ":" + strconv.Itoa(conf.Data.Proxy.Port),
 		APIKeys:                   []string{"one", "two"},
@@ -54,6 +56,7 @@ func TestRouterWrongApikey(t *testing.T) {
 		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
 	}
 	conf.Initialize()
+	interfaces.Initialize()
 	proxyOptions := &Options{
 		Port:                      ":" + strconv.Itoa(conf.Data.Proxy.Port),
 		APIKeys:                   []string{"one", "two"},
@@ -93,6 +96,7 @@ func TestRouterOk(t *testing.T) {
 		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
 	}
 	conf.Initialize()
+	interfaces.Initialize()
 	proxyOptions := &Options{
 		Port:                      ":" + strconv.Itoa(conf.Data.Proxy.Port),
 		APIKeys:                   []string{"one", "two"},
@@ -110,7 +114,7 @@ func TestRouterOk(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 
 	client := &http.Client{}
-	req, err := http.NewRequest("GET", "http://localhost:3000/api/auth", nil)
+	req, err := http.NewRequest("GET", "http://localhost:3000/api/v2/auth", nil)
 	if err != nil {
 		t.Error(err)
 	}

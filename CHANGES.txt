@@ -1,3 +1,7 @@
+4.0.4 (Sep 22, 2021)
+ - Added /v2/auth endpoint for proxy mode.
+ - Update docker base image to patch security vulnerabilities.
+
 4.0.3 (Jun 28, 2021)
  - Added dial timeout for Streaming to fallback into Polling.
 

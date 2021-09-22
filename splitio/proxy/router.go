@@ -87,6 +87,9 @@ func Run(options *Options) {
 		api.POST("/metrics/counter", postMetricsCounter)
 		api.POST("/events/bulk", postEvents)
 		api.GET("/auth", auth)
+		api.GET("/v2/auth", auth)
+		api.POST("/metrics/config", dummyAlwaysOk)
+		api.POST("/metrics/usage", dummyAlwaysOk)
 	}
 	router.Run(options.Port)
 }
