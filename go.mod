@@ -1,6 +1,6 @@
 module github.com/splitio/split-synchronizer/v4
 
-go 1.16
+go 1.13
 
 require (
 	github.com/boltdb/bolt v1.3.1
