@@ -8,7 +8,7 @@ COPY . .
 RUN go build -o split-sync
 
 # Runner stage
-FROM alpine:latest AS runner
+FROM alpine:3.14 AS runner
 
 RUN addgroup -g 1000 -S 'split-synchronizer'
 RUN adduser \
