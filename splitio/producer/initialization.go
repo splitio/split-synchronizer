@@ -13,7 +13,6 @@ import (
 	"github.com/splitio/go-toolkit/v5/logging"
 
 	hcAppCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
-	hcServicesCommon "github.com/splitio/go-split-commons/v4/healthcheck/services"
 	storageCommon "github.com/splitio/go-split-commons/v4/storage"
 	"github.com/splitio/go-split-commons/v4/storage/inmemory"
 	"github.com/splitio/go-split-commons/v4/storage/redis"
@@ -33,7 +32,9 @@ import (
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/task"
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/worker"
 	hcApplication "github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application"
+	hcAppCounter "github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application/counter"
 	hcServices "github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/services"
+	hcServicesCounter "github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/services/counter"
 	"github.com/splitio/split-synchronizer/v4/splitio/util"
 )
 
@@ -236,7 +237,7 @@ func Start(logger logging.LoggerInterface) error {
 	return nil
 }
 
-func goroutineFunc(c hcAppCommon.CounterInterface, storage storageCommon.SplitStorage) {
+func goroutineFunc(c hcAppCounter.ApplicationCounterInterface, storage storageCommon.SplitStorage) {
 	time.Sleep(time.Duration(10) * time.Minute)
 
 	_, err := storage.ChangeNumber()
@@ -247,17 +248,20 @@ func goroutineFunc(c hcAppCommon.CounterInterface, storage storageCommon.SplitSt
 	}
 }
 
-func getAppCountersConfig(storage storageCommon.SplitStorage) []*hcAppCommon.Config {
-	var cfgs []*hcAppCommon.Config
+func getAppCountersConfig(storage storageCommon.SplitStorage) []*hcAppCounter.Config {
+	var cfgs []*hcAppCounter.Config
 
-	splitsConfig := hcAppCommon.NewApplicationConfig("Splits", hcAppCommon.Splits)
-	segmentsConfig := hcAppCommon.NewApplicationConfig("Segments", hcAppCommon.Segments)
-	storageConfig := hcAppCommon.NewApplicationConfig("Storage", hcAppCommon.Storage)
-	storageConfig.CounterType = hcAppCommon.Periodic
+	splitsConfig := hcAppCounter.NewApplicationConfig("Splits", hcAppCommon.Splits)
+	segmentsConfig := hcAppCounter.NewApplicationConfig("Segments", hcAppCommon.Segments)
+	storageConfig := hcAppCounter.NewApplicationConfig("Storage", hcAppCommon.Storage)
+	storageConfig.CounterType = hcAppCounter.Periodic
 	storageConfig.MaxErrorsAllowedInPeriod = 2
-	storageConfig.Severity = hcAppCommon.Low
-	storageConfig.TaskFunc = func(l logging.LoggerInterface, c hcAppCommon.CounterInterface) error { c.Reset(0); return nil }
-	storageConfig.GoroutineFunc = func(c hcAppCommon.CounterInterface) {
+	storageConfig.Severity = hcAppCounter.Low
+	storageConfig.TaskFunc = func(l logging.LoggerInterface, c hcAppCounter.ApplicationCounterInterface) error {
+		c.Reset(0)
+		return nil
+	}
+	storageConfig.GoroutineFunc = func(c hcAppCounter.ApplicationCounterInterface) {
 		time.Sleep(time.Duration(10) * time.Minute)
 
 		_, err := storage.ChangeNumber()
@@ -273,14 +277,14 @@ func getAppCountersConfig(storage storageCommon.SplitStorage) []*hcAppCommon.Con
 	return cfgs
 }
 
-func getServicesCountersConfig() []*hcServicesCommon.Config {
-	var cfgs []*hcServicesCommon.Config
+func getServicesCountersConfig() []*hcServicesCounter.Config {
+	var cfgs []*hcServicesCounter.Config
 
-	telemetryConfig := hcServicesCommon.NewServicesConfig("Telemetry", "https://telemetry.split-stage.io", "/version")
-	authConfig := hcServicesCommon.NewServicesConfig("Auth", "https://auth.split-stage.io", "/version")
-	apiConfig := hcServicesCommon.NewServicesConfig("API", "https://sdk.split-stage.io/api", "/version")
-	eventsConfig := hcServicesCommon.NewServicesConfig("Events", "https://events.split-stage.io/api", "/version")
-	streamingConfig := hcServicesCommon.NewServicesConfig("Streaming", "https://streaming.split.io", "/health")
+	telemetryConfig := hcServicesCounter.NewServicesConfig("Telemetry", "https://telemetry.split-stage.io", "/version")
+	authConfig := hcServicesCounter.NewServicesConfig("Auth", "https://auth.split-stage.io", "/version")
+	apiConfig := hcServicesCounter.NewServicesConfig("API", "https://sdk.split-stage.io/api", "/version")
+	eventsConfig := hcServicesCounter.NewServicesConfig("Events", "https://events.split-stage.io/api", "/version")
+	streamingConfig := hcServicesCounter.NewServicesConfig("Streaming", "https://streaming.split.io", "/health")
 
 	return append(cfgs, telemetryConfig, authConfig, apiConfig, eventsConfig, streamingConfig)
 }

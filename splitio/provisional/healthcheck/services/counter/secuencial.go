@@ -7,7 +7,7 @@ import (
 
 	"github.com/splitio/go-split-commons/v4/conf"
 	"github.com/splitio/go-split-commons/v4/dtos"
-	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/services"
+
 	"github.com/splitio/go-split-commons/v4/service/api"
 	"github.com/splitio/go-toolkit/v5/asynctask"
 	"github.com/splitio/go-toolkit/v5/logging"
@@ -64,7 +64,7 @@ func (c *SecuencialImp) NotifyServiceHit(statusCode int, message string) {
 
 // NewCounterSecuencial create sucuencial counter
 func NewCounterSecuencial(
-	config *hcCommon.Config,
+	config *Config,
 	logger logging.LoggerInterface,
 ) *SecuencialImp {
 	now := time.Now()

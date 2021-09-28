@@ -9,14 +9,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/go-toolkit/v5/logging"
 
-	hcAppCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
-	hcServicesCommon "github.com/splitio/go-split-commons/v4/healthcheck/services"
 	"github.com/splitio/split-synchronizer/v4/splitio"
 	adminCommon "github.com/splitio/split-synchronizer/v4/splitio/admin/common"
 	"github.com/splitio/split-synchronizer/v4/splitio/admin/views/dashboard"
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
 	"github.com/splitio/split-synchronizer/v4/splitio/log"
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/evcalc"
+	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application"
+	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/services"
 )
 
 // DashboardController contains handlers for rendering the dashboard and its associated FE queries
@@ -30,8 +30,8 @@ type DashboardController struct {
 	eventsEvCalc       evcalc.Monitor
 	runtime            common.Runtime
 	dataControllerPath string
-	appMonitor         hcAppCommon.MonitorInterface
-	servicesMonitor    hcServicesCommon.MonitorInterface
+	appMonitor         *application.MonitorImp
+	servicesMonitor    *services.MonitorImp
 }
 
 // NewDashboardController instantiates a new dashboard controller
@@ -44,8 +44,8 @@ func NewDashboardController(
 	eventsEvCalc evcalc.Monitor,
 	runtime common.Runtime,
 	dataController *DataManagerController,
-	appMonitor hcAppCommon.MonitorInterface,
-	servicesMonitor hcServicesCommon.MonitorInterface,
+	appMonitor *application.MonitorImp,
+	servicesMonitor *services.MonitorImp,
 ) (*DashboardController, error) {
 
 	var dataControllerPath string
@@ -182,10 +182,10 @@ func (c *DashboardController) gatherStats() *dashboard.GlobalStats {
 	}
 }
 
-func (c *DashboardController) gatApplicationHealthInfo() hcAppCommon.HealthDto {
+func (c *DashboardController) gatApplicationHealthInfo() application.HealthDto {
 	return c.appMonitor.GetHealthStatus()
 }
 
-func (c *DashboardController) getServicesHealthInfo() hcServicesCommon.HealthDto {
+func (c *DashboardController) getServicesHealthInfo() services.HealthDto {
 	return c.servicesMonitor.GetHealthStatus()
 }

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sync"
 
-	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
 	"github.com/splitio/go-toolkit/v5/asynctask"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
@@ -13,7 +12,7 @@ import (
 type PeriodicImp struct {
 	applicationCounterImp
 	maxErrorsAllowedInPeriod int
-	goroutineFunc            func(c hcCommon.CounterInterface)
+	goroutineFunc            func(c ApplicationCounterInterface)
 	task                     *asynctask.AsyncTask
 }
 
@@ -79,7 +78,7 @@ func (c *PeriodicImp) Stop() {
 
 // NewPeriodicCounter create new periodic counter
 func NewPeriodicCounter(
-	config *hcCommon.Config,
+	config *Config,
 	logger logging.LoggerInterface,
 ) *PeriodicImp {
 	counter := &PeriodicImp{

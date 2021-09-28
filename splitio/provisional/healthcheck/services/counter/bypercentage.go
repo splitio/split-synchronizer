@@ -8,7 +8,7 @@ import (
 
 	"github.com/splitio/go-split-commons/v4/conf"
 	"github.com/splitio/go-split-commons/v4/dtos"
-	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/services"
+
 	"github.com/splitio/go-split-commons/v4/service/api"
 	"github.com/splitio/go-toolkit/v5/asynctask"
 	"github.com/splitio/go-toolkit/v5/logging"
@@ -77,7 +77,7 @@ func (c *ByPercentageImp) NotifyServiceHit(statusCode int, message string) {
 
 // NewCounterByPercentage new ByPercentage counter
 func NewCounterByPercentage(
-	config *hcCommon.Config,
+	config *Config,
 	logger logging.LoggerInterface,
 ) *ByPercentageImp {
 	now := time.Now()

@@ -5,11 +5,11 @@ import (
 	"time"
 
 	"github.com/splitio/go-split-commons/v4/healthcheck/application"
-	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
 	"github.com/splitio/go-toolkit/v5/logging"
+	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application/counter"
 )
 
-func assertItemsHealthy(t *testing.T, items []hcCommon.ItemDto, splitsExpected bool, segmentsExpected bool, errorsExpected bool) {
+func assertItemsHealthy(t *testing.T, items []ItemDto, splitsExpected bool, segmentsExpected bool, errorsExpected bool) {
 	for _, item := range items {
 		if item.Name == "Splits" && item.Healthy != splitsExpected {
 			t.Errorf("SplitsCounter.Healthy should be %v", splitsExpected)
@@ -24,27 +24,29 @@ func assertItemsHealthy(t *testing.T, items []hcCommon.ItemDto, splitsExpected b
 }
 
 func TestMonitor(t *testing.T) {
-	var cfgs []*hcCommon.Config
+	var cfgs []*counter.Config
 
-	splits := &hcCommon.Config{
+	splits := &counter.Config{
 		Name:        "Splits",
-		CounterType: application.Splits,
+		CounterType: counter.Threshold,
 		Period:      10,
-		Severity:    hcCommon.Critical,
+		Severity:    counter.Critical,
+		MonitorType: application.Splits,
 	}
 
-	segments := &hcCommon.Config{
+	segments := &counter.Config{
 		Name:        "Segments",
-		CounterType: application.Segments,
+		CounterType: counter.Threshold,
 		Period:      10,
-		Severity:    hcCommon.Critical,
+		Severity:    counter.Critical,
+		MonitorType: application.Segments,
 	}
 
-	syncErrors := &hcCommon.Config{
+	syncErrors := &counter.Config{
 		Name:        "Sync-Errors",
-		CounterType: application.SyncErros,
+		CounterType: counter.Periodic,
 		Period:      10,
-		TaskFunc: func(l logging.LoggerInterface, c hcCommon.CounterInterface) error {
+		TaskFunc: func(l logging.LoggerInterface, c counter.ApplicationCounterInterface) error {
 			if c.IsHealthy().Healthy {
 				c.Reset(0)
 			}
@@ -52,7 +54,10 @@ func TestMonitor(t *testing.T) {
 			return nil
 		},
 		MaxErrorsAllowedInPeriod: 1,
-		Severity:                 hcCommon.Low,
+		Severity:                 counter.Low,
+		GoroutineFunc: func(c counter.ApplicationCounterInterface) {
+			c.NotifyEvent()
+		},
 	}
 
 	cfgs = append(cfgs, splits, segments, syncErrors)
@@ -60,6 +65,8 @@ func TestMonitor(t *testing.T) {
 	monitor := NewMonitorImp(cfgs, logging.NewLogger(nil))
 
 	monitor.Start()
+
+	time.Sleep(time.Duration(1) * time.Second)
 
 	monitor.NotifyEvent(application.SyncErros)
 	monitor.NotifyEvent(application.SyncErros)
