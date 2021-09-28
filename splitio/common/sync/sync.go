@@ -25,7 +25,7 @@ func NewSynchronizer(
 	logger logging.LoggerInterface,
 	inMememoryFullQueue chan string,
 	userTelemetryTasks []tasks.Task,
-	appMonitor hcCommon.MonitorInterface,
+	appMonitor hcCommon.MonitorProducerInterface,
 ) *WSync {
 	return &WSync{
 		Synchronizer:       synchronizer.NewSynchronizer(confAdvanced, splitTasks, workers, logger, inMememoryFullQueue, appMonitor),

@@ -3,36 +3,35 @@ package services
 import (
 	"testing"
 
-	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/services"
 	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/services/counter"
 )
 
 func TestGetHealthStatusByPercentage(t *testing.T) {
-	var serviceCounters []hcCommon.CounterInterface
+	var serviceCounters []counter.ServicesCounterInterface
 
-	eventsConfig := hcCommon.Config{
+	eventsConfig := counter.Config{
 		Name:                  "EVENTS",
 		ServiceURL:            "https://events.test.io/api",
 		ServiceHealthEndpoint: "/version",
 		TaskPeriod:            100,
-		CounterType:           hcCommon.ByPercentage,
+		CounterType:           counter.ByPercentage,
 		MaxLen:                2,
 		PercentageToBeHealthy: 100,
-		Severity:              hcCommon.Critical,
+		Severity:              counter.Critical,
 	}
 
 	criticalCounter := counter.NewCounterByPercentage(&eventsConfig, logging.NewLogger(nil))
 
-	streamingConfig := hcCommon.Config{
+	streamingConfig := counter.Config{
 		Name:                  "STREAMING",
 		ServiceURL:            "https://streaming.test.io",
 		ServiceHealthEndpoint: "/health",
 		TaskPeriod:            100,
-		CounterType:           hcCommon.ByPercentage,
+		CounterType:           counter.ByPercentage,
 		MaxLen:                2,
 		PercentageToBeHealthy: 100,
-		Severity:              hcCommon.Degraded,
+		Severity:              counter.Degraded,
 	}
 
 	degradedCounter := counter.NewCounterByPercentage(&streamingConfig, logging.NewLogger(nil))
@@ -108,29 +107,29 @@ func TestGetHealthStatusByPercentage(t *testing.T) {
 }
 
 func TestGetHealthStatusSecuencial(t *testing.T) {
-	var serviceCounters []hcCommon.CounterInterface
+	var serviceCounters []counter.ServicesCounterInterface
 
-	eventsConfig := hcCommon.Config{
+	eventsConfig := counter.Config{
 		Name:                  "EVENTS",
 		ServiceURL:            "https://events.test.io/api",
 		ServiceHealthEndpoint: "/version",
 		TaskPeriod:            100,
-		CounterType:           hcCommon.Sequential,
-		Severity:              hcCommon.Critical,
+		CounterType:           counter.Sequential,
+		Severity:              counter.Critical,
 		MaxErrorsAllowed:      3,
 		MinSuccessExpected:    5,
 	}
 	criticalCounter := counter.NewCounterSecuencial(&eventsConfig, logging.NewLogger(nil))
 
-	streamingConfig := hcCommon.Config{
+	streamingConfig := counter.Config{
 		Name:                  "STREAMING",
 		ServiceURL:            "https://streaming.test.io",
 		ServiceHealthEndpoint: "/health",
 		TaskPeriod:            100,
-		CounterType:           hcCommon.Sequential,
+		CounterType:           counter.Sequential,
 		MaxLen:                2,
 		PercentageToBeHealthy: 100,
-		Severity:              hcCommon.Degraded,
+		Severity:              counter.Degraded,
 		MaxErrorsAllowed:      3,
 		MinSuccessExpected:    5,
 	}

@@ -2,8 +2,8 @@ package services
 
 import (
 	"sync"
+	"time"
 
-	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/services"
 	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/services/counter"
 )
@@ -14,9 +14,24 @@ const (
 	degradedStatus = "degraded"
 )
 
+// HealthDto description
+type HealthDto struct {
+	Status string    `json:"serviceStatus"`
+	Items  []ItemDto `json:"dependencies"`
+}
+
+// ItemDto description
+type ItemDto struct {
+	Service      string     `json:"service"`
+	Healthy      bool       `json:"healthy"`
+	Message      string     `json:"message,omitempty"`
+	HealthySince *time.Time `json:"healthySince,omitempty"`
+	LastHit      *time.Time `json:"lastHit,omitempty"`
+}
+
 // MonitorImp description
 type MonitorImp struct {
-	Counters []hcCommon.CounterInterface
+	Counters []counter.ServicesCounterInterface
 	lock     sync.RWMutex
 	logger   logging.LoggerInterface
 }
@@ -42,11 +57,11 @@ func (m *MonitorImp) Stop() {
 }
 
 // GetHealthStatus return services health
-func (m *MonitorImp) GetHealthStatus() hcCommon.HealthDto {
+func (m *MonitorImp) GetHealthStatus() HealthDto {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
-	var items []hcCommon.ItemDto
+	var items []ItemDto
 
 	criticalCount := 0
 	degradedCount := 0
@@ -56,14 +71,14 @@ func (m *MonitorImp) GetHealthStatus() hcCommon.HealthDto {
 
 		if !res.Healthy {
 			switch res.Severity {
-			case hcCommon.Critical:
+			case counter.Critical:
 				criticalCount++
-			case hcCommon.Degraded:
+			case counter.Degraded:
 				degradedCount++
 			}
 		}
 
-		items = append(items, hcCommon.ItemDto{
+		items = append(items, ItemDto{
 			Service:      res.Name,
 			Healthy:      res.Healthy,
 			Message:      res.LastMessage,
@@ -80,7 +95,7 @@ func (m *MonitorImp) GetHealthStatus() hcCommon.HealthDto {
 		status = degradedStatus
 	}
 
-	return hcCommon.HealthDto{
+	return HealthDto{
 		Status: status,
 		Items:  items,
 	}
@@ -88,14 +103,14 @@ func (m *MonitorImp) GetHealthStatus() hcCommon.HealthDto {
 
 // NewMonitorImp create services monitor
 func NewMonitorImp(
-	cfgs []*hcCommon.Config,
+	cfgs []*counter.Config,
 	logger logging.LoggerInterface,
 ) *MonitorImp {
-	var serviceCounters []hcCommon.CounterInterface
+	var serviceCounters []counter.ServicesCounterInterface
 
 	for _, cfg := range cfgs {
 		switch cfg.CounterType {
-		case hcCommon.ByPercentage:
+		case counter.ByPercentage:
 			serviceCounters = append(serviceCounters, counter.NewCounterByPercentage(cfg, logger))
 		default:
 			serviceCounters = append(serviceCounters, counter.NewCounterSecuencial(cfg, logger))

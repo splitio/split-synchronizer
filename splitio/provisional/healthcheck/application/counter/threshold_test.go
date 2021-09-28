@@ -4,17 +4,16 @@ import (
 	"testing"
 	"time"
 
-	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
 
 func TestThresholdCounter(t *testing.T) {
-	counter := NewThresholdCounter(&hcCommon.Config{
+	counter := NewThresholdCounter(&Config{
 		Name:        "Test",
 		CounterType: 0,
 		Severity:    0,
 		Period:      3,
-		MonitorType: hcCommon.Threshold,
+		MonitorType: Threshold,
 	}, logging.NewLogger(nil))
 	counter.Start()
 

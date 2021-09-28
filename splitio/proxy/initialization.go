@@ -15,7 +15,7 @@ import (
 	"github.com/splitio/go-toolkit/v5/logging"
 
 	hcAppCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
-	hcServicesCommon "github.com/splitio/go-split-commons/v4/healthcheck/services"
+	//hcServicesCommon "github.com/splitio/go-split-commons/v4/healthcheck/services"
 	"github.com/splitio/split-synchronizer/v4/conf"
 	"github.com/splitio/split-synchronizer/v4/splitio/admin"
 	adminCommon "github.com/splitio/split-synchronizer/v4/splitio/admin/common"
@@ -24,7 +24,9 @@ import (
 	ssync "github.com/splitio/split-synchronizer/v4/splitio/common/sync"
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/evcalc"
 	hcApplication "github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application"
+	hcAppCounter "github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application/counter"
 	hcServices "github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/services"
+	hcServicesCounter "github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/services/counter"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage/persistent"
 	pTasks "github.com/splitio/split-synchronizer/v4/splitio/proxy/tasks"
@@ -214,25 +216,25 @@ func Start(logger logging.LoggerInterface) error {
 	return nil
 }
 
-func getAppCountersConfig() []*hcAppCommon.Config {
-	var cfgs []*hcAppCommon.Config
+func getAppCountersConfig() []*hcAppCounter.Config {
+	var cfgs []*hcAppCounter.Config
 
-	splitsConfig := hcAppCommon.NewApplicationConfig("Splits", hcAppCommon.Splits)
-	segmentsConfig := hcAppCommon.NewApplicationConfig("Segments", hcAppCommon.Segments)
+	splitsConfig := hcAppCounter.NewApplicationConfig("Splits", hcAppCommon.Splits)
+	segmentsConfig := hcAppCounter.NewApplicationConfig("Segments", hcAppCommon.Segments)
 
 	cfgs = append(cfgs, splitsConfig, segmentsConfig)
 
 	return cfgs
 }
 
-func getServicesCountersConfig() []*hcServicesCommon.Config {
-	var cfgs []*hcServicesCommon.Config
+func getServicesCountersConfig() []*hcServicesCounter.Config {
+	var cfgs []*hcServicesCounter.Config
 
-	telemetryConfig := hcServicesCommon.NewServicesConfig("Telemetry", "https://telemetry.split-stage.io", "/version")
-	authConfig := hcServicesCommon.NewServicesConfig("Auth", "https://auth.split-stage.io", "/version")
-	apiConfig := hcServicesCommon.NewServicesConfig("API", "https://sdk.split-stage.io/api", "/version")
-	eventsConfig := hcServicesCommon.NewServicesConfig("Events", "https://events.split-stage.io/api", "/version")
-	streamingConfig := hcServicesCommon.NewServicesConfig("Streaming", "https://streaming.split.io", "/health")
+	telemetryConfig := hcServicesCounter.NewServicesConfig("Telemetry", "https://telemetry.split-stage.io", "/version")
+	authConfig := hcServicesCounter.NewServicesConfig("Auth", "https://auth.split-stage.io", "/version")
+	apiConfig := hcServicesCounter.NewServicesConfig("API", "https://sdk.split-stage.io/api", "/version")
+	eventsConfig := hcServicesCounter.NewServicesConfig("Events", "https://events.split-stage.io/api", "/version")
+	streamingConfig := hcServicesCounter.NewServicesConfig("Streaming", "https://streaming.split.io", "/health")
 
 	return append(cfgs, telemetryConfig, authConfig, apiConfig, eventsConfig, streamingConfig)
 }

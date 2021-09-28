@@ -6,8 +6,8 @@ import (
 	"html/template"
 	"strings"
 
-	hcAppCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
-	hcServicesCommon "github.com/splitio/go-split-commons/v4/healthcheck/services"
+	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application"
+	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/services"
 )
 
 var funcs = map[string]interface{}{
@@ -101,9 +101,9 @@ type DashboardInitializationVars struct {
 	ProxyMode          bool
 	RefreshTime        int64
 	DataControllerPath string
-	Stats              GlobalStats                `json:"stats"`
-	Health             hcAppCommon.HealthDto      `json:"health"`
-	ServicesHealth     hcServicesCommon.HealthDto `json:"servicesHealth"`
+	Stats              GlobalStats           `json:"stats"`
+	Health             application.HealthDto `json:"health"`
+	ServicesHealth     services.HealthDto    `json:"servicesHealth"`
 }
 
 // SplitSummary encapsulates a minimalistic view of split properties to be presented in the dashboard

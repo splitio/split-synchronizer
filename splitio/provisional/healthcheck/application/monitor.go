@@ -4,17 +4,32 @@ import (
 	"sync"
 	"time"
 
-	hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
 	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application/counter"
 )
 
 // MonitorImp description
 type MonitorImp struct {
-	counters     []hcCommon.CounterInterface
+	counters     []counter.ApplicationCounterInterface
 	healthySince *time.Time
 	lock         sync.RWMutex
 	logger       logging.LoggerInterface
+}
+
+// HealthDto struct
+type HealthDto struct {
+	Healthy      bool       `json:"healthy"`
+	HealthySince *time.Time `json:"healthySince"`
+	Items        []ItemDto  `json:"items"`
+}
+
+// ItemDto struct
+type ItemDto struct {
+	Name       string     `json:"name"`
+	Healthy    bool       `json:"healthy"`
+	LastHit    *time.Time `json:"lastHit,omitempty"`
+	ErrorCount int        `json:"errorCount,omitempty"`
+	Severity   int        `json:"-"`
 }
 
 func (m *MonitorImp) getHealthySince(healthy bool) *time.Time {
@@ -25,9 +40,9 @@ func (m *MonitorImp) getHealthySince(healthy bool) *time.Time {
 	return m.healthySince
 }
 
-func checkIfIsHealthy(result []hcCommon.ItemDto) bool {
+func checkIfIsHealthy(result []ItemDto) bool {
 	for _, r := range result {
-		if r.Healthy == false && r.Severity == hcCommon.Critical {
+		if r.Healthy == false && r.Severity == counter.Critical {
 			return false
 		}
 	}
@@ -36,15 +51,15 @@ func checkIfIsHealthy(result []hcCommon.ItemDto) bool {
 }
 
 // GetHealthStatus get application health
-func (m *MonitorImp) GetHealthStatus() hcCommon.HealthDto {
+func (m *MonitorImp) GetHealthStatus() HealthDto {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
-	var items []hcCommon.ItemDto
+	var items []ItemDto
 
 	for _, counter := range m.counters {
 		res := counter.IsHealthy()
-		items = append(items, hcCommon.ItemDto{
+		items = append(items, ItemDto{
 			Name:       res.Name,
 			Healthy:    res.Healthy,
 			LastHit:    res.LastHit,
@@ -56,7 +71,7 @@ func (m *MonitorImp) GetHealthStatus() hcCommon.HealthDto {
 	healthy := checkIfIsHealthy(items)
 	since := m.getHealthySince(healthy)
 
-	return hcCommon.HealthDto{
+	return HealthDto{
 		Healthy:      healthy,
 		Items:        items,
 		HealthySince: since,
@@ -109,14 +124,14 @@ func (m *MonitorImp) Stop() {
 
 // NewMonitorImp create a new application monitor
 func NewMonitorImp(
-	cfgs []*hcCommon.Config,
+	cfgs []*counter.Config,
 	logger logging.LoggerInterface,
 ) *MonitorImp {
-	var appcounters []hcCommon.CounterInterface
+	var appcounters []counter.ApplicationCounterInterface
 
 	for _, cfg := range cfgs {
 		switch cfg.CounterType {
-		case hcCommon.Threshold:
+		case counter.Threshold:
 			appcounters = append(appcounters, counter.NewThresholdCounter(cfg, logger))
 		default:
 			appcounters = append(appcounters, counter.NewPeriodicCounter(cfg, logger))
