@@ -89,6 +89,7 @@ func NewCounterByPercentage(
 			severity:     config.Severity,
 			healthy:      true,
 			healthySince: &now,
+			url:          config.ServiceURL + config.ServiceHealthEndpoint,
 		},
 		maxLen:                config.MaxLen,
 		cache:                 new(list.List),

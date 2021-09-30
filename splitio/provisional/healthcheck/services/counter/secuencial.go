@@ -76,6 +76,7 @@ func NewCounterSecuencial(
 			severity:     config.Severity,
 			healthy:      true,
 			healthySince: &now,
+			url:          config.ServiceURL + config.ServiceHealthEndpoint,
 		},
 		maxErrorsAllowed:   config.MaxErrorsAllowed,
 		minSuccessExpected: config.MinSuccessExpected,
