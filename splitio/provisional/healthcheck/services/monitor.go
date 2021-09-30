@@ -79,7 +79,7 @@ func (m *MonitorImp) GetHealthStatus() HealthDto {
 		}
 
 		items = append(items, ItemDto{
-			Service:      res.Name,
+			Service:      res.URL,
 			Healthy:      res.Healthy,
 			Message:      res.LastMessage,
 			HealthySince: res.HealthySince,

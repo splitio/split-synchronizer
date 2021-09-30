@@ -4,7 +4,6 @@ import (
 	"sync"
 	"time"
 
-	//hcCommon "github.com/splitio/go-split-commons/v4/healthcheck/services"
 	"github.com/splitio/go-toolkit/v5/asynctask"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
@@ -35,7 +34,7 @@ type ServicesCounterInterface interface {
 
 // HealthyResult result
 type HealthyResult struct {
-	Name         string
+	URL          string
 	Severity     int
 	Healthy      bool
 	LastMessage  string
@@ -67,6 +66,7 @@ type baseCounterImp struct {
 	healthySince *time.Time
 	name         string
 	task         *asynctask.AsyncTask
+	url          string
 }
 
 // IsHealthy return counter health
@@ -75,7 +75,7 @@ func (c *baseCounterImp) IsHealthy() HealthyResult {
 	defer c.lock.RUnlock()
 
 	return HealthyResult{
-		Name:         c.name,
+		URL:          c.url,
 		Severity:     c.severity,
 		Healthy:      c.healthy,
 		LastMessage:  c.lastMessage,

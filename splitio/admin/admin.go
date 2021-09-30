@@ -58,8 +58,6 @@ func NewServer(options *Options) (*http.Server, error) {
 		options.EventsEvCalc,
 		options.Runtime,
 		dataController,
-		options.HcAppMonitor,
-		options.HcServicesMonitor,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error instantiating dashboard controller: %w", err)
@@ -72,6 +70,14 @@ func NewServer(options *Options) (*http.Server, error) {
 	// }
 
 	//router.GET("/admin/dashboard/segmentKeys/:segment", dctrl.SegmentKeys)
+
+	healthcheckController := controllers.NewHealthCheckController(
+		options.Logger,
+		options.HcAppMonitor,
+		options.HcServicesMonitor,
+	)
+
+	healthcheckController.Register(router.Group(""))
 
 	return &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", options.Host, options.Port),
