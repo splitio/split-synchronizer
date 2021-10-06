@@ -58,25 +58,28 @@ func NewSplitChangesSummaries() *SplitChangesSummaries {
 }
 
 // AddChanges registers a new set of changes and updates all the recipes accordingly
-func (s *SplitChangesSummaries) AddChanges(newCn int64, added []SplitMinimalView, removed []SplitMinimalView) {
+func (s *SplitChangesSummaries) AddChanges(added []dtos.SplitDTO, removed []dtos.SplitDTO, cn int64) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	if newCn <= s.currentCN {
+
+	addedViews := toSplitMinimalViews(added)
+	removedViews := toSplitMinimalViews(removed)
+	if cn <= s.currentCN {
 		return
 	}
 
 	for key, summary := range s.changes {
-		summary.applyChange(added, removed)
+		summary.applyChange(addedViews, removedViews)
 		s.changes[key] = summary
 	}
 
-	s.currentCN = newCn
-	s.changes[newCn] = newEmptyChangeSummary()
+	s.currentCN = cn
+	s.changes[cn] = newEmptyChangeSummary()
 }
 
 // AddOlderChange is used to add a change older than the oldest one currently stored (when the sync started)
 // so that it can be used to serve SDKs stuck on an older CN
-func (s *SplitChangesSummaries) AddOlderChange(cn int64, added []SplitMinimalView, removed []SplitMinimalView) {
+func (s *SplitChangesSummaries) AddOlderChange(added []dtos.SplitDTO, removed []dtos.SplitDTO, cn int64) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	if cn >= s.currentCN {
@@ -87,11 +90,11 @@ func (s *SplitChangesSummaries) AddOlderChange(cn int64, added []SplitMinimalVie
 
 	summary := newEmptyChangeSummary()
 	for _, split := range added {
-		summary.Updated[split.Name] = split.TrafficType
+		summary.Updated[split.Name] = split.TrafficTypeName
 	}
 
 	for _, split := range removed {
-		summary.Removed[split.Name] = split.TrafficType
+		summary.Removed[split.Name] = split.TrafficTypeName
 	}
 
 	s.changes[cn] = summary
@@ -131,4 +134,12 @@ func BuildArchivedSplitsFor(nameToTrafficType map[string]string) []dtos.SplitDTO
 		})
 	}
 	return archived
+}
+
+func toSplitMinimalViews(items []dtos.SplitDTO) []SplitMinimalView {
+	views := make([]SplitMinimalView, 0, len(items))
+	for _, dto := range items {
+		views = append(views, SplitMinimalView{Name: dto.Name, TrafficType: dto.TrafficTypeName})
+	}
+	return views
 }
