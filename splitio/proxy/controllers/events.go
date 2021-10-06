@@ -24,7 +24,7 @@ type EventsServerController struct {
 	impressionCountSink tasks.DeferredRecordingTask
 	eventsSink          tasks.DeferredRecordingTask
 	listener            impressionlistener.ImpressionBulkListener
-	apikeyValidator     func(*string) bool
+	apikeyValidator     func(string) bool
 }
 
 // NewEventsServerController returns a new events server controller
@@ -35,7 +35,7 @@ func NewEventsServerController(
 	impressionCountSink tasks.DeferredRecordingTask,
 	eventsSink tasks.DeferredRecordingTask,
 	listener impressionlistener.ImpressionBulkListener,
-	apikeyValidator func(*string) bool,
+	apikeyValidator func(string) bool,
 ) *EventsServerController {
 	return &EventsServerController{
 		logger:              logger,
@@ -46,6 +46,25 @@ func NewEventsServerController(
 		listener:            listener,
 		apikeyValidator:     apikeyValidator,
 	}
+}
+
+// Register mounts events-server endpoints onto the suppplied routers
+func (c *EventsServerController) Register(regular gin.IRouter, beacon gin.IRouter) {
+	regular.POST("/testImpressions/bulk", c.TestImpressionsBulk)
+	regular.POST("/testImpressions/count", c.TestImpressionsCount)
+	regular.POST("/events/bulk", c.EventsBulk)
+
+	// dummy endpoints that just return 200
+	regular.POST("/metrics/times", c.DummyAlwaysOk)
+	regular.POST("/metrics/counters", c.DummyAlwaysOk)
+	regular.POST("/metrics/gauge", c.DummyAlwaysOk)
+	regular.POST("/metrics/time", c.DummyAlwaysOk)
+	regular.POST("/metrics/counter", c.DummyAlwaysOk)
+
+	// beacon endpoints
+	beacon.POST("/testImpressions/count/beacon", c.TestImpressionsCountBeacon)
+	beacon.POST("/testImpressions/beacon", c.TestImpressionsBeacon)
+	beacon.POST("/events/beacon", c.EventsBulkBeacon)
 }
 
 // TestImpressionsBulk endpoint accepts impression bulks
@@ -61,7 +80,9 @@ func (c *EventsServerController) TestImpressionsBulk(ctx *gin.Context) {
 		return
 	}
 	if c.listener != nil {
-		err = c.listener.Submit(data, &metadata)
+		// if we have a listener, schedule a goroutine to convert these impressions and
+		// push them into the channel.
+		go c.submitImpressionsToListener(data, &metadata)
 	}
 
 	err = c.impressionsSink.Stage(internal.NewRawImpressions(metadata, impressionsMode, data))
@@ -96,12 +117,7 @@ func (c *EventsServerController) TestImpressionsBeacon(ctx *gin.Context) {
 		return
 	}
 
-	type BeaconImpressions struct {
-		Entries json.RawMessage `json:"entries"`
-		Sdk     string          `json:"sdk"`
-		Token   string          `json:"token"`
-	}
-	var body BeaconImpressions
+	var body beaconMessage
 	if err := json.Unmarshal([]byte(data), &body); err != nil {
 		c.logger.Error("Error unmarshaling json in testImpressions/beacon request body: ", err)
 		ctx.JSON(http.StatusBadRequest, nil)
@@ -109,14 +125,14 @@ func (c *EventsServerController) TestImpressionsBeacon(ctx *gin.Context) {
 		return
 	}
 
-	if !c.apikeyValidator(&body.Token) {
+	if !c.apikeyValidator(body.Token) {
 		c.logger.Error("Unknown/invalid token when parsing testImpressions/beacon request", err)
 		ctx.AbortWithStatus(401)
 		c.telemetry.IncrEndpointStatus(storage.ImpressionsBulkBeaconEndpoint, http.StatusUnauthorized)
 		return
 	}
 
-	err = c.impressionsSink.Stage(internal.NewRawImpressions(dtos.Metadata{SDKVersion: "", MachineIP: "NA", MachineName: "NA"}, "", body.Entries))
+	err = c.impressionsSink.Stage(internal.NewRawImpressions(dtos.Metadata{SDKVersion: body.Sdk, MachineIP: "NA", MachineName: "NA"}, "", body.Entries))
 	if err != nil {
 		if err == tasks.ErrQueueFull {
 			ctx.AbortWithStatusJSON(500, "Impressions queue is full, please retry later.")
@@ -173,12 +189,7 @@ func (c *EventsServerController) TestImpressionsCountBeacon(ctx *gin.Context) {
 		return
 	}
 
-	type BeaconImpressionsCount struct {
-		Entries json.RawMessage `json:"entries"`
-		Sdk     string          `json:"sdk"`
-		Token   string          `json:"token"`
-	}
-	var body BeaconImpressionsCount
+	var body beaconMessage
 	if err := json.Unmarshal([]byte(data), &body); err != nil {
 		c.logger.Error(err)
 		ctx.JSON(http.StatusBadRequest, nil)
@@ -186,7 +197,7 @@ func (c *EventsServerController) TestImpressionsCountBeacon(ctx *gin.Context) {
 		return
 	}
 
-	if !c.apikeyValidator(&body.Token) {
+	if !c.apikeyValidator(body.Token) {
 		ctx.AbortWithStatus(401)
 		c.telemetry.IncrEndpointStatus(storage.ImpressionsCountBeaconEndpoint, http.StatusUnauthorized)
 		return
@@ -250,12 +261,7 @@ func (c *EventsServerController) EventsBulkBeacon(ctx *gin.Context) {
 		return
 	}
 
-	type BeaconEvents struct {
-		Entries json.RawMessage `json:"entries"`
-		Sdk     string          `json:"sdk"`
-		Token   string          `json:"token"`
-	}
-	var body BeaconEvents
+	var body beaconMessage
 	if err := json.Unmarshal([]byte(data), &body); err != nil {
 		c.logger.Error(err)
 		ctx.JSON(http.StatusBadRequest, nil)
@@ -263,13 +269,13 @@ func (c *EventsServerController) EventsBulkBeacon(ctx *gin.Context) {
 		return
 	}
 
-	if !c.apikeyValidator(&body.Token) {
+	if !c.apikeyValidator(body.Token) {
 		ctx.AbortWithStatus(401)
 		c.telemetry.IncrEndpointStatus(storage.EventsBulkBeaconEndpoint, http.StatusUnauthorized)
 		return
 	}
 
-	err = c.eventsSink.Stage(internal.NewRawEvents(dtos.Metadata{SDKVersion: "", MachineIP: "NA", MachineName: "NA"}, data))
+	err = c.eventsSink.Stage(internal.NewRawEvents(dtos.Metadata{SDKVersion: body.Sdk, MachineIP: "NA", MachineName: "NA"}, body.Entries))
 	if err != nil {
 		if err == tasks.ErrQueueFull {
 			ctx.AbortWithStatusJSON(500, "Events queue is full, please retry later.")
@@ -285,3 +291,41 @@ func (c *EventsServerController) EventsBulkBeacon(ctx *gin.Context) {
 // DummyAlwaysOk accepts anything and returns 200 without even reading the body
 // This is meant to be used with legacy telemetry endpoints
 func (c *EventsServerController) DummyAlwaysOk(ctx *gin.Context) {}
+
+func (c *EventsServerController) submitImpressionsToListener(raw []byte, metadata *dtos.Metadata) {
+	var parsed []dtos.ImpressionsDTO
+	err := json.Unmarshal(raw, &parsed)
+	if err != nil {
+		c.logger.Error("error when parsing impressions prior to being forwarded to the listener: ", err)
+		return
+	}
+
+	forListener := make([]impressionlistener.ImpressionsForListener, 0, len(parsed))
+	for _, group := range parsed {
+		kis := make([]impressionlistener.ImpressionForListener, 0, len(group.KeyImpressions))
+		for _, ki := range group.KeyImpressions {
+			kis = append(kis, impressionlistener.ImpressionForListener{
+				KeyName:      ki.KeyName,
+				Treatment:    ki.Treatment,
+				Time:         ki.Time,
+				ChangeNumber: ki.ChangeNumber,
+				Label:        ki.Label,
+				BucketingKey: ki.BucketingKey,
+				Pt:           ki.Pt,
+			})
+		}
+		forListener = append(forListener, impressionlistener.ImpressionsForListener{
+			TestName:       group.TestName,
+			KeyImpressions: kis,
+		})
+	}
+
+	c.listener.Submit(forListener, metadata)
+}
+
+// private dtos
+type beaconMessage struct {
+	Entries json.RawMessage `json:"entries"`
+	Sdk     string          `json:"sdk"`
+	Token   string          `json:"token"`
+}
