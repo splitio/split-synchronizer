@@ -20,8 +20,15 @@ func (c *ThresholdImp) NotifyEvent() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
+	if !c.running {
+		c.logger.Debug(fmt.Sprintf("%s counter  is not running.", c.name))
+		return
+	}
+
 	c.reset <- struct{}{}
 	c.updateLastHit()
+
+	c.logger.Debug("NotifyEvent threshold counter.")
 }
 
 // Reset the threshold value
@@ -29,12 +36,19 @@ func (c *ThresholdImp) Reset(newThreshold int) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
+	if !c.running {
+		c.logger.Debug(fmt.Sprintf("%s counter is not running.", c.name))
+		return nil
+	}
+
 	if newThreshold <= 0 {
 		return fmt.Errorf("refreshTreshold should be > 0")
 	}
 
 	c.period = newThreshold
 	c.reset <- struct{}{}
+
+	c.logger.Debug("Reset treshold counter.")
 
 	return nil
 }
@@ -68,6 +82,8 @@ func (c *ThresholdImp) Start() {
 			}
 		}
 	}()
+
+	c.logger.Debug(fmt.Sprintf("%s threshold counter started.", c.name))
 }
 
 // Stop counter

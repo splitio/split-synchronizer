@@ -102,10 +102,7 @@ func Start(logger logging.LoggerInterface) error {
 
 	// Healcheck Monitor
 	appMonitor := hcApplication.NewMonitorImp(getAppCountersConfig(storages.SplitStorage), logger)
-	appMonitor.Start()
-
 	servicesMonitor := hcServices.NewMonitorImp(getServicesCountersConfig(), logger)
-	servicesMonitor.Start()
 
 	workers := synchronizer.Workers{
 		SplitFetcher: split.NewSplitFetcher(storages.SplitStorage, splitAPI.SplitFetcher, logger, syncTelemetryStorage, appMonitor),
@@ -211,6 +208,8 @@ func Start(logger logging.LoggerInterface) error {
 		switch status {
 		case synchronizer.Ready:
 			logger.Info("Synchronizer tasks started")
+			appMonitor.Start()
+			servicesMonitor.Start()
 			workers.TelemetryRecorder.SynchronizeConfig(
 				telemetry.InitConfig{
 					AdvancedConfig: advanced,
