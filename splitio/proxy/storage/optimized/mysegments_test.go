@@ -1,14 +1,18 @@
 package optimized
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/splitio/go-toolkit/v5/datastructures/set"
+)
 
 func TestMySegmentsV2(t *testing.T) {
 	storage := NewMySegmentsCache()
 
-	storage.AddSegmentToUser("test", "one")
-	storage.AddSegmentToUser("test", "two")
-	storage.AddSegmentToUser("test", "three")
-	storage.AddSegmentToUser("test", "three")
+	storage.Update("one", set.NewSet("test"), set.NewSet())
+	storage.Update("two", set.NewSet("test"), set.NewSet())
+	storage.Update("three", set.NewSet("test"), set.NewSet())
+	storage.Update("three", set.NewSet("test"), set.NewSet())
 
 	segments := storage.SegmentsForUser("test")
 	if len(segments) != 3 {
@@ -19,29 +23,29 @@ func TestMySegmentsV2(t *testing.T) {
 		t.Error("It should be empty")
 	}
 
-	storage.RemoveSegmentForUser("test", "two")
+	storage.Update("two", set.NewSet(), set.NewSet("test"))
 	segments = storage.SegmentsForUser("test")
 	if len(segments) != 2 {
 		t.Error("It should have 2 segments")
 	}
 
-	storage.RemoveSegmentForUser("test", "three")
+	storage.Update("three", set.NewSet(), set.NewSet("test"))
 	segments = storage.SegmentsForUser("test")
 	if len(segments) != 1 {
 		t.Error("It should have 1 segments")
 	}
 
-	storage.RemoveSegmentForUser("test", "nonexistent")
+	storage.Update("nonexistent", set.NewSet(), set.NewSet("test"))
 	segments = storage.SegmentsForUser("test")
 	if len(segments) != 1 {
 		t.Error("It should have 1 segments")
 	}
 
-	storage.RemoveSegmentForUser("test", "one")
+	storage.Update("one", set.NewSet(), set.NewSet("test"))
 	segments = storage.SegmentsForUser("test")
 	if len(segments) != 0 {
 		t.Error("It should be empty")
 	}
 
-	storage.RemoveSegmentForUser("nonexistent", "one")
+	storage.Update("one", set.NewSet(), set.NewSet("nonexistent"))
 }

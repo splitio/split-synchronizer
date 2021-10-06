@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -23,13 +22,14 @@ var ErrSummaryNotCached = errors.New("summary for requested change number not ca
 // for different requested `since` parameters
 type ProxySplitStorage interface {
 	ChangesSince(since int64) (*dtos.SplitChangesDTO, error)
+	RegisterOlderCn(payload *dtos.SplitChangesDTO)
 }
 
 // ProxySplitStorageImpl implements the ProxySplitStorage interface and the SplitProducer interface
 type ProxySplitStorageImpl struct {
 	snapshot mutexmap.MMSplitStorage
 	recipes  optimized.SplitChangesSummaries
-	disk     *persistent.SplitChangesCollection
+	db       *persistent.SplitChangesCollection
 	mtx      sync.Mutex
 }
 
@@ -40,7 +40,7 @@ func NewProxySplitStorage(db persistent.DBWrapper, logger logging.LoggerInterfac
 	return &ProxySplitStorageImpl{
 		snapshot: *mutexmap.NewMMSplitStorage(),
 		recipes:  *optimized.NewSplitChangesSummaries(),
-		disk:     persistent.NewSplitChangesCollection(db, logger),
+		db:       persistent.NewSplitChangesCollection(db, logger),
 	}
 }
 
@@ -91,18 +91,26 @@ func (p *ProxySplitStorageImpl) Update(toAdd []dtos.SplitDTO, toRemove []dtos.Sp
 		return
 	}
 
-	toAddViews := toSplitMinimalViews(toAdd)
-	toDelViews := toSplitMinimalViews(toRemove)
-
-	toPersist := toSplitChangesItems(toAdd, toRemove)
-
 	p.mtx.Lock()
 	p.snapshot.Update(toAdd, toRemove, changeNumber)
-	p.recipes.AddChanges(changeNumber, toAddViews, toDelViews)
-	for _, item := range toPersist {
-		p.disk.Add(&item)
-	}
+	p.recipes.AddChanges(toAdd, toRemove, changeNumber)
+	p.db.Update(toAdd, toRemove, changeNumber)
 	p.mtx.Unlock()
+}
+
+// RegisterOlderCn registers payload associated to a fetch request for an old `since` for which we don't
+// have a recipe
+func (p *ProxySplitStorageImpl) RegisterOlderCn(payload *dtos.SplitChangesDTO) {
+	toAdd := make([]dtos.SplitDTO, 0)
+	toDel := make([]dtos.SplitDTO, 0)
+	for _, split := range payload.Splits {
+		if split.Status == "ACTIVE" {
+			toAdd = append(toAdd, split)
+		} else {
+			toDel = append(toDel, split)
+		}
+	}
+	p.recipes.AddOlderChange(toAdd, toDel, payload.Till)
 }
 
 // ChangeNumber returns the current change number
@@ -140,42 +148,6 @@ func (p *ProxySplitStorageImpl) SplitNames() []string { return p.snapshot.SplitN
 // TrafficTypeExists call is forwarded to the snapshot
 func (p *ProxySplitStorageImpl) TrafficTypeExists(tt string) bool {
 	return p.snapshot.TrafficTypeExists(tt)
-}
-
-func toSplitMinimalViews(items []dtos.SplitDTO) []optimized.SplitMinimalView {
-	views := make([]optimized.SplitMinimalView, 0, len(items))
-	for _, dto := range items {
-		views = append(views, optimized.SplitMinimalView{Name: dto.Name, TrafficType: dto.TrafficTypeName})
-	}
-	return views
-}
-
-func toSplitChangesItems(toAdd []dtos.SplitDTO, toRemove []dtos.SplitDTO) persistent.SplitsChangesItems {
-	items := make(persistent.SplitsChangesItems, 0, len(toAdd)+len(toRemove))
-
-	process := func(split *dtos.SplitDTO) {
-		asJSON, err := json.Marshal(split)
-		if err != nil {
-			// This should not happen unless the DTO class is broken
-			return
-		}
-		items = append(items, persistent.SplitChangesItem{
-			ChangeNumber: split.ChangeNumber,
-			Name:         split.Name,
-			Status:       split.Status,
-			JSON:         string(asJSON),
-		})
-	}
-
-	for _, split := range toAdd {
-		process(&split)
-	}
-
-	for _, split := range toRemove {
-		process(&split)
-	}
-
-	return items
 }
 
 var _ ProxySplitStorage = (*ProxySplitStorageImpl)(nil)

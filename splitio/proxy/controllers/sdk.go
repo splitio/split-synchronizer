@@ -41,6 +41,13 @@ func NewSdkServerController(
 	}
 }
 
+// Register mounts the sdk-server endpoints onto the supplied router
+func (c *SdkServerController) Register(router gin.IRouter) {
+	router.GET("/splitChanges", c.SplitChanges)
+	router.GET("/segmentChanges/:name", c.SegmentChanges)
+	router.GET("/mySegments/:key", c.MySegments)
+}
+
 // SplitChanges Returns a diff containing changes in splits from a certain point in time until now.
 func (c *SdkServerController) SplitChanges(ctx *gin.Context) {
 	ctx.Set(tmw.EndpointKey, storage.SplitChangesEndpoint)
@@ -115,6 +122,7 @@ func (c *SdkServerController) fetchSplitChangesSince(since int64) (*dtos.SplitCh
 
 	splits, err = c.fetcher.Fetch(since, true)
 	if err == nil {
+		c.proxySplitStorage.RegisterOlderCn(splits)
 		return splits, nil
 	}
 	return nil, fmt.Errorf("unexpected error fetching split changes from storage: %w", err)

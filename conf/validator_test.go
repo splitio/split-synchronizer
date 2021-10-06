@@ -25,7 +25,7 @@ func TestValidatorWrongRatesInOptimized(t *testing.T) {
 
 	err := ValidConfigs()
 	if err == nil || err.Error() != "ImpressionsPostRate must be >= 60. Actual is: 10" {
-		t.Error("It should return err")
+		t.Error("It should return err. Got:", err)
 	}
 	if Data.ImpressionsMode != conf.ImpressionsModeOptimized {
 		t.Error("It should be optimized")

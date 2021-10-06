@@ -23,14 +23,14 @@ type ProxySegmentStorage interface {
 // ProxySegmentStorageImpl implements the ProxySegmentStorage interface
 type ProxySegmentStorageImpl struct {
 	logger     logging.LoggerInterface
-	disk       *persistent.SegmentChangesCollection
+	db         *persistent.SegmentChangesCollection
 	mysegments optimized.MySegmentsCache
 }
 
 // NewProxySegmentStorage for proxy
 func NewProxySegmentStorage(db persistent.DBWrapper, logger logging.LoggerInterface) *ProxySegmentStorageImpl {
 	return &ProxySegmentStorageImpl{
-		disk:       persistent.NewSegmentChangesCollection(db, logger),
+		db:         persistent.NewSegmentChangesCollection(db, logger),
 		mysegments: optimized.NewMySegmentsCache(),
 		logger:     logger,
 	}
@@ -41,7 +41,7 @@ func NewProxySegmentStorage(db persistent.DBWrapper, logger logging.LoggerInterf
 // regardless whether the `since` parameter is old enough to require such removal or not.
 // We should eventually see if it's worth taking an approach similar to the one in splits or not
 func (s *ProxySegmentStorageImpl) ChangesSince(name string, since int64) (*dtos.SegmentChangesDTO, error) {
-	item, err := s.disk.Fetch(name)
+	item, err := s.db.Fetch(name)
 	if err != nil {
 		if errors.Is(err, persistent.ErrorBucketNotFound) {
 			// Collection not yet created
@@ -94,19 +94,19 @@ func (s *ProxySegmentStorageImpl) SegmentKeysCount() int64 {
 
 // ChangeNumber storage
 func (s *ProxySegmentStorageImpl) ChangeNumber(segment string) (int64, error) {
-	return s.disk.ChangeNumber(segment), nil
+	return s.db.ChangeNumber(segment), nil
 }
 
 // SetChangeNumber method
 func (s *ProxySegmentStorageImpl) SetChangeNumber(segment string, changeNumber int64) error {
-	s.disk.SetChangeNumber(segment, changeNumber)
+	s.db.SetChangeNumber(segment, changeNumber)
 	return nil
 }
 
 // Keys method
 func (s *ProxySegmentStorageImpl) Keys(segmentName string) *set.ThreadUnsafeSet {
 	toReturn := set.NewSet()
-	changes, err := s.disk.Fetch(segmentName)
+	changes, err := s.db.Fetch(segmentName)
 	if err != nil {
 		if !errors.Is(err, persistent.ErrorBucketNotFound) {
 			s.logger.Error(fmt.Sprintf("unexpected error when fetching segment keys for '%s': %s", segmentName, err.Error()))
@@ -132,72 +132,18 @@ func (s *ProxySegmentStorageImpl) SegmentContainsKey(segmentName string, key str
 
 // Update method
 func (s *ProxySegmentStorageImpl) Update(name string, toAdd *set.ThreadUnsafeSet, toRemove *set.ThreadUnsafeSet, changeNumber int64) error {
-	// TODO(mredolatti): lock!
-	segmentItem, _ := s.disk.Fetch(name)
-
-	if segmentItem == nil {
-		segmentItem = &persistent.SegmentChangesItem{}
-		segmentItem.Name = name
-		segmentItem.Keys = make(map[string]persistent.SegmentKey)
+	errCache := s.mysegments.Update(name, toAdd, toRemove)
+	errDB := s.db.Update(name, toAdd, toRemove, changeNumber)
+	if errCache == nil && errDB == nil {
+		return nil
 	}
 
-	for _, removedKey := range toRemove.List() {
-		strKey, ok := removedKey.(string)
-		if !ok {
-			s.logger.Error(fmt.Sprintf("skipping non-string key when updating segment %s: %+v", name, strKey))
-			continue
-		}
-		s.logger.Debug("Removing", strKey, "from", name)
-		s.mysegments.RemoveSegmentForUser(strKey, name)
-		if _, exists := segmentItem.Keys[strKey]; exists {
-			itemAux := segmentItem.Keys[strKey]
-			itemAux.Removed = true
-			itemAux.ChangeNumber = changeNumber
-			segmentItem.Keys[strKey] = itemAux
-		} else {
-			segmentItem.Keys[strKey] = persistent.SegmentKey{
-				Name:         strKey,
-				Removed:      true,
-				ChangeNumber: changeNumber,
-			}
-		}
-
-	}
-
-	for _, addedKey := range toAdd.List() {
-		strKey, ok := addedKey.(string)
-		if !ok {
-			s.logger.Error(fmt.Sprintf("skipping non-string key when updating segment %s: %+v", name, strKey))
-			continue
-		}
-		s.logger.Debug("Adding", strKey, "in", name)
-		s.mysegments.AddSegmentToUser(strKey, name)
-		if _, exists := segmentItem.Keys[strKey]; exists {
-			itemAux := segmentItem.Keys[strKey]
-			itemAux.Removed = false
-			itemAux.ChangeNumber = changeNumber
-			segmentItem.Keys[strKey] = itemAux
-		} else {
-			segmentItem.Keys[strKey] = persistent.SegmentKey{
-				Name:         strKey,
-				Removed:      false,
-				ChangeNumber: changeNumber,
-			}
-		}
-	}
-
-	err := s.disk.Add(segmentItem)
-	if err != nil {
-		return fmt.Errorf("error when updating persistant storage for segment %s: %w", name, err)
-	}
-	s.disk.SetChangeNumber(name, changeNumber)
-
-	return nil
+	return fmt.Errorf("errors updating cache: %s || errors updating db: %s", errCache.Error(), errDB.Error())
 }
 
 // CountRemovedKeys method
 func (s *ProxySegmentStorageImpl) CountRemovedKeys(segmentName string) int {
-	segment, err := s.disk.Fetch(segmentName)
+	segment, err := s.db.Fetch(segmentName)
 	if err != nil {
 		return 0
 	}

@@ -1,4 +1,4 @@
-package telemetry
+package middleware
 
 import (
 	"strings"
@@ -22,12 +22,8 @@ func NewAPIKeyValidator(apikeys []string) *APIKeyValidator {
 }
 
 // IsValid checks if an apikey is valid
-func (v *APIKeyValidator) IsValid(apikey *string) bool {
-	if apikey == nil {
-		return false
-	}
-
-	_, ok := v.apikeys[*apikey]
+func (v *APIKeyValidator) IsValid(apikey string) bool {
+	_, ok := v.apikeys[apikey]
 	return ok
 }
 
@@ -39,7 +35,7 @@ func (v *APIKeyValidator) AsMiddleware(ctx *gin.Context) {
 		return
 	}
 
-	if _, ok := v.apikeys[auth[1]]; !ok {
+	if !v.IsValid(auth[1]) {
 		ctx.AbortWithStatus(401)
 	}
 }

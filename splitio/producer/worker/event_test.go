@@ -57,7 +57,7 @@ func TestEventWorkerStorageError(t *testing.T) {
 func TestSynhronizeEventWithNoEvents(t *testing.T) {
 	logger := logging.NewLogger(nil)
 	eventMockStorage := storageMock.MockEventStorage{
-		CountCall: func() int64 { return 0 }, // TODO: Check!
+		CountCall: func() int64 { return 0 },
 		PopNWithMetadataCall: func(n int64) ([]dtos.QueueStoredEventDTO, error) {
 			if n != 50 {
 				t.Error("Wrong input parameter passed")
@@ -110,7 +110,7 @@ func TestSynhronizeEvent(t *testing.T) {
 	metadata2 := dtos.Metadata{MachineIP: "2.2.2.2", MachineName: "machine2", SDKVersion: "php-2.2.2"}
 
 	eventMockStorage := storageMock.MockEventStorage{
-		CountCall: func() int64 { return 0 }, // TODO: Check!
+		CountCall: func() int64 { return 0 },
 		PopNWithMetadataCall: func(n int64) ([]dtos.QueueStoredEventDTO, error) {
 			if n != 50 {
 				t.Error("Wrong input parameter passed")
@@ -288,7 +288,7 @@ func TestSynhronizeEventE2E(t *testing.T) {
 	)
 
 	eventMockStorage := storageMock.MockEventStorage{
-		CountCall: func() int64 { return 0 }, // TODO: Check!
+		CountCall: func() int64 { return 0 },
 		PopNWithMetadataCall: func(n int64) ([]dtos.QueueStoredEventDTO, error) {
 			if n != 50 {
 				t.Error("Wrong input parameter passed")

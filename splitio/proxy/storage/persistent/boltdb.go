@@ -12,7 +12,7 @@ import (
 
 	"github.com/splitio/go-toolkit/v5/logging"
 
-	"github.com/boltdb/bolt"
+	bolt "go.etcd.io/bbolt" // new fork maintained by etcd
 )
 
 // BoltInMemoryMode used to store ramdom db into temporal folder
