@@ -3,8 +3,10 @@ package persistent
 import (
 	"bytes"
 	"encoding/gob"
+	"fmt"
 	"sync"
 
+	"github.com/splitio/go-toolkit/v5/datastructures/set"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
 
@@ -27,7 +29,8 @@ type SegmentChangesItem struct {
 type SegmentChangesCollection struct {
 	collection   CollectionWrapper
 	segmentsTill map[string]int64
-	cnMutex      sync.Mutex
+	logger       logging.LoggerInterface
+	mutex        sync.RWMutex
 }
 
 // NewSegmentChangesCollection returns an instance of SegmentChangesCollection
@@ -35,20 +38,82 @@ func NewSegmentChangesCollection(db DBWrapper, logger logging.LoggerInterface) *
 	return &SegmentChangesCollection{
 		collection:   &BoltDBCollectionWrapper{db: db, name: segmentChangesCollectionName, logger: logger},
 		segmentsTill: make(map[string]int64, 0),
+		logger:       logger,
 	}
 }
 
-// Add an item
-func (c *SegmentChangesCollection) Add(item *SegmentChangesItem) error {
-	key := []byte(item.Name)
-	err := c.collection.SaveAs(key, item)
-	return err
+// Update persists a segmentChanges update
+func (c *SegmentChangesCollection) Update(name string, toAdd *set.ThreadUnsafeSet, toRemove *set.ThreadUnsafeSet, cn int64) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	segmentItem, _ := c.fetch(name)
+	if segmentItem == nil {
+		segmentItem = &SegmentChangesItem{}
+		segmentItem.Name = name
+		segmentItem.Keys = make(map[string]SegmentKey, toAdd.Size()+toRemove.Size())
+	}
+
+	for _, removedKey := range toRemove.List() {
+		strKey, ok := removedKey.(string)
+		if !ok {
+			c.logger.Error(fmt.Sprintf("skipping non-string key when updating segment %s: %+v", name, strKey))
+			continue
+		}
+		c.logger.Debug("Removing", strKey, "from", name)
+		if _, exists := segmentItem.Keys[strKey]; exists {
+			itemAux := segmentItem.Keys[strKey]
+			itemAux.Removed = true
+			itemAux.ChangeNumber = cn
+			segmentItem.Keys[strKey] = itemAux
+		} else {
+			segmentItem.Keys[strKey] = SegmentKey{
+				Name:         strKey,
+				Removed:      true,
+				ChangeNumber: cn,
+			}
+		}
+
+	}
+
+	for _, addedKey := range toAdd.List() {
+		strKey, ok := addedKey.(string)
+		if !ok {
+			c.logger.Error(fmt.Sprintf("skipping non-string key when updating segment %s: %+v", name, strKey))
+			continue
+		}
+		c.logger.Debug("Adding", strKey, "in", name)
+		if _, exists := segmentItem.Keys[strKey]; exists {
+			itemAux := segmentItem.Keys[strKey]
+			itemAux.Removed = false
+			itemAux.ChangeNumber = cn
+			segmentItem.Keys[strKey] = itemAux
+		} else {
+			segmentItem.Keys[strKey] = SegmentKey{
+				Name:         strKey,
+				Removed:      false,
+				ChangeNumber: cn,
+			}
+		}
+	}
+
+	err := c.collection.SaveAs([]byte(name), segmentItem)
+	if err != nil {
+		return fmt.Errorf("error saving segment changes to bolt: %w", err)
+	}
+	c.segmentsTill[name] = cn
+	return nil
 }
 
 // Fetch return a SegmentChangesItem
 func (c *SegmentChangesCollection) Fetch(name string) (*SegmentChangesItem, error) {
-	key := []byte(name)
-	item, err := c.collection.FetchBy(key)
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	return c.fetch(name)
+}
+
+func (c *SegmentChangesCollection) fetch(name string) (*SegmentChangesItem, error) {
+	item, err := c.collection.FetchBy([]byte(name))
 	if err != nil {
 		return nil, err
 	}
@@ -71,6 +136,8 @@ func (c *SegmentChangesCollection) Fetch(name string) (*SegmentChangesItem, erro
 
 // FetchAll return a list of SegmentChangesItem
 func (c *SegmentChangesCollection) FetchAll() ([]SegmentChangesItem, error) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 	items, err := c.collection.FetchAll()
 	if err != nil {
 		return nil, err
@@ -99,8 +166,8 @@ func (c *SegmentChangesCollection) FetchAll() ([]SegmentChangesItem, error) {
 
 // ChangeNumber returns changeNumber
 func (c *SegmentChangesCollection) ChangeNumber(segment string) int64 {
-	c.cnMutex.Lock()
-	defer c.cnMutex.Unlock()
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 	value, exists := c.segmentsTill[segment]
 	if exists {
 		return value
@@ -108,9 +175,9 @@ func (c *SegmentChangesCollection) ChangeNumber(segment string) int64 {
 	return -1
 }
 
-// SetChangeNumber sets changeNumber
-func (c *SegmentChangesCollection) SetChangeNumber(segment string, since int64) {
-	c.cnMutex.Lock()
-	defer c.cnMutex.Unlock()
-	c.segmentsTill[segment] = since
+// SetChangeNumber returns changeNumber
+func (c *SegmentChangesCollection) SetChangeNumber(segment string, cn int64) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.segmentsTill[segment] = cn
 }

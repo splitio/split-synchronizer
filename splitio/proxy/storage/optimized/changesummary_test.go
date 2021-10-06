@@ -2,6 +2,8 @@ package optimized
 
 import (
 	"testing"
+
+	"github.com/splitio/go-split-commons/v4/dtos"
 )
 
 func stringSlicesEqual(a []string, b []string) bool {
@@ -49,13 +51,14 @@ func TestSplitChangesSummary(t *testing.T) {
 	validateChanges(t, changesM1, []string{}, []string{})
 
 	// MOVE TO CN=1
-	summaries.AddChanges(1,
-		[]SplitMinimalView{
-			{"s1", "tt1"},
-			{"s2", "tt1"},
-			{"s3", "tt1"},
+	summaries.AddChanges(
+		[]dtos.SplitDTO{
+			{Name: "s1", TrafficTypeName: "tt1"},
+			{Name: "s2", TrafficTypeName: "tt1"},
+			{Name: "s3", TrafficTypeName: "tt1"},
 		},
-		[]SplitMinimalView{},
+		nil,
+		1,
 	)
 
 	changesM1, cnM1, err = summaries.FetchSince(-1)
@@ -77,7 +80,7 @@ func TestSplitChangesSummary(t *testing.T) {
 	validateChanges(t, changes1, []string{}, []string{})
 
 	// MOVE TO CN=2
-	summaries.AddChanges(2, []SplitMinimalView{{"s2", "tt2"}}, []SplitMinimalView{})
+	summaries.AddChanges([]dtos.SplitDTO{{Name: "s2", TrafficTypeName: "tt2"}}, nil, 2)
 	changesM1, cnM1, err = summaries.FetchSince(-1)
 	if err != nil {
 		t.Error(err)
@@ -106,7 +109,7 @@ func TestSplitChangesSummary(t *testing.T) {
 	validateChanges(t, changes2, []string{}, []string{})
 
 	// MOVE TO CN=3
-	summaries.AddChanges(3, []SplitMinimalView{{"s3", "tt3"}}, []SplitMinimalView{})
+	summaries.AddChanges([]dtos.SplitDTO{{Name: "s3", TrafficTypeName: "tt3"}}, nil, 3)
 	changesM1, cnM1, err = summaries.FetchSince(-1)
 	if err != nil {
 		t.Error(err)
@@ -144,7 +147,10 @@ func TestSplitChangesSummary(t *testing.T) {
 	validateChanges(t, changes3, []string{}, []string{})
 
 	// MOVE TO CN=4
-	summaries.AddChanges(4, []SplitMinimalView{{"s4", "tt3"}}, []SplitMinimalView{{"s1", "tt1"}})
+	summaries.AddChanges(
+		[]dtos.SplitDTO{{Name: "s4", TrafficTypeName: "tt3"}},
+		[]dtos.SplitDTO{{Name: "s1", TrafficTypeName: "tt1"}},
+		4)
 	changesM1, cnM1, err = summaries.FetchSince(-1)
 	if err != nil {
 		t.Error(err)
