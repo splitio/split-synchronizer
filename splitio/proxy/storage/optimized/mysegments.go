@@ -1,11 +1,16 @@
 package optimized
 
-import "sync"
+import (
+	"fmt"
+	"strings"
+	"sync"
+
+	"github.com/splitio/go-toolkit/v5/datastructures/set"
+)
 
 // MySegmentsCache defines the interface for a per-user optimized segment storage
 type MySegmentsCache interface {
-	AddSegmentToUser(key string, segment string)
-	RemoveSegmentForUser(key string, segment string)
+	Update(name string, toAdd *set.ThreadUnsafeSet, toRemove *set.ThreadUnsafeSet) error
 	SegmentsForUser(key string) []string
 	KeyCount() int
 }
@@ -31,10 +36,51 @@ func (m *MySegmentsCacheImpl) KeyCount() int {
 	return len(m.mySegments)
 }
 
-// AddSegmentToUser adds a segment for a particular user
-func (m *MySegmentsCacheImpl) AddSegmentToUser(key string, segment string) {
+// SegmentsForUser returns the list of segments a certain user belongs to
+func (m *MySegmentsCacheImpl) SegmentsForUser(key string) []string {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	userSegments, ok := m.mySegments[key]
+	if !ok {
+		return []string{}
+	}
+	return userSegments
+}
+
+// Update adds and removes segments to keys
+func (m *MySegmentsCacheImpl) Update(name string, toAdd *set.ThreadUnsafeSet, toRemove *set.ThreadUnsafeSet) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
+
+	invalidAdded := []string{}
+	invalidRemoved := []string{}
+	for _, addedKey := range toAdd.List() {
+		strKey, ok := addedKey.(string)
+		if !ok {
+			invalidAdded = append(invalidAdded, fmt.Sprintf("%T::%+v", addedKey, addedKey))
+			continue
+		}
+		m.addSegmentToUser(strKey, name)
+	}
+
+	for _, removedKey := range toRemove.List() {
+		strKey, ok := removedKey.(string)
+		if !ok {
+			invalidRemoved = append(invalidRemoved, fmt.Sprintf("%T::%+v", removedKey, removedKey))
+			continue
+		}
+		m.removeSegmentForUser(strKey, name)
+	}
+
+	if len(invalidAdded) > 0 || len(invalidRemoved) > 0 {
+		return fmt.Errorf("invalid added and removed keys found: %s // %s",
+			strings.Join(invalidAdded, ","), strings.Join(invalidRemoved, ","))
+	}
+
+	return nil
+}
+
+func (m *MySegmentsCacheImpl) addSegmentToUser(key string, segment string) {
 	toAdd := []string{segment}
 	userSegments, ok := m.mySegments[key]
 	if ok {
@@ -46,10 +92,7 @@ func (m *MySegmentsCacheImpl) AddSegmentToUser(key string, segment string) {
 	m.mySegments[key] = toAdd
 }
 
-// RemoveSegmentForUser removes a segment for a particular user
-func (m *MySegmentsCacheImpl) RemoveSegmentForUser(key string, segment string) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+func (m *MySegmentsCacheImpl) removeSegmentForUser(key string, segment string) {
 	userSegments, ok := m.mySegments[key]
 	if !ok {
 		return
@@ -65,17 +108,6 @@ func (m *MySegmentsCacheImpl) RemoveSegmentForUser(key string, segment string) {
 		return
 	}
 	m.mySegments[key] = toUpdate
-}
-
-// SegmentsForUser returns the list of segments a certain user belongs to
-func (m *MySegmentsCacheImpl) SegmentsForUser(key string) []string {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
-	userSegments, ok := m.mySegments[key]
-	if !ok {
-		return []string{}
-	}
-	return userSegments
 }
 
 func (m *MySegmentsCacheImpl) isInSegment(segment string, segments []string) bool {

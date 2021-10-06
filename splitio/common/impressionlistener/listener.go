@@ -26,17 +26,17 @@ var ErrNotRunning = errors.New("listener is not running")
 
 // ImpressionBulkListener speciefies the interface of a secondary impression listener
 type ImpressionBulkListener interface {
-	Submit(imps json.RawMessage, metadata *dtos.Metadata) error
+	Submit(imps []ImpressionsForListener, metadata *dtos.Metadata) error
 	Start() error
 	Stop(bool) error
 }
 
 // impressionListenerPostBody bundles all the data posted by the impression's listener
 type impressionListenerPostBody struct {
-	Impressions json.RawMessage `json:"impressions"`
-	SdkVersion  string          `json:"sdkVersion"`
-	MachineIP   string          `json:"machineIP"`
-	MachineName string          `json:"machineName"`
+	Impressions []ImpressionsForListener `json:"impressions"`
+	SdkVersion  string                   `json:"sdkVersion"`
+	MachineIP   string                   `json:"machineIP"`
+	MachineName string                   `json:"machineName"`
 }
 
 // ImpressionBulkListenerImpl is an implementation of the ImpressionBulkListener interface
@@ -57,16 +57,18 @@ func NewImpressionBulkListener(endpoint string, queueSize int, httpClient *http.
 		return nil, ErrInvalidQueueSize
 	}
 
-	return &ImpressionBulkListenerImpl{
+	listener := &ImpressionBulkListenerImpl{
 		endpoint:   endpoint,
 		httpClient: httpClient,
 		queue:      make(chan impressionListenerPostBody, queueSize),
-	}, nil
+	}
+	listener.lifecycle.Setup()
+	return listener, nil
 }
 
 // Submit attempts to push an impression bulk into the queue
 // Will fail if the queue is full
-func (l *ImpressionBulkListenerImpl) Submit(imps json.RawMessage, metadata *dtos.Metadata) error {
+func (l *ImpressionBulkListenerImpl) Submit(imps []ImpressionsForListener, metadata *dtos.Metadata) error {
 	select {
 	case l.queue <- impressionListenerPostBody{
 		Impressions: imps,
