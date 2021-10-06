@@ -36,6 +36,12 @@ func NewTelemetryServerController(
 	}
 }
 
+// Register mounts telemetry-related endpoints onto the supplied router
+func (c *TelemetryServerController) Register(router gin.IRouter) {
+	router.POST("/metrics/config", c.Config)
+	router.POST("/metrics/usage", c.Usage)
+}
+
 // Config endpoint accepts telemtetry config objects
 func (c *TelemetryServerController) Config(ctx *gin.Context) {
 	ctx.Set(tmw.EndpointKey, storage.TelemetryConfigEndpoint)

@@ -1,4 +1,4 @@
-package common
+package impressionlistener
 
 // ImpressionForListener struct for payload
 type ImpressionForListener struct {

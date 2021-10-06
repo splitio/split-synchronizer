@@ -1,7 +1,6 @@
 package worker
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -15,7 +14,6 @@ import (
 	commonToolkit "github.com/splitio/go-toolkit/v5/common"
 	"github.com/splitio/go-toolkit/v5/logging"
 
-	"github.com/splitio/split-synchronizer/v4/splitio/common"
 	"github.com/splitio/split-synchronizer/v4/splitio/common/impressionlistener"
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/evcalc"
 )
@@ -105,12 +103,12 @@ func (r *RecorderImpressionMultiple) FlushImpressions(bulkSize int64) error {
 }
 
 func (r *RecorderImpressionMultiple) synchronizeImpressions(bulkSize int64) error {
-	impressionsToSend, impressionsForListener, totalCount, err := r.fetch(bulkSize)
+	impressionsToSend, impressionsForListener, err := r.fetch(bulkSize)
 	if err != nil {
 		return err
 	}
 
-	err = r.recordImpressions(impressionsToSend, totalCount)
+	err = r.recordImpressions(impressionsToSend)
 	if err != nil {
 		return err
 	}
@@ -119,33 +117,47 @@ func (r *RecorderImpressionMultiple) synchronizeImpressions(bulkSize int64) erro
 	return nil
 }
 
-func (r *RecorderImpressionMultiple) fetch(bulkSize int64) (impressionsByMetadata, listenerImpressionsByMetadata, int, error) {
-	storedImpressions, err := r.impressionStorage.PopNWithMetadata(bulkSize) // PopN has a mutex, so this function can be async without issues
+// func (r *RecorderImpressionMultiple) fetch(bulkSize int64) (impressionsByMetadata, listenerImpressionsByMetadata, int, error) {
+func (r *RecorderImpressionMultiple) fetch(bulkSize int64) (beImpressionsByMetadataAndFeature, listenerImpressionsByMetadataAndFeature, error) {
+	fetched, err := r.impressionStorage.PopNWithMetadata(bulkSize) // PopN has a mutex, so this function can be async without issues
 	if err != nil {
-		r.logger.Error("(Task) Post Impressions fails fetching impressions from storage", err.Error())
-		return nil, nil, 0, err
+		return nil, nil, fmt.Errorf("error fetching impressions from storage: %w", err)
 	}
 
-	// grouping the information by instanceID/instanceIP, and then by feature name
-	collectedDataforLog := make(impressionsByMetadataByFeature)
-	collectedDataforListener := make(listenerImpressionsByMetadataByFeature)
-
-	for _, stored := range storedImpressions {
-		toSend, forListener := r.impressionManager.ProcessImpressions([]dtos.Impression{stored.Impression})
-		collectedDataforLog = wrapData(toSend, collectedDataforLog, stored.Metadata)
-		collectedDataforListener = wrapDataForListener(forListener, collectedDataforListener, stored.Metadata)
+	if len(fetched) == 0 { // Nothing in storage. Nothing to do here
+		return nil, nil, nil
 	}
-	return r.wrapDTO(collectedDataforLog), wrapDTOListener(collectedDataforListener), len(storedImpressions), nil
+
+	// Even though impressions are not yet sent, they've already been pulled from storage, so we might
+	// as well update the eviction calculation for the lamabda now
+	r.evictionMonitor.StoreDataFlushed(time.Now(), len(fetched), r.impressionStorage.Count())
+	if err != nil {
+		r.logger.Error("Error updating eviction calculation lambda for impressions: ", err.Error())
+		return nil, nil, err
+	}
+
+	toListener := makeListenerPayloadBuilder()
+	toBackend := makeBePayloadBuilder()
+	for _, stored := range fetched {
+		forBe, forListener := r.impressionManager.ProcessImpressions([]dtos.Impression{stored.Impression})
+		if len(forBe) > 0 {
+			toBackend.add(&forBe[0], &stored.Metadata)
+		}
+		if len(forListener) > 0 {
+			toListener.add(&forListener[0], &stored.Metadata)
+		}
+	}
+	return toBackend.accum, toListener.accum, err
 }
 
-func (r *RecorderImpressionMultiple) recordImpressions(impressionsToSend impressionsByMetadata, totalFetched int) error {
+func (r *RecorderImpressionMultiple) recordImpressions(impressionsToSend beImpressionsByMetadataAndFeature) error {
 	errs := 0
-	for metadata, impressions := range impressionsToSend {
+	for metadata, byName := range impressionsToSend {
+		asTestImpressions := toTestImpressionsSlice(byName)
 		before := time.Now()
-		r.evictionMonitor.StoreDataFlushed(before, totalFetched, r.impressionStorage.Count())
 		err := commonToolkit.WithAttempts(3, func() error {
-			r.logger.Debug("impressionsToSend: ", len(impressions))
-			err := r.impressionRecorder.Record(impressions, metadata, map[string]string{"SplitSDKImpressionsMode": r.mode})
+			r.logger.Debug("impressionsToSend: ", len(asTestImpressions))
+			err := r.impressionRecorder.Record(asTestImpressions, metadata, map[string]string{"SplitSDKImpressionsMode": r.mode})
 			if err != nil {
 				if httpError, ok := err.(*dtos.HTTPError); ok {
 					r.localTelemetry.RecordSyncError(telemetry.ImpressionSync, httpError.Code)
@@ -169,41 +181,15 @@ func (r *RecorderImpressionMultiple) recordImpressions(impressionsToSend impress
 	return nil
 }
 
-func (r *RecorderImpressionMultiple) sendDataToListener(impressionsToListener listenerImpressionsByMetadata) {
+func (r *RecorderImpressionMultiple) sendDataToListener(impressionsToListener listenerImpressionsByMetadataAndFeature) {
 	if r.listener == nil {
 		return
 	}
 	for metadata, impressions := range impressionsToListener {
-		rawImpressions, err := json.Marshal(impressions)
-		if err != nil {
-			r.logger.Error("JSON encoding failed for the following impressions", impressions, metadata)
-			continue
-		}
-
-		err = r.listener.Submit(rawImpressions, &metadata)
+		byName := toListenerImpressionsSlice(impressions)
+		err := r.listener.Submit(byName, &metadata)
 		if err != nil {
 			r.logger.Error("error queuing impressions for listener: ", err)
 		}
 	}
 }
-
-func (r *RecorderImpressionMultiple) wrapDTO(collectedData impressionsByMetadataByFeature) impressionsByMetadata {
-	var err error
-	impressions := make(impressionsByMetadata)
-	for metadata, impsForMetadata := range collectedData {
-		impressions[metadata], err = toImpressionsDTO(impsForMetadata)
-		if err != nil {
-			r.logger.Error(fmt.Sprintf("Unable to write impressions for metadata %v", metadata))
-			continue
-		}
-	}
-	return impressions
-}
-
-// auxiliary type aliases
-type impressionsByMetadata = map[dtos.Metadata][]dtos.ImpressionsDTO
-type impressionsByMetadataByFeature = map[dtos.Metadata]map[string][]dtos.ImpressionDTO
-type impressionsByFeature = map[string][]dtos.ImpressionDTO
-type listenerImpressionsByMetadata = map[dtos.Metadata][]common.ImpressionsForListener
-type listenerImpressionsByMetadataByFeature = map[dtos.Metadata]map[string][]common.ImpressionForListener
-type listenerImpressionsByFeature = map[string][]common.ImpressionForListener
