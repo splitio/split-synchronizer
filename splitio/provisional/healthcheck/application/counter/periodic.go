@@ -21,6 +21,11 @@ func (c *PeriodicImp) NotifyEvent() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
+	if !c.running {
+		c.logger.Debug(fmt.Sprintf("%s counter  is not running.", c.name))
+		return
+	}
+
 	c.errorCount++
 
 	if c.errorCount >= c.maxErrorsAllowedInPeriod {
@@ -30,6 +35,8 @@ func (c *PeriodicImp) NotifyEvent() {
 	}
 
 	c.updateLastHit()
+
+	c.logger.Debug("NotifyEvent periodic counter.")
 }
 
 // Reset errorCount
@@ -37,7 +44,13 @@ func (c *PeriodicImp) Reset(value int) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
+	if !c.running {
+		c.logger.Debug(fmt.Sprintf("%s counter  is not running.", c.name))
+		return nil
+	}
+
 	c.errorCount = value
+	c.logger.Debug("Reset periodic counter.")
 
 	return nil
 }
@@ -48,7 +61,7 @@ func (c *PeriodicImp) Start() {
 	defer c.lock.Unlock()
 
 	if c.running {
-		c.logger.Debug(fmt.Sprintf("%s counter is alredy running.", c.name))
+		c.logger.Debug(fmt.Sprintf("%s periodic counter is already running.", c.name))
 		return
 	}
 
@@ -60,6 +73,8 @@ func (c *PeriodicImp) Start() {
 			c.goroutineFunc(c)
 		}
 	}()
+
+	c.logger.Debug(fmt.Sprintf("%s periodic counter started.", c.name))
 }
 
 // Stop counter

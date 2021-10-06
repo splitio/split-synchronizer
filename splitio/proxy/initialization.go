@@ -15,7 +15,6 @@ import (
 	"github.com/splitio/go-toolkit/v5/logging"
 
 	hcAppCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
-	//hcServicesCommon "github.com/splitio/go-split-commons/v4/healthcheck/services"
 	"github.com/splitio/split-synchronizer/v4/conf"
 	"github.com/splitio/split-synchronizer/v4/splitio/admin"
 	adminCommon "github.com/splitio/split-synchronizer/v4/splitio/admin/common"
@@ -76,10 +75,7 @@ func Start(logger logging.LoggerInterface) error {
 
 	// Healcheck Monitor
 	appMonitor := hcApplication.NewMonitorImp(getAppCountersConfig(), logger)
-	appMonitor.Start()
-
 	servicesMonitor := hcServices.NewMonitorImp(getServicesCountersConfig(), logger)
-	servicesMonitor.Start()
 
 	// Creating Workers and Tasks
 	workers := synchronizer.Workers{
@@ -129,6 +125,8 @@ func Start(logger logging.LoggerInterface) error {
 	switch status {
 	case synchronizer.Ready:
 		logger.Info("Synchronizer tasks started")
+		appMonitor.Start()
+		servicesMonitor.Start()
 		workers.TelemetryRecorder.SynchronizeConfig(
 			telemetry.InitConfig{
 				AdvancedConfig: advanced,

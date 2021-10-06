@@ -1,6 +1,7 @@
 package application
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -83,6 +84,8 @@ func (m *MonitorImp) NotifyEvent(monitorType int) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
+	m.logger.Debug(fmt.Sprintf("Notify Event. Type: %d.", monitorType))
+
 	for _, counter := range m.counters {
 		if counter.GetMonitorType() == monitorType {
 			counter.NotifyEvent()
@@ -94,6 +97,8 @@ func (m *MonitorImp) NotifyEvent(monitorType int) {
 func (m *MonitorImp) Reset(monitorType int, value int) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
+
+	m.logger.Debug(fmt.Sprintf("Reset. Type: %d. Value: %d", monitorType, value))
 
 	for _, counter := range m.counters {
 		if counter.GetMonitorType() == monitorType {
@@ -110,6 +115,8 @@ func (m *MonitorImp) Start() {
 	for _, counter := range m.counters {
 		counter.Start()
 	}
+
+	m.logger.Debug("Application Monitor started.")
 }
 
 // Stop counters
