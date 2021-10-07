@@ -22,10 +22,10 @@ const (
 	// AuthSurrogate key (having push disabled, it's safe to cache this and return it on all requests)
 	AuthSurrogate = "au"
 
-	cacheSize = 1000000
+	segmentPrefix = "se::"
 )
 
-const segmentPrefix = "se::"
+const cacheSize = 1000000
 
 // MakeSurrogateForSegmentChanges creates a surrogate key for the segment being queried
 func MakeSurrogateForSegmentChanges(segmentName string) string {
