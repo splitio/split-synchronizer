@@ -52,6 +52,17 @@ func TestCacheAwareSplitSync(t *testing.T) {
 	if calls != 2 {
 		t.Error("should have flushed again after a local kill")
 	}
+
+	// Test that going from cn > -1 to cn == -1 purges
+	cn = 123
+	splitSyncMock.SynchronizeSplitsCall = func(*int64, bool) ([]string, error) {
+		cn = -1
+		return nil, nil
+	}
+	css.SynchronizeSplits(nil, false)
+	if calls != 3 {
+		t.Error("should have flushed splits once", calls)
+	}
 }
 
 func TestCacheAwareSegmentSync(t *testing.T) {
@@ -100,10 +111,25 @@ func TestCacheAwareSegmentSync(t *testing.T) {
 		calls++
 	}
 
+	// SynchronizeSegment
+
 	css.SynchronizeSegment("segment1", nil, false)
 	if calls != 1 {
 		t.Error("should have flushed splits once")
 	}
+
+	// Test that going from cn > -1 to cn == -1 purges
+	cns["segment1"] = 123
+	segmentSyncMock.SynchronizeSegmentCall = func(name string, s *int64, q bool) error {
+		cns[name] = -1
+		return nil
+	}
+	css.SynchronizeSegment("segment1", nil, false)
+	if calls != 2 {
+		t.Error("should have flushed splits once", calls)
+	}
+
+	// SynchronizeSegments
 
 	// Case 1: updated CN
 	cns["segment2"] = 0
@@ -120,7 +146,7 @@ func TestCacheAwareSegmentSync(t *testing.T) {
 	}
 
 	css.SynchronizeSegments(false)
-	if calls != 2 {
+	if calls != 3 {
 		t.Error("should have flushed segments twice")
 	}
 
@@ -138,7 +164,7 @@ func TestCacheAwareSegmentSync(t *testing.T) {
 	}
 
 	css.SynchronizeSegments(false)
-	if calls != 3 {
+	if calls != 4 {
 		t.Error("should have flushed segments twice")
 	}
 
@@ -150,16 +176,32 @@ func TestCacheAwareSegmentSync(t *testing.T) {
 
 	cacheFlusherMock.EvictBySurrogateCall = func(key string) {
 		if key != MakeSurrogateForSegmentChanges("segment3") {
-			t.Error("wrong surrogate")
+			t.Error("wrong surrogate", key)
 		}
 		calls++
 	}
 
 	css.SynchronizeSegments(false)
-	if calls != 4 {
+	if calls != 5 {
 		t.Error("should have flushed segments twice")
 	}
 
+	// all keys deleted & segment till is now -1
+	cacheFlusherMock.EvictBySurrogateCall = func(key string) {
+		if key != MakeSurrogateForSegmentChanges("segment2") {
+			t.Error("wrong surrogate", key)
+		}
+		calls++
+	}
+	cns["segment2"] = 123
+	segmentSyncMock.SynchronizeSegmentsCall = func(bool) error {
+		cns["segment2"] = -1
+		return nil
+	}
+	css.SynchronizeSegments(false)
+	if calls != 6 {
+		t.Error("should have flushed segments twice")
+	}
 }
 
 type splitUpdaterMock struct {

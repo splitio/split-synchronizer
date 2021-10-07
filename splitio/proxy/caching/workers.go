@@ -36,7 +36,7 @@ func NewCacheAwareSplitSync(
 func (c *CacheAwareSplitSynchronizer) SynchronizeSplits(till *int64, requestNoCache bool) ([]string, error) {
 	previous, _ := c.splitStorage.ChangeNumber()
 	segmentList, err := c.wrapped.SynchronizeSplits(till, requestNoCache)
-	if current, _ := c.splitStorage.ChangeNumber(); current > previous {
+	if current, _ := c.splitStorage.ChangeNumber(); current > previous || (previous != -1 && current == -1) {
 		// if the changenumber was updated, evict splitChanges responses from cache
 		c.cacheFlusher.EvictBySurrogate(SplitSurrogate)
 	}
@@ -79,9 +79,10 @@ func NewCacheAwareSegmentSync(
 func (c *CacheAwareSegmentSynchronizer) SynchronizeSegment(name string, till *int64, requestNoCache bool) error {
 	previous, _ := c.segmentStorage.ChangeNumber(name)
 	err := c.wrapped.SynchronizeSegment(name, till, requestNoCache)
-	if current, _ := c.segmentStorage.ChangeNumber(name); current > previous {
+	if current, _ := c.segmentStorage.ChangeNumber(name); current > previous || (previous != -1 && current == -1) {
 		c.cacheFlusher.EvictBySurrogate(MakeSurrogateForSegmentChanges(name))
 	}
+
 	return err
 }
 
@@ -111,7 +112,7 @@ func (c *CacheAwareSegmentSynchronizer) SynchronizeSegments(requestNoCache bool)
 	// make a list of every updated segment
 	toPurge := make(map[string]struct{})
 	for name, pcn := range previousCNs { // add all removed & updated segments to the purge list
-		if ccn, ok := currentCNs[name]; !ok || ccn > pcn {
+		if ccn, ok := currentCNs[name]; !ok || ccn > pcn || (pcn != -1 && ccn == -1) {
 			toPurge[name] = struct{}{}
 		}
 	}
