@@ -24,45 +24,36 @@ func assertItemsHealthy(t *testing.T, items []ItemDto, splitsExpected bool, segm
 }
 
 func TestMonitor(t *testing.T) {
-	var cfgs []*counter.Config
-
-	splits := &counter.Config{
-		Name:        "Splits",
-		CounterType: counter.Threshold,
-		Period:      10,
-		Severity:    counter.Critical,
-		MonitorType: application.Splits,
+	splitsCfg := counter.ThresholdConfig{
+		Name:     "Splits",
+		Period:   10,
+		Severity: counter.Critical,
 	}
 
-	segments := &counter.Config{
-		Name:        "Segments",
-		CounterType: counter.Threshold,
-		Period:      10,
-		Severity:    counter.Critical,
-		MonitorType: application.Segments,
+	segmentsCfg := counter.ThresholdConfig{
+		Name:     "Segments",
+		Period:   10,
+		Severity: counter.Critical,
 	}
 
-	syncErrors := &counter.Config{
-		Name:        "Sync-Errors",
-		CounterType: counter.Periodic,
-		Period:      10,
-		TaskFunc: func(l logging.LoggerInterface, c counter.ApplicationCounterInterface) error {
+	syncErrorsCfg := counter.PeriodicConfig{
+		Name:   "Sync-Errors",
+		Period: 10,
+		TaskFunc: func(l logging.LoggerInterface, c counter.PeriodicCounterInterface) error {
 			if c.IsHealthy().Healthy {
-				c.Reset(0)
+				c.ResetErrorCount(0)
 			}
 
 			return nil
 		},
 		MaxErrorsAllowedInPeriod: 1,
 		Severity:                 counter.Low,
-		GoroutineFunc: func(c counter.ApplicationCounterInterface) {
-			c.NotifyEvent()
+		ValidationFunc: func(c counter.PeriodicCounterInterface) {
+			c.NotifyError()
 		},
 	}
 
-	cfgs = append(cfgs, splits, segments, syncErrors)
-
-	monitor := NewMonitorImp(cfgs, logging.NewLogger(nil))
+	monitor := NewMonitorImp(splitsCfg, segmentsCfg, &syncErrorsCfg, logging.NewLogger(nil))
 
 	monitor.Start()
 

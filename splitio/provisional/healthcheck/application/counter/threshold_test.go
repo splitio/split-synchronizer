@@ -8,16 +8,14 @@ import (
 )
 
 func TestThresholdCounter(t *testing.T) {
-	counter := NewThresholdCounter(&Config{
-		Name:        "Test",
-		CounterType: 0,
-		Severity:    0,
-		Period:      3,
-		MonitorType: Threshold,
+	counter := NewThresholdCounter(ThresholdConfig{
+		Name:     "Test",
+		Severity: 0,
+		Period:   3,
 	}, logging.NewLogger(nil))
 	counter.Start()
 
-	counter.NotifyEvent()
+	counter.NotifyHit()
 	res := counter.IsHealthy()
 	if !res.Healthy {
 		t.Errorf("Healthy should be true")
@@ -25,13 +23,13 @@ func TestThresholdCounter(t *testing.T) {
 
 	time.Sleep(time.Duration(1) * time.Second)
 
-	counter.NotifyEvent()
+	counter.NotifyHit()
 	res = counter.IsHealthy()
 	if !res.Healthy {
 		t.Errorf("Healthy should be true")
 	}
 
-	counter.Reset(1)
+	counter.ResetThreshold(1)
 
 	time.Sleep(time.Duration(2) * time.Second)
 	res = counter.IsHealthy()
