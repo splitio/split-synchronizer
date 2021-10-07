@@ -1,6 +1,8 @@
 package caching
 
 import (
+	"strings"
+
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/gincache"
 	"github.com/splitio/go-split-commons/v4/dtos"
@@ -19,6 +21,8 @@ const (
 
 	// AuthSurrogate key (having push disabled, it's safe to cache this and return it on all requests)
 	AuthSurrogate = "au"
+
+	cacheSize = 1000000
 )
 
 const segmentPrefix = "se::"
@@ -45,8 +49,15 @@ func MakeSurrogateForMySegments(mysegments []dtos.MySegmentDTO) []string {
 func MakeProxyCache() *gincache.Middleware {
 	return gincache.New(&gincache.Options{
 		SuccessfulOnly: true, // we're not interested in caching non-200 responses
-		Size:           1000000,
-		KeyFactory:     func(ctx *gin.Context) string { return ctx.Request.URL.Path + ctx.Request.URL.RawQuery },
+		Size:           cacheSize,
+		KeyFactory: func(ctx *gin.Context) string {
+			if strings.HasPrefix(ctx.Request.URL.Path, "/api/auth") || strings.HasPrefix(ctx.Request.URL.Path, "/api/v2/auth") {
+				// For auth requests, since we don't support streaming yet, we only need a single entry in the table,
+				// so we strip the query-string which contains the user-list
+				return ctx.Request.URL.Path
+			}
+			return ctx.Request.URL.Path + ctx.Request.URL.RawQuery
+		},
 		// we make each request handler responsible for generating the surrogates.
 		// this way we can use segment names as surrogates for mysegments & segment changes
 		// with a lot less work
