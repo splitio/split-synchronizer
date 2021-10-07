@@ -8,15 +8,13 @@ import (
 	"github.com/splitio/go-toolkit/v5/logging"
 )
 
-func TestNotifyServiceHitByPercentage(t *testing.T) {
+func TestNotifyHitByPercentage(t *testing.T) {
 	c := ByPercentageImp{
-		baseCounterImp: baseCounterImp{
-			name:     "TestCounter",
-			lock:     sync.RWMutex{},
-			logger:   logging.NewLogger(nil),
-			severity: 1,
-			healthy:  true,
-		},
+		name:                  "TestCounter",
+		lock:                  sync.RWMutex{},
+		logger:                logging.NewLogger(nil),
+		severity:              1,
+		healthy:               true,
 		maxLen:                6,
 		cache:                 new(list.List),
 		percentageToBeHealthy: 60,
@@ -35,7 +33,7 @@ func TestNotifyServiceHitByPercentage(t *testing.T) {
 		t.Errorf("Severity should be 1")
 	}
 
-	c.NotifyServiceHit(500, "Error-1")
+	c.NotifyHit(500, "Error-1")
 	res = c.IsHealthy()
 	if res.Healthy != false {
 		t.Errorf("Health should be false")
@@ -45,7 +43,7 @@ func TestNotifyServiceHitByPercentage(t *testing.T) {
 		t.Errorf("LastMessage should be Error-1")
 	}
 
-	c.NotifyServiceHit(500, "Error-2")
+	c.NotifyHit(500, "Error-2")
 	res = c.IsHealthy()
 	if res.Healthy != false {
 		t.Errorf("Health should be false")
@@ -55,8 +53,8 @@ func TestNotifyServiceHitByPercentage(t *testing.T) {
 		t.Errorf("LastMessage should be Error-2")
 	}
 
-	c.NotifyServiceHit(200, "")
-	c.NotifyServiceHit(200, "")
+	c.NotifyHit(200, "")
+	c.NotifyHit(200, "")
 	res = c.IsHealthy()
 	if res.Healthy != false {
 		t.Errorf("Health should be false")
@@ -66,7 +64,7 @@ func TestNotifyServiceHitByPercentage(t *testing.T) {
 		t.Errorf("LastMessage should be Error-2")
 	}
 
-	c.NotifyServiceHit(200, "")
+	c.NotifyHit(200, "")
 	res = c.IsHealthy()
 	if res.Healthy != true {
 		t.Errorf("Health should be true")

@@ -35,8 +35,8 @@ type Options struct {
 	EventRecorder       event.EventRecorder
 	EventsEvCalc        evcalc.Monitor
 	Runtime             common.Runtime
-	HcAppMonitor        *application.MonitorImp
-	HcServicesMonitor   *services.MonitorImp
+	HcAppMonitor        application.MonitorIterface
+	HcServicesMonitor   services.MonitorIterface
 }
 
 // NewServer instantiates a new admin server

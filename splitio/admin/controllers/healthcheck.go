@@ -12,8 +12,8 @@ import (
 // HealthCheckController description
 type HealthCheckController struct {
 	logger          logging.LoggerInterface
-	appMonitor      *application.MonitorImp
-	servicesMonitor *services.MonitorImp
+	appMonitor      application.MonitorIterface
+	servicesMonitor services.MonitorIterface
 }
 
 func (c *HealthCheckController) appHealth(ctx *gin.Context) {
@@ -33,8 +33,8 @@ func (c *HealthCheckController) Register(router gin.IRouter) {
 // NewHealthCheckController instantiates a new HealthCheck controller
 func NewHealthCheckController(
 	logger logging.LoggerInterface,
-	appMonitor *application.MonitorImp,
-	servicesMonitor *services.MonitorImp,
+	appMonitor application.MonitorIterface,
+	servicesMonitor services.MonitorIterface,
 ) *HealthCheckController {
 	return &HealthCheckController{
 		logger:          logger,

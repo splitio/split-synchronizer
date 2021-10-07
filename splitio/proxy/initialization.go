@@ -2,6 +2,8 @@ package proxy
 
 import (
 	"fmt"
+	"log"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -14,7 +16,6 @@ import (
 	"github.com/splitio/go-split-commons/v4/telemetry"
 	"github.com/splitio/go-toolkit/v5/logging"
 
-	hcAppCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
 	"github.com/splitio/split-synchronizer/v4/conf"
 	"github.com/splitio/split-synchronizer/v4/splitio/admin"
 	adminCommon "github.com/splitio/split-synchronizer/v4/splitio/admin/common"
@@ -74,8 +75,9 @@ func Start(logger logging.LoggerInterface) error {
 	eventsTask := pTasks.NewEventsFlushTask(eventsRecorder, logger, 5, 500, 2) // TODO(mredolatti): use proper config options.
 
 	// Healcheck Monitor
-	appMonitor := hcApplication.NewMonitorImp(getAppCountersConfig(), logger)
-	servicesMonitor := hcServices.NewMonitorImp(getServicesCountersConfig(), logger)
+	splitsConfig, segmentsConfig := getAppCounterConfigs()
+	appMonitor := hcApplication.NewMonitorImp(splitsConfig, segmentsConfig, nil, logger)
+	servicesMonitor := hcServices.NewMonitorImp(getServicesCountersConfig(advanced), logger)
 
 	// Creating Workers and Tasks
 	workers := synchronizer.Workers{
@@ -214,25 +216,31 @@ func Start(logger logging.LoggerInterface) error {
 	return nil
 }
 
-func getAppCountersConfig() []*hcAppCounter.Config {
-	var cfgs []*hcAppCounter.Config
+func getAppCounterConfigs() (hcAppCounter.ThresholdConfig, hcAppCounter.ThresholdConfig) {
+	splitsConfig := hcAppCounter.DefaultThresholdConfig("Splits")
+	segmentsConfig := hcAppCounter.DefaultThresholdConfig("Segments")
 
-	splitsConfig := hcAppCounter.NewApplicationConfig("Splits", hcAppCommon.Splits)
-	segmentsConfig := hcAppCounter.NewApplicationConfig("Segments", hcAppCommon.Segments)
-
-	cfgs = append(cfgs, splitsConfig, segmentsConfig)
-
-	return cfgs
+	return splitsConfig, segmentsConfig
 }
 
-func getServicesCountersConfig() []*hcServicesCounter.Config {
-	var cfgs []*hcServicesCounter.Config
+func getServicesCountersConfig(advanced cfg.AdvancedConfig) []hcServicesCounter.Config {
+	var cfgs []hcServicesCounter.Config
 
-	telemetryConfig := hcServicesCounter.NewServicesConfig("Telemetry", "https://telemetry.split-stage.io", "/version")
-	authConfig := hcServicesCounter.NewServicesConfig("Auth", "https://auth.split-stage.io", "/version")
-	apiConfig := hcServicesCounter.NewServicesConfig("API", "https://sdk.split-stage.io/api", "/version")
-	eventsConfig := hcServicesCounter.NewServicesConfig("Events", "https://events.split-stage.io/api", "/version")
-	streamingConfig := hcServicesCounter.NewServicesConfig("Streaming", "https://streaming.split.io", "/health")
+	apiConfig := hcServicesCounter.DefaultConfig("API", advanced.SdkURL, "/version")
+	eventsConfig := hcServicesCounter.DefaultConfig("Events", advanced.EventsURL, "/version")
+	authConfig := hcServicesCounter.DefaultConfig("Auth", advanced.AuthServiceURL, "/health")
+
+	telemetryURL, err := url.Parse(advanced.TelemetryServiceURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	telemetryConfig := hcServicesCounter.DefaultConfig("Telemetry", fmt.Sprintf("%s://%s", telemetryURL.Scheme, telemetryURL.Host), "/health")
+
+	streamingURL, err := url.Parse(advanced.StreamingServiceURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	streamingConfig := hcServicesCounter.DefaultConfig("Streaming", fmt.Sprintf("%s://%s", streamingURL.Scheme, streamingURL.Host), "/health")
 
 	return append(cfgs, telemetryConfig, authConfig, apiConfig, eventsConfig, streamingConfig)
 }
