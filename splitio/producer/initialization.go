@@ -3,6 +3,8 @@ package producer
 import (
 	"errors"
 	"fmt"
+	"log"
+	"net/url"
 	"time"
 
 	cfg "github.com/splitio/go-split-commons/v4/conf"
@@ -12,7 +14,6 @@ import (
 	"github.com/splitio/go-split-commons/v4/telemetry"
 	"github.com/splitio/go-toolkit/v5/logging"
 
-	hcAppCommon "github.com/splitio/go-split-commons/v4/healthcheck/application"
 	storageCommon "github.com/splitio/go-split-commons/v4/storage"
 	"github.com/splitio/go-split-commons/v4/storage/inmemory"
 	"github.com/splitio/go-split-commons/v4/storage/redis"
@@ -101,8 +102,9 @@ func Start(logger logging.LoggerInterface) error {
 	eventRecorder := worker.NewEventRecorderMultiple(storages.EventStorage, splitAPI.EventRecorder, syncTelemetryStorage, eventEvictionMonitor, logger)
 
 	// Healcheck Monitor
-	appMonitor := hcApplication.NewMonitorImp(getAppCountersConfig(storages.SplitStorage), logger)
-	servicesMonitor := hcServices.NewMonitorImp(getServicesCountersConfig(), logger)
+	splitsConfig, segmentsConfig, storageConfig := getAppCounterConfigs(storages.SplitStorage)
+	appMonitor := hcApplication.NewMonitorImp(splitsConfig, segmentsConfig, &storageConfig, logger)
+	servicesMonitor := hcServices.NewMonitorImp(getServicesCountersConfig(advanced), logger)
 
 	workers := synchronizer.Workers{
 		SplitFetcher: split.NewSplitFetcher(storages.SplitStorage, splitAPI.SplitFetcher, logger, syncTelemetryStorage, appMonitor),
@@ -236,54 +238,50 @@ func Start(logger logging.LoggerInterface) error {
 	return nil
 }
 
-func goroutineFunc(c hcAppCounter.ApplicationCounterInterface, storage storageCommon.SplitStorage) {
-	time.Sleep(time.Duration(10) * time.Minute)
+func getAppCounterConfigs(storage storageCommon.SplitStorage) (hcAppCounter.ThresholdConfig, hcAppCounter.ThresholdConfig, hcAppCounter.PeriodicConfig) {
+	splitsConfig := hcAppCounter.DefaultThresholdConfig("Splits")
+	segmentsConfig := hcAppCounter.DefaultThresholdConfig("Segments")
+	storageConfig := hcAppCounter.PeriodicConfig{
+		Name:                     "Storage",
+		MaxErrorsAllowedInPeriod: 5,
+		Period:                   3600,
+		Severity:                 hcAppCounter.Low,
+		TaskFunc: func(l logging.LoggerInterface, c hcAppCounter.PeriodicCounterInterface) error {
+			c.ResetErrorCount(0)
+			return nil
+		},
+		ValidationFunc: func(c hcAppCounter.PeriodicCounterInterface) {
+			_, err := storage.ChangeNumber()
+			if err != nil {
+				c.NotifyError()
+			} else {
+				c.UpdateLastHit()
+			}
+		},
+		ValidationFuncPeriod: 10,
+	}
 
-	_, err := storage.ChangeNumber()
+	return splitsConfig, segmentsConfig, storageConfig
+}
+
+func getServicesCountersConfig(advanced cfg.AdvancedConfig) []hcServicesCounter.Config {
+	var cfgs []hcServicesCounter.Config
+
+	apiConfig := hcServicesCounter.DefaultConfig("API", advanced.SdkURL, "/version")
+	eventsConfig := hcServicesCounter.DefaultConfig("Events", advanced.EventsURL, "/version")
+	authConfig := hcServicesCounter.DefaultConfig("Auth", advanced.AuthServiceURL, "/health")
+
+	telemetryURL, err := url.Parse(advanced.TelemetryServiceURL)
 	if err != nil {
-		c.NotifyEvent()
-	} else {
-		c.UpdateLastHit()
+		log.Fatal(err)
 	}
-}
+	telemetryConfig := hcServicesCounter.DefaultConfig("Telemetry", fmt.Sprintf("%s://%s", telemetryURL.Scheme, telemetryURL.Host), "/health")
 
-func getAppCountersConfig(storage storageCommon.SplitStorage) []*hcAppCounter.Config {
-	var cfgs []*hcAppCounter.Config
-
-	splitsConfig := hcAppCounter.NewApplicationConfig("Splits", hcAppCommon.Splits)
-	segmentsConfig := hcAppCounter.NewApplicationConfig("Segments", hcAppCommon.Segments)
-	storageConfig := hcAppCounter.NewApplicationConfig("Storage", hcAppCommon.Storage)
-	storageConfig.CounterType = hcAppCounter.Periodic
-	storageConfig.MaxErrorsAllowedInPeriod = 2
-	storageConfig.Severity = hcAppCounter.Low
-	storageConfig.TaskFunc = func(l logging.LoggerInterface, c hcAppCounter.ApplicationCounterInterface) error {
-		c.Reset(0)
-		return nil
+	streamingURL, err := url.Parse(advanced.StreamingServiceURL)
+	if err != nil {
+		log.Fatal(err)
 	}
-	storageConfig.GoroutineFunc = func(c hcAppCounter.ApplicationCounterInterface) {
-		time.Sleep(time.Duration(10) * time.Minute)
-
-		_, err := storage.ChangeNumber()
-		if err != nil {
-			c.NotifyEvent()
-		} else {
-			c.UpdateLastHit()
-		}
-	}
-
-	cfgs = append(cfgs, splitsConfig, segmentsConfig, storageConfig)
-
-	return cfgs
-}
-
-func getServicesCountersConfig() []*hcServicesCounter.Config {
-	var cfgs []*hcServicesCounter.Config
-
-	telemetryConfig := hcServicesCounter.NewServicesConfig("Telemetry", "https://telemetry.split-stage.io", "/version")
-	authConfig := hcServicesCounter.NewServicesConfig("Auth", "https://auth.split-stage.io", "/version")
-	apiConfig := hcServicesCounter.NewServicesConfig("API", "https://sdk.split-stage.io/api", "/version")
-	eventsConfig := hcServicesCounter.NewServicesConfig("Events", "https://events.split-stage.io/api", "/version")
-	streamingConfig := hcServicesCounter.NewServicesConfig("Streaming", "https://streaming.split.io", "/health")
+	streamingConfig := hcServicesCounter.DefaultConfig("Streaming", fmt.Sprintf("%s://%s", streamingURL.Scheme, streamingURL.Host), "/health")
 
 	return append(cfgs, telemetryConfig, authConfig, apiConfig, eventsConfig, streamingConfig)
 }

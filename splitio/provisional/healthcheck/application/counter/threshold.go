@@ -6,7 +6,17 @@ import (
 	"time"
 
 	"github.com/splitio/go-toolkit/v5/logging"
+	toolkitsync "github.com/splitio/go-toolkit/v5/sync"
 )
+
+// ThresholdCounterInterface application counter interface
+type ThresholdCounterInterface interface {
+	IsHealthy() HealthyResult
+	NotifyHit()
+	ResetThreshold(value int) error
+	Start()
+	Stop()
+}
 
 // ThresholdImp description
 type ThresholdImp struct {
@@ -15,31 +25,39 @@ type ThresholdImp struct {
 	reset  chan struct{}
 }
 
-// NotifyEvent reset the timer
-func (c *ThresholdImp) NotifyEvent() {
-	c.lock.Lock()
-	defer c.lock.Unlock()
+// ThresholdConfig config struct
+type ThresholdConfig struct {
+	Name     string
+	Period   int
+	Severity int
+}
 
-	if !c.running {
+// NotifyHit reset the timer
+func (c *ThresholdImp) NotifyHit() {
+	if !c.running.IsSet() {
 		c.logger.Debug(fmt.Sprintf("%s counter  is not running.", c.name))
 		return
 	}
 
 	c.reset <- struct{}{}
+
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
 	c.updateLastHit()
 
 	c.logger.Debug("NotifyEvent threshold counter.")
 }
 
-// Reset the threshold value
-func (c *ThresholdImp) Reset(newThreshold int) error {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	if !c.running {
+// ResetThreshold the threshold value
+func (c *ThresholdImp) ResetThreshold(newThreshold int) error {
+	if !c.running.IsSet() {
 		c.logger.Debug(fmt.Sprintf("%s counter is not running.", c.name))
 		return nil
 	}
+
+	c.lock.Lock()
+	defer c.lock.Unlock()
 
 	if newThreshold <= 0 {
 		return fmt.Errorf("refreshTreshold should be > 0")
@@ -53,21 +71,35 @@ func (c *ThresholdImp) Reset(newThreshold int) error {
 	return nil
 }
 
+// IsHealthy return the counter health
+func (c *ThresholdImp) IsHealthy() HealthyResult {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	return HealthyResult{
+		Name:     c.name,
+		Healthy:  c.healthy,
+		Severity: c.severity,
+		LastHit:  c.lastHit,
+	}
+}
+
 // Start counter and timer
 func (c *ThresholdImp) Start() {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	if c.running {
+	if c.running.IsSet() {
 		c.logger.Debug(fmt.Sprintf("%s counter is alredy running.", c.name))
 		return
 	}
-	c.running = true
+
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	c.running.Set()
 
 	go func() {
 		timer := time.NewTimer(time.Duration(c.period) * time.Second)
 		defer timer.Stop()
-		defer func() { c.lock.Lock(); c.running = false; c.lock.Unlock() }()
+		defer c.running.Unset()
 		for {
 			select {
 			case <-timer.C:
@@ -88,35 +120,44 @@ func (c *ThresholdImp) Start() {
 
 // Stop counter
 func (c *ThresholdImp) Stop() {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	if !c.running {
+	if !c.running.IsSet() {
 		c.logger.Debug(fmt.Sprintf("%s counter is alredy stopped.", c.name))
 		return
 	}
+
+	c.lock.Lock()
+	defer c.lock.Unlock()
 
 	c.cancel <- struct{}{}
 }
 
 // NewThresholdCounter create Threshold counter
 func NewThresholdCounter(
-	config *Config,
+	config ThresholdConfig,
 	logger logging.LoggerInterface,
 ) *ThresholdImp {
 	return &ThresholdImp{
 		applicationCounterImp: applicationCounterImp{
-			name:        config.Name,
-			lock:        sync.RWMutex{},
-			logger:      logger,
-			healthy:     true,
-			running:     false,
-			counterType: config.CounterType,
-			period:      config.Period,
-			severity:    config.Severity,
-			monitorType: config.MonitorType,
+			name:     config.Name,
+			lock:     sync.RWMutex{},
+			logger:   logger,
+			healthy:  true,
+			running:  *toolkitsync.NewAtomicBool(false),
+			period:   config.Period,
+			severity: config.Severity,
 		},
 		cancel: make(chan struct{}, 1),
 		reset:  make(chan struct{}, 1),
+	}
+}
+
+// DefaultThresholdConfig new config with default values
+func DefaultThresholdConfig(
+	name string,
+) ThresholdConfig {
+	return ThresholdConfig{
+		Name:     name,
+		Period:   3600,
+		Severity: Critical,
 	}
 }
