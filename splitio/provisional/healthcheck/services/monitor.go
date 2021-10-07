@@ -29,6 +29,13 @@ type ItemDto struct {
 	LastHit      *time.Time `json:"lastHit,omitempty"`
 }
 
+// MonitorIterface monitor interface
+type MonitorIterface interface {
+	Start()
+	Stop()
+	GetHealthStatus() HealthDto
+}
+
 // MonitorImp description
 type MonitorImp struct {
 	Counters []counter.ServicesCounterInterface
@@ -58,8 +65,8 @@ func (m *MonitorImp) Stop() {
 
 // GetHealthStatus return services health
 func (m *MonitorImp) GetHealthStatus() HealthDto {
-	m.lock.Lock()
-	defer m.lock.Unlock()
+	m.lock.RLock()
+	defer m.lock.RUnlock()
 
 	var items []ItemDto
 
@@ -79,7 +86,7 @@ func (m *MonitorImp) GetHealthStatus() HealthDto {
 		}
 
 		items = append(items, ItemDto{
-			Service:      res.Name,
+			Service:      res.URL,
 			Healthy:      res.Healthy,
 			Message:      res.LastMessage,
 			HealthySince: res.HealthySince,
@@ -103,18 +110,13 @@ func (m *MonitorImp) GetHealthStatus() HealthDto {
 
 // NewMonitorImp create services monitor
 func NewMonitorImp(
-	cfgs []*counter.Config,
+	cfgs []counter.Config,
 	logger logging.LoggerInterface,
 ) *MonitorImp {
 	var serviceCounters []counter.ServicesCounterInterface
 
 	for _, cfg := range cfgs {
-		switch cfg.CounterType {
-		case counter.ByPercentage:
-			serviceCounters = append(serviceCounters, counter.NewCounterByPercentage(cfg, logger))
-		default:
-			serviceCounters = append(serviceCounters, counter.NewCounterSecuencial(cfg, logger))
-		}
+		serviceCounters = append(serviceCounters, counter.NewCounterByPercentage(cfg, logger))
 	}
 
 	return &MonitorImp{

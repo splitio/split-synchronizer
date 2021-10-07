@@ -15,8 +15,6 @@ import (
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
 	"github.com/splitio/split-synchronizer/v4/splitio/log"
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/evcalc"
-	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application"
-	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/services"
 )
 
 // DashboardController contains handlers for rendering the dashboard and its associated FE queries
@@ -30,8 +28,6 @@ type DashboardController struct {
 	eventsEvCalc       evcalc.Monitor
 	runtime            common.Runtime
 	dataControllerPath string
-	appMonitor         *application.MonitorImp
-	servicesMonitor    *services.MonitorImp
 }
 
 // NewDashboardController instantiates a new dashboard controller
@@ -44,8 +40,6 @@ func NewDashboardController(
 	eventsEvCalc evcalc.Monitor,
 	runtime common.Runtime,
 	dataController *DataManagerController,
-	appMonitor *application.MonitorImp,
-	servicesMonitor *services.MonitorImp,
 ) (*DashboardController, error) {
 
 	var dataControllerPath string
@@ -62,8 +56,6 @@ func NewDashboardController(
 		eventsEvCalc:       eventsEvCalc,
 		impressionsEvCalc:  impressionEvCalc,
 		dataControllerPath: dataControllerPath,
-		appMonitor:         appMonitor,
-		servicesMonitor:    servicesMonitor,
 	}
 
 	var err error
@@ -79,8 +71,6 @@ func (c *DashboardController) Register(router gin.IRouter) {
 	router.GET("/dashboard", c.dashboard)
 	router.GET("/dashboard/segmentKeys/:segment", c.segmentKeys)
 	router.GET("/dashboard/stats", c.stats)
-	router.GET("/dashboard/application/health", c.appHealth)
-	router.GET("/dashboard/services/health", c.servicesHealth)
 }
 
 // Endpoint functions \{
@@ -113,16 +103,6 @@ func (c *DashboardController) segmentKeys(ctx *gin.Context) {
 	ctx.JSON(200, bundleSegmentKeysInfo(segmentName, c.storages.SegmentStorage))
 }
 
-// appHealth endpoint returns different health parameters of the app and split service
-func (c *DashboardController) appHealth(ctx *gin.Context) {
-	ctx.JSON(http.StatusOK, c.gatApplicationHealthInfo())
-}
-
-// servicesHealth endpoint returns split services healthy
-func (c *DashboardController) servicesHealth(ctx *gin.Context) {
-	ctx.JSON(http.StatusOK, c.getServicesHealthInfo())
-}
-
 // \} -- end of endpoint functions
 
 func (c *DashboardController) renderDashboard() ([]byte, error) {
@@ -133,15 +113,15 @@ func (c *DashboardController) renderDashboard() ([]byte, error) {
 
 	var layoutBuffer bytes.Buffer
 	err := c.layout.Execute(&layoutBuffer, dashboard.DashboardInitializationVars{
-		DashboardTitle:     c.title,
-		RunningMode:        runningMode,
-		Version:            splitio.Version,
-		ProxyMode:          c.proxy,
-		RefreshTime:        10000,
-		Stats:              *c.gatherStats(),
-		Health:             c.gatApplicationHealthInfo(),
+		DashboardTitle: c.title,
+		RunningMode:    runningMode,
+		Version:        splitio.Version,
+		ProxyMode:      c.proxy,
+		RefreshTime:    10000,
+		Stats:          *c.gatherStats(),
+		//Health:             c.gatApplicationHealthInfo(),
 		DataControllerPath: c.dataControllerPath,
-		ServicesHealth:     c.getServicesHealthInfo(),
+		//ServicesHealth:     c.getServicesHealthInfo(),
 	})
 
 	if err != nil {
@@ -180,12 +160,4 @@ func (c *DashboardController) gatherStats() *dashboard.GlobalStats {
 		LoggedMessages:         errorMessages,
 		Uptime:                 int64(c.runtime.Uptime().Seconds()),
 	}
-}
-
-func (c *DashboardController) gatApplicationHealthInfo() application.HealthDto {
-	return c.appMonitor.GetHealthStatus()
-}
-
-func (c *DashboardController) getServicesHealthInfo() services.HealthDto {
-	return c.servicesMonitor.GetHealthStatus()
 }
