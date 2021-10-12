@@ -1,15 +1,25 @@
+4.0.5 (Sep 23, 2021)
+ - Updated docker base image to patch security vulnerabilities.
+ - Updated gin to 1.7.0
+
+4.0.4 (Sep 22, 2021)
+ - Added /v2/auth endpoint for proxy mode.
+ - Updated docker base image to patch security vulnerabilities.
+
 4.0.3 (Jun 28, 2021)
- - Added dial timeout for Streaming.
+ - Added dial timeout for Streaming to fallback into Polling.
 
 4.0.2 (Feb 26, 2021)
-- SSE revamp
-- Add Cache control headers to on-demand requests
-- Sync new segments if referenced in a segment notification
-- Set gin to release mode unless debug logging is enabled
+- Streaming revamp
+   - Fixed race condition on certain Streaming errors in order to properly fallback to Streaming.
+   - Added few improvements in Synchronization cycle.
+- Added Cache control headers to on-demand requests.
+- Added logic to sync new segments if referenced in a segment notification.
+- Set gin to release mode unless debug logging is enabled.
 
 4.0.1 (Dic 22, 2020)
-- Fix entrypoint handling of boolean parameters
-- Remove confusing log message in token renewal process
+- Fixed entrypoint handling of boolean parameters.
+- Removed confusing log message in token renewal process.
 
 4.0.0 (Oct 6, 2020)
 - BREAKING CHANGE (only when sync is used by source code, not binary or Docker versions): Migrated to go modules (dep & bare-bones go-dep no longer supported)
