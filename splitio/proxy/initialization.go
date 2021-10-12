@@ -194,6 +194,7 @@ func Start(logger logging.LoggerInterface) error {
 		if err != nil {
 			return common.NewInitError(fmt.Errorf("error instantiating impression listener: %w", err), common.ExitTaskInitialization)
 		}
+		proxyOptions.ImpressionListener.Start()
 	}
 
 	proxyAPI := New(proxyOptions)
