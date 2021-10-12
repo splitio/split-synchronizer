@@ -177,7 +177,7 @@ func Start(logger logging.LoggerInterface) error {
 		return common.NewInitError(fmt.Errorf("error instantiating sync manager: %w", err), common.ExitTaskInitialization)
 	}
 
-	rtm := common.NewRuntime(false, syncManager, logger, conf.Data.Producer.Admin.Title, nil, nil)
+	rtm := common.NewRuntime(false, syncManager, logger, conf.Data.Producer.Admin.Title, nil, nil, appMonitor, servicesMonitor)
 
 	// --------------------------- ADMIN DASHBOARD ------------------------------
 	adminServer, err := admin.NewServer(&admin.Options{
