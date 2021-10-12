@@ -10,8 +10,6 @@ import (
 	cfg "github.com/splitio/go-split-commons/v4/conf"
 	"github.com/splitio/go-split-commons/v4/service/api"
 	"github.com/splitio/go-split-commons/v4/synchronizer"
-	"github.com/splitio/go-split-commons/v4/synchronizer/worker/segment"
-	"github.com/splitio/go-split-commons/v4/synchronizer/worker/split"
 	"github.com/splitio/go-split-commons/v4/tasks"
 	"github.com/splitio/go-split-commons/v4/telemetry"
 	"github.com/splitio/go-toolkit/v5/logging"
@@ -27,6 +25,7 @@ import (
 	hcAppCounter "github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application/counter"
 	hcServices "github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/services"
 	hcServicesCounter "github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/services/counter"
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/caching"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage/persistent"
 	pTasks "github.com/splitio/split-synchronizer/v4/splitio/proxy/tasks"
@@ -50,6 +49,10 @@ func Start(logger logging.LoggerInterface) error {
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error instantiating boltdb: %w", err), common.ExitErrorDB)
 	}
+
+	// Set up the http proxy caching.
+	// We need it fairly early since it's passed to the synchronizers, so that they can evict entries when a change is processed
+	httpCache := caching.MakeProxyCache()
 
 	// Getting initial config data
 	advanced := conf.ParseAdvancedOptions()
@@ -81,10 +84,12 @@ func Start(logger logging.LoggerInterface) error {
 
 	// Creating Workers and Tasks
 	workers := synchronizer.Workers{
-		// SplitFetcher:   fetcher.NewSplitFetcher(splitCollection, splitAPI.SplitFetcher, localTelemetryStorage, logger),
-		SplitFetcher: split.NewSplitFetcher(splitStorage, splitAPI.SplitFetcher, logger, localTelemetryStorage, appMonitor),
+		//SplitFetcher:   fetcher.NewSplitFetcher(splitCollection, splitAPI.SplitFetcher, localTelemetryStorage, logger),
 		//SegmentFetcher: fetcher.NewSegmentFetcher(segmentCollection, splitCollection, splitAPI.SegmentFetcher, localTelemetryStorage, logger),
-		SegmentFetcher: segment.NewSegmentFetcher(splitStorage, segmentStorage, splitAPI.SegmentFetcher, logger, localTelemetryStorage, appMonitor),
+
+		SplitFetcher:   caching.NewCacheAwareSplitSync(splitStorage, splitAPI.SplitFetcher, logger, localTelemetryStorage, httpCache, appMonitor),
+		SegmentFetcher: caching.NewCacheAwareSegmentSync(splitStorage, segmentStorage, splitAPI.SegmentFetcher, logger, localTelemetryStorage, httpCache, appMonitor),
+
 		TelemetryRecorder: telemetry.NewTelemetrySynchronizer(localTelemetryStorage, telemetryRecorder, splitStorage, segmentStorage, logger,
 			metadata, localTelemetryStorage),
 	}
@@ -197,6 +202,7 @@ func Start(logger logging.LoggerInterface) error {
 		EventsSink:          eventsTask,
 		TelemetryConfigSink: telemetryConfigTask,
 		TelemetryUsageSink:  telemetryUsageTask,
+		Cache:               httpCache,
 	}
 
 	if conf.Data.ImpressionListener.Endpoint != "" {

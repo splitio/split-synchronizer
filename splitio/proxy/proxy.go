@@ -17,6 +17,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
+	"github.com/splitio/gincache"
 )
 
 // Options struct to set options for Proxy mode.
@@ -62,6 +63,8 @@ type Options struct {
 
 	// used to record local metrics
 	Telemetry proxyStorage.ProxyEndpointTelemetry
+
+	Cache *gincache.Middleware
 }
 
 // API bundles all components required to answer API calls from split sdks
@@ -102,8 +105,17 @@ func New(options *Options) *API {
 	// Beacon endpoints group
 	beacon := router.Group("/api")
 
-	authController.Register(regular)
-	sdkController.Register(regular)
+	// If we got a cache in the options, fork the router, add the caching middleware,
+	// and pass it to Auth & Sdk controllers
+	var cacheableRouter gin.IRouter = regular
+	if options.Cache != nil {
+		cacheableRouter = router.Group("/api")
+		cacheableRouter.Use(apikeyValidator.AsMiddleware)
+		cacheableRouter.Use(gzip.Gzip(gzip.DefaultCompression))
+		cacheableRouter.Use(options.Cache.Handle)
+	}
+	authController.Register(cacheableRouter)
+	sdkController.Register(cacheableRouter)
 	eventsController.Register(regular, beacon)
 	telemetryController.Register(regular)
 
