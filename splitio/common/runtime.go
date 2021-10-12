@@ -13,6 +13,8 @@ import (
 
 	"github.com/splitio/split-synchronizer/v4/splitio/common/impressionlistener"
 	"github.com/splitio/split-synchronizer/v4/splitio/log"
+	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application"
+	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/services"
 )
 
 // ErrShutdownAlreadyRegistered is returned when trying to register the shutdown handler more than once
@@ -37,6 +39,8 @@ type RuntimeImpl struct {
 	impListener        impressionlistener.ImpressionBulkListener
 	blocker            chan struct{}
 	osSignals          chan os.Signal
+	appMonitor         application.MonitorIterface
+	servicesMonitor    services.MonitorIterface
 }
 
 // NewRuntime constructs a RuntimeImpl object
@@ -47,6 +51,8 @@ func NewRuntime(
 	dashboardTitle string,
 	listener impressionlistener.ImpressionBulkListener,
 	slackWriter *log.SlackWriter,
+	appMonitor application.MonitorIterface,
+	servicesMonitor services.MonitorIterface,
 ) *RuntimeImpl {
 	return &RuntimeImpl{
 		proxy:              proxy,
@@ -59,6 +65,8 @@ func NewRuntime(
 		blocker:            make(chan struct{}),
 		shutdownRegistered: sync.NewAtomicBool(false),
 		osSignals:          make(chan os.Signal, 1),
+		appMonitor:         appMonitor,
+		servicesMonitor:    servicesMonitor,
 	}
 }
 
@@ -94,6 +102,9 @@ func (r *RuntimeImpl) Shutdown() {
 	if r.impListener != nil {
 		r.impListener.Stop(true)
 	}
+	r.appMonitor.Stop()
+	r.servicesMonitor.Stop()
+
 	r.logger.Info(" * Shutdown complete - see you soon!")
 	r.blocker <- struct{}{}
 }

@@ -119,9 +119,9 @@ func (c *DashboardController) renderDashboard() ([]byte, error) {
 		ProxyMode:      c.proxy,
 		RefreshTime:    10000,
 		Stats:          *c.gatherStats(),
+		//TODO(sanzmauro): check this with redo.
 		//Health:             c.gatApplicationHealthInfo(),
 		DataControllerPath: c.dataControllerPath,
-		//ServicesHealth:     c.getServicesHealthInfo(),
 	})
 
 	if err != nil {
