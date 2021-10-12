@@ -4,6 +4,7 @@ import (
 	"github.com/splitio/go-toolkit/v5/logging"
 
 	"github.com/splitio/go-split-commons/v4/conf"
+	"github.com/splitio/go-split-commons/v4/healthcheck/application"
 	"github.com/splitio/go-split-commons/v4/synchronizer"
 	"github.com/splitio/go-split-commons/v4/tasks"
 )
@@ -26,7 +27,7 @@ func NewSynchronizer(
 	userTelemetryTasks []tasks.Task,
 ) *WSync {
 	return &WSync{
-		Synchronizer:       synchronizer.NewSynchronizer(confAdvanced, splitTasks, workers, logger, inMememoryFullQueue),
+		Synchronizer:       synchronizer.NewSynchronizer(confAdvanced, splitTasks, workers, logger, inMememoryFullQueue, &application.Dummy{}),
 		logger:             logger,
 		userTelemetryTasks: userTelemetryTasks,
 	}

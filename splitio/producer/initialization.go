@@ -12,6 +12,8 @@ import (
 	"github.com/splitio/go-split-commons/v4/telemetry"
 	"github.com/splitio/go-toolkit/v5/logging"
 
+	"github.com/splitio/go-split-commons/v4/healthcheck/application"
+
 	"github.com/splitio/go-split-commons/v4/storage/inmemory"
 	"github.com/splitio/go-split-commons/v4/storage/redis"
 	"github.com/splitio/go-split-commons/v4/synchronizer"
@@ -95,9 +97,9 @@ func Start(logger logging.LoggerInterface) error {
 	eventRecorder := worker.NewEventRecorderMultiple(storages.EventStorage, splitAPI.EventRecorder, syncTelemetryStorage, eventEvictionMonitor, logger)
 
 	workers := synchronizer.Workers{
-		SplitFetcher: split.NewSplitFetcher(storages.SplitStorage, splitAPI.SplitFetcher, logger, syncTelemetryStorage),
+		SplitFetcher: split.NewSplitFetcher(storages.SplitStorage, splitAPI.SplitFetcher, logger, syncTelemetryStorage, &application.Dummy{}),
 		SegmentFetcher: segment.NewSegmentFetcher(storages.SplitStorage, storages.SegmentStorage, splitAPI.SegmentFetcher,
-			logger, syncTelemetryStorage),
+			logger, syncTelemetryStorage, &application.Dummy{}),
 		EventRecorder: eventRecorder,
 		TelemetryRecorder: telemetry.NewTelemetrySynchronizer(syncTelemetryStorage, splitAPI.TelemetryRecorder,
 			storages.SplitStorage, storages.SegmentStorage, logger, metadata, syncTelemetryStorage),
@@ -158,6 +160,7 @@ func Start(logger logging.LoggerInterface) error {
 		syncTelemetryStorage,
 		metadata,
 		&clientKey,
+		&application.Dummy{},
 	)
 
 	if err != nil {

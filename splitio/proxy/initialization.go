@@ -6,6 +6,7 @@ import (
 	"time"
 
 	cfg "github.com/splitio/go-split-commons/v4/conf"
+	"github.com/splitio/go-split-commons/v4/healthcheck/application"
 	"github.com/splitio/go-split-commons/v4/service/api"
 	"github.com/splitio/go-split-commons/v4/synchronizer"
 	"github.com/splitio/go-split-commons/v4/tasks"
@@ -104,6 +105,7 @@ func Start(logger logging.LoggerInterface) error {
 		localTelemetryStorage,
 		metadata,
 		&clientKey,
+		&application.Dummy{},
 	)
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error instantiating sync manager: %w", err), common.ExitTaskInitialization)
