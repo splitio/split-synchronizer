@@ -1,6 +1,7 @@
 package caching
 
 import (
+	"github.com/splitio/go-split-commons/v4/healthcheck/application"
 	"github.com/splitio/go-split-commons/v4/service"
 	"github.com/splitio/go-split-commons/v4/storage"
 	"github.com/splitio/go-split-commons/v4/synchronizer/worker/segment"
@@ -26,7 +27,7 @@ func NewCacheAwareSplitSync(
 	cacheFlusher gincache.CacheFlusher,
 ) *CacheAwareSplitSynchronizer {
 	return &CacheAwareSplitSynchronizer{
-		wrapped:      split.NewSplitFetcher(splitStorage, splitFetcher, logger, runtimeTelemetry),
+		wrapped:      split.NewSplitFetcher(splitStorage, splitFetcher, logger, runtimeTelemetry, &application.Dummy{}),
 		splitStorage: splitStorage,
 		cacheFlusher: cacheFlusher,
 	}
@@ -68,7 +69,7 @@ func NewCacheAwareSegmentSync(
 	cacheFlusher gincache.CacheFlusher,
 ) *CacheAwareSegmentSynchronizer {
 	return &CacheAwareSegmentSynchronizer{
-		wrapped:        segment.NewSegmentFetcher(splitStorage, segmentStorage, segmentFetcher, logger, runtimeTelemetry),
+		wrapped:        segment.NewSegmentFetcher(splitStorage, segmentStorage, segmentFetcher, logger, runtimeTelemetry, &application.Dummy{}),
 		cacheFlusher:   cacheFlusher,
 		splitStorage:   splitStorage,
 		segmentStorage: segmentStorage,
