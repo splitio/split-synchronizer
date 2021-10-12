@@ -11,6 +11,7 @@ import (
 	"github.com/splitio/go-split-commons/v4/service"
 	"github.com/splitio/go-toolkit/v5/logging"
 
+	"github.com/splitio/split-synchronizer/v4/splitio/proxy/caching"
 	tmw "github.com/splitio/split-synchronizer/v4/splitio/proxy/controllers/middleware"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage"
 )
@@ -66,6 +67,8 @@ func (c *SdkServerController) SplitChanges(ctx *gin.Context) {
 	}
 	c.telemetry.IncrEndpointStatus(storage.SplitChangesEndpoint, http.StatusOK)
 	ctx.JSON(http.StatusOK, splits)
+	ctx.Set(caching.SurrogateContextKey, []string{caching.SplitSurrogate})
+	ctx.Set(caching.StickyContextKey, true)
 }
 
 // SegmentChanges Returns a diff containing changes in splits from a certain point in time until now.
@@ -86,8 +89,10 @@ func (c *SdkServerController) SegmentChanges(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, payload)
 	c.telemetry.IncrEndpointStatus(storage.SegmentChangesEndpoint, http.StatusOK)
+	ctx.JSON(http.StatusOK, payload)
+	ctx.Set(caching.SurrogateContextKey, []string{caching.MakeSurrogateForSegmentChanges(segmentName)})
+	ctx.Set(caching.StickyContextKey, true)
 }
 
 // MySegments Returns a diff containing changes in splits from a certain point in time until now.
@@ -109,6 +114,7 @@ func (c *SdkServerController) MySegments(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, gin.H{"mySegments": mySegments})
 	c.telemetry.IncrEndpointStatus(storage.MySegmentsEndpoint, http.StatusOK)
+	ctx.Set(caching.SurrogateContextKey, caching.MakeSurrogateForMySegments(mySegments))
 }
 
 func (c *SdkServerController) fetchSplitChangesSince(since int64) (*dtos.SplitChangesDTO, error) {
