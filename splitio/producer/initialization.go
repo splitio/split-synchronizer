@@ -12,7 +12,6 @@ import (
 	"github.com/splitio/go-split-commons/v4/provisional"
 	"github.com/splitio/go-split-commons/v4/service/api"
 	"github.com/splitio/go-split-commons/v4/telemetry"
-	"github.com/splitio/go-toolkit/v5/logging"
 
 	storageCommon "github.com/splitio/go-split-commons/v4/storage"
 	"github.com/splitio/go-split-commons/v4/storage/inmemory"
@@ -22,6 +21,7 @@ import (
 	"github.com/splitio/go-split-commons/v4/synchronizer/worker/segment"
 	"github.com/splitio/go-split-commons/v4/synchronizer/worker/split"
 	"github.com/splitio/go-split-commons/v4/tasks"
+	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v4/conf"
 	"github.com/splitio/split-synchronizer/v4/splitio/admin"
 	adminCommon "github.com/splitio/split-synchronizer/v4/splitio/admin/common"
@@ -132,6 +132,7 @@ func Start(logger logging.LoggerInterface) error {
 		if err != nil {
 			return common.NewInitError(fmt.Errorf("error instantiating impression listener: %w", err), common.ExitTaskInitialization)
 		}
+		impListener.Start()
 
 	}
 
