@@ -58,7 +58,7 @@ func (p *ProxySplitStorageImpl) ChangesSince(since int64) (*dtos.SplitChangesDTO
 
 	summary, till, err := p.recipes.FetchSince(int64(since))
 	if err != nil {
-		if errors.Is(err, ErrSummaryNotCached) {
+		if errors.Is(err, optimized.ErrUnknownChangeNumber) {
 			return nil, ErrSummaryNotCached
 		}
 		return nil, fmt.Errorf("unexpected error when fetching changes summary: %w", err)

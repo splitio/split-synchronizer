@@ -61,6 +61,7 @@ func (c *SdkServerController) SplitChanges(ctx *gin.Context) {
 
 	splits, err := c.fetchSplitChangesSince(since)
 	if err != nil {
+		c.logger.Error("error fetching splitChanges payload from storage: ", err)
 		c.telemetry.IncrEndpointStatus(storage.SplitChangesEndpoint, http.StatusInternalServerError)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -84,6 +85,7 @@ func (c *SdkServerController) SegmentChanges(ctx *gin.Context) {
 	c.logger.Debug(fmt.Sprintf("SDK Fetches Segment: %s Since: %d", segmentName, since))
 	payload, err := c.proxySegmentStorage.ChangesSince(segmentName, since)
 	if err != nil {
+		c.logger.Error("error fetching segmentChanges payload from storage: ", err)
 		c.telemetry.IncrEndpointStatus(storage.SegmentChangesEndpoint, http.StatusNotFound)
 		ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
