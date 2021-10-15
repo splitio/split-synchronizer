@@ -247,16 +247,10 @@ func getAppCounterConfigs(storage storageCommon.SplitStorage) (hcAppCounter.Thre
 		MaxErrorsAllowedInPeriod: 5,
 		Period:                   3600,
 		Severity:                 hcAppCounter.Low,
-		TaskFunc: func(l logging.LoggerInterface, c hcAppCounter.PeriodicCounterInterface) error {
-			c.ResetErrorCount(0)
-			return nil
-		},
 		ValidationFunc: func(c hcAppCounter.PeriodicCounterInterface) {
 			_, err := storage.ChangeNumber()
 			if err != nil {
 				c.NotifyError()
-			} else {
-				c.UpdateLastHit()
 			}
 		},
 		ValidationFuncPeriod: 10,

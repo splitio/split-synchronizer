@@ -10,7 +10,6 @@ func TestPeriodicCounter(t *testing.T) {
 
 	counter := NewPeriodicCounter(PeriodicConfig{
 		Name:                     "Test",
-		TaskFunc:                 func(l logging.LoggerInterface, c PeriodicCounterInterface) error { return nil },
 		Period:                   2,
 		MaxErrorsAllowedInPeriod: 2,
 		Severity:                 0,
@@ -29,7 +28,7 @@ func TestPeriodicCounter(t *testing.T) {
 		t.Errorf("Healthy should be true")
 	}
 
-	counter.ResetErrorCount(0)
+	counter.resetErrorCount()
 	res = counter.IsHealthy()
 	if !res.Healthy {
 		t.Errorf("Healthy should be true")

@@ -77,7 +77,7 @@ func NewServer(options *Options) (*http.Server, error) {
 		options.HcServicesMonitor,
 	)
 
-	healthcheckController.Register(router.Group(""))
+	healthcheckController.Register(router)
 
 	return &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", options.Host, options.Port),
