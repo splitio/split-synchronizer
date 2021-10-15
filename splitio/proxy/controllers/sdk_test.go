@@ -258,7 +258,7 @@ func TestSegmentChangesNotFound(t *testing.T) {
 				if name != "someSegment" || since != -1 {
 					t.Error("wrong params")
 				}
-				return nil, errors.New("something")
+				return nil, storage.ErrSegmentNotFound
 			},
 		},
 		proxyTelemetry,
