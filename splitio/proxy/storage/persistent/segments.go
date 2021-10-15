@@ -47,6 +47,8 @@ func (c *SegmentChangesCollection) Update(name string, toAdd *set.ThreadUnsafeSe
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
+	// Error is most likely that the segment isn't yet cached.
+	// In the worst case, the update will fail later in the method
 	segmentItem, _ := c.fetch(name)
 	if segmentItem == nil {
 		segmentItem = &SegmentChangesItem{}
@@ -116,10 +118,6 @@ func (c *SegmentChangesCollection) fetch(name string) (*SegmentChangesItem, erro
 	item, err := c.collection.FetchBy([]byte(name))
 	if err != nil {
 		return nil, err
-	}
-
-	if item == nil || len(item) <= 0 {
-		return nil, nil
 	}
 
 	var decodeBuffer bytes.Buffer

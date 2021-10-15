@@ -12,6 +12,9 @@ import (
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage/persistent"
 )
 
+// ErrSegmentNotFound is returned when the segment whose changes we're querying isn't cached
+var ErrSegmentNotFound = errors.New("segment not found")
+
 // ProxySegmentStorage defines the set of methods that are required for the proxy server
 // to respond to resquests from sdk clients
 type ProxySegmentStorage interface {
@@ -43,15 +46,10 @@ func NewProxySegmentStorage(db persistent.DBWrapper, logger logging.LoggerInterf
 func (s *ProxySegmentStorageImpl) ChangesSince(name string, since int64) (*dtos.SegmentChangesDTO, error) {
 	item, err := s.db.Fetch(name)
 	if err != nil {
-		if errors.Is(err, persistent.ErrorBucketNotFound) {
-			// Collection not yet created
-			return nil, nil
+		if errors.Is(err, persistent.ErrorBucketNotFound) || errors.Is(err, persistent.ErrorKeyNotFound) {
+			return nil, ErrSegmentNotFound
 		}
 		return nil, fmt.Errorf("unexpected error when fetching segment '%s': %w", name, err)
-	}
-
-	if item == nil {
-		return nil, nil
 	}
 
 	added := make([]string, 0)
@@ -108,14 +106,11 @@ func (s *ProxySegmentStorageImpl) Keys(segmentName string) *set.ThreadUnsafeSet 
 	toReturn := set.NewSet()
 	changes, err := s.db.Fetch(segmentName)
 	if err != nil {
-		if !errors.Is(err, persistent.ErrorBucketNotFound) {
+		if errors.Is(err, persistent.ErrorBucketNotFound) || errors.Is(err, persistent.ErrorKeyNotFound) {
+			s.logger.Error(fmt.Sprintf("segment %s not found. failed to fetch keys.", segmentName))
+		} else {
 			s.logger.Error(fmt.Sprintf("unexpected error when fetching segment keys for '%s': %s", segmentName, err.Error()))
 		}
-		return toReturn
-	}
-
-	if changes == nil {
-		// Segment not cached
 		return toReturn
 	}
 
