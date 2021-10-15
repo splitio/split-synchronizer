@@ -58,7 +58,7 @@ func (s *ProxySegmentStorageImpl) ChangesSince(name string, since int64) (*dtos.
 
 	// Horrible loop borrowed from sdk-api
 	for _, skey := range item.Keys {
-		if skey.ChangeNumber < since {
+		if skey.ChangeNumber <= since { // if the key was updated in a previous/current CN, we don't need to return it
 			continue
 		}
 
