@@ -85,9 +85,16 @@ func (c *SdkServerController) SegmentChanges(ctx *gin.Context) {
 	c.logger.Debug(fmt.Sprintf("SDK Fetches Segment: %s Since: %d", segmentName, since))
 	payload, err := c.proxySegmentStorage.ChangesSince(segmentName, since)
 	if err != nil {
+		if errors.Is(err, storage.ErrSegmentNotFound) {
+			c.logger.Error("the following segment was requested and is not present: ", segmentName)
+			c.telemetry.IncrEndpointStatus(storage.SegmentChangesEndpoint, http.StatusNotFound)
+			ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+
 		c.logger.Error("error fetching segmentChanges payload from storage: ", err)
-		c.telemetry.IncrEndpointStatus(storage.SegmentChangesEndpoint, http.StatusNotFound)
-		ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		c.telemetry.IncrEndpointStatus(storage.SegmentChangesEndpoint, http.StatusInternalServerError)
+		ctx.JSON(http.StatusInternalServerError, nil)
 		return
 	}
 
