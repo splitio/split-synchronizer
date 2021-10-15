@@ -109,10 +109,6 @@ func (m *MonitorImp) NotifyEvent(counterType int) {
 		m.splitsCounter.NotifyHit()
 	case counter.Segments:
 		m.segmentsCounter.NotifyHit()
-	case counter.Storage:
-		if m.producerMode.IsSet() {
-			m.storageCounter.NotifyError()
-		}
 	}
 }
 
@@ -128,10 +124,6 @@ func (m *MonitorImp) Reset(counterType int, value int) {
 		m.splitsCounter.ResetThreshold(value)
 	case counter.Segments:
 		m.segmentsCounter.ResetThreshold(value)
-	case counter.Storage:
-		if m.producerMode.IsSet() {
-			m.storageCounter.ResetErrorCount(value)
-		}
 	}
 }
 

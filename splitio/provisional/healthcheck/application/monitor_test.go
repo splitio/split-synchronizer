@@ -36,16 +36,9 @@ func TestMonitor(t *testing.T) {
 		Severity: counter.Critical,
 	}
 
-	syncErrorsCfg := counter.PeriodicConfig{
-		Name:   "Sync-Errors",
-		Period: 10,
-		TaskFunc: func(l logging.LoggerInterface, c counter.PeriodicCounterInterface) error {
-			if c.IsHealthy().Healthy {
-				c.ResetErrorCount(0)
-			}
-
-			return nil
-		},
+	storageCfg := counter.PeriodicConfig{
+		Name:                     "Storage",
+		Period:                   10,
 		MaxErrorsAllowedInPeriod: 1,
 		Severity:                 counter.Low,
 		ValidationFunc: func(c counter.PeriodicCounterInterface) {
@@ -53,15 +46,12 @@ func TestMonitor(t *testing.T) {
 		},
 	}
 
-	monitor := NewMonitorImp(splitsCfg, segmentsCfg, &syncErrorsCfg, logging.NewLogger(nil))
+	monitor := NewMonitorImp(splitsCfg, segmentsCfg, &storageCfg, logging.NewLogger(nil))
 
 	monitor.Start()
 
 	time.Sleep(time.Duration(1) * time.Second)
 
-	monitor.NotifyEvent(application.SyncErros)
-	monitor.NotifyEvent(application.SyncErros)
-	monitor.NotifyEvent(application.SyncErros)
 	res := monitor.GetHealthStatus()
 	if !res.Healthy {
 		t.Errorf("Healthy should be true")

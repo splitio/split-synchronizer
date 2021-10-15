@@ -14,8 +14,6 @@ import (
 type PeriodicCounterInterface interface {
 	IsHealthy() HealthyResult
 	NotifyError()
-	ResetErrorCount(value int)
-	UpdateLastHit()
 	Start()
 	Stop()
 }
@@ -25,7 +23,6 @@ type PeriodicConfig struct {
 	Name                     string
 	Period                   int
 	Severity                 int
-	TaskFunc                 func(l logging.LoggerInterface, c PeriodicCounterInterface) error
 	ValidationFunc           func(c PeriodicCounterInterface)
 	ValidationFuncPeriod     int
 	MaxErrorsAllowedInPeriod int
@@ -41,12 +38,18 @@ type PeriodicImp struct {
 	task                     *asynctask.AsyncTask
 }
 
-// UpdateLastHit update last hit
-func (c *PeriodicImp) UpdateLastHit() {
+func (c *PeriodicImp) resetErrorCount() {
+	if !c.running.IsSet() {
+		c.logger.Debug(fmt.Sprintf("%s counter  is not running.", c.name))
+		return
+	}
+
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	c.updateLastHit()
+	c.errorCount = 0
+
+	return
 }
 
 // NotifyError increase errorCount and check the health
@@ -60,32 +63,10 @@ func (c *PeriodicImp) NotifyError() {
 	defer c.lock.Unlock()
 
 	c.errorCount++
-
-	if c.errorCount >= c.maxErrorsAllowedInPeriod {
-		c.healthy = false
-	} else {
-		c.healthy = true
-	}
-
+	c.healthy = c.maxErrorsAllowedInPeriod > c.errorCount
 	c.updateLastHit()
 
 	c.logger.Debug("NotifyEvent periodic counter.")
-}
-
-// ResetErrorCount errorCount
-func (c *PeriodicImp) ResetErrorCount(value int) {
-	if !c.running.IsSet() {
-		c.logger.Debug(fmt.Sprintf("%s counter  is not running.", c.name))
-		return
-	}
-
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	c.errorCount = value
-	c.logger.Debug("Reset periodic counter.", c.validationFuncPeriod)
-
-	return
 }
 
 // IsHealthy return the counter health
@@ -119,6 +100,7 @@ func (c *PeriodicImp) Start() {
 		for c.running.IsSet() {
 			time.Sleep(time.Duration(c.validationFuncPeriod) * time.Minute)
 			c.validationFunc(c)
+			c.updateLastHit()
 		}
 	}()
 
@@ -160,7 +142,8 @@ func NewPeriodicCounter(
 	}
 
 	counter.task = asynctask.NewAsyncTask(config.Name, func(l logging.LoggerInterface) error {
-		return config.TaskFunc(l, counter)
+		counter.resetErrorCount()
+		return nil
 	}, counter.period, nil, nil, logger)
 
 	return counter
