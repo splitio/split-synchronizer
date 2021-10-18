@@ -77,7 +77,7 @@ func (s *ProxySegmentStorageImpl) ChangesSince(name string, since int64) (*dtos.
 		}
 	}
 
-	return &dtos.SegmentChangesDTO{Since: since, Till: till, Added: added, Removed: removed}, nil
+	return &dtos.SegmentChangesDTO{Name: name, Since: since, Till: till, Added: added, Removed: removed}, nil
 }
 
 // SegmentsFor returns the list of segments a key belongs to
