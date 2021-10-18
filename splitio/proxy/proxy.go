@@ -105,9 +105,9 @@ func New(options *Options) *API {
 	// Beacon endpoints group
 	beacon := router.Group("/api")
 
+	var cacheableRouter gin.IRouter = regular
 	// If we got a cache in the options, fork the router, add the caching middleware,
 	// and pass it to Auth & Sdk controllers
-	var cacheableRouter gin.IRouter = regular
 	if options.Cache != nil {
 		cacheableRouter = router.Group("/api")
 		cacheableRouter.Use(apikeyValidator.AsMiddleware)
