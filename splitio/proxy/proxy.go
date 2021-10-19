@@ -111,8 +111,8 @@ func New(options *Options) *API {
 	if options.Cache != nil {
 		cacheableRouter = router.Group("/api")
 		cacheableRouter.Use(apikeyValidator.AsMiddleware)
-		cacheableRouter.Use(gzip.Gzip(gzip.DefaultCompression))
 		cacheableRouter.Use(options.Cache.Handle)
+		cacheableRouter.Use(gzip.Gzip(gzip.DefaultCompression))
 	}
 	authController.Register(cacheableRouter)
 	sdkController.Register(cacheableRouter)
