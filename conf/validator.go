@@ -3,7 +3,6 @@ package conf
 import (
 	"fmt"
 	"math"
-	"strings"
 
 	cfg "github.com/splitio/go-split-commons/v3/conf"
 )
@@ -28,22 +27,23 @@ func checkImpressionsPostRate() error {
 
 // ValidConfigs checks configs
 func ValidConfigs() error {
-	Data.ImpressionsMode = strings.ToLower(Data.ImpressionsMode)
-	switch Data.ImpressionsMode {
-	case cfg.ImpressionsModeOptimized:
-		return checkImpressionsPostRate()
-	case cfg.ImpressionsModeDebug:
-		if Data.ImpressionsPostRate == 0 {
-			Data.ImpressionsPostRate = defaultImpressionSync
-		} else {
-			if Data.ImpressionsPostRate < minImpressionSyncDebug {
-				return fmt.Errorf("ImpressionsPostRate must be >= %d. Actual is: %d", minImpressionSyncDebug, Data.ImpressionsPostRate)
-			}
-		}
-	default:
-		fmt.Println(`You passed an invalid impressionsMode, impressionsMode should be one of the following values: 'debug' or 'optimized'. Defaulting to 'optimized' mode.`)
-		Data.ImpressionsMode = cfg.ImpressionsModeOptimized
-		return checkImpressionsPostRate()
-	}
+	//	Data.ImpressionsMode = strings.ToLower(Data.ImpressionsMode)
+	//	switch Data.ImpressionsMode {
+	//	case cfg.ImpressionsModeOptimized:
+	//		return checkImpressionsPostRate()
+	//	case cfg.ImpressionsModeDebug:
+	//		if Data.ImpressionsPostRate == 0 {
+	//			Data.ImpressionsPostRate = defaultImpressionSync
+	//		} else {
+	//			if Data.ImpressionsPostRate < minImpressionSyncDebug {
+	//				return fmt.Errorf("ImpressionsPostRate must be >= %d. Actual is: %d", minImpressionSyncDebug, Data.ImpressionsPostRate)
+	//			}
+	//		}
+	//	default:
+	//		fmt.Println(`You passed an invalid impressionsMode, impressionsMode should be one of the following values: 'debug' or 'optimized'. Defaulting to 'optimized' mode.`)
+	//		Data.ImpressionsMode = cfg.ImpressionsModeOptimized
+	//		return checkImpressionsPostRate()
+	//	}
+	Data.ImpressionsMode = cfg.ImpressionsModeOptimized
 	return nil
 }

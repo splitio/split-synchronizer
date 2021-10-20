@@ -25,6 +25,7 @@ COPY entrypoint.sh .
 COPY --from=builder /go/src/github.com/splitio/split-synchronizer/split-sync /usr/bin/
 
 EXPOSE 3000 3010
+EXPOSE 9090 9090
 
 USER 'split-synchronizer'
 

@@ -19,10 +19,12 @@ import (
 	"github.com/splitio/go-split-commons/v3/synchronizer/worker/segment"
 	"github.com/splitio/go-split-commons/v3/synchronizer/worker/split"
 	"github.com/splitio/go-split-commons/v3/tasks"
+	"github.com/splitio/go-toolkit/v4/logging"
 	"github.com/splitio/split-synchronizer/v4/conf"
 	"github.com/splitio/split-synchronizer/v4/log"
 	"github.com/splitio/split-synchronizer/v4/splitio"
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
+	sprov "github.com/splitio/split-synchronizer/v4/splitio/producer/provisional"
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/worker"
 	"github.com/splitio/split-synchronizer/v4/splitio/recorder"
 	"github.com/splitio/split-synchronizer/v4/splitio/task"
@@ -138,7 +140,15 @@ func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
 		log.Instance.Error(err)
 		os.Exit(splitio.ExitTaskInitialization)
 	}
-	splitTasks.ImpressionSyncTask = tasks.NewRecordImpressionsTasks(impressionRecorder, conf.Data.ImpressionsPostRate, log.Instance, advanced.ImpressionsBulkSize, conf.Data.ImpressionsThreads)
+	//splitTasks.ImpressionSyncTask = tasks.NewRecordImpressionsTasks(impressionRecorder, conf.Data.ImpressionsPostRate, log.Instance, advanced.ImpressionsBulkSize, conf.Data.ImpressionsThreads)
+	splitTasks.ImpressionSyncTask = sprov.NewImpressionsEvictioner(
+		storages.ImpressionStorage,
+		logging.NewLogger(nil),
+		sprov.Config{
+			Apikey:     conf.Data.APIKey,
+			EventsHost: advanced.EventsURL,
+		},
+	)
 
 	// Creating Synchronizer for tasks
 	syncImpl := synchronizer.NewSynchronizer(
