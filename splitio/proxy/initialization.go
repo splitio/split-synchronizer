@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"fmt"
-	"strconv"
 	"time"
 
 	cfg "github.com/splitio/go-split-commons/v4/conf"
@@ -171,7 +170,7 @@ func Start(logger logging.LoggerInterface) error {
 	go adminServer.ListenAndServe()
 
 	proxyOptions := &Options{
-		Port:                ":" + strconv.Itoa(conf.Data.Proxy.Port),
+		Port:                conf.Data.Proxy.Port,
 		APIKeys:             conf.Data.Proxy.Auth.APIKeys,
 		DebugOn:             conf.Data.Logger.DebugOn,
 		Logger:              logger,

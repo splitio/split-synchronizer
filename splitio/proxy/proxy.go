@@ -26,7 +26,7 @@ type Options struct {
 	Logger logging.LoggerInterface
 
 	// HTTP port to use for the server
-	Port string
+	Port int
 
 	// APIKeys used for authenticating proxy requests
 	APIKeys []string
@@ -120,7 +120,7 @@ func New(options *Options) *API {
 	telemetryController.Register(regular)
 
 	return &API{
-		server:              &http.Server{Addr: fmt.Sprintf("0.0.0.0%s", options.Port), Handler: router},
+		server:              &http.Server{Addr: fmt.Sprintf("0.0.0.0:%d", options.Port), Handler: router},
 		sdkConroller:        sdkController,
 		eventsConroller:     eventsController,
 		telemetryController: telemetryController,
