@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -21,6 +23,8 @@ import (
 	"github.com/splitio/split-synchronizer/v4/conf"
 	"github.com/splitio/split-synchronizer/v4/log"
 	"github.com/splitio/split-synchronizer/v4/splitio"
+
+	_ "net/http/pprof"
 )
 
 type configMap map[string]interface{}
@@ -138,6 +142,11 @@ func loadLogger() {
 }
 
 func main() {
+
+	// TODO(mredolatti): REMOVE THIS!
+	runtime.SetCPUProfileRate(500)
+	go http.ListenAndServe("0.0.0.0:9090", nil)
+
 	//reading command line options
 	cliFlags := parseCLIFlags()
 
