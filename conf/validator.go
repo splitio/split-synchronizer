@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	cfg "github.com/splitio/go-split-commons/v3/conf"
+	cfg "github.com/splitio/go-split-commons/v4/conf"
 )
 
 const (

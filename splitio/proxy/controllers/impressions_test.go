@@ -11,11 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/splitio/go-split-commons/v3/dtos"
-	"github.com/splitio/go-toolkit/v4/logging"
+	"github.com/splitio/go-split-commons/v4/dtos"
 	"github.com/splitio/split-synchronizer/v4/conf"
-	"github.com/splitio/split-synchronizer/v4/log"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/interfaces"
 )
 
 func TestImpressionsBufferCounter(t *testing.T) {
@@ -36,11 +33,6 @@ func TestImpressionsBufferCounter(t *testing.T) {
 
 func TestAddImpressions(t *testing.T) {
 	conf.Initialize()
-	if log.Instance == nil {
-		stdoutWriter := ioutil.Discard //os.Stdout
-		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
-	}
-	interfaces.Initialize()
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
@@ -114,11 +106,6 @@ func TestAddImpressions(t *testing.T) {
 
 func TestAddImpressionsOptimized(t *testing.T) {
 	conf.Initialize()
-	if log.Instance == nil {
-		stdoutWriter := ioutil.Discard //os.Stdout
-		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
-	}
-	interfaces.Initialize()
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
@@ -192,11 +179,6 @@ func TestAddImpressionsOptimized(t *testing.T) {
 
 func TestAddImpressionsWithoutMode(t *testing.T) {
 	conf.Initialize()
-	if log.Instance == nil {
-		stdoutWriter := ioutil.Discard //os.Stdout
-		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
-	}
-	interfaces.Initialize()
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 

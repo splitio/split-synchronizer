@@ -11,12 +11,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/splitio/go-split-commons/v3/conf"
-	"github.com/splitio/go-split-commons/v3/dtos"
-	"github.com/splitio/go-split-commons/v3/provisional"
-	"github.com/splitio/go-split-commons/v3/storage"
-	"github.com/splitio/go-toolkit/v4/common"
-	"github.com/splitio/go-toolkit/v4/logging"
+	"github.com/splitio/go-split-commons/v4/conf"
+	"github.com/splitio/go-split-commons/v4/dtos"
+	"github.com/splitio/go-split-commons/v4/provisional"
+	"github.com/splitio/go-split-commons/v4/storage"
+	"github.com/splitio/go-toolkit/v5/common"
+	"github.com/splitio/go-toolkit/v5/logging"
 )
 
 var errHTTP = errors.New("http")
@@ -83,7 +83,7 @@ func (c *Config) normalize() {
 type ImpressionsEvictionerImpl struct {
 	inputBuffer     chan []string
 	preSubmitBuffer chan impsWithMetadata
-	storage         storage.ImpressionStorageConsumer
+	storage         storage.ImpressionMultiSdkConsumer
 	httpClient      http.Client
 	logger          logging.LoggerInterface
 	status          *status
@@ -103,12 +103,13 @@ type ImpressionsEvictionerImpl struct {
 
 // NewImpressionsEvictioner constructs an impressions evictioner
 func NewImpressionsEvictioner(
-	storage storage.ImpressionStorageConsumer,
+	storage storage.ImpressionMultiSdkConsumer,
+	telemetry storage.TelemetryRuntimeProducer,
 	logger logging.LoggerInterface,
 	config Config,
 ) *ImpressionsEvictionerImpl {
 
-	impressionManager, err := provisional.NewImpressionManager(conf.ManagerConfig{}, nil)
+	impressionManager, err := provisional.NewImpressionManager(conf.ManagerConfig{}, nil, telemetry)
 	if err != nil {
 		panic(err.Error())
 	}

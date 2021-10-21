@@ -3,7 +3,7 @@ package conf
 import (
 	"os"
 
-	"github.com/splitio/go-split-commons/v3/conf"
+	"github.com/splitio/go-split-commons/v4/conf"
 )
 
 // ParseAdvancedOptions parses defaults for advanced Options
@@ -32,6 +32,11 @@ func ParseAdvancedOptions() conf.AdvancedConfig {
 	streamingServiceURL := os.Getenv("SPLITIO_STREAMING_SERVICE_URL")
 	if streamingServiceURL != "" {
 		advanced.StreamingServiceURL = streamingServiceURL
+	}
+
+	telemetryServiceURL := os.Getenv("SPLITIO_TELEMETRY_SERVICE_URL")
+	if telemetryServiceURL != "" {
+		advanced.TelemetryServiceURL = telemetryServiceURL
 	}
 
 	return advanced
