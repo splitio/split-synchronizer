@@ -45,7 +45,7 @@ func (b *historicBuffer) record(message string) {
 		b.count++
 	} else {
 		// once the buffer is full, the count becomes fixed, and each time we add a message, we shift the start
-		b.start = b.start % len(b.buffer)
+		b.start = (b.start + 1) % len(b.buffer)
 	}
 }
 

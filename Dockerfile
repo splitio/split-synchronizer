@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.13-alpine AS builder
+FROM golang:1.17.1-alpine3.14 AS builder
 
 WORKDIR /go/src/github.com/splitio/split-synchronizer
 
@@ -8,7 +8,7 @@ COPY . .
 RUN go build -o split-sync
 
 # Runner stage
-FROM alpine:latest AS runner
+FROM alpine:3.14 AS runner
 
 RUN addgroup -g 1000 -S 'split-synchronizer'
 RUN adduser \

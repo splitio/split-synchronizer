@@ -4,11 +4,9 @@ import (
 	"bytes"
 	"encoding/gob"
 	"encoding/json"
-	"sort"
 	"sync"
 
 	"github.com/splitio/go-split-commons/v4/dtos"
-	"github.com/splitio/go-toolkit/v5/datastructures/set"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
 
@@ -43,7 +41,7 @@ func (slice SplitsChangesItems) Swap(i, j int) {
 type SplitChangesCollection struct {
 	collection   CollectionWrapper
 	changeNumber int64
-	cnMutex      sync.Mutex
+	mutex        sync.RWMutex
 }
 
 // NewSplitChangesCollection returns an instance of SplitChangesCollection
@@ -54,34 +52,53 @@ func NewSplitChangesCollection(db DBWrapper, logger logging.LoggerInterface) *Sp
 	}
 }
 
-// Delete an item
-func (c *SplitChangesCollection) Delete(item *SplitChangesItem) error {
-	key := []byte(item.Name)
-	err := c.collection.Delete(key)
-	return err
-}
+// Update processes a set of split changes items + a changeNumber bump atomically
+func (c *SplitChangesCollection) Update(toAdd []dtos.SplitDTO, toRemove []dtos.SplitDTO, cn int64) {
 
-// Add an item
-func (c *SplitChangesCollection) Add(item *SplitChangesItem) error {
-	key := []byte(item.Name)
-	err := c.collection.SaveAs(key, item)
+	items := make(SplitsChangesItems, 0, len(toAdd)+len(toRemove))
+	process := func(split *dtos.SplitDTO) {
+		asJSON, err := json.Marshal(split)
+		if err != nil {
+			// This should not happen unless the DTO class is broken
+			return
+		}
+		items = append(items, SplitChangesItem{
+			ChangeNumber: split.ChangeNumber,
+			Name:         split.Name,
+			Status:       split.Status,
+			JSON:         string(asJSON),
+		})
+	}
 
-	c.cnMutex.Lock()
-	c.changeNumber = item.ChangeNumber
-	c.cnMutex.Unlock()
+	for _, split := range toAdd {
+		process(&split)
+	}
 
-	return err
+	for _, split := range toRemove {
+		process(&split)
+	}
+
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	for idx := range items {
+		err := c.collection.SaveAs([]byte(items[idx].Name), items[idx])
+		if err != nil {
+			// TODO(mredolatti): log
+		}
+	}
+	c.changeNumber = cn
 }
 
 // FetchAll return a SplitChangesItem
-func (c *SplitChangesCollection) FetchAll() (SplitsChangesItems, error) {
-
+func (c *SplitChangesCollection) FetchAll() ([]dtos.SplitDTO, error) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 	items, err := c.collection.FetchAll()
 	if err != nil {
 		return nil, err
 	}
 
-	toReturn := make(SplitsChangesItems, 0)
+	toReturn := make([]dtos.SplitDTO, 0)
 
 	var decodeBuffer bytes.Buffer
 	for _, v := range items {
@@ -96,47 +113,22 @@ func (c *SplitChangesCollection) FetchAll() (SplitsChangesItems, error) {
 			c.collection.Logger().Error("decode error:", errq, "|", string(v))
 			continue
 		}
-		toReturn = append(toReturn, q)
-	}
 
-	sort.Sort(toReturn)
+		var parsed dtos.SplitDTO
+		err := json.Unmarshal([]byte(q.JSON), &parsed)
+		if err != nil {
+			c.collection.Logger().Error("error decoding split fetched from db: ", err, "|", q.JSON)
+			continue
+		}
+		toReturn = append(toReturn, parsed)
+	}
 
 	return toReturn, nil
 }
 
 // ChangeNumber returns changeNumber
 func (c *SplitChangesCollection) ChangeNumber() int64 {
-	c.cnMutex.Lock()
-	defer c.cnMutex.Unlock()
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 	return c.changeNumber
-}
-
-// SetChangeNumber sets changeNumber
-func (c *SplitChangesCollection) SetChangeNumber(since int64) {
-	c.cnMutex.Lock()
-	c.changeNumber = since
-	c.cnMutex.Unlock()
-}
-
-// SegmentNames returns segments
-func (c *SplitChangesCollection) SegmentNames() *set.ThreadUnsafeSet {
-	segments := set.NewSet()
-	rawSplits, _ := c.FetchAll()
-
-	for _, rawSplit := range rawSplits {
-		var split *dtos.SplitDTO
-		err := json.Unmarshal([]byte(rawSplit.JSON), &split)
-		if err != nil {
-			continue
-		}
-		for _, condition := range split.Conditions {
-			for _, matcher := range condition.MatcherGroup.Matchers {
-				if matcher.UserDefinedSegment != nil {
-					segments.Add(matcher.UserDefinedSegment.SegmentName)
-				}
-
-			}
-		}
-	}
-	return segments
 }

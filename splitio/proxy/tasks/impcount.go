@@ -38,7 +38,7 @@ func (w *ImpressionCountWorker) DoWork(message interface{}) error {
 		return nil
 	}
 
-	err := w.recorder.RecordRaw("/testImpressions/counts", asCounts.Payload, asCounts.Metadata, nil)
+	err := w.recorder.RecordRaw("/testImpressions/count", asCounts.Payload, asCounts.Metadata, nil)
 	if err != nil {
 		return fmt.Errorf("error posting impression counts to split servers: %w", err)
 	}
