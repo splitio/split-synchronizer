@@ -1,18 +1,17 @@
 package mocks
 
 import (
-	"encoding/json"
-
 	"github.com/splitio/go-split-commons/v4/dtos"
+	"github.com/splitio/split-synchronizer/v4/splitio/common/impressionlistener"
 )
 
 type ImpressionBulkListenerMock struct {
-	SubmitCall func(imps json.RawMessage, metadata *dtos.Metadata) error
+	SubmitCall func(imps []impressionlistener.ImpressionsForListener, metadata *dtos.Metadata) error
 	StartCall  func() error
 	StopCall   func(blocking bool) error
 }
 
-func (l *ImpressionBulkListenerMock) Submit(imps json.RawMessage, metadata *dtos.Metadata) error {
+func (l *ImpressionBulkListenerMock) Submit(imps []impressionlistener.ImpressionsForListener, metadata *dtos.Metadata) error {
 	return l.SubmitCall(imps, metadata)
 }
 

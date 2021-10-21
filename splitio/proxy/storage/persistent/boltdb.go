@@ -12,7 +12,7 @@ import (
 
 	"github.com/splitio/go-toolkit/v5/logging"
 
-	"github.com/boltdb/bolt"
+	bolt "go.etcd.io/bbolt" // new fork maintained by etcd
 )
 
 // BoltInMemoryMode used to store ramdom db into temporal folder
@@ -21,6 +21,9 @@ const inMemoryDBName = "splitio_"
 
 // ErrorBucketNotFound error type for bucket not found
 var ErrorBucketNotFound = errors.New("Bucket not found")
+
+// ErrorKeyNotFound error type for key not found within a bucket
+var ErrorKeyNotFound = errors.New("key not found")
 
 // DBWrapper defines the interface for a Persistant storage wrapper
 type DBWrapper interface {
@@ -215,6 +218,9 @@ func (c *BoltDBCollectionWrapper) Fetch(id uint64) ([]byte, error) {
 		}
 
 		itemRef := bucket.Get(itob(id))
+		if itemRef == nil {
+			return ErrorKeyNotFound
+		}
 		item = make([]byte, len(itemRef))
 		copy(item, itemRef)
 
@@ -242,9 +248,12 @@ func (c *BoltDBCollectionWrapper) FetchBy(key []byte) ([]byte, error) {
 		}
 
 		itemRef := bucket.Get(key)
+		if itemRef == nil {
+			return ErrorKeyNotFound
+		}
+
 		item = make([]byte, len(itemRef))
 		copy(item, itemRef)
-
 		return nil
 	})
 
@@ -279,6 +288,10 @@ func (c *BoltDBCollectionWrapper) FetchAll() ([][]byte, error) {
 
 		return nil
 	})
+
+	if err != nil {
+		return nil, err
+	}
 
 	return toReturn, err
 }

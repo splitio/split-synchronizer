@@ -17,6 +17,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
+	"github.com/splitio/gincache"
 )
 
 // Options struct to set options for Proxy mode.
@@ -25,7 +26,7 @@ type Options struct {
 	Logger logging.LoggerInterface
 
 	// HTTP port to use for the server
-	Port string
+	Port int
 
 	// APIKeys used for authenticating proxy requests
 	APIKeys []string
@@ -62,6 +63,8 @@ type Options struct {
 
 	// used to record local metrics
 	Telemetry proxyStorage.ProxyEndpointTelemetry
+
+	Cache *gincache.Middleware
 }
 
 // API bundles all components required to answer API calls from split sdks
@@ -84,48 +87,40 @@ func New(options *Options) *API {
 	}
 
 	apikeyValidator := proxyMW.NewAPIKeyValidator(options.APIKeys)
-
+	authController := controllers.NewAuthServerController()
 	sdkController := setupSdkController(options)
 	eventsController := setupEventsController(options, apikeyValidator)
 	telemetryController := setupTelemetryController(options)
 
 	router := gin.New()
 	router.Use(gin.Recovery())
-
-	//CORS - Allows all origins
 	router.Use(setupCorsMiddleware())
+	router.Use(proxyMW.NewProxyLatencyMiddleware(options.Telemetry).Track)
 
-	// API routes
-	api := router.Group("/api")
-	api.Use(proxyMW.NewProxyLatencyMiddleware(options.Telemetry).Track)
-	api.Use(apikeyValidator.AsMiddleware)
-	api.Use(gzip.Gzip(gzip.DefaultCompression))
-	// api.GET("/auth", auth)
-	api.GET("/splitChanges", sdkController.SplitChanges)
-	api.GET("/segmentChanges/:name", sdkController.SegmentChanges)
-	api.GET("/mySegments/:key", sdkController.MySegments)
-	api.POST("/events/bulk", eventsController.EventsBulk)
-	api.POST("/testImpressions/bulk", eventsController.TestImpressionsBulk)
-	api.POST("/testImpressions/count", eventsController.TestImpressionsCount)
-	api.POST("/metrics/config", telemetryController.Config)
-	api.POST("/metrics/usage", telemetryController.Usage)
-	api.POST("/metrics/times", eventsController.DummyAlwaysOk)
-	api.POST("/metrics/counters", eventsController.DummyAlwaysOk)
-	api.POST("/metrics/gauge", eventsController.DummyAlwaysOk)
-	api.POST("/metrics/time", eventsController.DummyAlwaysOk)
-	api.POST("/metrics/counter", eventsController.DummyAlwaysOk)
+	// split the main router into regular & beacon endpoints
+	regular := router.Group("/api")
+	regular.Use(apikeyValidator.AsMiddleware)
+	regular.Use(gzip.Gzip(gzip.DefaultCompression))
 
-	// Beacon routes
+	// Beacon endpoints group
 	beacon := router.Group("/api")
-	beacon.POST("/testImpressions/count/beacon", eventsController.TestImpressionsCountBeacon)
-	beacon.POST("/testImpressions/beacon", eventsController.TestImpressionsBeacon)
-	beacon.POST("/events/beacon", eventsController.EventsBulkBeacon)
+
+	var cacheableRouter gin.IRouter = regular
+	// If we got a cache in the options, fork the router, add the caching middleware,
+	// and pass it to Auth & Sdk controllers
+	if options.Cache != nil {
+		cacheableRouter = router.Group("/api")
+		cacheableRouter.Use(apikeyValidator.AsMiddleware)
+		cacheableRouter.Use(options.Cache.Handle)
+		cacheableRouter.Use(gzip.Gzip(gzip.DefaultCompression))
+	}
+	authController.Register(cacheableRouter)
+	sdkController.Register(cacheableRouter)
+	eventsController.Register(regular, beacon)
+	telemetryController.Register(regular)
 
 	return &API{
-		server: &http.Server{
-			Addr:    fmt.Sprintf("0.0.0.0%s", options.Port),
-			Handler: router,
-		},
+		server:              &http.Server{Addr: fmt.Sprintf("0.0.0.0:%d", options.Port), Handler: router},
 		sdkConroller:        sdkController,
 		eventsConroller:     eventsController,
 		telemetryController: telemetryController,
