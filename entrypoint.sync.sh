@@ -47,6 +47,7 @@ FLAGS=(
     "redis-tls-skip-name-validation"
     "redis-tls-client-certificate"
     "redis-tls-client-key"
+
 # Common CLI ARGS
     "log-level"
     "log-output"
@@ -64,4 +65,4 @@ FLAGS=(
 
 source functions.sh
 cli_args=$(parse_env "SPLITIO" "$FLAGS")
-echo "${cli_args}"
+split-sync "${cli_args}"
