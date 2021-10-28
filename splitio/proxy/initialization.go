@@ -2,9 +2,10 @@ package proxy
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
-	cfg "github.com/splitio/go-split-commons/v4/conf"
+	"github.com/splitio/go-split-commons/v4/conf"
 	"github.com/splitio/go-split-commons/v4/healthcheck/application"
 	"github.com/splitio/go-split-commons/v4/service/api"
 	"github.com/splitio/go-split-commons/v4/synchronizer"
@@ -12,14 +13,13 @@ import (
 	"github.com/splitio/go-split-commons/v4/telemetry"
 	"github.com/splitio/go-toolkit/v5/logging"
 
-	"github.com/splitio/split-synchronizer/v4/conf"
 	"github.com/splitio/split-synchronizer/v4/splitio/admin"
 	adminCommon "github.com/splitio/split-synchronizer/v4/splitio/admin/common"
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
 	"github.com/splitio/split-synchronizer/v4/splitio/common/impressionlistener"
 	ssync "github.com/splitio/split-synchronizer/v4/splitio/common/sync"
-	"github.com/splitio/split-synchronizer/v4/splitio/producer/evcalc"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/caching"
+	pconf "github.com/splitio/split-synchronizer/v4/splitio/proxy/conf"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage/persistent"
 	pTasks "github.com/splitio/split-synchronizer/v4/splitio/proxy/tasks"
@@ -27,17 +27,17 @@ import (
 )
 
 // Start initialize in proxy mode
-func Start(logger logging.LoggerInterface) error {
+func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 
-	clientKey, err := util.GetClientKey(conf.Data.APIKey)
+	clientKey, err := util.GetClientKey(cfg.Apikey)
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error parsing client key from provided apikey: %w", err), common.ExitInvalidApikey)
 	}
 
 	// Initialization of DB
 	var dbpath = persistent.BoltInMemoryMode
-	if conf.Data.Proxy.PersistMemoryPath != "" {
-		dbpath = conf.Data.Proxy.PersistMemoryPath
+	if cfg.Storage.Persistent.Filename != "" {
+		dbpath = cfg.Storage.Persistent.Filename
 	}
 	dbInstance, err := persistent.NewBoltWrapper(dbpath, nil)
 	if err != nil {
@@ -49,29 +49,34 @@ func Start(logger logging.LoggerInterface) error {
 	httpCache := caching.MakeProxyCache()
 
 	// Getting initial config data
-	advanced := conf.ParseAdvancedOptions()
-	metadata := util.GetMetadata(true)
+	advanced := cfg.BuildAdvancedConfig()
+	metadata := util.GetMetadata(cfg.IPAddressEnabled, true)
 
 	// Setup fetchers & recorders
-	splitAPI := api.NewSplitAPI(conf.Data.APIKey, advanced, logger, metadata)
+	splitAPI := api.NewSplitAPI(cfg.Apikey, *advanced, logger, metadata)
 
 	// Instantiating storages
 	splitStorage := storage.NewProxySplitStorage(dbInstance, logger)
 	segmentStorage := storage.NewProxySegmentStorage(dbInstance, logger)
 
 	// Local telemetry
+	tbufferSize := int(cfg.Sync.Advanced.TelemetryBuffer)
+	tworkers := int(cfg.Sync.Advanced.TelemetryWorkers)
 	localTelemetryStorage := storage.NewProxyTelemetryFacade()
-	telemetryRecorder := api.NewHTTPTelemetryRecorder(conf.Data.APIKey, advanced, logger)
-	telemetryConfigTask := pTasks.NewTelemetryConfigFlushTask(telemetryRecorder, logger, 5, 500, 2) // TODO(mredolatti): use proper config options!
-	telemetryUsageTask := pTasks.NewTelemetryUsageFlushTask(telemetryRecorder, logger, 5, 500, 2)   // TODO(mredolatti): use proper config options!
-	impressionRecorder := api.NewHTTPImpressionRecorder(conf.Data.APIKey, advanced, logger)
+	telemetryRecorder := api.NewHTTPTelemetryRecorder(cfg.Apikey, *advanced, logger)
+	telemetryConfigTask := pTasks.NewTelemetryConfigFlushTask(telemetryRecorder, logger, 1, tbufferSize, tworkers)
+	telemetryUsageTask := pTasks.NewTelemetryUsageFlushTask(telemetryRecorder, logger, 1, tbufferSize, tworkers)
 
-	impressionTask := pTasks.NewImpressionsFlushTask(impressionRecorder, logger, 5, 2, conf.Data.ImpressionsThreads)
-	impressionCountTask := pTasks.NewImpressionCountFlushTask(impressionRecorder, logger, 5, 2, 1) // pass appropriate config
-	eventsRecorder := api.NewHTTPEventsRecorder(conf.Data.APIKey, advanced, logger)
-	eventsTask := pTasks.NewEventsFlushTask(eventsRecorder, logger, 5, 500, 2) // TODO(mredolatti): use proper config options.
+	// impression bulks & counts - events
+	ibufferSize := int(cfg.Sync.Advanced.ImpressionsBuffer)
+	iworkers := int(cfg.Sync.Advanced.ImpressionsWorkers)
+	impressionRecorder := api.NewHTTPImpressionRecorder(cfg.Apikey, *advanced, logger)
+	impressionTask := pTasks.NewImpressionsFlushTask(impressionRecorder, logger, 1, ibufferSize, iworkers)
+	impressionCountTask := pTasks.NewImpressionCountFlushTask(impressionRecorder, logger, 1, ibufferSize, iworkers)
+	eventsRecorder := api.NewHTTPEventsRecorder(cfg.Apikey, *advanced, logger)
+	eventsTask := pTasks.NewEventsFlushTask(eventsRecorder, logger, 1, int(cfg.Sync.Advanced.EventsBuffer), int(cfg.Sync.Advanced.EventsWorkers))
 
-	// Creating Workers and Tasks
+	// setup split, segments & local telemetry API interactions
 	workers := synchronizer.Workers{
 		SplitFetcher:   caching.NewCacheAwareSplitSync(splitStorage, splitAPI.SplitFetcher, logger, localTelemetryStorage, httpCache),
 		SegmentFetcher: caching.NewCacheAwareSegmentSync(splitStorage, segmentStorage, splitAPI.SegmentFetcher, logger, localTelemetryStorage, httpCache),
@@ -79,25 +84,25 @@ func Start(logger logging.LoggerInterface) error {
 			metadata, localTelemetryStorage),
 	}
 
+	// setup periodic tasks in case streaming is disabled or we need to fall back to polling
 	stasks := synchronizer.SplitTasks{
-		SplitSyncTask: tasks.NewFetchSplitsTask(workers.SplitFetcher, conf.Data.SplitsFetchRate, logger),
-		SegmentSyncTask: tasks.NewFetchSegmentsTask(workers.SegmentFetcher, conf.Data.SegmentFetchRate, advanced.SegmentWorkers,
+		SplitSyncTask: tasks.NewFetchSplitsTask(workers.SplitFetcher, int(cfg.Sync.SplitRefreshRateMs/1000), logger),
+		SegmentSyncTask: tasks.NewFetchSegmentsTask(workers.SegmentFetcher, int(cfg.Sync.SegmentRefreshRateMs/1000), advanced.SegmentWorkers,
 			advanced.SegmentQueueSize, logger),
-		TelemetrySyncTask:        tasks.NewRecordTelemetryTask(workers.TelemetryRecorder, conf.Data.MetricsPostRate, logger),
+		TelemetrySyncTask:        tasks.NewRecordTelemetryTask(workers.TelemetryRecorder, int(cfg.Sync.Advanced.InternalMetricsRateMs), logger),
 		ImpressionSyncTask:       impressionTask,
 		ImpressionsCountSyncTask: impressionCountTask,
 		EventSyncTask:            eventsTask,
 	}
 
 	// Creating Synchronizer for tasks
-	//sync := synchronizer.NewSynchronizer(advanced, stasks, workers, logger, nil)
-	sync := ssync.NewSynchronizer(advanced, stasks, workers, logger, nil, []tasks.Task{telemetryConfigTask, telemetryUsageTask})
+	sync := ssync.NewSynchronizer(*advanced, stasks, workers, logger, nil, []tasks.Task{telemetryConfigTask, telemetryUsageTask})
 
 	mstatus := make(chan int, 1)
 	syncManager, err := synchronizer.NewSynchronizerManager(
 		sync,
 		logger,
-		advanced,
+		*advanced,
 		splitAPI.AuthClient,
 		splitStorage,
 		mstatus,
@@ -119,20 +124,18 @@ func Start(logger logging.LoggerInterface) error {
 		logger.Info("Synchronizer tasks started")
 		workers.TelemetryRecorder.SynchronizeConfig(
 			telemetry.InitConfig{
-				AdvancedConfig: advanced,
-				TaskPeriods: cfg.TaskPeriods{
-					SplitSync:      conf.Data.SplitsFetchRate,
-					SegmentSync:    conf.Data.SegmentFetchRate,
-					ImpressionSync: conf.Data.ImpressionsPostRate,
-					TelemetrySync:  10, // TODO(mredolatti): Expose this as a config option
+				AdvancedConfig: *advanced,
+				TaskPeriods: conf.TaskPeriods{
+					SplitSync:     int(cfg.Sync.SplitRefreshRateMs / 1000),
+					SegmentSync:   int(cfg.Sync.SegmentRefreshRateMs / 1000),
+					TelemetrySync: int(cfg.Sync.Advanced.InternalMetricsRateMs / 1000),
 				},
-				ManagerConfig: cfg.ManagerConfig{
-					ImpressionsMode: conf.Data.ImpressionsMode,
-					ListenerEnabled: false, // listener is not by impression, this is not needed in split-sync
+				ManagerConfig: conf.ManagerConfig{
+					ListenerEnabled: cfg.Integrations.ImpressionListener.Endpoint != "",
 				},
 			},
-			time.Now().Sub(before).Milliseconds(),
-			map[string]int64{conf.Data.APIKey: 1},
+			time.Since(before).Milliseconds(),
+			map[string]int64{cfg.Apikey: 1},
 			nil,
 		)
 	case synchronizer.Error:
@@ -140,10 +143,7 @@ func Start(logger logging.LoggerInterface) error {
 		return common.NewInitError(fmt.Errorf("error instantiating sync manager: %w", err), common.ExitTaskInitialization)
 	}
 
-	rtm := common.NewRuntime(false, syncManager, logger, conf.Data.Proxy.Title, nil, nil)
-	impressionEvictionMonitor := evcalc.New(1) // TODO(mredolatti): set the correct thread count
-	eventEvictionMonitor := evcalc.New(1)      // TODO(mredolatti): set the correct thread count
-
+	rtm := common.NewRuntime(false, syncManager, logger, "Split Proxy", nil, nil)
 	storages := adminCommon.Storages{
 		SplitStorage:          splitStorage,
 		SegmentStorage:        segmentStorage,
@@ -152,17 +152,15 @@ func Start(logger logging.LoggerInterface) error {
 
 	// --------------------------- ADMIN DASHBOARD ------------------------------
 	adminServer, err := admin.NewServer(&admin.Options{
-		Host:              "0.0.0.0",
-		Port:              conf.Data.Proxy.AdminPort,
-		Name:              "Split Synchronizer dashboard (producer mode)",
-		Proxy:             true,
-		Username:          conf.Data.Proxy.AdminUsername,
-		Password:          conf.Data.Proxy.AdminPassword,
-		Logger:            logger,
-		Storages:          storages,
-		ImpressionsEvCalc: impressionEvictionMonitor,
-		EventsEvCalc:      eventEvictionMonitor,
-		Runtime:           rtm,
+		Host:     cfg.Admin.Host,
+		Port:     int(cfg.Admin.Port),
+		Name:     "Split Synchronizer dashboard (producer mode)",
+		Proxy:    true,
+		Username: cfg.Admin.Username,
+		Password: cfg.Admin.Password,
+		Logger:   logger,
+		Storages: storages,
+		Runtime:  rtm,
 	})
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error starting admin server: %w", err), common.ExitAdminError)
@@ -170,9 +168,10 @@ func Start(logger logging.LoggerInterface) error {
 	go adminServer.ListenAndServe()
 
 	proxyOptions := &Options{
-		Port:                conf.Data.Proxy.Port,
-		APIKeys:             conf.Data.Proxy.Auth.APIKeys,
-		DebugOn:             conf.Data.Logger.DebugOn,
+		Host:                cfg.Server.Host,
+		Port:                int(cfg.Server.Port),
+		APIKeys:             cfg.Server.ClientApikeys,
+		DebugOn:             strings.ToLower(cfg.Logging.Level) == "debug" || strings.ToLower(cfg.Logging.Level) == "verbose",
 		Logger:              logger,
 		ProxySplitStorage:   splitStorage,
 		SplitFetcher:        splitAPI.SplitFetcher,
@@ -186,10 +185,9 @@ func Start(logger logging.LoggerInterface) error {
 		Cache:               httpCache,
 	}
 
-	if conf.Data.ImpressionListener.Endpoint != "" {
-		// TODO(mredolatti): make the listener queue size configurable
+	if ilcfg := cfg.Integrations.ImpressionListener; ilcfg.Endpoint != "" {
 		var err error
-		proxyOptions.ImpressionListener, err = impressionlistener.NewImpressionBulkListener(conf.Data.ImpressionListener.Endpoint, 20, nil)
+		proxyOptions.ImpressionListener, err = impressionlistener.NewImpressionBulkListener(ilcfg.Endpoint, int(ilcfg.QueueSize), nil)
 		if err != nil {
 			return common.NewInitError(fmt.Errorf("error instantiating impression listener: %w", err), common.ExitTaskInitialization)
 		}
