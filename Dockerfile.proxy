@@ -5,27 +5,29 @@ WORKDIR /go/src/github.com/splitio/split-synchronizer
 
 COPY . .
 
-RUN go build -o split-sync
+RUN go build -o split-proxy cmd/proxy/main.go
 
 # Runner stage
 FROM alpine:3.14 AS runner
+RUN apk add bash
 
-RUN addgroup -g 1000 -S 'split-synchronizer'
+RUN addgroup -g 1000 -S 'split-proxy'
 RUN adduser \
     --disabled-password \
     --gecos '' \
-    --ingroup 'split-synchronizer' \
+    --ingroup 'split-proxy' \
     --no-create-home \
     --system \
     --uid 1000 \
-    'split-synchronizer'
+    'split-proxy'
 
-COPY entrypoint.sh .
+COPY functions.sh .
+COPY entrypoint.proxy.sh .
 
-COPY --from=builder /go/src/github.com/splitio/split-synchronizer/split-sync /usr/bin/
+COPY --from=builder /go/src/github.com/splitio/split-synchronizer/split-proxy /usr/bin/
 
 EXPOSE 3000 3010
 
-USER 'split-synchronizer'
+USER 'split-proxy'
 
-ENTRYPOINT ["sh", "entrypoint.sh"]
+ENTRYPOINT ["bash", "entrypoint.proxy.sh"]

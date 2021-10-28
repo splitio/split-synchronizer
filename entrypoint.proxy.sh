@@ -41,4 +41,4 @@ FLAGS=(
 
 source functions.sh
 cli_args=$(parse_env "SPLITIO" "$FLAGS")
-echo "${cli_args}"
+split-proxy "${cli_args}"
