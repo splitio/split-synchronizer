@@ -11,34 +11,34 @@ import (
 
 // HealthCheckController description
 type HealthCheckController struct {
-	logger          logging.LoggerInterface
-	appMonitor      application.MonitorIterface
-	servicesMonitor services.MonitorIterface
+	logger              logging.LoggerInterface
+	appMonitor          application.MonitorIterface
+	dependenciesMonitor services.MonitorIterface
 }
 
 func (c *HealthCheckController) appHealth(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, c.appMonitor.GetHealthStatus())
 }
 
-func (c *HealthCheckController) servicesHealth(ctx *gin.Context) {
-	ctx.JSON(http.StatusOK, c.servicesMonitor.GetHealthStatus())
+func (c *HealthCheckController) dependenciesHealth(ctx *gin.Context) {
+	ctx.JSON(http.StatusOK, c.dependenciesMonitor.GetHealthStatus())
 }
 
 // Register the dashboard endpoints
 func (c *HealthCheckController) Register(router gin.IRouter) {
 	router.GET("/health/application", c.appHealth)
-	router.GET("/health/services", c.servicesHealth)
+	router.GET("/health/dependencies", c.dependenciesHealth)
 }
 
 // NewHealthCheckController instantiates a new HealthCheck controller
 func NewHealthCheckController(
 	logger logging.LoggerInterface,
 	appMonitor application.MonitorIterface,
-	servicesMonitor services.MonitorIterface,
+	dependenciesMonitor services.MonitorIterface,
 ) *HealthCheckController {
 	return &HealthCheckController{
-		logger:          logger,
-		appMonitor:      appMonitor,
-		servicesMonitor: servicesMonitor,
+		logger:              logger,
+		appMonitor:          appMonitor,
+		dependenciesMonitor: dependenciesMonitor,
 	}
 }

@@ -278,7 +278,8 @@ const mainScript = `
   }
   
   function handleHealthcheck(response) {
-    $('#healthy_since').text(response.healthySince.time);
+    const dateHealthy = new Date(Date.parse(response.healthySince)).toLocaleString()
+    $('#healthy_since').text(dateHealthy);
     $('#uptime').text(response.uptime);
   
     if (response.sdk.healthy) {
@@ -435,7 +436,8 @@ const mainScript = `
   };
 
   function updateHealthCards(health) {
-      $('#healthy_since').html(health.healthySince);
+      const dateHealthy = new Date(Date.parse(health.healthySince)).toLocaleString()
+      $('#healthy_since').html(dateHealthy);
       if (health.sdkServerStatus) {
         $('#sdk_server_div_error').addClass('hidden')
       } else {

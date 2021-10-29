@@ -15,6 +15,7 @@ import (
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
 	"github.com/splitio/split-synchronizer/v4/splitio/log"
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/evcalc"
+	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application"
 )
 
 // DashboardController contains handlers for rendering the dashboard and its associated FE queries
@@ -28,6 +29,7 @@ type DashboardController struct {
 	eventsEvCalc       evcalc.Monitor
 	runtime            common.Runtime
 	dataControllerPath string
+	appMonitor         application.MonitorIterface
 }
 
 // NewDashboardController instantiates a new dashboard controller
@@ -40,6 +42,7 @@ func NewDashboardController(
 	eventsEvCalc evcalc.Monitor,
 	runtime common.Runtime,
 	dataController *DataManagerController,
+	appMonitor application.MonitorIterface,
 ) (*DashboardController, error) {
 
 	var dataControllerPath string
@@ -56,6 +59,7 @@ func NewDashboardController(
 		eventsEvCalc:       eventsEvCalc,
 		impressionsEvCalc:  impressionEvCalc,
 		dataControllerPath: dataControllerPath,
+		appMonitor:         appMonitor,
 	}
 
 	var err error
@@ -113,14 +117,13 @@ func (c *DashboardController) renderDashboard() ([]byte, error) {
 
 	var layoutBuffer bytes.Buffer
 	err := c.layout.Execute(&layoutBuffer, dashboard.DashboardInitializationVars{
-		DashboardTitle: c.title,
-		RunningMode:    runningMode,
-		Version:        splitio.Version,
-		ProxyMode:      c.proxy,
-		RefreshTime:    10000,
-		Stats:          *c.gatherStats(),
-		//TODO(sanzmauro): check this with redo.
-		//Health:             c.gatApplicationHealthInfo(),
+		DashboardTitle:     c.title,
+		RunningMode:        runningMode,
+		Version:            splitio.Version,
+		ProxyMode:          c.proxy,
+		RefreshTime:        10000,
+		Stats:              *c.gatherStats(),
+		Health:             c.appMonitor.GetHealthStatus(),
 		DataControllerPath: c.dataControllerPath,
 	})
 
