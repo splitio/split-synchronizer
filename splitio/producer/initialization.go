@@ -90,7 +90,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	}
 
 	// Creating Workers and Tasks
-	eventEvictionMonitor := evcalc.New(1) // TODO(mredolatti): set the correct thread count
+	eventEvictionMonitor := evcalc.New(cfg.Sync.EventsWorkers)
 	eventRecorder := worker.NewEventRecorderMultiple(storages.EventStorage, splitAPI.EventRecorder, syncTelemetryStorage, eventEvictionMonitor, logger)
 
 	workers := synchronizer.Workers{
@@ -108,14 +108,13 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 			advanced.SegmentWorkers, advanced.SegmentQueueSize, logger),
 		// local telemetry
 		TelemetrySyncTask: tasks.NewRecordTelemetryTask(workers.TelemetryRecorder, int(cfg.Sync.Advanced.InternalMetricsRateMs)/1000, logger),
-		EventSyncTask: tasks.NewRecordEventsTasks(workers.EventRecorder, advanced.EventsBulkSize, 5, // TODO: see if we remove this
-			logger, 1), // TODO:See if we remove this
+		EventSyncTask: tasks.NewRecordEventsTasks(workers.EventRecorder, cfg.Sync.EventsBulkSize, int(cfg.Sync.EventsPushRateMs),
+			logger, cfg.Sync.EventsWorkers),
 	}
 
-	impressionEvictionMonitor := evcalc.New(1) // TODO(mredolatti): set the correct thread count
+	impressionEvictionMonitor := evcalc.New(cfg.Sync.ImpressionsWorkers)
 	var impListener impressionlistener.ImpressionBulkListener
 	if cfg.Integrations.ImpressionListener.Endpoint != "" {
-		// TODO(mredolatti): make the listener queue size configurable
 		var err error
 		impListener, err = impressionlistener.NewImpressionBulkListener(
 			cfg.Integrations.ImpressionListener.Endpoint,
@@ -146,8 +145,8 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error instantiating impression recorder: %w", err), common.ExitTaskInitialization)
 	}
-	splitTasks.ImpressionSyncTask = tasks.NewRecordImpressionsTasks(impressionRecorder, 5, logger, // TODO: set appropriate impressions rate
-		advanced.ImpressionsBulkSize, cfg.Sync.Advanced.ImpressionsPostConcurrency)
+	splitTasks.ImpressionSyncTask = tasks.NewRecordImpressionsTasks(impressionRecorder, int(cfg.Sync.ImpressionsPushRateMs)/1000, logger,
+		cfg.Sync.ImpressionsBulkSize, cfg.Sync.ImpressionsWorkers)
 
 	sdkTelemetryWorker := worker.NewTelemetryMultiWorker(logger, sdkTelemetryStorage, splitAPI.TelemetryRecorder)
 	sdkTelemetryTask := task.NewTelemetrySyncTask(sdkTelemetryWorker, logger, 10)

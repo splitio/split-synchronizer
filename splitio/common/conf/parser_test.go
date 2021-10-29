@@ -14,6 +14,7 @@ type nestedConf struct {
 }
 
 type someConf struct {
+	F0 int        `s-cli:"f0" s-def:"42"`
 	F1 int64      `s-cli:"f1" s-def:"123"`
 	F2 string     `s-cli:"f2" s-def:"HOLA"`
 	F3 bool       `s-cli:"f3" s-def:"false"`
@@ -23,6 +24,7 @@ type someConf struct {
 
 func TestArgMap(t *testing.T) {
 	m := make(ArgMap)
+	m["e0"] = common.IntRef(42)
 	m["e1"] = common.Int64Ref(123)
 	m["e2"] = common.StringRef("HOLA")
 	m["e3"] = common.StringRef("e1,e2")

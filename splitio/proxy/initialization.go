@@ -17,6 +17,7 @@ import (
 	adminCommon "github.com/splitio/split-synchronizer/v4/splitio/admin/common"
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
 	"github.com/splitio/split-synchronizer/v4/splitio/common/impressionlistener"
+	"github.com/splitio/split-synchronizer/v4/splitio/common/snapshot"
 	ssync "github.com/splitio/split-synchronizer/v4/splitio/common/sync"
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/caching"
 	pconf "github.com/splitio/split-synchronizer/v4/splitio/proxy/conf"
@@ -36,9 +37,20 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 
 	// Initialization of DB
 	var dbpath = persistent.BoltInMemoryMode
-	if cfg.Storage.Persistent.Filename != "" {
-		dbpath = cfg.Storage.Persistent.Filename
+	if snapFile := cfg.Initialization.Snapshot; snapFile != "" {
+		snap, err := snapshot.DecodeFromFile(snapFile)
+		if err != nil {
+			return fmt.Errorf("error parsing snapshot file: %w", err)
+		}
+
+		dbpath, err = snap.WriteDataToTmpFile()
+		if err != nil {
+			return fmt.Errorf("error writing temporary snapshot file: %w", err)
+		}
+
+		logger.Debug("Database created from snapshot at", dbpath)
 	}
+
 	dbInstance, err := persistent.NewBoltWrapper(dbpath, nil)
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error instantiating boltdb: %w", err), common.ExitErrorDB)
@@ -139,8 +151,12 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 			nil,
 		)
 	case synchronizer.Error:
-		logger.Error("Initial synchronization failed. Either split is unreachable or the APIKey is incorrect. Aborting execution.")
-		return common.NewInitError(fmt.Errorf("error instantiating sync manager: %w", err), common.ExitTaskInitialization)
+		if cfg.Initialization.Snapshot == "" {
+			// If we started from a snapshot, failure to sinchronize should not bring the app down
+			logger.Error("Initial synchronization failed. Either split is unreachable or the APIKey is incorrect. Aborting execution.")
+			return common.NewInitError(fmt.Errorf("error instantiating sync manager: %w", err), common.ExitTaskInitialization)
+		}
+		logger.Warning("Failed to perform initial sync with split servers but continuing from snapshot. Will keep retrying in BG")
 	}
 
 	rtm := common.NewRuntime(false, syncManager, logger, "Split Proxy", nil, nil)
@@ -152,15 +168,16 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 
 	// --------------------------- ADMIN DASHBOARD ------------------------------
 	adminServer, err := admin.NewServer(&admin.Options{
-		Host:     cfg.Admin.Host,
-		Port:     int(cfg.Admin.Port),
-		Name:     "Split Synchronizer dashboard (producer mode)",
-		Proxy:    true,
-		Username: cfg.Admin.Username,
-		Password: cfg.Admin.Password,
-		Logger:   logger,
-		Storages: storages,
-		Runtime:  rtm,
+		Host:        cfg.Admin.Host,
+		Port:        int(cfg.Admin.Port),
+		Name:        "Split Synchronizer dashboard (producer mode)",
+		Proxy:       true,
+		Username:    cfg.Admin.Username,
+		Password:    cfg.Admin.Password,
+		Logger:      logger,
+		Storages:    storages,
+		Runtime:     rtm,
+		Snapshotter: dbInstance,
 	})
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error starting admin server: %w", err), common.ExitAdminError)

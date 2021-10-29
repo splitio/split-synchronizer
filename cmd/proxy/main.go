@@ -39,11 +39,10 @@ func setupConfig(cliArgs *cconf.CliFlags) (*conf.Main, error) {
 
 func main() {
 	fmt.Println(splitio.ASCILogo)
-	fmt.Printf("\nSplit Synchronizer - Version: %s (%s) \n", splitio.Version, splitio.CommitVersion)
+	fmt.Printf("\nSplit Proxy - Version: %s (%s) \n", splitio.Version, splitio.CommitVersion)
 
 	cliArgs := parseCliArgs()
-	if *cliArgs.VersionInfo {
-		fmt.Printf("\nSplit Synchronizer - Version: %s (%s) \n", splitio.Version, splitio.CommitVersion)
+	if *cliArgs.VersionInfo { //already printed, we can now exit
 		os.Exit(exitCodeSuccess)
 	}
 
@@ -61,8 +60,7 @@ func main() {
 		os.Exit(exitCodeConfigError)
 	}
 
-	logger := log.BuildFromConfig(&cfg.Logging)
-	// log.PostStartedMessageToSlack() // TODO(mredolatti)
+	logger := log.BuildFromConfig(&cfg.Logging, "Split-Proxy", &cfg.Integrations.Slack)
 	err = proxy.Start(logger, cfg)
 
 	if err == nil {
