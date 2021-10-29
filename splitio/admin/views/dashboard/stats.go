@@ -4,13 +4,13 @@ const cards = `
 {{define "Cards"}}
   <div role="tabpanel" class="tab-pane active" id="split-dashboard">
     <div class="row">
-      <div class="col-md-3">
+      <div class="col-md-2">
         <div class="gray1Box metricBox">
           <h4>Uptime</h4>
           <h1 id="uptime" class="centerText"></h1>
         </div>
       </div>
-      <div class="col-md-3">
+      <div class="col-md-4">
         <div class="gray1Box metricBox">
           <h4>Healthy Since</h4>
           <h1 id="healthy_since" class="centerText"></h1>
@@ -121,30 +121,54 @@ const cards = `
             <h1 id="sdk_server" class="centerText">ERROR</h1>
           </div>
         </div>
-        <div id="event_server_div_ok" class="col-md-2">
+        <div id="event_server_div_ok" class="col-md-1">
           <div class="green1Box metricBox">
-            <h4>Events Server</h4>
+            <h4>Events</h4>
             <h1 id="event_server" class="centerText">OK</h1>
           </div>
         </div>
-        <div id="event_server_div_error" class="col-md-2 hidden">
+        <div id="streaming_div_error" class="col-md-1 hidden">
           <div class="red1Box metricBox">
-            <h4>Events Server</h4>
-            <h1 id="event_server" class="centerText">ERROR</h1>
+            <h4>Events</h4>
+            <h1 id="streamingr" class="centerText">ERROR</h1>
           </div>
         </div>
-        <div id="auth_server_div_ok" class="col-md-2">
+        <div id="streaming_div_ok" class="col-md-1">
+          <div class="green1Box metricBox">
+            <h4>Streaming</h4>
+            <h1 id="streaming" class="centerText">OK</h1>
+          </div>
+      </div>
+      <div id="streaming_div_error" class="col-md-1 hidden">
+        <div class="red1Box metricBox">
+          <h4>Streaming</h4>
+          <h1 id="streaming" class="centerText">ERROR</h1>
+        </div>
+      </div>
+        <div id="auth_server_div_ok" class="col-md-1">
           <div class="green1Box metricBox">
             <h4>Auth</h4>
             <h1 id="auth" class="centerText">OK</h1>
           </div>
         </div>
-        <div id="auth_server_div_error" class="col-md-2 hidden">
+        <div id="auth_server_div_error" class="col-md-1 hidden">
           <div class="red1Box metricBox">
             <h4>Auth</h4>
             <h1 id="auth" class="centerText">ERROR</h1>
           </div>
         </div>
+        <div id="telemetry_server_div_ok" class="col-md-1">
+        <div class="green1Box metricBox">
+          <h4>Telemetry</h4>
+          <h1 id="telemetry" class="centerText">OK</h1>
+        </div>
+      </div>
+      <div id="telemetry_server_div_error" class="col-md-1 hidden">
+        <div class="red1Box metricBox">
+          <h4>Telemetry</h4>
+          <h1 id="telemetry" class="centerText">ERROR</h1>
+        </div>
+      </div>
         <div id="storage_div_ok" class="col-md-1">
           <div class="green1Box metricBox">
             <h4>Storage</h4>
@@ -166,43 +190,67 @@ const cards = `
       </div>
     {{else}}
       <div class="row">
-        <div id="sdk_server_div_ok" class="col-md-3">
+        <div id="sdk_server_div_ok" class="col-md-2">
           <div class="green1Box metricBox">
             <h4>SDK Server</h4>
             <h1 id="sdk_server" class="centerText">OK</h1>
           </div>
         </div>
-        <div id="sdk_server_div_error" class="col-md-3 hidden">
+        <div id="sdk_server_div_error" class="col-md-2 hidden">
           <div class="red1Box metricBox">
             <h4>SDK Server</h4>
             <h1 id="sdk_server" class="centerText">ERROR</h1>
           </div>
         </div>
-        <div id="event_server_div_ok" class="col-md-3">
+        <div id="event_server_div_ok" class="col-md-2">
           <div class="green1Box metricBox">
             <h4>Events Server</h4>
             <h1 id="event_server" class="centerText">OK</h1>
           </div>
         </div>
-        <div id="event_server_div_error" class="col-md-3 hidden">
+        <div id="event_server_div_error" class="col-md-2 hidden">
           <div class="red1Box metricBox">
             <h4>Events Server</h4>
             <h1 id="event_server" class="centerText">ERROR</h1>
           </div>
         </div>
-        <div id="auth_server_div_ok" class="col-md-3">
+        <div id="telemetry_server_div_ok" class="col-md-2">
+        <div class="green1Box metricBox">
+          <h4>Telemetry</h4>
+          <h1 id="telemetry" class="centerText">OK</h1>
+        </div>
+      </div>
+      <div id="telemetry_server_div_error" class="col-md-2 hidden">
+        <div class="red1Box metricBox">
+          <h4>Telemetry</h4>
+          <h1 id="telemetry" class="centerText">ERROR</h1>
+        </div>
+      </div>
+        <div id="auth_server_div_ok" class="col-md-2">
           <div class="green1Box metricBox">
             <h4>Auth</h4>
             <h1 id="auth" class="centerText">OK</h1>
           </div>
         </div>
-        <div id="auth_server_div_error" class="col-md-3 hidden">
+        <div id="auth_server_div_error" class="col-md-2 hidden">
           <div class="red1Box metricBox">
             <h4>Auth</h4>
             <h1 id="auth" class="centerText">ERROR</h1>
           </div>
         </div>
-        <div class="col-md-3">
+        <div id="streaming_div_error" class="col-md-2 hidden">
+        <div class="red1Box metricBox">
+          <h4>Events</h4>
+          <h1 id="streamingr" class="centerText">ERROR</h1>
+        </div>
+      </div>
+      <div id="streaming_div_ok" class="col-md-2">
+        <div class="green1Box metricBox">
+          <h4>Streaming</h4>
+          <h1 id="streaming" class="centerText">OK</h1>
+        </div>
+    </div>
+        <div class="col-md-2">
           <div class="green1Box metricBox">
             <h4>Sync</h4>
             <h1 id="sync" class="centerText">OK</h1>
