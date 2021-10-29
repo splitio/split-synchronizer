@@ -58,6 +58,7 @@ func NewServer(options *Options) (*http.Server, error) {
 		options.EventsEvCalc,
 		options.Runtime,
 		dataController,
+		options.HcAppMonitor,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error instantiating dashboard controller: %w", err)
