@@ -1,4 +1,16 @@
-#!/bin/env sh
+#!/bin/env bash
+
+function parse_flags_from_conf_file() {
+    fn=$1
+
+    regex=".*s-cli:\"([^ ]+)\" .*"
+    while IFS="" read -r line || [ -n "$line" ]; do
+        if [[ $line =~ $regex ]]; then
+            name="${BASH_REMATCH[1]}"
+            echo $name
+        fi
+    done < $fn
+}
 
 function flag_to_env_var() {
     prefix=$1

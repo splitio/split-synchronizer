@@ -32,9 +32,12 @@ type ProxySegmentStorageImpl struct {
 
 // NewProxySegmentStorage for proxy
 func NewProxySegmentStorage(db persistent.DBWrapper, logger logging.LoggerInterface) *ProxySegmentStorageImpl {
+	cache := optimized.NewMySegmentsCache()
+	disk := persistent.NewSegmentChangesCollection(db, logger)
+	populateCacheFromDisk(cache, disk, logger)
 	return &ProxySegmentStorageImpl{
-		db:         persistent.NewSegmentChangesCollection(db, logger),
-		mysegments: optimized.NewMySegmentsCache(),
+		db:         disk,
+		mysegments: cache,
 		logger:     logger,
 	}
 }
@@ -156,4 +159,22 @@ func (s *ProxySegmentStorageImpl) CountRemovedKeys(segmentName string) int {
 	}
 
 	return removedKeys
+}
+
+func populateCacheFromDisk(dst optimized.MySegmentsCache, src *persistent.SegmentChangesCollection, logger logging.LoggerInterface) {
+	all, err := src.FetchAll()
+	if err != nil {
+		logger.Error("error popoulating segment cache from disk. Cache will be empty!: ", err)
+		return
+	}
+
+	for idx := range all {
+		s := set.NewSet()
+		for _, k := range all[idx].Keys {
+			if !k.Removed {
+				s.Add(k.Name)
+			}
+		}
+		dst.Update(all[idx].Name, s, set.NewSet())
+	}
 }

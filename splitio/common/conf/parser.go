@@ -16,6 +16,7 @@ const (
 
 	typeString      = "string"
 	typeStringSlice = "[]string"
+	typeInt         = "int"
 	typeInt64       = "int64"
 	typeBool        = "bool"
 )
@@ -37,32 +38,6 @@ func PopulateDefaults(target interface{}) error {
 func PopulateFromArguments(target interface{}, argMap ArgMap) {
 	populateFromArgsRecursive(reflect.ValueOf(target).Elem(), argMap)
 }
-
-// func loadFile(path string) error {
-// 	if _, err := os.Stat(path); !os.IsNotExist(err) {
-// 		dat, err := ioutil.ReadFile(path)
-// 		if err != nil {
-// 			fmt.Println(err.Error())
-// 		}
-// 		err = json.Unmarshal(dat, &Data)
-// 		if err != nil {
-// 			fmt.Println(err.Error())
-// 		}
-//
-// 		var Config ConfigData
-// 		err = validator.ValidateConfiguration(Config, dat)
-// 		if err != nil {
-// 			fmt.Println(err.Error())
-// 			return err
-// 		}
-// 	}
-// 	return nil
-// }
-
-// LoadFromFile configuration values from file
-// func LoadFromFile(path string) error {
-// 	return loadFile(path)
-// }
 
 // ArgMap is a type alias used to hold values parsed from CLI arguments, used to populate a config structure
 type ArgMap map[string]interface{}
@@ -101,12 +76,49 @@ func (m ArgMap) getInt64(name string) (int64, bool) {
 		return 0, false
 	}
 
-	asIntPointer, ok := v.(*int64)
-	if !ok || asIntPointer == nil {
-		return 0, false
+	switch asInt := v.(type) {
+	case *int8:
+		if asInt == nil {
+			return 0, false
+		}
+		return int64(*asInt), true
+	case *uint8:
+		if asInt == nil {
+			return 0, false
+		}
+		return int64(*asInt), true
+	case *int16:
+		if asInt == nil {
+			return 0, false
+		}
+		return int64(*asInt), true
+	case *uint16:
+		if asInt == nil {
+			return 0, false
+		}
+		return int64(*asInt), true
+	case *int32:
+		if asInt == nil {
+			return 0, false
+		}
+		return int64(*asInt), true
+	case *uint32:
+		if asInt == nil {
+			return 0, false
+		}
+		return int64(*asInt), true
+	case *int64:
+		if asInt == nil {
+			return 0, false
+		}
+		return int64(*asInt), true
+	case *uint64:
+		if asInt == nil {
+			return 0, false
+		}
+		return int64(*asInt), true
 	}
-
-	return *asIntPointer, true
+	return 0, false
 }
 
 func (m ArgMap) getStringSlice(name string) ([]string, bool) {
@@ -143,7 +155,6 @@ func loadDefaultValuesRecursive(val reflect.Value) {
 		switch attributeType {
 		case typeString:
 			val.Field(i).SetString(def)
-			break
 		case typeStringSlice:
 			auxSlice := defaultStringSliceFromString(def)
 			rval := reflect.MakeSlice(typeField.Type, len(auxSlice), cap(auxSlice))
@@ -151,13 +162,10 @@ func loadDefaultValuesRecursive(val reflect.Value) {
 				rval.Index(idx).SetString(v)
 			}
 			val.Field(i).Set(rval)
-			break
-		case typeInt64:
+		case typeInt, typeInt64:
 			val.Field(i).SetInt(defaultInt64FromString(def))
-			break
 		case typeBool:
 			val.Field(i).SetBool(defaultBoolFromString(def))
-			break
 		}
 	}
 }
@@ -187,7 +195,6 @@ func populateFromArgsRecursive(val reflect.Value, cliParametersMap ArgMap) {
 			if ok && v != defaultVal {
 				val.Field(i).SetString(v)
 			}
-			break
 		case typeStringSlice:
 			v, ok := cliParametersMap.getStringSlice(cliArgName)
 			if ok && !strSliceEquals(v, strings.Split(defaultVal, ",")) {
@@ -197,31 +204,21 @@ func populateFromArgsRecursive(val reflect.Value, cliParametersMap ArgMap) {
 				}
 				val.Field(i).Set(rval)
 			}
-			break
-		case typeInt64:
+		case typeInt, typeInt64:
 			v, ok := cliParametersMap.getInt64(cliArgName)
 			defaultValInt64, _ := strconv.ParseInt(defaultVal, 10, 64)
 			if ok && v != defaultValInt64 {
-				val.Field(i).SetInt(int64(v))
+				val.Field(i).SetInt(v)
 			}
-			break
 		case typeBool:
 			v, ok := cliParametersMap.getBool(cliArgName)
 			defaultValBool, _ := strconv.ParseBool(defaultVal)
 			if ok && v != defaultValBool {
 				val.Field(i).SetBool(v)
 			}
-			break
 		}
 	}
 }
-
-// LoadFromArgs loads configuration values from cli
-// func LoadFromArgs(cliParametersMap map[string]interface{}) {
-// 	// getting reflection pointer to configuration data struct
-// 	var configDataReflection = reflect.ValueOf(&Data).Elem()
-// 	loadFromArgsRecursiveChildren(configDataReflection, cliParametersMap)
-// }
 
 func cliParametersRecursive(val reflect.Value) ArgMap {
 	var toReturn = make(ArgMap)
@@ -249,7 +246,7 @@ func cliParametersRecursive(val reflect.Value) ArgMap {
 		switch typeField.Type.String() {
 		case typeString, typeStringSlice: // flags for string & []string are set as strings
 			toReturn[cliArgName] = flag.String(cliArgName, def, desc)
-		case typeInt64:
+		case typeInt, typeInt64:
 			toReturn[cliArgName] = flag.Int64(cliArgName, defaultInt64FromString(def), desc)
 		case typeBool:
 			toReturn[cliArgName] = flag.Bool(cliArgName, defaultBoolFromString(def), desc)

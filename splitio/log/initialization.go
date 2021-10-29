@@ -5,6 +5,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net/url"
 	"os"
 	"strings"
 
@@ -22,7 +23,7 @@ func meansStdout(s string) bool {
 }
 
 // BuildFromConfig creates a logger from a config
-func BuildFromConfig(cfg *conf.Logging) *HistoricLoggerWrapper {
+func BuildFromConfig(cfg *conf.Logging, prefix string, slackCfg *conf.Slack) *HistoricLoggerWrapper {
 	var err error
 	var mainWriter io.Writer = os.Stdout
 
@@ -40,11 +41,11 @@ func BuildFromConfig(cfg *conf.Logging) *HistoricLoggerWrapper {
 		}
 	}
 
-	// TODO!
-	//_, err = url.ParseRequestURI(conf.Data.Logger.SlackWebhookURL)
-	//if err == nil {
-	//	slackWriter = syncLog.NewSlackWriter(conf.Data.Logger.SlackWebhookURL, conf.Data.Logger.SlackChannel, 30*time.Second)
-	//}
+	nonDebugWriter := mainWriter
+	_, err = url.ParseRequestURI(slackCfg.Webhook)
+	if err == nil && slackCfg.Channel != "" {
+		nonDebugWriter = io.MultiWriter(mainWriter, NewSlackWriter(slackCfg.Webhook, slackCfg.Channel))
+	}
 
 	var level int
 	switch strings.ToUpper(cfg.Level) {
@@ -66,12 +67,12 @@ func BuildFromConfig(cfg *conf.Logging) *HistoricLoggerWrapper {
 	buffered := [5]bool{true, true, true, false, false}
 	return NewHistoricLoggerWrapper(logging.NewLogger(&logging.LoggerOptions{
 		StandardLoggerFlags: log.Ldate | log.Ltime | log.Lshortfile,
-		Prefix:              "SPLITIO-AGENT ",
+		Prefix:              prefix,
 		VerboseWriter:       mainWriter,
 		DebugWriter:         mainWriter,
-		InfoWriter:          mainWriter,
-		WarningWriter:       mainWriter,
-		ErrorWriter:         mainWriter,
+		InfoWriter:          nonDebugWriter,
+		WarningWriter:       nonDebugWriter,
+		ErrorWriter:         nonDebugWriter,
 		LogLevel:            level,
 		ExtraFramesToSkip:   1,
 	}), buffered, 5)

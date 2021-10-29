@@ -43,7 +43,6 @@ func main() {
 
 	cliArgs := parseCliArgs()
 	if *cliArgs.VersionInfo {
-		fmt.Printf("\nSplit Synchronizer - Version: %s (%s) \n", splitio.Version, splitio.CommitVersion)
 		os.Exit(exitCodeSuccess)
 	}
 
@@ -61,8 +60,7 @@ func main() {
 		os.Exit(exitCodeConfigError)
 	}
 
-	logger := log.BuildFromConfig(&cfg.Logging)
-	// log.PostStartedMessageToSlack() // TODO(mredolatti)
+	logger := log.BuildFromConfig(&cfg.Logging, "Split-Sync", &cfg.Integrations.Slack)
 	err = producer.Start(logger, cfg)
 
 	if err == nil {

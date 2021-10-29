@@ -32,4 +32,5 @@ type ImpressionListener struct {
 // Slack configuration options
 type Slack struct {
 	Webhook string `json:"webhook" s-cli:"slack-webhook" s-def:"" s-desc:"slack webhook to post log messages"`
+	Channel string `json:"channel" s-cli:"slack-channel" s-def:"" s-desc:"slack channel to post log messages"`
 }
