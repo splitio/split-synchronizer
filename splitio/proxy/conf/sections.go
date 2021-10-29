@@ -16,6 +16,7 @@ type Main struct {
 	Sync             Sync              `json:"sync" s-nested:"true"`
 	Integrations     conf.Integrations `json:"integrations" s-nested:"true"`
 	Logging          conf.Logging      `json:"logging" s-nested:"true"`
+	Healthcheck      Healthcheck       `json:"healthcheck" s-nested:"true"`
 }
 
 // BuildAdvancedConfig generates a commons-compatible advancedconfig with default + overriden parameters
@@ -78,4 +79,14 @@ type AdvancedSync struct {
 	EventsWorkers         int64 `json:"eventsWorkers" s-cli:"events-workers" s-def:"10" s-desc:"#workers to forward events to split servers"`
 	TelemetryWorkers      int64 `json:"telemetryWorkers" s-cli:"telemetry-workers" s-def:"10" s-desc:"#workers to forward telemetry to split servers"`
 	InternalMetricsRateMs int64 `json:"internalTelemetryRateMs" s-cli:"internal-metrics-rate-ms" s-def:"3600000" s-desc:"How often to send internal metrics"`
+}
+
+// Healthcheck configuration options
+type Healthcheck struct {
+	Dependecies HealthcheckDependecines `json:"dependencies" s-nested:"true"`
+}
+
+// HealthcheckDependecines configuration options
+type HealthcheckDependecines struct {
+	DependenciesCheckRateMs int64 `json:"dependenciesCheckRateMs" s-cli:"dependencies-check-rate-ms" s-def:"3600000" s-desc:"How often to check dependecies health"`
 }
