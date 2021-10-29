@@ -26,7 +26,7 @@ type Options struct {
 	Logger logging.LoggerInterface
 
 	// HTTP port to use for the server
-	Port string
+	Port int
 
 	// APIKeys used for authenticating proxy requests
 	APIKeys []string
@@ -105,14 +105,14 @@ func New(options *Options) *API {
 	// Beacon endpoints group
 	beacon := router.Group("/api")
 
+	var cacheableRouter gin.IRouter = regular
 	// If we got a cache in the options, fork the router, add the caching middleware,
 	// and pass it to Auth & Sdk controllers
-	var cacheableRouter gin.IRouter = regular
 	if options.Cache != nil {
 		cacheableRouter = router.Group("/api")
 		cacheableRouter.Use(apikeyValidator.AsMiddleware)
-		cacheableRouter.Use(gzip.Gzip(gzip.DefaultCompression))
 		cacheableRouter.Use(options.Cache.Handle)
+		cacheableRouter.Use(gzip.Gzip(gzip.DefaultCompression))
 	}
 	authController.Register(cacheableRouter)
 	sdkController.Register(cacheableRouter)
@@ -120,7 +120,7 @@ func New(options *Options) *API {
 	telemetryController.Register(regular)
 
 	return &API{
-		server:              &http.Server{Addr: fmt.Sprintf("0.0.0.0%s", options.Port), Handler: router},
+		server:              &http.Server{Addr: fmt.Sprintf("0.0.0.0:%d", options.Port), Handler: router},
 		sdkConroller:        sdkController,
 		eventsConroller:     eventsController,
 		telemetryController: telemetryController,
