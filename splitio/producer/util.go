@@ -14,11 +14,11 @@ import (
 	"github.com/splitio/go-split-commons/v4/service"
 	"github.com/splitio/go-split-commons/v4/storage/redis"
 	"github.com/splitio/go-toolkit/v5/logging"
-	"github.com/splitio/split-synchronizer/v4/conf"
+	"github.com/splitio/split-synchronizer/v4/splitio/producer/conf"
 	"github.com/splitio/split-synchronizer/v4/splitio/util"
 )
 
-func parseTLSConfig(opt conf.RedisSection) (*tls.Config, error) {
+func parseTLSConfig(opt *conf.Redis) (*tls.Config, error) {
 	if !opt.TLS {
 		return nil, nil
 	}
@@ -71,34 +71,34 @@ func parseTLSConfig(opt conf.RedisSection) (*tls.Config, error) {
 	return &cfg, nil
 }
 
-func parseRedisOptions() (*config.RedisConfig, error) {
-	tlsCfg, err := parseTLSConfig(conf.Data.Redis)
+func parseRedisOptions(cfg *conf.Redis) (*config.RedisConfig, error) {
+	tlsCfg, err := parseTLSConfig(cfg)
 	if err != nil {
 		return nil, errors.New("Error in Redis TLS Configuration")
 	}
 
 	redisCfg := &config.RedisConfig{
-		Password:     conf.Data.Redis.Pass,
-		Prefix:       conf.Data.Redis.Prefix,
-		Network:      conf.Data.Redis.Network,
-		MaxRetries:   conf.Data.Redis.MaxRetries,
-		DialTimeout:  conf.Data.Redis.DialTimeout,
-		ReadTimeout:  conf.Data.Redis.ReadTimeout,
-		WriteTimeout: conf.Data.Redis.WriteTimeout,
-		PoolSize:     conf.Data.Redis.PoolSize,
+		Password:     cfg.Pass,
+		Prefix:       cfg.Prefix,
+		Network:      cfg.Network,
+		MaxRetries:   cfg.MaxRetries,
+		DialTimeout:  cfg.DialTimeout,
+		ReadTimeout:  cfg.ReadTimeout,
+		WriteTimeout: cfg.WriteTimeout,
+		PoolSize:     cfg.PoolSize,
 		TLSConfig:    tlsCfg,
 	}
 
-	if conf.Data.Redis.SentinelReplication {
-		redisCfg.SentinelAddresses = strings.Split(conf.Data.Redis.SentinelAddresses, ",")
-		redisCfg.SentinelMaster = conf.Data.Redis.SentinelMaster
-	} else if conf.Data.Redis.ClusterMode {
-		redisCfg.ClusterKeyHashTag = conf.Data.Redis.ClusterKeyHashTag
-		redisCfg.ClusterNodes = strings.Split(conf.Data.Redis.ClusterNodes, ",")
+	if cfg.SentinelReplication {
+		redisCfg.SentinelAddresses = strings.Split(cfg.SentinelAddresses, ",")
+		redisCfg.SentinelMaster = cfg.SentinelMaster
+	} else if cfg.ClusterMode {
+		redisCfg.ClusterKeyHashTag = cfg.ClusterKeyHashTag
+		redisCfg.ClusterNodes = strings.Split(cfg.ClusterNodes, ",")
 	} else {
-		redisCfg.Host = conf.Data.Redis.Host
-		redisCfg.Port = conf.Data.Redis.Port
-		redisCfg.Database = conf.Data.Redis.Db
+		redisCfg.Host = cfg.Host
+		redisCfg.Port = cfg.Port
+		redisCfg.Database = cfg.Db
 	}
 	return redisCfg, nil
 }
@@ -108,15 +108,15 @@ func isValidApikey(splitFetcher service.SplitFetcher) bool {
 	return err == nil
 }
 
-func sanitizeRedis(miscStorage *redis.MiscStorage, logger logging.LoggerInterface) error {
+func sanitizeRedis(cfg *conf.Main, miscStorage *redis.MiscStorage, logger logging.LoggerInterface) error {
 	if miscStorage == nil {
 		return errors.New("Could not sanitize redis")
 	}
-	currentHash := util.HashAPIKey(conf.Data.APIKey)
+	currentHash := util.HashAPIKey(cfg.Apikey)
 	currentHashAsStr := strconv.Itoa(int(currentHash))
 	defer miscStorage.SetApikeyHash(currentHashAsStr)
 
-	if conf.Data.Redis.ForceFreshStartup {
+	if cfg.Initialization.ForceFreshStartup {
 		logger.Warning("Fresh startup requested. Cleaning up redis before initializing.")
 		miscStorage.ClearAll()
 		return nil
