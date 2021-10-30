@@ -30,10 +30,17 @@ jobs:
           cd ./release; sh build.sh
       - name: Run test
         run: go test -v -cover $(go list ./... | grep -v /vendor/) -coverprofile=coverage.out
-      - name: Docker Build
+      - name: Docker Build for Sync
         uses: docker/build-push-action@v2
         with:
           context: .
+          file: Dockerfile.synchronizer
+          push: false
+      - name: Docker Build for Proxy
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: Dockerfile.synchronizer
           push: false
       - name: SonarQube Scan (Pull Request)
         if: github.event_name == 'pull_request'
