@@ -12,39 +12,54 @@ import (
 
 // SlackWriter writes messages to Slack user or channel. Implements io.Writer interface
 type SlackWriter struct {
-	webhookURL  string
-	httpClient  http.Client
-	channel     string
-	refreshRate time.Duration
-	message     []byte
-	lastSent    time.Time
+	webhookURL string
+	httpClient http.Client
+	channel    string
+	buffer     chan []byte
+	lastSent   time.Time
 }
 
 // NewSlackWriter constructs a slack writer
-func NewSlackWriter(webhookURL string, channel string, refreshRate time.Duration) *SlackWriter {
-	return &SlackWriter{
-		webhookURL:  webhookURL,
-		channel:     channel,
-		refreshRate: refreshRate,
+func NewSlackWriter(webhookURL string, channel string) *SlackWriter {
+	toRet := &SlackWriter{
+		webhookURL: webhookURL,
+		channel:    channel,
+		buffer:     make(chan []byte, 200),
 	}
+
+	go toRet.poster()
+	return toRet
 }
 
 // Write the message to slack webhook
 func (w *SlackWriter) Write(p []byte) (n int, err error) {
-	w.message = append(w.message, p...)
-	currentTime := time.Now()
-	gapTime := currentTime.Sub(w.lastSent)
-	if gapTime >= w.refreshRate {
-		err := w.postMessage(w.message, nil)
-		if err != nil {
-			fmt.Println("[Slack]", err.Error())
-		}
-		//Drop current message
-		w.message = w.message[:0]
-		//Reset last sent time
-		w.lastSent = currentTime
+	message := make([]byte, len(p))
+	copy(message, p)
+
+	select {
+	case w.buffer <- message:
+	default:
+		// println a message?
 	}
 	return len(p), nil
+}
+
+func (w *SlackWriter) poster() {
+	timer := time.NewTimer(500 * time.Millisecond) // TODO(mredolatti): make this configurable in final release
+	localBuffer := make([][]byte, 0, 20)
+	for {
+		select {
+		// TODO(mredolatti): add an exit path that flushes all messages on shutdown
+		case message := <-w.buffer:
+			localBuffer = append(localBuffer, message)
+		case <-timer.C:
+			for _, message := range localBuffer {
+				w.postMessage(message, nil)
+			}
+			localBuffer = localBuffer[:0] // reset the slice without releasing/reallocating memory
+			timer.Reset(500 * time.Millisecond)
+		}
+	}
 }
 
 func (w *SlackWriter) postMessage(msg []byte, attachements []SlackMessageAttachment) (err error) {

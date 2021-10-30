@@ -31,6 +31,7 @@ type DBWrapper interface {
 	View(func(*bolt.Tx) error) error
 	Lock()
 	Unlock()
+	GetRawSnapshot() ([]byte, error)
 }
 
 // BoltDBWrapper is a boltdb-based implmentation of a persisntant storage wrapper
@@ -57,6 +58,21 @@ func (b *BoltDBWrapper) Lock() {
 // Unlock reliquishes exclusive access to the referenced db
 func (b *BoltDBWrapper) Unlock() {
 	b.mutex.Unlock()
+}
+
+// GetRawSnapshot dumps all the contents of the db into a raw byte buffer
+func (b *BoltDBWrapper) GetRawSnapshot() ([]byte, error) {
+	var buffer bytes.Buffer
+	err := b.View(func(tx *bolt.Tx) error {
+		_, err := tx.WriteTo(&buffer)
+		return err
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("error reading whole db: %w", err)
+	}
+
+	return buffer.Bytes(), nil
 }
 
 // CollectionItem is the item into a collection

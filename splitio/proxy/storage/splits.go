@@ -37,10 +37,13 @@ type ProxySplitStorageImpl struct {
 // flag configuration, a changes summaries containing recipes to update SDKs with different CNs, and a persistent storage
 // for snapshot purposes
 func NewProxySplitStorage(db persistent.DBWrapper, logger logging.LoggerInterface) *ProxySplitStorageImpl {
+	disk := persistent.NewSplitChangesCollection(db, logger)
+	snapshot := mutexmap.NewMMSplitStorage()
+	snapshotFromDisk(snapshot, disk, logger)
 	return &ProxySplitStorageImpl{
-		snapshot: *mutexmap.NewMMSplitStorage(),
+		snapshot: *snapshot,
 		recipes:  *optimized.NewSplitChangesSummaries(),
-		db:       persistent.NewSplitChangesCollection(db, logger),
+		db:       disk,
 	}
 }
 
@@ -148,6 +151,24 @@ func (p *ProxySplitStorageImpl) SplitNames() []string { return p.snapshot.SplitN
 // TrafficTypeExists call is forwarded to the snapshot
 func (p *ProxySplitStorageImpl) TrafficTypeExists(tt string) bool {
 	return p.snapshot.TrafficTypeExists(tt)
+}
+
+func snapshotFromDisk(dst *mutexmap.MMSplitStorage, src *persistent.SplitChangesCollection, logger logging.LoggerInterface) {
+	cn := src.ChangeNumber()
+	all, err := src.FetchAll()
+	if err != nil {
+		logger.Error("error parsing splits from snapshot. No data will be available!: ", err)
+		return
+	}
+
+	var filtered []dtos.SplitDTO
+	for idx := range all {
+		if all[idx].Status == "ACTIVE" {
+			filtered = append(filtered, all[idx])
+		}
+	}
+
+	dst.Update(filtered, nil, cn)
 }
 
 var _ ProxySplitStorage = (*ProxySplitStorageImpl)(nil)
