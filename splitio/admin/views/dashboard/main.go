@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"html/template"
 	"strings"
+
+	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application"
+	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/services"
 )
 
 var funcs = map[string]interface{}{
@@ -91,14 +94,6 @@ type GlobalStats struct {
 	Uptime                 int64            `json:"uptime"`
 }
 
-type Health struct {
-	SDKServerStatus   bool  `json:"sdkServerStatus"`
-	EventServerStatus bool  `json:"eventsServerStatus"`
-	AuthServerStatus  bool  `json:"authServerStatus"`
-	StorageStatus     bool  `json:"storageStatus"`
-	HealthySince      int64 `json:"healthySince"`
-}
-
 type DashboardInitializationVars struct {
 	DashboardTitle     string
 	RunningMode        string
@@ -106,8 +101,9 @@ type DashboardInitializationVars struct {
 	ProxyMode          bool
 	RefreshTime        int64
 	DataControllerPath string
-	Stats              GlobalStats `json:"stats"`
-	Health             Health      `json:"health"`
+	Stats              GlobalStats           `json:"stats"`
+	Health             application.HealthDto `json:"health"`
+	ServicesHealth     services.HealthDto    `json:"servicesHealth"`
 }
 
 // SplitSummary encapsulates a minimalistic view of split properties to be presented in the dashboard

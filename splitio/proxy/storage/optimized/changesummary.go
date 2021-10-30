@@ -2,6 +2,7 @@ package optimized
 
 import (
 	"errors"
+	"math"
 	"sync"
 
 	"github.com/splitio/go-split-commons/v4/dtos"
@@ -44,16 +45,18 @@ func (c *ChangeSummary) applyChange(toAdd []SplitMinimalView, toRemove []SplitMi
 // SplitChangesSummaries keeps a set of recipes that allow an sdk to fetch from any known changeNumber
 // up to the latest snapshot.
 type SplitChangesSummaries struct {
-	currentCN int64
-	changes   map[int64]ChangeSummary
-	mutex     sync.RWMutex
+	maxRecipes int
+	currentCN  int64
+	changes    map[int64]ChangeSummary
+	mutex      sync.RWMutex
 }
 
 // NewSplitChangesSummaries constructs a SplitChangesSummaries component
-func NewSplitChangesSummaries() *SplitChangesSummaries {
+func NewSplitChangesSummaries(maxRecipes int) *SplitChangesSummaries {
 	return &SplitChangesSummaries{
-		currentCN: -1,
-		changes:   map[int64]ChangeSummary{-1: newEmptyChangeSummary()},
+		maxRecipes: maxRecipes + 1, // we keep an extra slot for -1 which is fixed
+		currentCN:  -1,
+		changes:    map[int64]ChangeSummary{-1: newEmptyChangeSummary()},
 	}
 }
 
@@ -66,6 +69,10 @@ func (s *SplitChangesSummaries) AddChanges(added []dtos.SplitDTO, removed []dtos
 	removedViews := toSplitMinimalViews(removed)
 	if cn <= s.currentCN {
 		return
+	}
+
+	if len(s.changes) >= s.maxRecipes {
+		s.removeOldestRecipe()
 	}
 
 	for key, summary := range s.changes {
@@ -86,6 +93,10 @@ func (s *SplitChangesSummaries) AddOlderChange(added []dtos.SplitDTO, removed []
 		// If the change number is equal or greater than our current CN, we're about to overwrite
 		// valid information, ignore it.
 		return
+	}
+
+	if len(s.changes) >= s.maxRecipes {
+		s.removeOldestRecipe()
 	}
 
 	summary := newEmptyChangeSummary()
@@ -111,6 +122,17 @@ func (s *SplitChangesSummaries) FetchSince(since int64) (*ChangeSummary, int64, 
 		return nil, s.currentCN, ErrUnknownChangeNumber
 	}
 	return &view, s.currentCN, nil
+}
+
+func (s *SplitChangesSummaries) removeOldestRecipe() {
+	// look for the oldest change and remove it
+	oldest := int64(math.MaxInt64)
+	for cn := range s.changes {
+		if cn != -1 && cn < oldest {
+			oldest = cn
+		}
+	}
+	delete(s.changes, oldest)
 }
 
 // BuildArchivedSplitsFor takes a mapping of split name -> traffic type name,
