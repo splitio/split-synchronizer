@@ -6,14 +6,10 @@ import (
 	"github.com/splitio/go-split-commons/v4/conf"
 )
 
-// ParseAdvancedOptions parses defaults for advanced Options
-func ParseAdvancedOptions() conf.AdvancedConfig {
-	advanced := conf.GetDefaultAdvancedConfig()
-	advanced.EventsBulkSize = Data.EventsPerPost
-	advanced.HTTPTimeout = int(Data.HTTPTimeout)
-	advanced.ImpressionsBulkSize = Data.ImpressionsPerPost
-	advanced.StreamingEnabled = Data.StreamingEnabled
+// InitAdvancedOptions initializes an advanced config with default values + overriden urls.
+func InitAdvancedOptions() *conf.AdvancedConfig {
 
+	advanced := conf.GetDefaultAdvancedConfig()
 	envSdkURL := os.Getenv("SPLITIO_SDK_URL")
 	if envSdkURL != "" {
 		advanced.SdkURL = envSdkURL
@@ -39,5 +35,5 @@ func ParseAdvancedOptions() conf.AdvancedConfig {
 		advanced.TelemetryServiceURL = telemetryServiceURL
 	}
 
-	return advanced
+	return &advanced
 }

@@ -277,7 +277,7 @@ func TestRedisTelemetryLatencies(t *testing.T) {
 	}
 }
 
-func TestPopConfigs(t *testing.T) {
+func TestPopConfigsFromList(t *testing.T) {
 	redisPrefix, _ := getCurrentFuncName()
 	innerClient, _ := redis.NewClient(&redis.UniversalOptions{})
 	client, _ := redis.NewPrefixedRedisClient(innerClient, redisPrefix)
@@ -324,4 +324,38 @@ func TestPopConfigs(t *testing.T) {
 	if forM2.OperationMode != 2 {
 		t.Error("the last version should have been the one kept")
 	}
+}
+
+func TestPopConfigsFromHash(t *testing.T) {
+	redisPrefix, _ := getCurrentFuncName()
+	innerClient, _ := redis.NewClient(&redis.UniversalOptions{})
+	client, _ := redis.NewPrefixedRedisClient(innerClient, redisPrefix)
+	defer func() {
+		keys, _ := innerClient.Keys(redisPrefix + "*").Multi()
+		innerClient.Del(keys...)
+	}()
+
+	err := client.HSet(redisSt.KeyConfig, "go-3.4/myName/1.1.1.1", `{"om": 4}`)
+	err = client.HSet(redisSt.KeyConfig, "go-3.4/myName/1.1.1.1", `{"om": 4}`)
+	err = client.HSet(redisSt.KeyConfig, "go-3.4/myName/1.1.1.1", `{"om": 4}`)
+	err = client.HSet(redisSt.KeyConfig, "go-3.4/myName/1.1.1.2", `{"om": 7}`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	logger := logging.NewLogger(nil)
+	consumer := NewRedisTelemetryCosumerclient(client, logger)
+	cfgs := consumer.PopConfigs()
+	if len(cfgs) != 2 {
+		t.Error("there should be 2 configs only (one per metadata")
+	}
+
+	if v, ok := cfgs[dtos.Metadata{SDKVersion: "go-3.4", MachineIP: "1.1.1.1", MachineName: "myName"}]; !ok || v.OperationMode != 4 {
+		t.Error("wrong data")
+	}
+
+	if v, ok := cfgs[dtos.Metadata{SDKVersion: "go-3.4", MachineIP: "1.1.1.2", MachineName: "myName"}]; !ok || v.OperationMode != 7 {
+		t.Error("wrong data")
+	}
+
 }

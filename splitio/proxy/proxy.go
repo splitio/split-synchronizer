@@ -25,6 +25,9 @@ type Options struct {
 	// Logger to propagate everywhere
 	Logger logging.LoggerInterface
 
+	// Host to where incoming http connections will be listened
+	Host string
+
 	// HTTP port to use for the server
 	Port int
 
