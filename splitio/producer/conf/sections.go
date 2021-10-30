@@ -15,6 +15,7 @@ type Main struct {
 	Admin            conf.Admin        `json:"admin" s-nested:"true"`
 	Integrations     conf.Integrations `json:"integrations" s-nested:"true"`
 	Logging          conf.Logging      `json:"logging" s-nested:"true"`
+	Healthcheck      Healthcheck       `json:"healthcheck" s-nested:"true"`
 }
 
 // BuildAdvancedConfig generates a commons-compatible advancedconfig with default + overriden parameters
@@ -102,4 +103,14 @@ type Redis struct {
 	TLSSkipNameValidation bool     `json:"tlsSkipNameValidation" s-cli:"redis-tls-skip-name-validation" s-def:"false" s-desc:"Blindly accept server's public key."`
 	TLSClientCertificate  string   `json:"tlsClientCertificate" s-cli:"redis-tls-client-certificate" s-def:"" s-desc:"Client certificate signed by a known CA"`
 	TLSClientKey          string   `json:"tlsClientKey" s-cli:"redis-tls-client-key" s-def:"" s-desc:"Client private key matching the certificate."`
+}
+
+// Healthcheck configuration options
+type Healthcheck struct {
+	App HealthcheckApp `json:"app" s-nested:"true"`
+}
+
+// HealthcheckApp configuration options
+type HealthcheckApp struct {
+	StorageCheckRateMs int64 `json:"storageCheckRateMs" s-cli:"storage-check-rate-ms" s-def:"3600000" s-desc:"How often to check storage health"`
 }
