@@ -1,6 +1,7 @@
 package optimized
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/splitio/go-split-commons/v4/dtos"
@@ -40,7 +41,7 @@ func validateChanges(t *testing.T, c *ChangeSummary, expectedAdded []string, exp
 }
 
 func TestSplitChangesSummary(t *testing.T) {
-	summaries := NewSplitChangesSummaries()
+	summaries := NewSplitChangesSummaries(1000)
 	changesM1, cnM1, err := summaries.FetchSince(-1)
 	if err != nil {
 		t.Error(err)
@@ -197,6 +198,38 @@ func TestSplitChangesSummary(t *testing.T) {
 	validateChanges(t, changes4, []string{}, []string{})
 
 	// TODO: Continue test plan up to 6!
+}
+
+func TestSizeBoundaries(t *testing.T) {
+	summaries := NewSplitChangesSummaries(5)
+	// validateChanges(t, changesM1, []string{}, []string{})
+
+	summaries.AddChanges([]dtos.SplitDTO{{Name: "s1", TrafficTypeName: "tt1"}}, nil, 1)
+	summaries.AddChanges([]dtos.SplitDTO{{Name: "s1", TrafficTypeName: "tt2"}}, nil, 2)
+	summaries.AddChanges([]dtos.SplitDTO{{Name: "s1", TrafficTypeName: "tt3"}}, nil, 3)
+	summaries.AddChanges([]dtos.SplitDTO{{Name: "s1", TrafficTypeName: "tt4"}}, nil, 4)
+	summaries.AddChanges([]dtos.SplitDTO{{Name: "s1", TrafficTypeName: "tt5"}}, nil, 5)
+
+	changes, cn, err := summaries.FetchSince(1)
+	if err != nil {
+		t.Error("no error should be returned. Got: ", err)
+	}
+
+	fmt.Println("aa", changes, cn, err)
+	if tt := changes.Updated["s1"]; tt != "tt5" {
+		t.Error("invalid tt: ", tt)
+	}
+
+	if cn != 5 {
+		t.Error("cn should be 5. Is:", cn)
+	}
+
+	summaries.AddChanges([]dtos.SplitDTO{{Name: "s1", TrafficTypeName: "tt5"}}, nil, 6)
+	_, _, err = summaries.FetchSince(1)
+	if err != ErrUnknownChangeNumber {
+		t.Error("should have gotten unknown CN error. Got: ", err)
+	}
+
 }
 
 /*  TEST PLAN!

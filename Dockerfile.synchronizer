@@ -5,10 +5,12 @@ WORKDIR /go/src/github.com/splitio/split-synchronizer
 
 COPY . .
 
-RUN go build -o split-sync
+RUN go build -o split-sync cmd/synchronizer/main.go
 
 # Runner stage
 FROM alpine:3.14 AS runner
+
+RUN apk add bash
 
 RUN addgroup -g 1000 -S 'split-synchronizer'
 RUN adduser \
@@ -20,7 +22,8 @@ RUN adduser \
     --uid 1000 \
     'split-synchronizer'
 
-COPY entrypoint.sh .
+COPY functions.sh .
+COPY entrypoint.sync.sh .
 
 COPY --from=builder /go/src/github.com/splitio/split-synchronizer/split-sync /usr/bin/
 
@@ -28,4 +31,4 @@ EXPOSE 3000 3010
 
 USER 'split-synchronizer'
 
-ENTRYPOINT ["sh", "entrypoint.sh"]
+ENTRYPOINT ["bash", "entrypoint.sync.sh"]

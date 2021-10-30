@@ -11,6 +11,7 @@ import (
 	adminCommon "github.com/splitio/split-synchronizer/v4/splitio/admin/common"
 	"github.com/splitio/split-synchronizer/v4/splitio/admin/controllers"
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
+	cstorage "github.com/splitio/split-synchronizer/v4/splitio/common/storage"
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/evcalc"
 	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application"
 	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/services"
@@ -37,6 +38,7 @@ type Options struct {
 	Runtime             common.Runtime
 	HcAppMonitor        application.MonitorIterface
 	HcServicesMonitor   services.MonitorIterface
+	Snapshotter         cstorage.Snapshotter
 }
 
 // NewServer instantiates a new admin server
@@ -79,6 +81,10 @@ func NewServer(options *Options) (*http.Server, error) {
 	)
 
 	healthcheckController.Register(router)
+	if options.Snapshotter != nil {
+		snapshotController := controllers.NewSnapshotController(options.Logger, options.Snapshotter)
+		snapshotController.Register(admin)
+	}
 
 	return &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", options.Host, options.Port),
