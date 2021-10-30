@@ -15,6 +15,10 @@ import (
 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage/persistent"
 )
 
+const (
+	maxRecipes = 1000
+)
+
 // ErrSummaryNotCached is returned when a summary is not cached for a requested change number
 var ErrSummaryNotCached = errors.New("summary for requested change number not cached")
 
@@ -42,7 +46,7 @@ func NewProxySplitStorage(db persistent.DBWrapper, logger logging.LoggerInterfac
 	snapshotFromDisk(snapshot, disk, logger)
 	return &ProxySplitStorageImpl{
 		snapshot: *snapshot,
-		recipes:  *optimized.NewSplitChangesSummaries(),
+		recipes:  *optimized.NewSplitChangesSummaries(maxRecipes),
 		db:       disk,
 	}
 }

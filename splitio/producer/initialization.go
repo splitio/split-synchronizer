@@ -3,6 +3,8 @@ package producer
 import (
 	"errors"
 	"fmt"
+	"log"
+	"net/url"
 	"time"
 
 	cconf "github.com/splitio/go-split-commons/v4/conf"
@@ -11,7 +13,7 @@ import (
 	"github.com/splitio/go-split-commons/v4/service/api"
 	"github.com/splitio/go-split-commons/v4/telemetry"
 
-	"github.com/splitio/go-split-commons/v4/healthcheck/application"
+	storageCommon "github.com/splitio/go-split-commons/v4/storage"
 	"github.com/splitio/go-split-commons/v4/storage/inmemory"
 	"github.com/splitio/go-split-commons/v4/storage/redis"
 	"github.com/splitio/go-split-commons/v4/synchronizer"
@@ -32,6 +34,10 @@ import (
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/storage"
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/task"
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/worker"
+	hcApplication "github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application"
+	hcAppCounter "github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application/counter"
+	hcServices "github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/services"
+	hcServicesCounter "github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/services/counter"
 	"github.com/splitio/split-synchronizer/v4/splitio/util"
 )
 
@@ -93,10 +99,15 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	eventEvictionMonitor := evcalc.New(cfg.Sync.EventsWorkers)
 	eventRecorder := worker.NewEventRecorderMultiple(storages.EventStorage, splitAPI.EventRecorder, syncTelemetryStorage, eventEvictionMonitor, logger)
 
+	// Healcheck Monitor
+	splitsConfig, segmentsConfig, storageConfig := getAppCounterConfigs(storages.SplitStorage)
+	appMonitor := hcApplication.NewMonitorImp(splitsConfig, segmentsConfig, &storageConfig, logger)
+	servicesMonitor := hcServices.NewMonitorImp(getServicesCountersConfig(advanced), logger)
+
 	workers := synchronizer.Workers{
-		SplitFetcher: split.NewSplitFetcher(storages.SplitStorage, splitAPI.SplitFetcher, logger, syncTelemetryStorage, &application.Dummy{}),
+		SplitFetcher: split.NewSplitFetcher(storages.SplitStorage, splitAPI.SplitFetcher, logger, syncTelemetryStorage, appMonitor),
 		SegmentFetcher: segment.NewSegmentFetcher(storages.SplitStorage, storages.SegmentStorage, splitAPI.SegmentFetcher,
-			logger, syncTelemetryStorage, &application.Dummy{}),
+			logger, syncTelemetryStorage, appMonitor),
 		EventRecorder: eventRecorder,
 		// local telemetry
 		TelemetryRecorder: telemetry.NewTelemetrySynchronizer(syncTelemetryStorage, splitAPI.TelemetryRecorder,
@@ -150,7 +161,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 
 	sdkTelemetryWorker := worker.NewTelemetryMultiWorker(logger, sdkTelemetryStorage, splitAPI.TelemetryRecorder)
 	sdkTelemetryTask := task.NewTelemetrySyncTask(sdkTelemetryWorker, logger, 10)
-	syncImpl := ssync.NewSynchronizer(*advanced, splitTasks, workers, logger, nil, []tasks.Task{sdkTelemetryTask})
+	syncImpl := ssync.NewSynchronizer(*advanced, splitTasks, workers, logger, nil, []tasks.Task{sdkTelemetryTask}, appMonitor)
 	managerStatus := make(chan int, 1)
 	syncManager, err := synchronizer.NewSynchronizerManager(
 		syncImpl,
@@ -162,14 +173,14 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		syncTelemetryStorage,
 		metadata,
 		&clientKey,
-		&application.Dummy{},
+		appMonitor,
 	)
 
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error instantiating sync manager: %w", err), common.ExitTaskInitialization)
 	}
 
-	rtm := common.NewRuntime(false, syncManager, logger, "Split Synchronizer", nil, nil)
+	rtm := common.NewRuntime(false, syncManager, logger, "Split Synchronizer", nil, nil, appMonitor, servicesMonitor)
 
 	// --------------------------- ADMIN DASHBOARD ------------------------------
 	adminServer, err := admin.NewServer(&admin.Options{
@@ -186,6 +197,8 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		EventRecorder:       eventRecorder,
 		EventsEvCalc:        eventEvictionMonitor,
 		Runtime:             rtm,
+		HcAppMonitor:        appMonitor,
+		HcServicesMonitor:   servicesMonitor,
 	})
 	if err != nil {
 		panic(err.Error())
@@ -200,6 +213,8 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		switch status {
 		case synchronizer.Ready:
 			logger.Info("Synchronizer tasks started")
+			appMonitor.Start()
+			servicesMonitor.Start()
 			workers.TelemetryRecorder.SynchronizeConfig(
 				telemetry.InitConfig{
 					AdvancedConfig: *advanced,
@@ -223,4 +238,46 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	rtm.RegisterShutdownHandler()
 	rtm.Block()
 	return nil
+}
+
+func getAppCounterConfigs(storage storageCommon.SplitStorage) (hcAppCounter.ThresholdConfig, hcAppCounter.ThresholdConfig, hcAppCounter.PeriodicConfig) {
+	splitsConfig := hcAppCounter.DefaultThresholdConfig("Splits")
+	segmentsConfig := hcAppCounter.DefaultThresholdConfig("Segments")
+	storageConfig := hcAppCounter.PeriodicConfig{
+		Name:                     "Storage",
+		MaxErrorsAllowedInPeriod: 5,
+		Period:                   3600,
+		Severity:                 hcAppCounter.Low,
+		ValidationFunc: func(c hcAppCounter.PeriodicCounterInterface) {
+			_, err := storage.ChangeNumber()
+			if err != nil {
+				c.NotifyError()
+			}
+		},
+		ValidationFuncPeriod: 10,
+	}
+
+	return splitsConfig, segmentsConfig, storageConfig
+}
+
+func getServicesCountersConfig(advanced *cconf.AdvancedConfig) []hcServicesCounter.Config {
+	var cfgs []hcServicesCounter.Config
+
+	apiConfig := hcServicesCounter.DefaultConfig("API", advanced.SdkURL, "/version")
+	eventsConfig := hcServicesCounter.DefaultConfig("Events", advanced.EventsURL, "/version")
+	authConfig := hcServicesCounter.DefaultConfig("Auth", advanced.AuthServiceURL, "/health")
+
+	telemetryURL, err := url.Parse(advanced.TelemetryServiceURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	telemetryConfig := hcServicesCounter.DefaultConfig("Telemetry", fmt.Sprintf("%s://%s", telemetryURL.Scheme, telemetryURL.Host), "/health")
+
+	streamingURL, err := url.Parse(advanced.StreamingServiceURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	streamingConfig := hcServicesCounter.DefaultConfig("Streaming", fmt.Sprintf("%s://%s", streamingURL.Scheme, streamingURL.Host), "/health")
+
+	return append(cfgs, telemetryConfig, authConfig, apiConfig, eventsConfig, streamingConfig)
 }

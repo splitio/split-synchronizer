@@ -278,7 +278,8 @@ const mainScript = `
   }
   
   function handleHealthcheck(response) {
-    $('#healthy_since').text(response.healthySince.time);
+    const dateHealthy = new Date(Date.parse(response.healthySince)).toLocaleString()
+    $('#healthy_since').text(dateHealthy);
     $('#uptime').text(response.uptime);
   
     if (response.sdk.healthy) {
@@ -316,7 +317,6 @@ const mainScript = `
     }
   
     setTimeout(function() {
-      refreshHealthcheck();
     }, {{.RefreshTime}});
   };
   
@@ -435,26 +435,54 @@ const mainScript = `
   };
 
   function updateHealthCards(health) {
-      $('#healthy_since').html(health.healthySince);
-      if (health.sdkServerStatus) {
+      const dateHealthy = new Date(Date.parse(health.healthySince)).toLocaleString()
+      $('#healthy_since').html(dateHealthy);
+      if (health.dependencies == null) { return }
+      const payload = {};
+      health.dependencies.forEach(service => {
+        const splitted = service.service.split("https://")
+        if (splitted.length  > 1) {
+            const subdomain = splitted[1].split(".")
+             if (subdomain.length > 0) {
+               const serviceName = subdomain[0]
+              payload[serviceName] = service.healthy;
+             }
+        }
+      })
+
+      if (payload["sdk"]) {
         $('#sdk_server_div_error').addClass('hidden')
       } else {
         $('#sdk_server_div_ok').addClass('hidden')
         $('#sdk_server_div_error').removeClass('hidden')
       }
   
-      if (health.eventsServerStatus) {
+      if (payload["events"]) {
         $('#event_server_div_error').addClass('hidden')
       } else {
         $('#event_server_div_ok').addClass('hidden')
         $('#event_server_div_error').removeClass('hidden')
       }
   
-      if (health.authServerStatus) {
+      if (payload["auth"]) {
         $('#auth_server_div_error').addClass('hidden')
       } else {
         $('#auth_server_div_ok').addClass('hidden')
         $('#auth_server_div_error').removeClass('hidden')
+      }
+
+      if (payload["streaming"]) {
+        $('#streaming_div_error').addClass('hidden')
+      } else {
+        $('#streaming_div_ok').addClass('hidden')
+        $('#streaming_div_error').removeClass('hidden')
+      }
+
+      if (payload["telemetry"]) {
+        $('#telemetry_server_div_error').addClass('hidden')
+      } else {
+        $('#telemetry_server_div_ok').addClass('hidden')
+        $('#telemetry_server_div_error').removeClass('hidden')
       }
   
       {{if .ProxyMode}}
@@ -497,7 +525,7 @@ const mainScript = `
   };
 
   function refreshHealth() {
-    $.getJSON("/admin/dashboard/health", processHealth);
+    $.getJSON("/health/dependencies", processHealth);
   };
 
  

@@ -13,6 +13,8 @@ import (
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
 	cstorage "github.com/splitio/split-synchronizer/v4/splitio/common/storage"
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/evcalc"
+	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application"
+	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/services"
 
 	"github.com/gin-gonic/gin"
 )
@@ -34,6 +36,8 @@ type Options struct {
 	EventRecorder       event.EventRecorder
 	EventsEvCalc        evcalc.Monitor
 	Runtime             common.Runtime
+	HcAppMonitor        application.MonitorIterface
+	HcServicesMonitor   services.MonitorIterface
 	Snapshotter         cstorage.Snapshotter
 }
 
@@ -56,6 +60,7 @@ func NewServer(options *Options) (*http.Server, error) {
 		options.EventsEvCalc,
 		options.Runtime,
 		dataController,
+		options.HcAppMonitor,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error instantiating dashboard controller: %w", err)
@@ -69,6 +74,13 @@ func NewServer(options *Options) (*http.Server, error) {
 
 	//router.GET("/admin/dashboard/segmentKeys/:segment", dctrl.SegmentKeys)
 
+	healthcheckController := controllers.NewHealthCheckController(
+		options.Logger,
+		options.HcAppMonitor,
+		options.HcServicesMonitor,
+	)
+
+	healthcheckController.Register(router)
 	if options.Snapshotter != nil {
 		snapshotController := controllers.NewSnapshotController(options.Logger, options.Snapshotter)
 		snapshotController.Register(admin)

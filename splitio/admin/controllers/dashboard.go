@@ -15,6 +15,7 @@ import (
 	"github.com/splitio/split-synchronizer/v4/splitio/common"
 	"github.com/splitio/split-synchronizer/v4/splitio/log"
 	"github.com/splitio/split-synchronizer/v4/splitio/producer/evcalc"
+	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application"
 )
 
 // DashboardController contains handlers for rendering the dashboard and its associated FE queries
@@ -28,6 +29,7 @@ type DashboardController struct {
 	eventsEvCalc       evcalc.Monitor
 	runtime            common.Runtime
 	dataControllerPath string
+	appMonitor         application.MonitorIterface
 }
 
 // NewDashboardController instantiates a new dashboard controller
@@ -40,6 +42,7 @@ func NewDashboardController(
 	eventsEvCalc evcalc.Monitor,
 	runtime common.Runtime,
 	dataController *DataManagerController,
+	appMonitor application.MonitorIterface,
 ) (*DashboardController, error) {
 
 	var dataControllerPath string
@@ -56,6 +59,7 @@ func NewDashboardController(
 		eventsEvCalc:       eventsEvCalc,
 		impressionsEvCalc:  impressionEvCalc,
 		dataControllerPath: dataControllerPath,
+		appMonitor:         appMonitor,
 	}
 
 	var err error
@@ -71,7 +75,6 @@ func (c *DashboardController) Register(router gin.IRouter) {
 	router.GET("/dashboard", c.dashboard)
 	router.GET("/dashboard/segmentKeys/:segment", c.segmentKeys)
 	router.GET("/dashboard/stats", c.stats)
-	router.GET("/dashboard/health", c.health)
 }
 
 // Endpoint functions \{
@@ -104,11 +107,6 @@ func (c *DashboardController) segmentKeys(ctx *gin.Context) {
 	ctx.JSON(200, bundleSegmentKeysInfo(segmentName, c.storages.SegmentStorage))
 }
 
-// health endpoint returns different health parameters of the app and split service
-func (c *DashboardController) health(ctx *gin.Context) {
-	ctx.JSON(http.StatusOK, c.gatherHealthInfo())
-}
-
 // \} -- end of endpoint functions
 
 func (c *DashboardController) renderDashboard() ([]byte, error) {
@@ -125,7 +123,7 @@ func (c *DashboardController) renderDashboard() ([]byte, error) {
 		ProxyMode:          c.proxy,
 		RefreshTime:        10000,
 		Stats:              *c.gatherStats(),
-		Health:             *c.gatherHealthInfo(),
+		Health:             c.appMonitor.GetHealthStatus(),
 		DataControllerPath: c.dataControllerPath,
 	})
 
@@ -164,16 +162,5 @@ func (c *DashboardController) gatherStats() *dashboard.GlobalStats {
 		LoggedErrors:           errorCount,
 		LoggedMessages:         errorMessages,
 		Uptime:                 int64(c.runtime.Uptime().Seconds()),
-	}
-}
-
-func (c *DashboardController) gatherHealthInfo() *dashboard.Health {
-	// TODO(sanzamauro): Populate this accordingly
-	return &dashboard.Health{
-		SDKServerStatus:   false,
-		EventServerStatus: false,
-		AuthServerStatus:  false,
-		StorageStatus:     false,
-		HealthySince:      0,
 	}
 }
