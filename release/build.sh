@@ -1,15 +1,26 @@
 #!/bin/bash
 
-OSX_ZIP_FILENAME=splitio-agent-osx-amd64.zip
-OSX_INSTALL_SCRIPT=osx_install_script
-OSX_BINARY_PATH=splitio-agent-osx-amd64
+SYNC_OSX_ZIP_FILENAME=splitio-agent-osx-amd64.zip
+SYNC_OSX_INSTALL_SCRIPT=osx_install_script
+SYNC_OSX_BINARY_PATH=splitio-agent-osx-amd64
 
-LINUX_ZIP_FILENAME=splitio-agent-linux-amd64.zip
-LINUX_INSTALL_SCRIPT=linux_install_script
-LINUX_BINARY_PATH=splitio-agent-linux-amd64
+SYNC_LINUX_ZIP_FILENAME=splitio-agent-linux-amd64.zip
+SYNC_LINUX_INSTALL_SCRIPT=linux_install_script
+SYNC_LINUX_BINARY_PATH=splitio-agent-linux-amd64
 
-WINDOWS_ZIP_FILENAME=split-sync-win_
-WINDOWS_BINARY_PATH=split-sync.exe
+SYNC_WINDOWS_ZIP_FILENAME=split-sync-win_
+SYNC_WINDOWS_BINARY_PATH=split-sync.exe
+
+PROXY_OSX_ZIP_FILENAME=split-proxy-osx-amd64.zip
+PROXY_OSX_INSTALL_SCRIPT=proxy_osx_install_script
+PROXY_OSX_BINARY_PATH=split-proxy-osx-amd64
+
+PROXY_LINUX_ZIP_FILENAME=split-proxy-linux-amd64.zip
+PROXY_LINUX_INSTALL_SCRIPT=proxy_linux_install_script
+PROXY_LINUX_BINARY_PATH=split-proxy-linux-amd64
+
+PROXY_WINDOWS_ZIP_FILENAME=split-proxy-win_
+PROXY_WINDOWS_BINARY_PATH=split-proxy.exe
 
 #Versionning
 COMMIT_VERSION=`git rev-parse --short HEAD`
@@ -35,10 +46,15 @@ VERSIONS_POS_HTML=$(<versions.pos.html)
 echo "$VERSIONS_PRE_HTML""$ROWS""$VERSIONS_POS_HTML" > versions.html
 #--- End
 
-#Compile agent
-GOOS=darwin GOARCH=amd64 go build -o ${OSX_BINARY_PATH} ..
-GOOS=linux GOARCH=amd64 go build -o ${LINUX_BINARY_PATH} ..
-GOOS=windows GOARCH=amd64 go build -o ${WINDOWS_BINARY_PATH} ..
+#Compile sync
+GOOS=darwin GOARCH=amd64 go build  -o ${OSX_BINARY_PATH} ../cmd/synchronizer/main.go
+GOOS=linux GOARCH=amd64 go build -o ${LINUX_BINARY_PATH} ../cmd/synchronizer/main.go
+GOOS=windows GOARCH=amd64 go build -o ${WINDOWS_BINARY_PATH} ../cmd/synchronizer/main.go
+
+#Compile proxy
+GOOS=darwin GOARCH=amd64 go build -o ${PROXY_OSX_BINARY_PATH} ../cmd/proxy/main.go
+GOOS=linux GOARCH=amd64 go build -o ${PROXY_LINUX_BINARY_PATH} ../cmd/proxy/main.go
+GOOS=windows GOARCH=amd64 go build -o ${PROXY_WINDOWS_BINARY_PATH} ../cmd/proxy/main.go
 
 #Compress binaries
 zip -9 ${OSX_ZIP_FILENAME}  ${OSX_BINARY_PATH}
