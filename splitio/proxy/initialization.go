@@ -76,8 +76,8 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	splitAPI := api.NewSplitAPI(cfg.Apikey, *advanced, logger, metadata)
 
 	// Instantiating storages
-	splitStorage := storage.NewProxySplitStorage(dbInstance, logger)
-	segmentStorage := storage.NewProxySegmentStorage(dbInstance, logger)
+	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, cfg.Initialization.Snapshot != "")
+	segmentStorage := storage.NewProxySegmentStorage(dbInstance, logger, cfg.Initialization.Snapshot != "")
 
 	// Local telemetry
 	tbufferSize := int(cfg.Sync.Advanced.TelemetryBuffer)

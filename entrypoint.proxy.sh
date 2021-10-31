@@ -23,6 +23,7 @@ FLAGS=(
     "events-workers"
     "telemetry-workers"
     "internal-metrics-rate-ms"
+    "dependencies-check-rate-ms"
 
 # Common CLI ARGS
     "log-level"
@@ -37,8 +38,10 @@ FLAGS=(
     "impression-listener-endpoint"
     "impression-listener-queue-size"
     "slack-webhook"
+    "slack-channel"
 )
 
 source functions.sh
-cli_args=$(parse_env "SPLITIO" "$FLAGS")
-split-proxy "${cli_args}"
+cli_args=$(parse_env "SPLITIO" "${FLAGS[@]}")
+echo $cli_args
+split-proxy $cli_args

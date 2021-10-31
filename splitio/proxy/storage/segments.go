@@ -31,10 +31,12 @@ type ProxySegmentStorageImpl struct {
 }
 
 // NewProxySegmentStorage for proxy
-func NewProxySegmentStorage(db persistent.DBWrapper, logger logging.LoggerInterface) *ProxySegmentStorageImpl {
+func NewProxySegmentStorage(db persistent.DBWrapper, logger logging.LoggerInterface, restoreFromBackup bool) *ProxySegmentStorageImpl {
 	cache := optimized.NewMySegmentsCache()
 	disk := persistent.NewSegmentChangesCollection(db, logger)
-	populateCacheFromDisk(cache, disk, logger)
+	if restoreFromBackup {
+		populateCacheFromDisk(cache, disk, logger)
+	}
 	return &ProxySegmentStorageImpl{
 		db:         disk,
 		mysegments: cache,

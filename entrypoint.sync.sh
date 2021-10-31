@@ -1,16 +1,22 @@
 #!/bin/env sh
 
 FLAGS=(
-# Proxy CLI ARGS
+# Sync CLI ARGS
     "apikey"
     "ip-address-enabled"
     "timeout-ms"
     "snapshot"
     "force-fresh-startup"
     "type"
-    "impressions-mode"
     "split-refresh-rate-ms"
     "segment-refresh-rate-ms"
+    "impressions-mode"
+    "impressions-push-rate-ms"
+    "impressions-bulk-size"
+    "impressions-workers"
+    "events-push-rate-ms"
+    "eventsbulk-size"
+    "eventsworkers"
     "streaming-enabled"
     "http-timeout-ms"
     "internal-metrics-rate-ms"
@@ -38,7 +44,7 @@ FLAGS=(
     "redis-sentinel-replication"
     "redis-sentinel-addresses"
     "redis-sentinel-master"
-    "redis-cluster-moe"
+    "redis-cluster-mode"
     "redis-cluster-nodes"
     "redis-cluster-key-hashtag"
     "redis-tls"
@@ -47,6 +53,7 @@ FLAGS=(
     "redis-tls-skip-name-validation"
     "redis-tls-client-certificate"
     "redis-tls-client-key"
+    "storage-check-rate-ms"
 
 # Common CLI ARGS
     "log-level"
@@ -61,8 +68,10 @@ FLAGS=(
     "impression-listener-endpoint"
     "impression-listener-queue-size"
     "slack-webhook"
+    "slack-channel"
 )
 
 source functions.sh
-cli_args=$(parse_env "SPLITIO" "$FLAGS")
-split-sync "${cli_args}"
+cli_args=$(parse_env "SPLITIO" "${FLAGS[@]}")
+echo $cli_args
+split-sync $cli_args
