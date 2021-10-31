@@ -10,6 +10,7 @@ function parse_flags_from_conf_file() {
             echo $name
         fi
     done < $fn
+    unset IFS
 }
 
 function flag_to_env_var() {
@@ -26,8 +27,9 @@ function flag_to_env_var() {
 
 # ack 's-cli:([^ ]*) ' --output '$1' sections.go
 function parse_env() {
-    prefix=$1
-    flags=$2
+    flags=("$@")
+    prefix=${flags[0]}
+    unset flags[0]
 
     if [ "$prefix" == "" ]; then
         return 1
@@ -47,6 +49,7 @@ function parse_env() {
     done
 
     echo $args
+    return 0
 }
 
 
