@@ -246,8 +246,6 @@ func fetchConfigsGreedy(rclient *redis.PrefixedRedisClient, limit int64) (data [
 		return nil, false, fmt.Errorf("error determining redis configs key type: %w", err)
 	}
 
-	fmt.Println(kt, len(kt))
-
 	switch kt {
 	case "list":
 		raws, err := rclient.LRange(redisSt.KeyConfig, 0, limit)
@@ -309,6 +307,9 @@ func fetchConfigsGreedy(rclient *redis.PrefixedRedisClient, limit int64) (data [
 			return nil, false, fmt.Errorf("error deleting fetched configs from redis: %w", err)
 		}
 		return toRet, true, nil
+	case "none":
+		// No metrics found
+		return nil, true, nil
 	}
 	return nil, false, fmt.Errorf("invalid config key type: '%s'", kt)
 
