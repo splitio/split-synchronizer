@@ -53,10 +53,10 @@ type Sync struct {
 	ImpressionsBulkSize   int64 `json:"impressionsBulkSize" s-cli:"impressions-bulk-size" s-def:"10000" s-desc:"How many impressions to send in each bulk"`
 	ImpressionsWorkers    int   `json:"impressionsWorkers" s-cli:"impressions-workers" s-def:"1" s-desc:"How many threads to evict impressions"`
 	EventsPushRateMs      int64 `json:"eventsPushRateMs" s-cli:"events-push-rate-ms" s-def:"20000" s-desc:"How often to send events"`
-	EventsBulkSize        int64 `json:"eventsBulkSize" s-cli:"eventsbulk-size" s-def:"10000" s-desc:"How many events to send in each bulk"`
-	EventsWorkers         int   `json:"eventsWorkers" s-cli:"eventsworkers" s-def:"1" s-desc:"How many threads to evict events"`
+	EventsBulkSize        int64 `json:"eventsBulkSize" s-cli:"events-bulk-size" s-def:"10000" s-desc:"How many events to send in each bulk"`
+	EventsWorkers         int   `json:"eventsWorkers" s-cli:"events-workers" s-def:"1" s-desc:"How many threads to evict events"`
+	TelemetryPushRateMs   int64 `json:"telemetryPushRateMs" s-cli:"telemetry-push-rate-ms" s-def:"60000" s-desc:"how often to flush sdk telemetry"`
 	// @}
-
 }
 
 // AdvancedSync configuration options
