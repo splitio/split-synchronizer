@@ -102,7 +102,8 @@ func (e *RecorderEventMultiple) synchronizeEvents(bulkSize int64) error {
 		})
 		if err != nil {
 			errs++
-			e.logger.Error(fmt.Sprintf("Error posting events for metadata '%+v' after 3 attempts. Data will be discarded", metadata))
+			e.logger.Error(fmt.Sprintf("Error posting events for metadata '%+v' after 3 attempts. Data will be discarded: %s", metadata, err.Error()))
+			continue
 		}
 
 		e.localTelemetry.RecordSyncLatency(telemetry.EventSync, time.Now().Sub(before))

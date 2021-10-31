@@ -119,7 +119,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 			advanced.SegmentWorkers, advanced.SegmentQueueSize, logger),
 		// local telemetry
 		TelemetrySyncTask: tasks.NewRecordTelemetryTask(workers.TelemetryRecorder, int(cfg.Sync.Advanced.InternalMetricsRateMs)/1000, logger),
-		EventSyncTask: tasks.NewRecordEventsTasks(workers.EventRecorder, cfg.Sync.EventsBulkSize, int(cfg.Sync.EventsPushRateMs),
+		EventSyncTask: tasks.NewRecordEventsTasks(workers.EventRecorder, cfg.Sync.EventsBulkSize, int(cfg.Sync.EventsPushRateMs/1000),
 			logger, cfg.Sync.EventsWorkers),
 	}
 
