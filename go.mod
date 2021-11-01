@@ -1,4 +1,4 @@
-module github.com/splitio/split-synchronizer/v4
+module github.com/splitio/split-synchronizer/v5
 
 go 1.13
 

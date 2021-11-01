@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 )
 
 // EndpointKey is used to set the endpoint for latency tracker within the request handler

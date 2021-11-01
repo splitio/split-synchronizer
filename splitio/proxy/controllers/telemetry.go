@@ -7,10 +7,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/go-toolkit/v5/logging"
 
-	tmw "github.com/splitio/split-synchronizer/v4/splitio/proxy/controllers/middleware"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/internal"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/tasks"
+	tmw "github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers/middleware"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/internal"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks"
 )
 
 // TelemetryServerController bundles all request handler for sdk-server apis

@@ -8,8 +8,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/go-toolkit/v5/logging"
-	"github.com/splitio/split-synchronizer/v4/splitio/common/snapshot"
-	"github.com/splitio/split-synchronizer/v4/splitio/common/storage"
+	"github.com/splitio/split-synchronizer/v5/splitio/common/snapshot"
+	"github.com/splitio/split-synchronizer/v5/splitio/common/storage"
 )
 
 // SnapshotController bundles endpoints associated to snapshot management

@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/splitio/go-toolkit/v5/logging"
-	"github.com/splitio/split-synchronizer/v4/splitio/common/conf"
+	"github.com/splitio/split-synchronizer/v5/splitio/common/conf"
 )
 
 func meansStdout(s string) bool {

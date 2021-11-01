@@ -6,8 +6,8 @@ import (
 	"github.com/splitio/go-split-commons/v4/storage"
 	"github.com/splitio/go-split-commons/v4/telemetry"
 
-	"github.com/splitio/split-synchronizer/v4/splitio"
-	"github.com/splitio/split-synchronizer/v4/splitio/common"
+	"github.com/splitio/split-synchronizer/v5/splitio"
+	"github.com/splitio/split-synchronizer/v5/splitio/common"
 
 	"github.com/gin-gonic/gin"
 )

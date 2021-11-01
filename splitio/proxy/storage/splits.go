@@ -11,8 +11,8 @@ import (
 	"github.com/splitio/go-toolkit/v5/datastructures/set"
 	"github.com/splitio/go-toolkit/v5/logging"
 
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage/optimized"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage/persistent"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/optimized"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/persistent"
 )
 
 const (

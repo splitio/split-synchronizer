@@ -7,7 +7,7 @@ import (
 
 	"github.com/splitio/go-toolkit/v5/logging"
 	toolkitsync "github.com/splitio/go-toolkit/v5/sync"
-	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application/counter"
+	"github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/application/counter"
 )
 
 // MonitorIterface monitor interface

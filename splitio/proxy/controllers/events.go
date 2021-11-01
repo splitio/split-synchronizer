@@ -9,11 +9,11 @@ import (
 	"github.com/splitio/go-split-commons/v4/dtos"
 	"github.com/splitio/go-toolkit/v5/logging"
 
-	"github.com/splitio/split-synchronizer/v4/splitio/common/impressionlistener"
-	tmw "github.com/splitio/split-synchronizer/v4/splitio/proxy/controllers/middleware"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/internal"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/tasks"
+	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
+	tmw "github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers/middleware"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/internal"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks"
 )
 
 // EventsServerController bundles all request handler for sdk-server apis

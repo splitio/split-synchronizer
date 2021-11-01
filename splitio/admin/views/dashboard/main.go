@@ -6,8 +6,8 @@ import (
 	"html/template"
 	"strings"
 
-	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application"
-	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/services"
+	"github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/application"
+	"github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/services"
 )
 
 var funcs = map[string]interface{}{

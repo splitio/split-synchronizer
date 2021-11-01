@@ -14,8 +14,8 @@ import (
 	"github.com/splitio/go-split-commons/v4/service"
 	"github.com/splitio/go-split-commons/v4/storage/redis"
 	"github.com/splitio/go-toolkit/v5/logging"
-	"github.com/splitio/split-synchronizer/v4/splitio/producer/conf"
-	"github.com/splitio/split-synchronizer/v4/splitio/util"
+	"github.com/splitio/split-synchronizer/v5/splitio/producer/conf"
+	"github.com/splitio/split-synchronizer/v5/splitio/util"
 )
 
 func parseTLSConfig(opt *conf.Redis) (*tls.Config, error) {
