@@ -25,6 +25,20 @@ function flag_to_env_var() {
     return 0
 }
 
+function print_env_vars() {
+    flags=("$@")
+    prefix=${flags[0]}
+    unset flags[0]
+    for idx in ${!flags[@]}; do
+        flag=${flags[idx]}
+        env=$(flag_to_env_var "$prefix" "$flag")
+        if [ $? -ne 0 ]; then
+            continue
+        fi
+        echo "$flag || $env"
+    done
+}
+
 # ack 's-cli:([^ ]*) ' --output '$1' sections.go
 function parse_env() {
     flags=("$@")
