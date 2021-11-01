@@ -7,31 +7,31 @@ import (
 )
 
 // InitAdvancedOptions initializes an advanced config with default values + overriden urls.
-func InitAdvancedOptions() *conf.AdvancedConfig {
+func InitAdvancedOptions(proxy bool) *conf.AdvancedConfig {
+
+	prefix := "SPLIT_SYNC_"
+	if proxy {
+		prefix = "SPLIT_PROXY_"
+	}
 
 	advanced := conf.GetDefaultAdvancedConfig()
-	envSdkURL := os.Getenv("SPLITIO_SDK_URL")
-	if envSdkURL != "" {
+	if envSdkURL := os.Getenv(prefix + "SDK_URL"); envSdkURL != "" {
 		advanced.SdkURL = envSdkURL
 	}
 
-	envEventsURL := os.Getenv("SPLITIO_EVENTS_URL")
-	if envEventsURL != "" {
+	if envEventsURL := os.Getenv(prefix + "EVENTS_URL"); envEventsURL != "" {
 		advanced.EventsURL = envEventsURL
 	}
 
-	authServiceURL := os.Getenv("SPLITIO_AUTH_SERVICE_URL")
-	if authServiceURL != "" {
+	if authServiceURL := os.Getenv(prefix + "AUTH_SERVICE_URL"); authServiceURL != "" {
 		advanced.AuthServiceURL = authServiceURL
 	}
 
-	streamingServiceURL := os.Getenv("SPLITIO_STREAMING_SERVICE_URL")
-	if streamingServiceURL != "" {
+	if streamingServiceURL := os.Getenv(prefix + "STREAMING_SERVICE_URL"); streamingServiceURL != "" {
 		advanced.StreamingServiceURL = streamingServiceURL
 	}
 
-	telemetryServiceURL := os.Getenv("SPLITIO_TELEMETRY_SERVICE_URL")
-	if telemetryServiceURL != "" {
+	if telemetryServiceURL := os.Getenv(prefix + "TELEMETRY_SERVICE_URL"); telemetryServiceURL != "" {
 		advanced.TelemetryServiceURL = telemetryServiceURL
 	}
 

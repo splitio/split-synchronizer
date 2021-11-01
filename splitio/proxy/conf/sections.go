@@ -21,7 +21,7 @@ type Main struct {
 
 // BuildAdvancedConfig generates a commons-compatible advancedconfig with default + overriden parameters
 func (m *Main) BuildAdvancedConfig() *cconf.AdvancedConfig {
-	tmp := conf.InitAdvancedOptions() // defaults + url overrides
+	tmp := conf.InitAdvancedOptions(true) // defaults + url overrides
 	tmp.HTTPTimeout = int(m.Sync.Advanced.HTTPTimeoutMs / 1000)
 	tmp.ImpressionsQueueSize = int(m.Sync.Advanced.ImpressionsBuffer / 1000)
 	tmp.EventsQueueSize = int(m.Sync.Advanced.EventsBuffer)
