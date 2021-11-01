@@ -152,7 +152,8 @@ func parseLatencyField(field string) (metadata *dtos.Metadata, method string, bu
 		return nil, "", 0, fmt.Errorf("invalid subsection count. Expected 5, got: %d", l)
 	}
 
-	if !telemetry.IsMethodValid(&parts[redisSt.FieldLatencyIndexMethod]) {
+	method, ok := telemetry.ParseMethodFromRedisHash(parts[redisSt.FieldLatencyIndexMethod])
+	if !ok {
 		return nil, "", 0, fmt.Errorf("unknown method '%s'", parts[redisSt.FieldLatencyIndexMethod])
 	}
 
@@ -165,7 +166,7 @@ func parseLatencyField(field string) (metadata *dtos.Metadata, method string, bu
 		SDKVersion:  parts[redisSt.FieldLatencyIndexSdkVersion],
 		MachineName: parts[redisSt.FieldLatencyIndexMachineName],
 		MachineIP:   parts[redisSt.FieldLatencyIndexMachineIP],
-	}, parts[redisSt.FieldLatencyIndexMethod], int(intBucket), nil
+	}, method, int(intBucket), nil
 }
 
 func setLatency(result MultiMethodLatencies, metadata *dtos.Metadata, method string, bucket int, count int64) error {
@@ -207,7 +208,8 @@ func parseExceptionField(field string) (metadata *dtos.Metadata, method string, 
 		return nil, "", fmt.Errorf("invalid subsection count. Expected 5, got: %d", l)
 	}
 
-	if !telemetry.IsMethodValid(&parts[redisSt.FieldExceptionIndexMethod]) {
+	method, ok := telemetry.ParseMethodFromRedisHash(parts[redisSt.FieldExceptionIndexMethod])
+	if !ok {
 		return nil, "", fmt.Errorf("unknown method '%s'", parts[redisSt.FieldExceptionIndexMethod])
 	}
 
