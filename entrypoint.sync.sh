@@ -7,7 +7,7 @@ FLAGS=(
     "timeout-ms"
     "snapshot"
     "force-fresh-startup"
-    "type"
+    "storage-type"
     "split-refresh-rate-ms"
     "segment-refresh-rate-ms"
     "impressions-mode"
