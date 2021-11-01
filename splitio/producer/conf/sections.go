@@ -37,7 +37,7 @@ type Initialization struct {
 
 // Storage configuration options
 type Storage struct {
-	Type  string `json:"type" s-cli:"type" s-def:"redis" s-desc:"Storage driver to use for caching splits/segments and user-generated data"`
+	Type  string `json:"storage-type" s-cli:"type" s-def:"redis" s-desc:"Storage driver to use for caching splits/segments and user-generated data"`
 	Redis Redis  `json:"redis" s-nested:"true"`
 }
 
