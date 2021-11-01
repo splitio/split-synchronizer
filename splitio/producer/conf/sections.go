@@ -20,7 +20,7 @@ type Main struct {
 
 // BuildAdvancedConfig generates a commons-compatible advancedconfig with default + overriden parameters
 func (m *Main) BuildAdvancedConfig() *cconf.AdvancedConfig {
-	tmp := conf.InitAdvancedOptions() // defaults + url overrides
+	tmp := conf.InitAdvancedOptions(false) // defaults + url overrides
 	tmp.HTTPTimeout = int(m.Sync.Advanced.HTTPTimeoutMs / 1000)
 	tmp.StreamingEnabled = m.Sync.Advanced.StreamingEnabled
 	tmp.SplitsRefreshRate = int(m.Sync.SplitRefreshRateMs / 1000)
@@ -30,9 +30,10 @@ func (m *Main) BuildAdvancedConfig() *cconf.AdvancedConfig {
 
 // Initialization configuration options
 type Initialization struct {
-	TimeoutMs         int64  `json:"timeoutMS" s-cli:"timeout-ms" s-def:"10000" s-desc:"How long to wait until the synchronizer is ready"`
-	Snapshot          string `json:"snapshot" s-cli:"snapshot" s-def:"" s-desc:"Snapshot file to use as a starting point"`
-	ForceFreshStartup bool   `json:"forceFreshStartup" s-cli:"force-fresh-startup" s-def:"false" s-desc:"Wipe storage before starting the synchronizer"`
+	TimeoutMs int64 `json:"timeoutMS" s-cli:"timeout-ms" s-def:"10000" s-desc:"How long to wait until the synchronizer is ready"`
+	// Coming soon
+	// Snapshot          string `json:"snapshot" s-cli:"snapshot" s-def:"" s-desc:"Snapshot file to use as a starting point"`
+	ForceFreshStartup bool `json:"forceFreshStartup" s-cli:"force-fresh-startup" s-def:"false" s-desc:"Wipe storage before starting the synchronizer"`
 }
 
 // Storage configuration options
