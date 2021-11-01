@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/splitio/go-toolkit/v5/logging"
-	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/services/counter"
+	"github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/services/counter"
 )
 
 const (

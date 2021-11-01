@@ -7,12 +7,12 @@ import (
 	"github.com/splitio/go-split-commons/v4/service"
 	"github.com/splitio/go-toolkit/v5/logging"
 
-	"github.com/splitio/split-synchronizer/v4/splitio/common/impressionlistener"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/controllers"
-	proxyMW "github.com/splitio/split-synchronizer/v4/splitio/proxy/controllers/middleware"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage"
-	proxyStorage "github.com/splitio/split-synchronizer/v4/splitio/proxy/storage"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/tasks"
+	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers"
+	proxyMW "github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers/middleware"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
+	proxyStorage "github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"

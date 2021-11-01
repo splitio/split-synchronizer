@@ -8,7 +8,7 @@ import (
 	"github.com/splitio/go-split-commons/v4/dtos"
 	"github.com/splitio/go-toolkit/v5/hasher"
 	"github.com/splitio/go-toolkit/v5/nethelpers"
-	"github.com/splitio/split-synchronizer/v4/splitio"
+	"github.com/splitio/split-synchronizer/v5/splitio"
 )
 
 // HashAPIKey hashes apikey

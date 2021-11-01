@@ -13,8 +13,8 @@ import (
 	"github.com/splitio/go-split-commons/v4/service/mocks"
 	"github.com/splitio/go-toolkit/v5/logging"
 
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage"
-	psmocks "github.com/splitio/split-synchronizer/v4/splitio/proxy/storage/mocks"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
+	psmocks "github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/mocks"
 )
 
 func TestSplitChangesCachedRecipe(t *testing.T) {

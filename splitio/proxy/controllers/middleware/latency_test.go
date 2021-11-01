@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 )
 
 func TestLatencyMiddleWare(t *testing.T) {

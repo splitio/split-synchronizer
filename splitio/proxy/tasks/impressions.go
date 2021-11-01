@@ -8,7 +8,7 @@ import (
 	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/go-toolkit/v5/workerpool"
 
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/internal"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/internal"
 )
 
 // ImpressionWorker defines a component capable of recording imrpessions in raw form

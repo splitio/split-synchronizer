@@ -19,9 +19,9 @@ import (
 	"github.com/splitio/go-split-commons/v4/telemetry"
 	"github.com/splitio/go-toolkit/v5/logging"
 
-	"github.com/splitio/split-synchronizer/v4/splitio/common/impressionlistener"
-	ilMock "github.com/splitio/split-synchronizer/v4/splitio/common/impressionlistener/mocks"
-	evCalcMock "github.com/splitio/split-synchronizer/v4/splitio/producer/evcalc/mocks"
+	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
+	ilMock "github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener/mocks"
+	evCalcMock "github.com/splitio/split-synchronizer/v5/splitio/producer/evcalc/mocks"
 )
 
 func TestSynchronizeImpressionError(t *testing.T) {

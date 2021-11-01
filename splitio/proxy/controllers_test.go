@@ -15,10 +15,10 @@ package proxy
 //
 // 	"github.com/gin-gonic/gin"
 // 	"github.com/splitio/go-split-commons/v4/dtos"
-// 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb"
-// 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/boltdb/collections"
-// 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/controllers"
-// 	"github.com/splitio/split-synchronizer/v4/splitio/proxy/interfaces"
+// 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/boltdb"
+// 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/boltdb/collections"
+// 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers"
+// 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/interfaces"
 // )
 //
 // func TestSplitController(t *testing.T) {

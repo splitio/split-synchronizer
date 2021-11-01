@@ -13,11 +13,11 @@ import (
 	"github.com/splitio/go-split-commons/v4/dtos"
 	serviceMocks "github.com/splitio/go-split-commons/v4/service/mocks"
 	"github.com/splitio/go-toolkit/v5/logging"
-	ilmock "github.com/splitio/split-synchronizer/v4/splitio/common/impressionlistener/mocks"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/caching"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage"
-	pstorageMocks "github.com/splitio/split-synchronizer/v4/splitio/proxy/storage/mocks"
-	taskMocks "github.com/splitio/split-synchronizer/v4/splitio/proxy/tasks/mocks"
+	ilmock "github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener/mocks"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/caching"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
+	pstorageMocks "github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/mocks"
+	taskMocks "github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks/mocks"
 )
 
 func TestSplitChangesEndpoints(t *testing.T) {

@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/splitio/split-synchronizer/v4/splitio"
-	"github.com/splitio/split-synchronizer/v4/splitio/common"
-	cconf "github.com/splitio/split-synchronizer/v4/splitio/common/conf"
-	"github.com/splitio/split-synchronizer/v4/splitio/log"
-	"github.com/splitio/split-synchronizer/v4/splitio/producer"
-	"github.com/splitio/split-synchronizer/v4/splitio/producer/conf"
+	"github.com/splitio/split-synchronizer/v5/splitio"
+	"github.com/splitio/split-synchronizer/v5/splitio/common"
+	cconf "github.com/splitio/split-synchronizer/v5/splitio/common/conf"
+	"github.com/splitio/split-synchronizer/v5/splitio/log"
+	"github.com/splitio/split-synchronizer/v5/splitio/producer"
+	"github.com/splitio/split-synchronizer/v5/splitio/producer/conf"
 )
 
 const (

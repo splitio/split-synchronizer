@@ -5,8 +5,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/go-toolkit/v5/logging"
-	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/application"
-	"github.com/splitio/split-synchronizer/v4/splitio/provisional/healthcheck/services"
+	"github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/application"
+	"github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/services"
 )
 
 // HealthCheckController description

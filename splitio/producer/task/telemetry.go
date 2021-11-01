@@ -3,7 +3,7 @@ package task
 import (
 	"github.com/splitio/go-toolkit/v5/asynctask"
 	"github.com/splitio/go-toolkit/v5/logging"
-	"github.com/splitio/split-synchronizer/v4/splitio/producer/worker"
+	"github.com/splitio/split-synchronizer/v5/splitio/producer/worker"
 )
 
 // NewTelemetrySyncTask constructs a task used to periodically record sdk configs and stats into the split servers

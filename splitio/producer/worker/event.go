@@ -12,7 +12,7 @@ import (
 	"github.com/splitio/go-split-commons/v4/telemetry"
 	"github.com/splitio/go-toolkit/v5/common"
 	"github.com/splitio/go-toolkit/v5/logging"
-	"github.com/splitio/split-synchronizer/v4/splitio/producer/evcalc"
+	"github.com/splitio/split-synchronizer/v5/splitio/producer/evcalc"
 )
 
 // ErrEventsSyncFailed is returned when events synchronization fails

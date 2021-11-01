@@ -13,9 +13,9 @@ import (
 	"github.com/splitio/go-split-commons/v4/service/mocks"
 	predis "github.com/splitio/go-split-commons/v4/storage/redis"
 	"github.com/splitio/go-toolkit/v5/logging"
-	cconf "github.com/splitio/split-synchronizer/v4/splitio/common/conf"
-	"github.com/splitio/split-synchronizer/v4/splitio/producer/conf"
-	"github.com/splitio/split-synchronizer/v4/splitio/util"
+	cconf "github.com/splitio/split-synchronizer/v5/splitio/common/conf"
+	"github.com/splitio/split-synchronizer/v5/splitio/producer/conf"
+	"github.com/splitio/split-synchronizer/v5/splitio/util"
 )
 
 func TestHashApiKey(t *testing.T) {
