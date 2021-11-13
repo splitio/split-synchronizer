@@ -109,7 +109,8 @@ func TestEventsMemoryIsProperlyReturned(t *testing.T) {
 	}
 
 	for i := 0; i < 3; i++ {
-		req, err := w.BuildRequest(<-sinker)
+		req, cb, err := w.BuildRequest(<-sinker)
+		cb()
 		if req == nil || err != nil {
 			t.Error("there should be no error. Got: ", err)
 		}
