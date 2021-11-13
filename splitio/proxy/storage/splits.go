@@ -11,8 +11,12 @@ import (
 	"github.com/splitio/go-toolkit/v5/datastructures/set"
 	"github.com/splitio/go-toolkit/v5/logging"
 
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage/optimized"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage/persistent"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/optimized"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/persistent"
+)
+
+const (
+	maxRecipes = 1000
 )
 
 // ErrSummaryNotCached is returned when a summary is not cached for a requested change number
@@ -36,11 +40,16 @@ type ProxySplitStorageImpl struct {
 // NewProxySplitStorage instantiates a new proxy storage that wraps an in-memory snapshot of the last known,
 // flag configuration, a changes summaries containing recipes to update SDKs with different CNs, and a persistent storage
 // for snapshot purposes
-func NewProxySplitStorage(db persistent.DBWrapper, logger logging.LoggerInterface) *ProxySplitStorageImpl {
+func NewProxySplitStorage(db persistent.DBWrapper, logger logging.LoggerInterface, restoreBackup bool) *ProxySplitStorageImpl {
+	disk := persistent.NewSplitChangesCollection(db, logger)
+	snapshot := mutexmap.NewMMSplitStorage()
+	if restoreBackup {
+		snapshotFromDisk(snapshot, disk, logger)
+	}
 	return &ProxySplitStorageImpl{
-		snapshot: *mutexmap.NewMMSplitStorage(),
-		recipes:  *optimized.NewSplitChangesSummaries(),
-		db:       persistent.NewSplitChangesCollection(db, logger),
+		snapshot: *snapshot,
+		recipes:  *optimized.NewSplitChangesSummaries(maxRecipes),
+		db:       disk,
 	}
 }
 
@@ -148,6 +157,24 @@ func (p *ProxySplitStorageImpl) SplitNames() []string { return p.snapshot.SplitN
 // TrafficTypeExists call is forwarded to the snapshot
 func (p *ProxySplitStorageImpl) TrafficTypeExists(tt string) bool {
 	return p.snapshot.TrafficTypeExists(tt)
+}
+
+func snapshotFromDisk(dst *mutexmap.MMSplitStorage, src *persistent.SplitChangesCollection, logger logging.LoggerInterface) {
+	cn := src.ChangeNumber()
+	all, err := src.FetchAll()
+	if err != nil {
+		logger.Error("error parsing splits from snapshot. No data will be available!: ", err)
+		return
+	}
+
+	var filtered []dtos.SplitDTO
+	for idx := range all {
+		if all[idx].Status == "ACTIVE" {
+			filtered = append(filtered, all[idx])
+		}
+	}
+
+	dst.Update(filtered, nil, cn)
 }
 
 var _ ProxySplitStorage = (*ProxySplitStorageImpl)(nil)

@@ -8,8 +8,8 @@ import (
 	"github.com/splitio/go-toolkit/v5/datastructures/set"
 	"github.com/splitio/go-toolkit/v5/logging"
 
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage/optimized"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage/persistent"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/optimized"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/persistent"
 )
 
 // ErrSegmentNotFound is returned when the segment whose changes we're querying isn't cached
@@ -31,10 +31,15 @@ type ProxySegmentStorageImpl struct {
 }
 
 // NewProxySegmentStorage for proxy
-func NewProxySegmentStorage(db persistent.DBWrapper, logger logging.LoggerInterface) *ProxySegmentStorageImpl {
+func NewProxySegmentStorage(db persistent.DBWrapper, logger logging.LoggerInterface, restoreFromBackup bool) *ProxySegmentStorageImpl {
+	cache := optimized.NewMySegmentsCache()
+	disk := persistent.NewSegmentChangesCollection(db, logger)
+	if restoreFromBackup {
+		populateCacheFromDisk(cache, disk, logger)
+	}
 	return &ProxySegmentStorageImpl{
-		db:         persistent.NewSegmentChangesCollection(db, logger),
-		mysegments: optimized.NewMySegmentsCache(),
+		db:         disk,
+		mysegments: cache,
 		logger:     logger,
 	}
 }
@@ -156,4 +161,22 @@ func (s *ProxySegmentStorageImpl) CountRemovedKeys(segmentName string) int {
 	}
 
 	return removedKeys
+}
+
+func populateCacheFromDisk(dst optimized.MySegmentsCache, src *persistent.SegmentChangesCollection, logger logging.LoggerInterface) {
+	all, err := src.FetchAll()
+	if err != nil {
+		logger.Error("error popoulating segment cache from disk. Cache will be empty!: ", err)
+		return
+	}
+
+	for idx := range all {
+		s := set.NewSet()
+		for _, k := range all[idx].Keys {
+			if !k.Removed {
+				s.Add(k.Name)
+			}
+		}
+		dst.Update(all[idx].Name, s, set.NewSet())
+	}
 }

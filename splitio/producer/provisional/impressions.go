@@ -1,5 +1,7 @@
 package provisional
 
+// vim: ft=go
+
 import (
 	"bytes"
 	"encoding/json"

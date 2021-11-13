@@ -63,7 +63,6 @@ func (c *DataManagerController) BasePath() string {
 
 // DropImpressions drops impressions
 func (c *DataManagerController) DropImpressions(ctx *gin.Context) {
-	// TODO(mredolatti): Block resource!
 	size, err := getSize(ctx)
 	if err != nil {
 		c.logger.Error("error parsing size: ", err)
@@ -105,8 +104,6 @@ func (c *DataManagerController) FlushImpressions(ctx *gin.Context) {
 		return
 	}
 
-	// TODO(mredolatti): the impressions flushing mechanism trims the value up to the max, it's not worth checking it here,
-	// but we could return it from the Flush() method in the worker in order to inform how many were effectively flushed
 	err = c.impressionRecorder.FlushImpressions(size)
 	if err != nil {
 		ctx.String(http.StatusInternalServerError, "%s", err.Error())
@@ -124,8 +121,6 @@ func (c *DataManagerController) FlushEvents(ctx *gin.Context) {
 		return
 	}
 
-	// TODO(mredolatti): the events flushing mechanism trims the value up to the max, it's not worth checking it here,
-	// but we could return it from the Flush() method in the worker in order to inform how many were effectively flushed
 	err = c.eventRecorder.FlushEvents(size)
 	if err != nil {
 		ctx.String(http.StatusInternalServerError, "%s", err.Error())

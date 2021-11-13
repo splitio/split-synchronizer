@@ -1,4 +1,4 @@
-module github.com/splitio/split-synchronizer/v4
+module github.com/splitio/split-synchronizer/v5
 
 go 1.13
 
@@ -6,12 +6,13 @@ require (
 	github.com/gin-contrib/cors v0.0.0-20170318125340-cf4846e6a636
 	github.com/gin-contrib/gzip v0.0.3
 	github.com/gin-gonic/gin v1.7.3
+	github.com/google/uuid v1.3.0
 	github.com/json-iterator/go v1.1.10 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
-	github.com/splitio/gincache v0.0.1-rc5
-	github.com/splitio/go-split-commons/v4 v4.0.0-rc9.0.20211020231809-970f7bbdfec0
-	github.com/splitio/go-toolkit/v5 v5.0.0-rc4
+	github.com/splitio/gincache v0.0.1-rc6
+	github.com/splitio/go-split-commons/v4 v4.0.0-rc27
+	github.com/splitio/go-toolkit/v5 v5.0.0-rc5
 	go.etcd.io/bbolt v1.3.6
 )
 
-// replace github.com/splitio/go-split-commons/v4 => /Users/martinredolatti/projects/sdks/libs/go-split-commons
+// replace github.com/splitio/go-split-commons/v4 => /Users/martinredolatti/split-sync-box/go-split-commons

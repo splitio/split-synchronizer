@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/split-synchronizer/v4/splitio/common"
+	"github.com/splitio/split-synchronizer/v5/splitio/common"
 )
 
 const (

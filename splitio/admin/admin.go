@@ -8,10 +8,13 @@ import (
 	"github.com/splitio/go-split-commons/v4/synchronizer/worker/event"
 	"github.com/splitio/go-split-commons/v4/synchronizer/worker/impression"
 	"github.com/splitio/go-toolkit/v5/logging"
-	adminCommon "github.com/splitio/split-synchronizer/v4/splitio/admin/common"
-	"github.com/splitio/split-synchronizer/v4/splitio/admin/controllers"
-	"github.com/splitio/split-synchronizer/v4/splitio/common"
-	"github.com/splitio/split-synchronizer/v4/splitio/producer/evcalc"
+	adminCommon "github.com/splitio/split-synchronizer/v5/splitio/admin/common"
+	"github.com/splitio/split-synchronizer/v5/splitio/admin/controllers"
+	"github.com/splitio/split-synchronizer/v5/splitio/common"
+	cstorage "github.com/splitio/split-synchronizer/v5/splitio/common/storage"
+	"github.com/splitio/split-synchronizer/v5/splitio/producer/evcalc"
+	"github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/application"
+	"github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/services"
 
 	"github.com/gin-gonic/gin"
 )
@@ -33,6 +36,9 @@ type Options struct {
 	EventRecorder       event.EventRecorder
 	EventsEvCalc        evcalc.Monitor
 	Runtime             common.Runtime
+	HcAppMonitor        application.MonitorIterface
+	HcServicesMonitor   services.MonitorIterface
+	Snapshotter         cstorage.Snapshotter
 }
 
 // NewServer instantiates a new admin server
@@ -54,6 +60,7 @@ func NewServer(options *Options) (*http.Server, error) {
 		options.EventsEvCalc,
 		options.Runtime,
 		dataController,
+		options.HcAppMonitor,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error instantiating dashboard controller: %w", err)
@@ -66,6 +73,18 @@ func NewServer(options *Options) (*http.Server, error) {
 	// }
 
 	//router.GET("/admin/dashboard/segmentKeys/:segment", dctrl.SegmentKeys)
+
+	healthcheckController := controllers.NewHealthCheckController(
+		options.Logger,
+		options.HcAppMonitor,
+		options.HcServicesMonitor,
+	)
+
+	healthcheckController.Register(router)
+	if options.Snapshotter != nil {
+		snapshotController := controllers.NewSnapshotController(options.Logger, options.Snapshotter)
+		snapshotController.Register(admin)
+	}
 
 	return &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", options.Host, options.Port),
