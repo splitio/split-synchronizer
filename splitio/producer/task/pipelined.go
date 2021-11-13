@@ -35,7 +35,7 @@ type Config struct {
 type Worker interface {
 	Fetch() ([]string, error)
 	Process(rawData [][]byte, sink chan<- interface{}) error
-	BuildRequest(data interface{}) (*http.Request, error)
+	BuildRequest(data interface{}) (*http.Request, func(), error)
 }
 
 func (c *Config) normalize() {
@@ -222,9 +222,12 @@ func (p *PipelinedSyncTask) sinker() {
 			if !ok { // no more processed data available, end this goroutine
 				return
 			}
-			req, err := p.worker.BuildRequest(bulk)
+			req, cleanup, err := p.worker.BuildRequest(bulk)
 			if err != nil {
 				p.logger.Error("error building request: ", err.Error())
+				if cleanup != nil {
+					cleanup()
+				}
 				continue
 			}
 			common.WithAttempts(3, func() error {
@@ -235,7 +238,7 @@ func (p *PipelinedSyncTask) sinker() {
 				}
 
 				if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-					p.logger.Error("bad status code when posting impressions: ", resp.StatusCode)
+					p.logger.Error("bad status code when sinking data: ", resp.StatusCode)
 					return errHTTP
 				}
 
@@ -244,6 +247,9 @@ func (p *PipelinedSyncTask) sinker() {
 				}
 				return nil
 			})
+			if cleanup != nil {
+				cleanup()
+			}
 		}
 	}
 }
