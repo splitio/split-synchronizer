@@ -8,8 +8,8 @@ import (
 	serviceMocks "github.com/splitio/go-split-commons/v4/service/mocks"
 	"github.com/splitio/go-split-commons/v4/telemetry"
 	"github.com/splitio/go-toolkit/v5/logging"
-	"github.com/splitio/split-synchronizer/v4/splitio/producer/storage"
-	storageMocks "github.com/splitio/split-synchronizer/v4/splitio/producer/storage/mocks"
+	"github.com/splitio/split-synchronizer/v5/splitio/producer/storage"
+	storageMocks "github.com/splitio/split-synchronizer/v5/splitio/producer/storage/mocks"
 )
 
 func makeBucket(index int, count int64) []int64 {

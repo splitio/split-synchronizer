@@ -12,7 +12,7 @@ import (
 	"github.com/splitio/go-split-commons/v4/telemetry"
 	"github.com/splitio/go-toolkit/v5/common"
 	"github.com/splitio/go-toolkit/v5/logging"
-	"github.com/splitio/split-synchronizer/v4/splitio/producer/evcalc"
+	"github.com/splitio/split-synchronizer/v5/splitio/producer/evcalc"
 )
 
 // ErrEventsSyncFailed is returned when events synchronization fails
@@ -102,7 +102,8 @@ func (e *RecorderEventMultiple) synchronizeEvents(bulkSize int64) error {
 		})
 		if err != nil {
 			errs++
-			e.logger.Error(fmt.Sprintf("Error posting events for metadata '%+v' after 3 attempts. Data will be discarded", metadata))
+			e.logger.Error(fmt.Sprintf("Error posting events for metadata '%+v' after 3 attempts. Data will be discarded: %s", metadata, err.Error()))
+			continue
 		}
 
 		e.localTelemetry.RecordSyncLatency(telemetry.EventSync, time.Now().Sub(before))

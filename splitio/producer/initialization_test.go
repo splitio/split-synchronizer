@@ -13,8 +13,9 @@ import (
 	"github.com/splitio/go-split-commons/v4/service/mocks"
 	predis "github.com/splitio/go-split-commons/v4/storage/redis"
 	"github.com/splitio/go-toolkit/v5/logging"
-	"github.com/splitio/split-synchronizer/v4/conf"
-	"github.com/splitio/split-synchronizer/v4/splitio/util"
+	cconf "github.com/splitio/split-synchronizer/v5/splitio/common/conf"
+	"github.com/splitio/split-synchronizer/v5/splitio/producer/conf"
+	"github.com/splitio/split-synchronizer/v5/splitio/util"
 )
 
 func TestHashApiKey(t *testing.T) {
@@ -73,9 +74,9 @@ func TestIsApikeyValidNotOk(t *testing.T) {
 }
 
 func TestSanitizeRedisWithForcedCleanup(t *testing.T) {
-	conf.Initialize()
-	conf.Data.APIKey = "983564etyrudhijfgknf9i08euh"
-	conf.Data.Redis.ForceFreshStartup = true
+	cfg := getDefaultConf()
+	cfg.Apikey = "983564etyrudhijfgknf9i08euh"
+	cfg.Initialization.ForceFreshStartup = true
 
 	logger := logging.NewLogger(nil)
 
@@ -100,7 +101,7 @@ func TestSanitizeRedisWithForcedCleanup(t *testing.T) {
 
 	miscStorage := predis.NewMiscStorage(redisClient, logger)
 	value, err = redisClient.Get("SPLITIO.test1")
-	err = sanitizeRedis(miscStorage, logger)
+	err = sanitizeRedis(cfg, miscStorage, logger)
 	if err != nil {
 		t.Error("It should be nil", err)
 	}
@@ -119,8 +120,8 @@ func TestSanitizeRedisWithForcedCleanup(t *testing.T) {
 }
 
 func TestSanitizeRedisWithRedisEqualApiKey(t *testing.T) {
-	conf.Initialize()
-	conf.Data.APIKey = "djasghdhjasfganyr73dsah9"
+	cfg := getDefaultConf()
+	cfg.Apikey = "djasghdhjasfganyr73dsah9"
 
 	logger := logging.NewLogger(nil)
 
@@ -138,7 +139,7 @@ func TestSanitizeRedisWithRedisEqualApiKey(t *testing.T) {
 	redisClient.Set("SPLITIO.hash", "3376912823", 0)
 
 	miscStorage := predis.NewMiscStorage(redisClient, logger)
-	err = sanitizeRedis(miscStorage, logger)
+	err = sanitizeRedis(cfg, miscStorage, logger)
 	if err != nil {
 		t.Error("No error should have occured.")
 	}
@@ -157,10 +158,10 @@ func TestSanitizeRedisWithRedisEqualApiKey(t *testing.T) {
 }
 
 func TestSanitizeRedisWithRedisDifferentApiKey(t *testing.T) {
-	conf.Initialize()
+	cfg := getDefaultConf()
+	cfg.Apikey = "983564etyrudhijfgknf9i08euh"
 
 	logger := logging.NewLogger(nil)
-	conf.Data.APIKey = "983564etyrudhijfgknf9i08euh"
 
 	redisClient, err := predis.NewRedisClient(&config.RedisConfig{
 		Host:     "localhost",
@@ -176,7 +177,7 @@ func TestSanitizeRedisWithRedisDifferentApiKey(t *testing.T) {
 	redisClient.Set("SPLITIO.hash", "3376912823", 0)
 
 	miscStorage := predis.NewMiscStorage(redisClient, logger)
-	err = sanitizeRedis(miscStorage, logger)
+	err = sanitizeRedis(cfg, miscStorage, logger)
 	if err != nil {
 		t.Error("No error should have occured.")
 	}
@@ -192,4 +193,10 @@ func TestSanitizeRedisWithRedisDifferentApiKey(t *testing.T) {
 	}
 
 	redisClient.Del("SPLITIO.test1")
+}
+
+func getDefaultConf() *conf.Main {
+	var c conf.Main
+	cconf.PopulateDefaults(&c)
+	return &c
 }

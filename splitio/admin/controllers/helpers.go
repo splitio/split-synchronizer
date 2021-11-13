@@ -6,10 +6,10 @@ import (
 	"github.com/splitio/go-split-commons/v4/storage"
 	"github.com/splitio/go-split-commons/v4/telemetry"
 
-	"github.com/splitio/split-synchronizer/v4/splitio/admin/views/dashboard"
-	"github.com/splitio/split-synchronizer/v4/splitio/producer/evcalc"
-	proxyStorage "github.com/splitio/split-synchronizer/v4/splitio/proxy/storage"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/storage/persistent"
+	"github.com/splitio/split-synchronizer/v5/splitio/admin/views/dashboard"
+	"github.com/splitio/split-synchronizer/v5/splitio/producer/evcalc"
+	proxyStorage "github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/persistent"
 )
 
 func bundleSplitInfo(splitStorage storage.SplitStorageConsumer) []dashboard.SplitSummary {

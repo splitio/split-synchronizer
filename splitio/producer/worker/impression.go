@@ -14,8 +14,8 @@ import (
 	commonToolkit "github.com/splitio/go-toolkit/v5/common"
 	"github.com/splitio/go-toolkit/v5/logging"
 
-	"github.com/splitio/split-synchronizer/v4/splitio/common/impressionlistener"
-	"github.com/splitio/split-synchronizer/v4/splitio/producer/evcalc"
+	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
+	"github.com/splitio/split-synchronizer/v5/splitio/producer/evcalc"
 )
 
 const (

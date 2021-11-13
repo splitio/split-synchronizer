@@ -25,9 +25,10 @@ func NewCacheAwareSplitSync(
 	logger logging.LoggerInterface,
 	runtimeTelemetry storage.TelemetryRuntimeProducer,
 	cacheFlusher gincache.CacheFlusher,
+	appMonitor application.MonitorProducerInterface,
 ) *CacheAwareSplitSynchronizer {
 	return &CacheAwareSplitSynchronizer{
-		wrapped:      split.NewSplitFetcher(splitStorage, splitFetcher, logger, runtimeTelemetry, &application.Dummy{}),
+		wrapped:      split.NewSplitFetcher(splitStorage, splitFetcher, logger, runtimeTelemetry, appMonitor),
 		splitStorage: splitStorage,
 		cacheFlusher: cacheFlusher,
 	}
@@ -67,9 +68,10 @@ func NewCacheAwareSegmentSync(
 	logger logging.LoggerInterface,
 	runtimeTelemetry storage.TelemetryRuntimeProducer,
 	cacheFlusher gincache.CacheFlusher,
+	appMonitor application.MonitorProducerInterface,
 ) *CacheAwareSegmentSynchronizer {
 	return &CacheAwareSegmentSynchronizer{
-		wrapped:        segment.NewSegmentFetcher(splitStorage, segmentStorage, segmentFetcher, logger, runtimeTelemetry, &application.Dummy{}),
+		wrapped:        segment.NewSegmentFetcher(splitStorage, segmentStorage, segmentFetcher, logger, runtimeTelemetry, appMonitor),
 		cacheFlusher:   cacheFlusher,
 		splitStorage:   splitStorage,
 		segmentStorage: segmentStorage,
