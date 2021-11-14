@@ -72,13 +72,14 @@ func NewImpressionWorker(cfg *ImpressionWorkerConfig) (*ImpressionsPipelineWorke
 	}
 
 	return &ImpressionsPipelineWorker{
-		logger:     cfg.Logger,
-		storage:    cfg.Storage,
-		impManager: impManager,
-		url:        cfg.URL + "/testImpressions/bulk",
-		apikey:     cfg.Apikey,
-		fetchSize:  int64(cfg.FetchSize),
-		pool:       newImpWorkerMemoryPool(cfg.FetchSize, defaultMetasPerBulk, defaultFeatureCount, defaultImpsPerFeature),
+		logger:      cfg.Logger,
+		storage:     cfg.Storage,
+		impListener: cfg.ImpressionsListener,
+		impManager:  impManager,
+		url:         cfg.URL + "/testImpressions/bulk",
+		apikey:      cfg.Apikey,
+		fetchSize:   int64(cfg.FetchSize),
+		pool:        newImpWorkerMemoryPool(cfg.FetchSize, defaultMetasPerBulk, defaultFeatureCount, defaultImpsPerFeature),
 	}, nil
 }
 
@@ -118,13 +119,14 @@ func (i *ImpressionsPipelineWorker) Process(raws [][]byte, sink chan<- interface
 		batches.add(&queueObj)
 	}
 
+	if i.impListener != nil {
+		i.sendImpressionsToListener(batches)
+	}
+
 	for retIndex := range batches.groups {
 		sink <- batches.groups[retIndex]
 	}
 
-	if i.impListener != nil {
-		i.sendImpressionsToListener(batches)
-	}
 	return nil
 }
 
