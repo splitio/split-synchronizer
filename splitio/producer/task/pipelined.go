@@ -174,9 +174,9 @@ func (p *PipelinedSyncTask) processor() {
 			batch := p.pool.getRawBuffer() // acquire a buffer from the pool and schedule a release
 			defer p.pool.releaseRawBuffer(batch)
 
-			timer.Reset(p.maxAccumWait)
 			ready := false
 			for !ready {
+				timer.Reset(p.maxAccumWait)
 				select {
 				case raws, ok := <-p.inputBuffer:
 					if !ok { // no more elements to process, we can shut down
@@ -208,7 +208,6 @@ func (p *PipelinedSyncTask) processor() {
 			err := p.worker.Process(batch, p.preSubmitBuffer) // process the raw data and put the results in the buffer
 			if err != nil {
 				// TODO: log
-				return
 			}
 		}()
 	}
@@ -217,39 +216,38 @@ func (p *PipelinedSyncTask) processor() {
 func (p *PipelinedSyncTask) sinker() {
 	defer p.waiter.Done()
 	for {
-		select {
-		case bulk, ok := <-p.preSubmitBuffer:
-			if !ok { // no more processed data available, end this goroutine
-				return
-			}
-			req, cleanup, err := p.worker.BuildRequest(bulk)
-			if err != nil {
-				p.logger.Error("error building request: ", err.Error())
-				if cleanup != nil {
-					cleanup()
-				}
-				continue
-			}
-			common.WithAttempts(3, func() error {
-				resp, err := p.httpClient.Do(req)
-				if err != nil {
-					p.logger.Error("error posting: ", err.Error())
-					return err
-				}
-
-				if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-					p.logger.Error("bad status code when sinking data: ", resp.StatusCode)
-					return errHTTP
-				}
-
-				if resp.Body != nil {
-					resp.Body.Close()
-				}
-				return nil
-			})
+		bulk, ok := <-p.preSubmitBuffer
+		if !ok { // no more processed data available, end this goroutine
+			return
+		}
+		req, cleanup, err := p.worker.BuildRequest(bulk)
+		if err != nil {
+			p.logger.Error("error building request: ", err.Error())
 			if cleanup != nil {
 				cleanup()
 			}
+			continue
+		}
+		p.logger.Debug("posting impressions now")
+		common.WithAttempts(3, func() error {
+			resp, err := p.httpClient.Do(req)
+			if err != nil {
+				p.logger.Error("error posting: ", err.Error())
+				return err
+			}
+
+			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+				p.logger.Error("bad status code when sinking data: ", resp.StatusCode)
+				return errHTTP
+			}
+
+			if resp.Body != nil {
+				resp.Body.Close()
+			}
+			return nil
+		})
+		if cleanup != nil {
+			cleanup()
 		}
 	}
 }
@@ -272,7 +270,7 @@ func newTaskMemoryPool(processBatchSize int) *taskMemoryPoolImpl {
 }
 
 func (t *taskMemoryPoolImpl) getRawBuffer() rawBuffer {
-	return t.processBatchSlicePool.Get().(rawBuffer)
+	return t.processBatchSlicePool.Get().(rawBuffer)[:0]
 }
 
 func (t *taskMemoryPoolImpl) releaseRawBuffer(b rawBuffer) {

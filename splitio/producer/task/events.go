@@ -107,6 +107,7 @@ func (i *EventsPipelineWorker) BuildRequest(data interface{}) (*http.Request, fu
 
 	req.Header = http.Header{}
 	req.Header.Add("Authorization", "Bearer "+i.apikey)
+	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("SplitSDKVersion", ewm.metadata.SDKVersion)
 	req.Header.Add("SplitSDKMachineIp", ewm.metadata.MachineIP)
 	req.Header.Add("SplitSDKMachineName", ewm.metadata.MachineName)

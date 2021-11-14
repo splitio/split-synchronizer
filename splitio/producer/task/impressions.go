@@ -118,8 +118,6 @@ func (i *ImpressionsPipelineWorker) Process(raws [][]byte, sink chan<- interface
 		batches.add(&queueObj)
 	}
 
-	// we remove the name-index mapping of each impression group prior to returning since we no longer need it
-	// this way, memory can be collected by the GC
 	for retIndex := range batches.groups {
 		sink <- batches.groups[retIndex]
 	}
@@ -145,6 +143,7 @@ func (i *ImpressionsPipelineWorker) BuildRequest(data interface{}) (*http.Reques
 
 	req.Header = http.Header{}
 	req.Header.Add("Authorization", "Bearer "+i.apikey)
+	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("SplitSDKVersion", iwm.metadata.SDKVersion)
 	req.Header.Add("SplitSDKMachineIp", iwm.metadata.MachineIP)
 	req.Header.Add("SplitSDKMachineName", iwm.metadata.MachineName)
