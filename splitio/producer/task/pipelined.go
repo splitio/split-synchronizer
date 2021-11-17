@@ -2,6 +2,7 @@ package task
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"runtime"
 	"sync"
@@ -22,6 +23,7 @@ const (
 
 // Config contains the set of options/parameters to setup the eviction component
 type Config struct {
+	Name               string
 	Logger             logging.LoggerInterface
 	Worker             Worker
 	ProcessConcurrency int
@@ -71,6 +73,7 @@ type PipelinedSyncTask struct {
 	pool       taskMemoryPool
 
 	// configs
+	name               string
 	postConcurrency    int
 	processConcurrency int
 	processBatchSize   int
@@ -93,6 +96,7 @@ func NewPipelinedTask(config *Config) (*PipelinedSyncTask, error) {
 	t.MaxIdleConns = config.PostConcurrency
 	t.MaxIdleConnsPerHost = config.PostConcurrency
 	return &PipelinedSyncTask{
+		name:               config.Name,
 		logger:             config.Logger,
 		worker:             config.Worker,
 		httpClient:         http.Client{Transport: t, Timeout: config.HTTPTimeout},
@@ -156,11 +160,17 @@ func (p *PipelinedSyncTask) filler() {
 			}
 		}
 		if err != nil {
-			p.logger.Error("fetch function returned error: ", err.Error())
+			p.logger.Error(fmt.Sprintf("[pipelined/%s] fetch function returned error: %s", p.name, err))
 			continue
 		}
 
-		p.inputBuffer <- raw
+		select {
+		case p.inputBuffer <- raw:
+		default:
+			p.logger.Warning(fmt.Sprintf(
+				"[pipelined/%s] - dropping bulk of %d fetched items because processing buffer is full", p.name, len(raw),
+			))
+		}
 	}
 }
 
@@ -222,7 +232,7 @@ func (p *PipelinedSyncTask) sinker() {
 		}
 		req, cleanup, err := p.worker.BuildRequest(bulk)
 		if err != nil {
-			p.logger.Error("error building request: ", err.Error())
+			p.logger.Error(fmt.Sprintf("[pipelined/%s] error building request: %s", p.name, err))
 			if cleanup != nil {
 				cleanup()
 			}
@@ -231,12 +241,12 @@ func (p *PipelinedSyncTask) sinker() {
 		common.WithAttempts(3, func() error {
 			resp, err := p.httpClient.Do(req)
 			if err != nil {
-				p.logger.Error("error posting: ", err.Error())
+				p.logger.Error(fmt.Sprintf("[pipelined/%s] error posting: %s", p.name, err))
 				return err
 			}
 
 			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-				p.logger.Error("bad status code when sinking data: ", resp.StatusCode)
+				p.logger.Error(fmt.Sprintf("[pipelined/%s] bad status code when sinking data: %d", p.name, resp.StatusCode))
 				return errHTTP
 			}
 

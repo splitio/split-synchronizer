@@ -72,3 +72,10 @@ func TestEvictionCalculatorWithMoreDataThatCanFlushAndMoreDataThatCanStore(t *te
 		t.Error("It should recorded 100")
 	}
 }
+
+func TestNoDataReturns1(t *testing.T) {
+	monitor := New(1)
+	if monitor.Lambda() != 1 {
+		t.Error("if no data has been submitted, lambda should be 1")
+	}
+}

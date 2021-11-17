@@ -95,7 +95,6 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 
 	// Creating Workers and Tasks
 	eventEvictionMonitor := evcalc.New(cfg.Sync.EventsWorkers)
-	eventRecorder := worker.NewEventRecorderMultiple(storages.EventStorage, splitAPI.EventRecorder, syncTelemetryStorage, eventEvictionMonitor, logger)
 
 	// Healcheck Monitor
 	splitsConfig, segmentsConfig, storageConfig := getAppCounterConfigs(storages.SplitStorage)
@@ -106,7 +105,6 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		SplitFetcher: split.NewSplitFetcher(storages.SplitStorage, splitAPI.SplitFetcher, logger, syncTelemetryStorage, appMonitor),
 		SegmentFetcher: segment.NewSegmentFetcher(storages.SplitStorage, storages.SegmentStorage, splitAPI.SegmentFetcher,
 			logger, syncTelemetryStorage, appMonitor),
-		EventRecorder: eventRecorder,
 		// local telemetry
 		TelemetryRecorder: telemetry.NewTelemetrySynchronizer(syncTelemetryStorage, splitAPI.TelemetryRecorder,
 			storages.SplitStorage, storages.SegmentStorage, logger, metadata, syncTelemetryStorage),
@@ -232,7 +230,6 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		Logger:            logger,
 		Storages:          storages,
 		ImpressionsEvCalc: impressionEvictionMonitor,
-		EventRecorder:     eventRecorder,
 		EventsEvCalc:      eventEvictionMonitor,
 		Runtime:           rtm,
 		HcAppMonitor:      appMonitor,
