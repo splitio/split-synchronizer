@@ -15,6 +15,7 @@ import (
 	"github.com/splitio/go-split-commons/v4/dtos"
 	"github.com/splitio/go-split-commons/v4/storage/mocks"
 	"github.com/splitio/go-toolkit/v5/logging"
+	"github.com/splitio/split-synchronizer/v5/splitio/producer/evcalc"
 )
 
 type eventTrackingAllocator struct {
@@ -91,11 +92,12 @@ func makeSerializedEvents(metadatas int, keys int) [][]byte {
 func TestEventsMemoryIsProperlyReturned(t *testing.T) {
 	poolWrapper := newEventTrackingAllocator()
 	w, err := NewEventsWorker(&EventWorkerConfig{
-		Logger:    logging.NewLogger(nil),
-		Storage:   mocks.MockEventStorage{},
-		URL:       "http://test",
-		Apikey:    "someApikey",
-		FetchSize: 100,
+		EvictionMonitor: evcalc.New(1),
+		Logger:          logging.NewLogger(nil),
+		Storage:         mocks.MockEventStorage{},
+		URL:             "http://test",
+		Apikey:          "someApikey",
+		FetchSize:       100,
 	})
 	w.pool = poolWrapper
 	if err != nil {
@@ -144,26 +146,27 @@ func TestEventsIntegration(t *testing.T) {
 	evs := makeSerializedEvents(3, 100)
 	var calls int64
 	st := &mocks.MockEventStorage{
-		PopNRawCall: func(int64) ([]string, error) {
+		PopNRawCall: func(int64) ([]string, int64, error) {
 			atomic.AddInt64(&calls, 1)
 			if atomic.LoadInt64(&calls) > 500 {
-				return nil, nil
+				return nil, 0, nil
 			}
 			asStr := make([]string, 0, len(evs))
 			for idx := range evs {
 				asStr = append(asStr, string(evs[idx]))
 			}
-			return asStr, nil
+			return asStr, 5000000, nil
 		},
 	}
 
 	poolWrapper := newEventTrackingAllocator()
 	w, err := NewEventsWorker(&EventWorkerConfig{
-		Logger:    logging.NewLogger(nil),
-		Storage:   st,
-		URL:       server.URL,
-		Apikey:    "someApikey",
-		FetchSize: 5000,
+		EvictionMonitor: evcalc.New(1),
+		Logger:          logging.NewLogger(nil),
+		Storage:         st,
+		URL:             server.URL,
+		Apikey:          "someApikey",
+		FetchSize:       5000,
 	})
 	if err != nil {
 		t.Error("worker instantiation should not fail: ", err)

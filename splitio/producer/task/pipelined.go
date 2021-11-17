@@ -228,7 +228,6 @@ func (p *PipelinedSyncTask) sinker() {
 			}
 			continue
 		}
-		p.logger.Debug("posting impressions now")
 		common.WithAttempts(3, func() error {
 			resp, err := p.httpClient.Do(req)
 			if err != nil {

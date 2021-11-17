@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/splitio/go-split-commons/v4/dtos"
 	"github.com/splitio/go-split-commons/v4/storage"
 	"github.com/splitio/go-toolkit/v5/logging"
+	"github.com/splitio/split-synchronizer/v5/splitio/producer/evcalc"
 )
 
 const (
@@ -19,11 +21,12 @@ const (
 
 // EventWorkerConfig bundles options
 type EventWorkerConfig struct {
-	Logger    logging.LoggerInterface
-	Storage   storage.EventMultiSdkConsumer
-	URL       string
-	Apikey    string
-	FetchSize int
+	Logger          logging.LoggerInterface
+	Storage         storage.EventMultiSdkConsumer
+	EvictionMonitor evcalc.Monitor
+	URL             string
+	Apikey          string
+	FetchSize       int
 }
 
 func (c *EventWorkerConfig) normalize() {
@@ -34,8 +37,9 @@ func (c *EventWorkerConfig) normalize() {
 
 // EventsPipelineWorker implements all the required  methods to work with a pipelined task
 type EventsPipelineWorker struct {
-	logger  logging.LoggerInterface
-	storage storage.EventMultiSdkConsumer
+	logger          logging.LoggerInterface
+	storage         storage.EventMultiSdkConsumer
+	evictionMonitor evcalc.Monitor
 
 	url       string
 	apikey    string
@@ -47,12 +51,13 @@ type EventsPipelineWorker struct {
 func NewEventsWorker(cfg *EventWorkerConfig) (*EventsPipelineWorker, error) {
 	cfg.normalize()
 	return &EventsPipelineWorker{
-		logger:    cfg.Logger,
-		storage:   cfg.Storage,
-		url:       cfg.URL + "/events/bulk",
-		apikey:    cfg.Apikey,
-		fetchSize: int64(cfg.FetchSize),
-		pool:      newEventWorkerMemoryPool(cfg.FetchSize, defaultMetasPerBulk, defaultEventsPerBulk),
+		logger:          cfg.Logger,
+		evictionMonitor: cfg.EvictionMonitor,
+		storage:         cfg.Storage,
+		url:             cfg.URL + "/events/bulk",
+		apikey:          cfg.Apikey,
+		fetchSize:       int64(cfg.FetchSize),
+		pool:            newEventWorkerMemoryPool(cfg.FetchSize, defaultMetasPerBulk, defaultEventsPerBulk),
 	}, nil
 }
 
@@ -62,10 +67,11 @@ func NewEventsWorker(cfg *EventWorkerConfig) (*EventsPipelineWorker, error) {
 // We should eventually revisit the redis client interface and see how feasible it is
 // to return bytes directly.
 func (i *EventsPipelineWorker) Fetch() ([]string, error) {
-	raw, err := i.storage.PopNRaw(i.fetchSize)
+	raw, sizeAfterPop, err := i.storage.PopNRaw(i.fetchSize)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching raw events: %w", err)
 	}
+	i.evictionMonitor.StoreDataFlushed(time.Now(), len(raw), sizeAfterPop)
 	return raw, nil
 }
 

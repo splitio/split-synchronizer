@@ -14,11 +14,17 @@ func TestSegment(t *testing.T) {
 	}
 }
 
+func TestMySegmentKeyGeneration(t *testing.T) {
+	if MakeMySegmentsEntry("k1") != "/api/mySegments/k1" {
+		t.Error("invalid mySegments cache entry")
+	}
+}
+
 func TestMySegments(t *testing.T) {
 	testhelpers.AssertStringSliceEquals(
 		t,
 		MakeSurrogateForMySegments([]dtos.MySegmentDTO{{Name: "segment1"}, {Name: "segment2"}}),
-		[]string{segmentPrefix + "segment1", segmentPrefix + "segment2"},
+		[]string{},
 		"wrong my segments surrogate keys",
 	)
 }

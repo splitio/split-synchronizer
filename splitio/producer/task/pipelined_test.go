@@ -7,6 +7,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/splitio/go-toolkit/v5/logging"
 )
 
 type mockWorker struct {
@@ -134,7 +136,10 @@ func TestPipelineTask(t *testing.T) {
 		},
 	}
 	poolWrapper := newTaskMemoryPoolWraper(1000)
-	cfg := &Config{Worker: w}
+	cfg := &Config{
+		Worker: w,
+		Logger: logging.NewLogger(nil),
+	}
 	task, err := NewPipelinedTask(cfg)
 	if err != nil {
 		t.Error("task init: ", err)

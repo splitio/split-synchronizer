@@ -144,6 +144,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	impWorker, err := task.NewImpressionWorker(&task.ImpressionWorkerConfig{
 		Logger:              logger,
 		Storage:             storages.ImpressionStorage,
+		EvictionMonitor:     impressionEvictionMonitor,
 		URL:                 advanced.EventsURL,
 		Apikey:              cfg.Apikey,
 		ImpressionsMode:     cfg.Sync.ImpressionsMode,
@@ -169,11 +170,12 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	}
 
 	evWorker, err := task.NewEventsWorker(&task.EventWorkerConfig{
-		Logger:    logger,
-		Storage:   storages.EventStorage,
-		URL:       advanced.EventsURL,
-		Apikey:    cfg.Apikey,
-		FetchSize: 0, // TODO(mredolatti): forward appropriate config
+		Logger:          logger,
+		Storage:         storages.EventStorage,
+		URL:             advanced.EventsURL,
+		EvictionMonitor: eventEvictionMonitor,
+		Apikey:          cfg.Apikey,
+		FetchSize:       0, // TODO(mredolatti): forward appropriate config
 	})
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error instantiating events worker: %w", err), common.ExitTaskInitialization)

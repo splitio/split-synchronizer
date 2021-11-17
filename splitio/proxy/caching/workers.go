@@ -35,14 +35,14 @@ func NewCacheAwareSplitSync(
 }
 
 // SynchronizeSplits synchronizes splits and if something changes, purges the cache appropriately
-func (c *CacheAwareSplitSynchronizer) SynchronizeSplits(till *int64, requestNoCache bool) ([]string, error) {
+func (c *CacheAwareSplitSynchronizer) SynchronizeSplits(till *int64, requestNoCache bool) (*split.UpdateResult, error) {
 	previous, _ := c.splitStorage.ChangeNumber()
-	segmentList, err := c.wrapped.SynchronizeSplits(till, requestNoCache)
+	result, err := c.wrapped.SynchronizeSplits(till, requestNoCache)
 	if current, _ := c.splitStorage.ChangeNumber(); current > previous || (previous != -1 && current == -1) {
 		// if the changenumber was updated, evict splitChanges responses from cache
 		c.cacheFlusher.EvictBySurrogate(SplitSurrogate)
 	}
-	return segmentList, err
+	return result, err
 }
 
 // LocalKill kills a split locally and purges splitChanges entries from the http cache
@@ -79,18 +79,23 @@ func NewCacheAwareSegmentSync(
 }
 
 // SynchronizeSegment synchronizes a segment and if it was updated, flushes all entries associated with it from the http cache
-func (c *CacheAwareSegmentSynchronizer) SynchronizeSegment(name string, till *int64, requestNoCache bool) error {
+func (c *CacheAwareSegmentSynchronizer) SynchronizeSegment(name string, till *int64, requestNoCache bool) (*segment.UpdateResult, error) {
 	previous, _ := c.segmentStorage.ChangeNumber(name)
-	err := c.wrapped.SynchronizeSegment(name, till, requestNoCache)
-	if current, _ := c.segmentStorage.ChangeNumber(name); current > previous || (previous != -1 && current == -1) {
+	result, err := c.wrapped.SynchronizeSegment(name, till, requestNoCache)
+	if current := result.NewChangeNumber; current > previous || (previous != -1 && current == -1) {
 		c.cacheFlusher.EvictBySurrogate(MakeSurrogateForSegmentChanges(name))
 	}
 
-	return err
+	// remove individual entries for each affected key
+	for idx := range result.UpdatedKeys {
+		c.cacheFlusher.Evict(MakeMySegmentsEntry(result.UpdatedKeys[idx]))
+	}
+
+	return result, err
 }
 
 // SynchronizeSegments syncs all the segments cached and purges cache appropriately if needed
-func (c *CacheAwareSegmentSynchronizer) SynchronizeSegments(requestNoCache bool) error {
+func (c *CacheAwareSegmentSynchronizer) SynchronizeSegments(requestNoCache bool) (map[string]segment.UpdateResult, error) {
 	// we need to keep track of all change numbers here to see if anything changed
 	previousSegmentNames := c.splitStorage.SegmentNames()
 	previousCNs := make(map[string]int64, previousSegmentNames.Size())
@@ -101,36 +106,22 @@ func (c *CacheAwareSegmentSynchronizer) SynchronizeSegments(requestNoCache bool)
 		}
 	}
 
-	err := c.wrapped.SynchronizeSegments(requestNoCache)
-
-	currentSegmentNames := c.splitStorage.SegmentNames()
-	currentCNs := make(map[string]int64, currentSegmentNames.Size())
-	for _, name := range currentSegmentNames.List() {
-		if strName, ok := name.(string); ok {
-			cn, _ := c.segmentStorage.ChangeNumber(strName)
-			currentCNs[strName] = cn
+	results, err := c.wrapped.SynchronizeSegments(requestNoCache)
+	for segmentName := range results {
+		result := results[segmentName]
+		ccn := result.NewChangeNumber
+		if pcn, _ := previousCNs[segmentName]; ccn > pcn || (pcn > 0 && ccn == -1) {
+			// if the segment was updated or the segment was removed, evict it
+			c.cacheFlusher.EvictBySurrogate(MakeSurrogateForSegmentChanges(segmentName))
 		}
-	}
 
-	// make a list of every updated segment
-	toPurge := make(map[string]struct{})
-	for name, pcn := range previousCNs { // add all removed & updated segments to the purge list
-		if ccn, ok := currentCNs[name]; !ok || ccn > pcn || (pcn != -1 && ccn == -1) {
-			toPurge[name] = struct{}{}
+		for idx := range result.UpdatedKeys {
+			c.cacheFlusher.Evict(MakeMySegmentsEntry(result.UpdatedKeys[idx]))
 		}
+
 	}
 
-	for name := range currentCNs { // add any new segment (just in case we have some odd leftover)
-		if _, ok := previousCNs[name]; !ok {
-			toPurge[name] = struct{}{}
-		}
-	}
-
-	for segmentName := range toPurge {
-		c.cacheFlusher.EvictBySurrogate(MakeSurrogateForSegmentChanges(segmentName))
-	}
-
-	return err // return original segment sync error
+	return results, err // return original segment sync error
 }
 
 // SegmentNames forwards the call to the wrapped sync

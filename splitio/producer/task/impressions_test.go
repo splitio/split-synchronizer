@@ -17,6 +17,7 @@ import (
 	"github.com/splitio/go-split-commons/v4/storage/inmemory"
 	"github.com/splitio/go-split-commons/v4/storage/mocks"
 	"github.com/splitio/go-toolkit/v5/logging"
+	"github.com/splitio/split-synchronizer/v5/splitio/producer/evcalc"
 )
 
 type trackingAllocator struct {
@@ -128,6 +129,7 @@ func TestMemoryIsProperlyReturned(t *testing.T) {
 
 	poolWrapper := newTrackingAllocator()
 	w, err := NewImpressionWorker(&ImpressionWorkerConfig{
+		EvictionMonitor:     evcalc.New(1),
 		Logger:              logging.NewLogger(nil),
 		ImpressionsMode:     conf.ImpressionsModeOptimized,
 		ImpressionsListener: nil,
@@ -191,21 +193,22 @@ func TestImpressionsIntegration(t *testing.T) {
 	imps := makeSerializedImpressions(3, 4, 20)
 	var calls int64
 	st := &mocks.MockImpressionStorage{
-		PopNRawCall: func(int64) ([]string, error) {
+		PopNRawCall: func(int64) ([]string, int64, error) {
 			atomic.AddInt64(&calls, 1)
 			if atomic.LoadInt64(&calls) > 500 {
-				return nil, nil
+				return nil, 0, nil
 			}
 			asStr := make([]string, 0, len(imps))
 			for idx := range imps {
 				asStr = append(asStr, string(imps[idx]))
 			}
-			return asStr, nil
+			return asStr, 500000, nil
 		},
 	}
 
 	poolWrapper := newTrackingAllocator()
 	w, err := NewImpressionWorker(&ImpressionWorkerConfig{
+		EvictionMonitor:     evcalc.New(1),
 		Logger:              logging.NewLogger(nil),
 		ImpressionsMode:     conf.ImpressionsModeOptimized,
 		ImpressionsListener: nil,

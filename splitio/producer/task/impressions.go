@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/splitio/go-split-commons/v4/conf"
 	"github.com/splitio/go-split-commons/v4/dtos"
@@ -13,6 +14,7 @@ import (
 	"github.com/splitio/go-split-commons/v4/storage"
 	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
+	"github.com/splitio/split-synchronizer/v5/splitio/producer/evcalc"
 )
 
 const (
@@ -27,13 +29,14 @@ const (
 type ImpressionWorkerConfig struct {
 	Logger              logging.LoggerInterface
 	Storage             storage.ImpressionMultiSdkConsumer
+	ImpressionCounter   *provisional.ImpressionsCounter
+	ImpressionsListener impressionlistener.ImpressionBulkListener
+	Telemetry           storage.TelemetryRuntimeProducer
+	EvictionMonitor     evcalc.Monitor
 	URL                 string
 	Apikey              string
 	FetchSize           int
 	ImpressionsMode     string
-	ImpressionCounter   *provisional.ImpressionsCounter
-	ImpressionsListener impressionlistener.ImpressionBulkListener
-	Telemetry           storage.TelemetryRuntimeProducer
 }
 
 func (c *ImpressionWorkerConfig) normalize() {
@@ -44,10 +47,11 @@ func (c *ImpressionWorkerConfig) normalize() {
 
 // ImpressionsPipelineWorker implements all the required  methods to work with a pipelined task
 type ImpressionsPipelineWorker struct {
-	logger      logging.LoggerInterface
-	storage     storage.ImpressionMultiSdkConsumer
-	impManager  provisional.ImpressionManager
-	impListener impressionlistener.ImpressionBulkListener
+	logger          logging.LoggerInterface
+	storage         storage.ImpressionMultiSdkConsumer
+	impManager      provisional.ImpressionManager
+	impListener     impressionlistener.ImpressionBulkListener
+	evictionMonitor evcalc.Monitor
 
 	url       string
 	apikey    string
@@ -72,14 +76,15 @@ func NewImpressionWorker(cfg *ImpressionWorkerConfig) (*ImpressionsPipelineWorke
 	}
 
 	return &ImpressionsPipelineWorker{
-		logger:      cfg.Logger,
-		storage:     cfg.Storage,
-		impListener: cfg.ImpressionsListener,
-		impManager:  impManager,
-		url:         cfg.URL + "/testImpressions/bulk",
-		apikey:      cfg.Apikey,
-		fetchSize:   int64(cfg.FetchSize),
-		pool:        newImpWorkerMemoryPool(cfg.FetchSize, defaultMetasPerBulk, defaultFeatureCount, defaultImpsPerFeature),
+		logger:          cfg.Logger,
+		storage:         cfg.Storage,
+		impListener:     cfg.ImpressionsListener,
+		impManager:      impManager,
+		url:             cfg.URL + "/testImpressions/bulk",
+		apikey:          cfg.Apikey,
+		fetchSize:       int64(cfg.FetchSize),
+		evictionMonitor: cfg.EvictionMonitor,
+		pool:            newImpWorkerMemoryPool(cfg.FetchSize, defaultMetasPerBulk, defaultFeatureCount, defaultImpsPerFeature),
 	}, nil
 }
 
@@ -89,10 +94,11 @@ func NewImpressionWorker(cfg *ImpressionWorkerConfig) (*ImpressionsPipelineWorke
 // We should eventually revisit the redis client interface and see how feasible it is
 // to return bytes directly.
 func (i *ImpressionsPipelineWorker) Fetch() ([]string, error) {
-	raw, err := i.storage.PopNRaw(i.fetchSize)
+	raw, sizeAfterPop, err := i.storage.PopNRaw(i.fetchSize)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching raw impressions: %w", err)
 	}
+	i.evictionMonitor.StoreDataFlushed(time.Now(), len(raw), sizeAfterPop)
 	return raw, nil
 }
 
