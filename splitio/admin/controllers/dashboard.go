@@ -20,16 +20,15 @@ import (
 
 // DashboardController contains handlers for rendering the dashboard and its associated FE queries
 type DashboardController struct {
-	title              string
-	proxy              bool
-	logger             logging.LoggerInterface
-	storages           adminCommon.Storages
-	layout             *template.Template
-	impressionsEvCalc  evcalc.Monitor
-	eventsEvCalc       evcalc.Monitor
-	runtime            common.Runtime
-	dataControllerPath string
-	appMonitor         application.MonitorIterface
+	title             string
+	proxy             bool
+	logger            logging.LoggerInterface
+	storages          adminCommon.Storages
+	layout            *template.Template
+	impressionsEvCalc evcalc.Monitor
+	eventsEvCalc      evcalc.Monitor
+	runtime           common.Runtime
+	appMonitor        application.MonitorIterface
 }
 
 // NewDashboardController instantiates a new dashboard controller
@@ -41,25 +40,18 @@ func NewDashboardController(
 	impressionEvCalc evcalc.Monitor,
 	eventsEvCalc evcalc.Monitor,
 	runtime common.Runtime,
-	dataController *DataManagerController,
 	appMonitor application.MonitorIterface,
 ) (*DashboardController, error) {
 
-	var dataControllerPath string
-	if dataController != nil {
-		dataControllerPath = dataController.BasePath()
-	}
-
 	toReturn := &DashboardController{
-		title:              name,
-		proxy:              proxy,
-		logger:             logger,
-		runtime:            runtime,
-		storages:           storages,
-		eventsEvCalc:       eventsEvCalc,
-		impressionsEvCalc:  impressionEvCalc,
-		dataControllerPath: dataControllerPath,
-		appMonitor:         appMonitor,
+		title:             name,
+		proxy:             proxy,
+		logger:            logger,
+		runtime:           runtime,
+		storages:          storages,
+		eventsEvCalc:      eventsEvCalc,
+		impressionsEvCalc: impressionEvCalc,
+		appMonitor:        appMonitor,
 	}
 
 	var err error
@@ -116,15 +108,14 @@ func (c *DashboardController) renderDashboard() ([]byte, error) {
 	}
 
 	var layoutBuffer bytes.Buffer
-	err := c.layout.Execute(&layoutBuffer, dashboard.DashboardInitializationVars{
-		DashboardTitle:     c.title,
-		RunningMode:        runningMode,
-		Version:            splitio.Version,
-		ProxyMode:          c.proxy,
-		RefreshTime:        10000,
-		Stats:              *c.gatherStats(),
-		Health:             c.appMonitor.GetHealthStatus(),
-		DataControllerPath: c.dataControllerPath,
+	err := c.layout.Execute(&layoutBuffer, dashboard.RootObject{
+		DashboardTitle: c.title,
+		RunningMode:    runningMode,
+		Version:        splitio.Version,
+		ProxyMode:      c.proxy,
+		RefreshTime:    10000,
+		Stats:          *c.gatherStats(),
+		Health:         c.appMonitor.GetHealthStatus(),
 	})
 
 	if err != nil {
