@@ -74,6 +74,19 @@ const main = `
 </html>
 `
 
+// RootObject is the main/root object used to render the dashboard
+type RootObject struct {
+	DashboardTitle string
+	RunningMode    string
+	Version        string
+	ProxyMode      bool
+	RefreshTime    int64
+	Stats          GlobalStats           `json:"stats"`
+	Health         application.HealthDto `json:"health"`
+	ServicesHealth services.HealthDto    `json:"servicesHealth"`
+}
+
+// GlobalStats runtime stats used to render the dashboard
 type GlobalStats struct {
 	BackendTotalRequests   int64            `json:"backendTotalRequests"`
 	RequestsOk             int64            `json:"requestsOk"`
@@ -92,18 +105,6 @@ type GlobalStats struct {
 	EventsQueueSize        int64            `json:"eventsQueueSize"`
 	EventsLambda           float64          `json:"eventsLambda"`
 	Uptime                 int64            `json:"uptime"`
-}
-
-type DashboardInitializationVars struct {
-	DashboardTitle     string
-	RunningMode        string
-	Version            string
-	ProxyMode          bool
-	RefreshTime        int64
-	DataControllerPath string
-	Stats              GlobalStats           `json:"stats"`
-	Health             application.HealthDto `json:"health"`
-	ServicesHealth     services.HealthDto    `json:"servicesHealth"`
 }
 
 // SplitSummary encapsulates a minimalistic view of split properties to be presented in the dashboard
