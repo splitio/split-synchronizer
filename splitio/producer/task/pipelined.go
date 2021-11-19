@@ -233,6 +233,7 @@ func (p *PipelinedSyncTask) sinker() {
 		if !ok { // no more processed data available, end this goroutine
 			return
 		}
+		p.logger.Debug(fmt.Sprintf("[pipelined/%s] - impressions post ready. making request", p.name))
 		req, cleanup, err := p.worker.BuildRequest(bulk)
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("[pipelined/%s] error building request: %s", p.name, err))
@@ -256,6 +257,7 @@ func (p *PipelinedSyncTask) sinker() {
 			if resp.Body != nil {
 				resp.Body.Close()
 			}
+			p.logger.Debug(fmt.Sprintf("[pipelined/%s] - impressions posted successfully", p.name))
 			return nil
 		})
 		if cleanup != nil {
