@@ -94,7 +94,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	}
 
 	// Creating Workers and Tasks
-	eventEvictionMonitor := evcalc.New(cfg.Sync.EventsWorkers)
+	eventEvictionMonitor := evcalc.New(1)
 
 	// Healcheck Monitor
 	splitsConfig, segmentsConfig, storageConfig := getAppCounterConfigs(storages.SplitStorage)
@@ -117,7 +117,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		TelemetrySyncTask: tasks.NewRecordTelemetryTask(workers.TelemetryRecorder, int(cfg.Sync.Advanced.InternalMetricsRateMs)/1000, logger),
 	}
 
-	impressionEvictionMonitor := evcalc.New(cfg.Sync.ImpressionsWorkers)
+	impressionEvictionMonitor := evcalc.New(1)
 	var impListener impressionlistener.ImpressionBulkListener
 	if cfg.Integrations.ImpressionListener.Endpoint != "" {
 		var err error
@@ -148,19 +148,20 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		ImpressionsMode:     cfg.Sync.ImpressionsMode,
 		ImpressionsListener: impListener,
 		ImpressionCounter:   impCounter,
-		FetchSize:           0, // TODO(mredolatti): forward appropriate config
+		FetchSize:           int(cfg.Sync.Advanced.ImpressionsFetchSize),
 	})
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error instantiating impressions worker: %w", err), common.ExitTaskInitialization)
 	}
 
 	impTask, err := task.NewPipelinedTask(&task.Config{
+		Name:               "impressions",
 		Logger:             logger,
 		Worker:             impWorker,
-		ProcessConcurrency: 0, // TODO(mredolatti): forward appropriate config
-		ProcessBatchSize:   0, // TODO(mredolatti): forward appropriate config
-		PostConcurrency:    0, // TODO(mredolatti): forward appropriate config
-		MaxAccumWait:       0, // TODO(mredolatti): forward appropriate config
+		ProcessConcurrency: cfg.Sync.Advanced.ImpressionsProcessConcurrency,
+		ProcessBatchSize:   cfg.Sync.Advanced.ImpressionsProcessBatchSize,
+		PostConcurrency:    cfg.Sync.Advanced.ImpressionsPostConcurrency,
+		MaxAccumWait:       time.Duration(cfg.Sync.Advanced.ImpressionsAccumWaitMs) * time.Millisecond,
 		HTTPTimeout:        0, // TODO(mredolatti): forward appropriate config
 	})
 	if err != nil {
@@ -173,19 +174,20 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		URL:             advanced.EventsURL,
 		EvictionMonitor: eventEvictionMonitor,
 		Apikey:          cfg.Apikey,
-		FetchSize:       0, // TODO(mredolatti): forward appropriate config
+		FetchSize:       int(cfg.Sync.Advanced.EventsFetchSize),
 	})
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error instantiating events worker: %w", err), common.ExitTaskInitialization)
 	}
 
 	evTask, err := task.NewPipelinedTask(&task.Config{
+		Name:               "events",
 		Logger:             logger,
 		Worker:             evWorker,
-		ProcessConcurrency: 0, // TODO(mredolatti): forward appropriate config
-		ProcessBatchSize:   0, // TODO(mredolatti): forward appropriate config
-		PostConcurrency:    0, // TODO(mredolatti): forward appropriate config
-		MaxAccumWait:       0, // TODO(mredolatti): forward appropriate config
+		ProcessConcurrency: cfg.Sync.Advanced.ImpressionsProcessConcurrency,
+		ProcessBatchSize:   cfg.Sync.Advanced.ImpressionsProcessBatchSize,
+		PostConcurrency:    cfg.Sync.Advanced.ImpressionsPostConcurrency,
+		MaxAccumWait:       time.Duration(cfg.Sync.Advanced.EventsAccumWaitMs) * time.Millisecond,
 		HTTPTimeout:        0, // TODO(mredolatti): forward appropriate config
 	})
 	if err != nil {
@@ -197,7 +199,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	// @}
 
 	sdkTelemetryWorker := worker.NewTelemetryMultiWorker(logger, sdkTelemetryStorage, splitAPI.TelemetryRecorder)
-	sdkTelemetryTask := task.NewTelemetrySyncTask(sdkTelemetryWorker, logger, int(cfg.Sync.TelemetryPushRateMs/1000))
+	sdkTelemetryTask := task.NewTelemetrySyncTask(sdkTelemetryWorker, logger, int(cfg.Sync.Advanced.TelemetryPushRateMs/1000))
 	syncImpl := ssync.NewSynchronizer(*advanced, splitTasks, workers, logger, nil, []tasks.Task{sdkTelemetryTask}, appMonitor)
 	managerStatus := make(chan int, 1)
 	syncManager, err := synchronizer.NewSynchronizerManager(

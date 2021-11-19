@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	defaultProcessBatchSize = 5000
+	defaultProcessBatchSize = 2000
 	defaultMaxConcurrency   = 2000
 	defaultMaxAccumSecs     = 5
 	defaultHTTPTimeoutSecs  = 3
