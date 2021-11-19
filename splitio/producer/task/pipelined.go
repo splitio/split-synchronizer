@@ -165,8 +165,10 @@ func (p *PipelinedSyncTask) filler() {
 			continue
 		}
 
+		howMany := len(raw)
 		select {
 		case p.inputBuffer <- raw:
+			p.logger.Debug(fmt.Sprintf("[pipelined/%s] Pushed %d items into the processing buffer", p.name, howMany))
 		default:
 			p.logger.Warning(fmt.Sprintf(
 				"[pipelined/%s] - dropping bulk of %d fetched items because processing buffer is full", p.name, len(raw),
@@ -217,9 +219,11 @@ func (p *PipelinedSyncTask) processor() {
 				return
 			}
 
+			howMany := len(batch)
+			p.logger.Debug(fmt.Sprintf("[pipelined/%s] processing %d raw items.", p.name, howMany))
 			err := p.worker.Process(batch, p.preSubmitBuffer) // process the raw data and put the results in the buffer
 			if err != nil {
-				// TODO: log
+				p.logger.Error(fmt.Sprintf("[pipelined/%s] failed to process %d items: %s", p.name, howMany, err))
 			}
 		}()
 	}
