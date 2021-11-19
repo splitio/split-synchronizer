@@ -145,6 +145,7 @@ func (p *PipelinedSyncTask) IsRunning() bool {
 }
 
 func (p *PipelinedSyncTask) filler() {
+	p.logger.Debug(fmt.Sprintf("[pipelined/%s] - starting filling task", p.name))
 	defer p.waiter.Done()
 	timer := time.NewTimer(1 * time.Second)
 	for p.running.IsSet() {
@@ -175,6 +176,7 @@ func (p *PipelinedSyncTask) filler() {
 }
 
 func (p *PipelinedSyncTask) processor() {
+	p.logger.Debug(fmt.Sprintf("[pipelined/%s] - starting processing task", p.name))
 	defer p.waiter.Done()
 	timer := time.NewTimer(p.maxAccumWait)
 	defer timer.Stop()
@@ -224,6 +226,7 @@ func (p *PipelinedSyncTask) processor() {
 }
 
 func (p *PipelinedSyncTask) sinker() {
+	p.logger.Debug(fmt.Sprintf("[pipelined/%s] - starting posting task", p.name))
 	defer p.waiter.Done()
 	for {
 		bulk, ok := <-p.preSubmitBuffer
