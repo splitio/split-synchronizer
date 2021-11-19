@@ -10,16 +10,15 @@ import (
 	"strings"
 	"time"
 
-	config "github.com/splitio/go-split-commons/v3/conf"
-	"github.com/splitio/go-split-commons/v3/service"
-	"github.com/splitio/go-split-commons/v3/storage/redis"
-	"github.com/splitio/go-toolkit/v4/logging"
-	"github.com/splitio/split-synchronizer/v4/conf"
-	"github.com/splitio/split-synchronizer/v4/log"
-	"github.com/splitio/split-synchronizer/v4/splitio/util"
+	config "github.com/splitio/go-split-commons/v4/conf"
+	"github.com/splitio/go-split-commons/v4/service"
+	"github.com/splitio/go-split-commons/v4/storage/redis"
+	"github.com/splitio/go-toolkit/v5/logging"
+	"github.com/splitio/split-synchronizer/v5/splitio/producer/conf"
+	"github.com/splitio/split-synchronizer/v5/splitio/util"
 )
 
-func parseTLSConfig(opt conf.RedisSection) (*tls.Config, error) {
+func parseTLSConfig(opt *conf.Redis) (*tls.Config, error) {
 	if !opt.TLS {
 		return nil, nil
 	}
@@ -41,13 +40,11 @@ func parseTLSConfig(opt conf.RedisSection) (*tls.Config, error) {
 		for _, cacert := range opt.TLSCACertificates {
 			pemData, err := ioutil.ReadFile(cacert)
 			if err != nil {
-				log.Instance.Error(fmt.Sprintf("Failed to load Root CA certificate: %s", cacert))
-				return nil, err
+				return nil, fmt.Errorf("failed to load root certificate: %w", err)
 			}
 			ok := certPool.AppendCertsFromPEM(pemData)
 			if !ok {
-				log.Instance.Error(fmt.Sprintf("Failed to add certificate %s to the TLS configuration", cacert))
-				return nil, fmt.Errorf("Couldn't add certificate %s to redis TLS configuration", cacert)
+				return nil, fmt.Errorf("failed to add certificate %s to the TLS configuration: ", cacert)
 			}
 		}
 		cfg.RootCAs = certPool
@@ -62,8 +59,7 @@ func parseTLSConfig(opt conf.RedisSection) (*tls.Config, error) {
 		)
 
 		if err != nil {
-			log.Instance.Error("Unable to load client certificate and private key")
-			return nil, err
+			return nil, fmt.Errorf("unable to load client certificate and private key: %w", err)
 		}
 
 		cfg.Certificates = []tls.Certificate{certPair}
@@ -75,34 +71,34 @@ func parseTLSConfig(opt conf.RedisSection) (*tls.Config, error) {
 	return &cfg, nil
 }
 
-func parseRedisOptions() (*config.RedisConfig, error) {
-	tlsCfg, err := parseTLSConfig(conf.Data.Redis)
+func parseRedisOptions(cfg *conf.Redis) (*config.RedisConfig, error) {
+	tlsCfg, err := parseTLSConfig(cfg)
 	if err != nil {
 		return nil, errors.New("Error in Redis TLS Configuration")
 	}
 
 	redisCfg := &config.RedisConfig{
-		Password:     conf.Data.Redis.Pass,
-		Prefix:       conf.Data.Redis.Prefix,
-		Network:      conf.Data.Redis.Network,
-		MaxRetries:   conf.Data.Redis.MaxRetries,
-		DialTimeout:  conf.Data.Redis.DialTimeout,
-		ReadTimeout:  conf.Data.Redis.ReadTimeout,
-		WriteTimeout: conf.Data.Redis.WriteTimeout,
-		PoolSize:     conf.Data.Redis.PoolSize,
+		Password:     cfg.Pass,
+		Prefix:       cfg.Prefix,
+		Network:      cfg.Network,
+		MaxRetries:   cfg.MaxRetries,
+		DialTimeout:  cfg.DialTimeout,
+		ReadTimeout:  cfg.ReadTimeout,
+		WriteTimeout: cfg.WriteTimeout,
+		PoolSize:     cfg.PoolSize,
 		TLSConfig:    tlsCfg,
 	}
 
-	if conf.Data.Redis.SentinelReplication {
-		redisCfg.SentinelAddresses = strings.Split(conf.Data.Redis.SentinelAddresses, ",")
-		redisCfg.SentinelMaster = conf.Data.Redis.SentinelMaster
-	} else if conf.Data.Redis.ClusterMode {
-		redisCfg.ClusterKeyHashTag = conf.Data.Redis.ClusterKeyHashTag
-		redisCfg.ClusterNodes = strings.Split(conf.Data.Redis.ClusterNodes, ",")
+	if cfg.SentinelReplication {
+		redisCfg.SentinelAddresses = strings.Split(cfg.SentinelAddresses, ",")
+		redisCfg.SentinelMaster = cfg.SentinelMaster
+	} else if cfg.ClusterMode {
+		redisCfg.ClusterKeyHashTag = cfg.ClusterKeyHashTag
+		redisCfg.ClusterNodes = strings.Split(cfg.ClusterNodes, ",")
 	} else {
-		redisCfg.Host = conf.Data.Redis.Host
-		redisCfg.Port = conf.Data.Redis.Port
-		redisCfg.Database = conf.Data.Redis.Db
+		redisCfg.Host = cfg.Host
+		redisCfg.Port = cfg.Port
+		redisCfg.Database = cfg.Db
 	}
 	return redisCfg, nil
 }
@@ -112,21 +108,15 @@ func isValidApikey(splitFetcher service.SplitFetcher) bool {
 	return err == nil
 }
 
-func startLoop(loopTime int64) {
-	for {
-		time.Sleep(time.Duration(loopTime) * time.Millisecond)
-	}
-}
-
-func sanitizeRedis(miscStorage *redis.MiscStorage, logger logging.LoggerInterface) error {
+func sanitizeRedis(cfg *conf.Main, miscStorage *redis.MiscStorage, logger logging.LoggerInterface) error {
 	if miscStorage == nil {
 		return errors.New("Could not sanitize redis")
 	}
-	currentHash := util.HashAPIKey(conf.Data.APIKey)
+	currentHash := util.HashAPIKey(cfg.Apikey)
 	currentHashAsStr := strconv.Itoa(int(currentHash))
 	defer miscStorage.SetApikeyHash(currentHashAsStr)
 
-	if conf.Data.Redis.ForceFreshStartup {
+	if cfg.Initialization.ForceFreshStartup {
 		logger.Warning("Fresh startup requested. Cleaning up redis before initializing.")
 		miscStorage.ClearAll()
 		return nil
