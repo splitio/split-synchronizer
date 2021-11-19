@@ -109,6 +109,7 @@ func (i *ImpressionsPipelineWorker) Process(raws [][]byte, sink chan<- interface
 	// which will be released after imrpessions have been successfully posted
 	defer batches.recycleContainer()
 
+	deduped := 0
 	for _, raw := range raws {
 		var queueObj dtos.ImpressionQueueObject
 		err := json.Unmarshal(raw, &queueObj)
@@ -119,11 +120,14 @@ func (i *ImpressionsPipelineWorker) Process(raws [][]byte, sink chan<- interface
 
 		toLog, _ := i.impManager.ProcessSingle(&queueObj.Impression)
 		if !toLog {
+			deduped++
 			continue
 		}
 
 		batches.add(&queueObj)
 	}
+
+	i.logger.Debug(fmt.Sprintf("[pipelined imp worker] total impressions Processed: %d, deduped %d", len(raws), deduped))
 
 	if i.impListener != nil {
 		i.sendImpressionsToListener(batches)
