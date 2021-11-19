@@ -15,7 +15,8 @@ import (
 )
 
 const (
-	defaultProcessBatchSize = 2000
+	defaultInputBufferSize  = 1000
+	defaultProcessBatchSize = 10000
 	defaultMaxConcurrency   = 2000
 	defaultMaxAccumSecs     = 5
 	defaultHTTPTimeoutSecs  = 3
@@ -26,6 +27,7 @@ type Config struct {
 	Name               string
 	Logger             logging.LoggerInterface
 	Worker             Worker
+	InputBufferSize    int
 	ProcessConcurrency int
 	ProcessBatchSize   int
 	PostConcurrency    int
@@ -41,6 +43,10 @@ type Worker interface {
 }
 
 func (c *Config) normalize() {
+	if c.InputBufferSize == 0 {
+		c.InputBufferSize = defaultInputBufferSize
+	}
+
 	if c.PostConcurrency == 0 {
 		c.PostConcurrency = defaultMaxConcurrency
 	}
@@ -106,7 +112,7 @@ func NewPipelinedTask(config *Config) (*PipelinedSyncTask, error) {
 		processConcurrency: config.ProcessConcurrency,
 		maxAccumWait:       config.MaxAccumWait,
 		running:            tsync.NewAtomicBool(true),
-		inputBuffer:        make(chan []string, config.ProcessBatchSize),
+		inputBuffer:        make(chan []string, config.InputBufferSize),
 		preSubmitBuffer:    make(chan interface{}, config.PostConcurrency*4),
 		shutdown:           make(chan struct{}, 1),
 		processChanClosed:  tsync.NewAtomicBool(false),
