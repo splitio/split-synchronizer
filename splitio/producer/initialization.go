@@ -1,214 +1,324 @@
 package producer
 
 import (
+	"errors"
 	"fmt"
-	"os"
-	"strings"
-	"sync"
+	"log"
+	"net/url"
+	"time"
 
-	cfg "github.com/splitio/go-split-commons/v3/conf"
-	"github.com/splitio/go-split-commons/v3/dtos"
-	"github.com/splitio/go-split-commons/v3/provisional"
-	"github.com/splitio/go-split-commons/v3/service"
-	"github.com/splitio/go-split-commons/v3/service/api"
-	"github.com/splitio/go-split-commons/v3/storage"
-	"github.com/splitio/go-split-commons/v3/storage/mutexmap"
-	"github.com/splitio/go-split-commons/v3/storage/redis"
-	"github.com/splitio/go-split-commons/v3/synchronizer"
-	"github.com/splitio/go-split-commons/v3/synchronizer/worker/impressionscount"
-	"github.com/splitio/go-split-commons/v3/synchronizer/worker/segment"
-	"github.com/splitio/go-split-commons/v3/synchronizer/worker/split"
-	"github.com/splitio/go-split-commons/v3/tasks"
-	"github.com/splitio/split-synchronizer/v4/conf"
-	"github.com/splitio/split-synchronizer/v4/log"
-	"github.com/splitio/split-synchronizer/v4/splitio"
-	"github.com/splitio/split-synchronizer/v4/splitio/common"
-	"github.com/splitio/split-synchronizer/v4/splitio/producer/worker"
-	"github.com/splitio/split-synchronizer/v4/splitio/recorder"
-	"github.com/splitio/split-synchronizer/v4/splitio/task"
-	"github.com/splitio/split-synchronizer/v4/splitio/util"
-	"github.com/splitio/split-synchronizer/v4/splitio/web/admin"
+	cconf "github.com/splitio/go-split-commons/v4/conf"
+	"github.com/splitio/go-split-commons/v4/dtos"
+	"github.com/splitio/go-split-commons/v4/provisional"
+	"github.com/splitio/go-split-commons/v4/service/api"
+	storageCommon "github.com/splitio/go-split-commons/v4/storage"
+	"github.com/splitio/go-split-commons/v4/storage/inmemory"
+	"github.com/splitio/go-split-commons/v4/storage/redis"
+	"github.com/splitio/go-split-commons/v4/synchronizer"
+	"github.com/splitio/go-split-commons/v4/synchronizer/worker/impressionscount"
+	"github.com/splitio/go-split-commons/v4/synchronizer/worker/segment"
+	"github.com/splitio/go-split-commons/v4/synchronizer/worker/split"
+	"github.com/splitio/go-split-commons/v4/tasks"
+	"github.com/splitio/go-split-commons/v4/telemetry"
+	"github.com/splitio/go-toolkit/v5/logging"
+
+	"github.com/splitio/split-synchronizer/v5/splitio/admin"
+	adminCommon "github.com/splitio/split-synchronizer/v5/splitio/admin/common"
+	"github.com/splitio/split-synchronizer/v5/splitio/common"
+	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
+	ssync "github.com/splitio/split-synchronizer/v5/splitio/common/sync"
+	"github.com/splitio/split-synchronizer/v5/splitio/producer/conf"
+	"github.com/splitio/split-synchronizer/v5/splitio/producer/evcalc"
+	"github.com/splitio/split-synchronizer/v5/splitio/producer/storage"
+	"github.com/splitio/split-synchronizer/v5/splitio/producer/task"
+	"github.com/splitio/split-synchronizer/v5/splitio/producer/worker"
+	hcApplication "github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/application"
+	hcAppCounter "github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/application/counter"
+	hcServices "github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/services"
+	hcServicesCounter "github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/services/counter"
+	"github.com/splitio/split-synchronizer/v5/splitio/util"
 )
 
-func gracefulShutdownProducer(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup, syncManager synchronizer.Manager) {
-	<-sigs
-
-	log.PostShutdownMessageToSlack(false)
-
-	fmt.Println("\n\n * Starting graceful shutdown")
-	fmt.Println("")
-
-	// Stopping Sync Manager in charge of PeriodicFetchers and PeriodicRecorders as well as Streaming
-	fmt.Println(" -> Sending STOP to Synchronizer")
-	syncManager.Stop()
-
-	// Healthcheck - Emit task stop signal
-	fmt.Println(" -> Sending STOP to healthcheck goroutine")
-	task.StopHealtcheck()
-
-	fmt.Println(" * Waiting goroutines stop")
-	gracefulShutdownWaitingGroup.Wait()
-
-	fmt.Println(" * Shutting it down - see you soon!")
-	os.Exit(splitio.SuccessfulOperation)
-}
-
 // Start initialize the producer mode
-func Start(sigs chan os.Signal, gracefulShutdownWaitingGroup *sync.WaitGroup) {
+func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	// Getting initial config data
-	advanced := conf.ParseAdvancedOptions()
-	metadata := util.GetMetadata()
+	advanced := cfg.BuildAdvancedConfig()
+	metadata := util.GetMetadata(false, cfg.IPAddressEnabled)
+
+	clientKey, err := util.GetClientKey(cfg.Apikey)
+	if err != nil {
+		return common.NewInitError(fmt.Errorf("error parsing client key from provided apikey: %w", err), common.ExitInvalidApikey)
+	}
 
 	// Setup fetchers & recorders
-	splitAPI := service.NewSplitAPI(
-		conf.Data.APIKey,
-		advanced,
-		log.Instance,
-		metadata,
-	)
+	splitAPI := api.NewSplitAPI(cfg.Apikey, *advanced, logger, metadata)
 
 	// Check if apikey is valid
 	if !isValidApikey(splitAPI.SplitFetcher) {
-		log.Instance.Error("Invalid apikey! Aborting execution.")
-		os.Exit(splitio.ExitRedisInitializationFailed)
+		return common.NewInitError(errors.New("invalid apikey"), common.ExitInvalidApikey)
 	}
 
 	// Redis Storages
-	redisOptions, err := parseRedisOptions()
+	redisOptions, err := parseRedisOptions(&cfg.Storage.Redis)
 	if err != nil {
-		log.Instance.Error("Failed to instantiate redis client.")
-		os.Exit(splitio.ExitRedisInitializationFailed)
+		return common.NewInitError(fmt.Errorf("error parsing redis config: %w", err), common.ExitRedisInitializationFailed)
 	}
-	redisClient, err := redis.NewRedisClient(redisOptions, log.Instance)
+	redisClient, err := redis.NewRedisClient(redisOptions, logger)
 	if err != nil {
-		log.Instance.Error("Failed to instantiate redis client.")
-		os.Exit(splitio.ExitRedisInitializationFailed)
+		// THIS BRANCH WILL CURRENTLY NEVER BE REACHED
+		// TODO(mredolatti/mmelograno): Currently the commons library panics if the redis server is unreachable.
+		// this behaviour should be revisited since this might bring down a client app if called from the sdk
+		return common.NewInitError(fmt.Errorf("error instantiating redis client: %w", err), common.ExitRedisInitializationFailed)
 	}
 
 	// Instantiating storages
-	miscStorage := redis.NewMiscStorage(redisClient, log.Instance)
-	err = sanitizeRedis(miscStorage, log.Instance)
+	miscStorage := redis.NewMiscStorage(redisClient, logger)
+	err = sanitizeRedis(cfg, miscStorage, logger)
 	if err != nil {
-		log.Instance.Error("Failed when trying to clean up redis. Aborting execution.")
-		log.Instance.Error(err.Error())
-		os.Exit(splitio.ExitRedisInitializationFailed)
+		return common.NewInitError(fmt.Errorf("error cleaning up redis: %w", err), common.ExitRedisInitializationFailed)
 	}
 
-	metricStorage := redis.NewMetricsStorage(redisClient, metadata, log.Instance)
-	localTelemetryStorage := mutexmap.NewMMMetricsStorage()
-	metricsWrapper := storage.NewMetricWrapper(metricStorage, localTelemetryStorage, log.Instance)
-	storages := common.Storages{
-		SplitStorage:          redis.NewSplitStorage(redisClient, log.Instance),
-		SegmentStorage:        redis.NewSegmentStorage(redisClient, log.Instance),
-		LocalTelemetryStorage: localTelemetryStorage,
-		ImpressionStorage:     redis.NewImpressionStorage(redisClient, dtos.Metadata{}, log.Instance),
-		EventStorage:          redis.NewEventsStorage(redisClient, dtos.Metadata{}, log.Instance),
+	// Handle dual telemetry:
+	// - telemetry generated by split-sync
+	// - telemetry generated by sdks and picked up by split-sync
+	syncTelemetryStorage, _ := inmemory.NewTelemetryStorage()
+	sdkTelemetryStorage := storage.NewRedisTelemetryCosumerclient(redisClient, logger)
+
+	// These storages are forwarded to the dashboard, the sdk-telemetry is irrelevant there
+	storages := adminCommon.Storages{
+		SplitStorage:          redis.NewSplitStorage(redisClient, logger),
+		SegmentStorage:        redis.NewSegmentStorage(redisClient, logger),
+		LocalTelemetryStorage: syncTelemetryStorage,
+		ImpressionStorage:     redis.NewImpressionStorage(redisClient, dtos.Metadata{}, logger),
+		EventStorage:          redis.NewEventsStorage(redisClient, dtos.Metadata{}, logger),
 	}
 
 	// Creating Workers and Tasks
-	eventRecorder := worker.NewEventRecorderMultiple(storages.EventStorage, splitAPI.EventRecorder, metricsWrapper, log.Instance)
+	eventEvictionMonitor := evcalc.New(1)
+
+	// Healcheck Monitor
+	splitsConfig, segmentsConfig, storageConfig := getAppCounterConfigs(storages.SplitStorage)
+	appMonitor := hcApplication.NewMonitorImp(splitsConfig, segmentsConfig, &storageConfig, logger)
+	servicesMonitor := hcServices.NewMonitorImp(getServicesCountersConfig(advanced), logger)
+
 	workers := synchronizer.Workers{
-		SplitFetcher:      split.NewSplitFetcher(storages.SplitStorage, splitAPI.SplitFetcher, metricsWrapper, log.Instance),
-		SegmentFetcher:    segment.NewSegmentFetcher(storages.SplitStorage, storages.SegmentStorage, splitAPI.SegmentFetcher, metricsWrapper, log.Instance),
-		EventRecorder:     eventRecorder,
-		TelemetryRecorder: worker.NewMetricRecorderMultiple(metricsWrapper, splitAPI.MetricRecorder, log.Instance),
+		SplitFetcher: split.NewSplitFetcher(storages.SplitStorage, splitAPI.SplitFetcher, logger, syncTelemetryStorage, appMonitor),
+		SegmentFetcher: segment.NewSegmentFetcher(storages.SplitStorage, storages.SegmentStorage, splitAPI.SegmentFetcher,
+			logger, syncTelemetryStorage, appMonitor),
+		// local telemetry
+		TelemetryRecorder: telemetry.NewTelemetrySynchronizer(syncTelemetryStorage, splitAPI.TelemetryRecorder,
+			storages.SplitStorage, storages.SegmentStorage, logger, metadata, syncTelemetryStorage),
 	}
 	splitTasks := synchronizer.SplitTasks{
-		SplitSyncTask:     tasks.NewFetchSplitsTask(workers.SplitFetcher, conf.Data.SplitsFetchRate, log.Instance),
-		SegmentSyncTask:   tasks.NewFetchSegmentsTask(workers.SegmentFetcher, conf.Data.SegmentFetchRate, advanced.SegmentWorkers, advanced.SegmentQueueSize, log.Instance),
-		TelemetrySyncTask: tasks.NewRecordTelemetryTask(workers.TelemetryRecorder, conf.Data.MetricsPostRate, log.Instance),
-		EventSyncTask:     tasks.NewRecordEventsTasks(workers.EventRecorder, advanced.EventsBulkSize, conf.Data.EventsPostRate, log.Instance, conf.Data.EventsThreads),
+		SplitSyncTask: tasks.NewFetchSplitsTask(workers.SplitFetcher, int(cfg.Sync.SplitRefreshRateMs)/1000, logger),
+		SegmentSyncTask: tasks.NewFetchSegmentsTask(workers.SegmentFetcher, int(cfg.Sync.SegmentRefreshRateMs)/1000,
+			advanced.SegmentWorkers, advanced.SegmentQueueSize, logger),
+		// local telemetry
+		TelemetrySyncTask: tasks.NewRecordTelemetryTask(workers.TelemetryRecorder, int(cfg.Sync.Advanced.InternalMetricsRateMs)/1000, logger),
 	}
 
-	impressionListenerEnabled := strings.TrimSpace(conf.Data.ImpressionListener.Endpoint) != ""
-	managerConfig := cfg.ManagerConfig{
-		ImpressionsMode: conf.Data.ImpressionsMode,
-		OperationMode:   cfg.ProducerSync,
-		ListenerEnabled: impressionListenerEnabled,
+	impressionEvictionMonitor := evcalc.New(1)
+	var impListener impressionlistener.ImpressionBulkListener
+	if cfg.Integrations.ImpressionListener.Endpoint != "" {
+		var err error
+		impListener, err = impressionlistener.NewImpressionBulkListener(
+			cfg.Integrations.ImpressionListener.Endpoint,
+			int(cfg.Integrations.ImpressionListener.QueueSize),
+			nil)
+		if err != nil {
+			return common.NewInitError(fmt.Errorf("error instantiating impression listener: %w", err), common.ExitTaskInitialization)
+		}
+		impListener.Start()
 	}
 
-	var impressionsCounter *provisional.ImpressionsCounter
-	if conf.Data.ImpressionsMode == cfg.ImpressionsModeOptimized {
-		impressionsCounter = provisional.NewImpressionsCounter()
-		workers.ImpressionsCountRecorder = impressionscount.NewRecorderSingle(impressionsCounter, splitAPI.ImpressionRecorder, metadata, log.Instance)
-		splitTasks.ImpressionsCountSyncTask = tasks.NewRecordImpressionsCountTask(workers.ImpressionsCountRecorder, log.Instance)
+	var impCounter *provisional.ImpressionsCounter
+	if cfg.Sync.ImpressionsMode == cconf.ImpressionsModeOptimized {
+		impCounter = provisional.NewImpressionsCounter()
+		workers.ImpressionsCountRecorder = impressionscount.NewRecorderSingle(impCounter, splitAPI.ImpressionRecorder, metadata, logger, syncTelemetryStorage)
+		splitTasks.ImpressionsCountSyncTask = tasks.NewRecordImpressionsCountTask(workers.ImpressionsCountRecorder, logger)
 	}
-	impressionRecorder, err := worker.NewImpressionRecordMultiple(storages.ImpressionStorage, splitAPI.ImpressionRecorder, metricsWrapper, log.Instance, managerConfig, impressionsCounter)
+
+	// Impression & events pipelined tasks @{
+	impWorker, err := task.NewImpressionWorker(&task.ImpressionWorkerConfig{
+		Logger:              logger,
+		Storage:             storages.ImpressionStorage,
+		EvictionMonitor:     impressionEvictionMonitor,
+		URL:                 advanced.EventsURL,
+		Apikey:              cfg.Apikey,
+		ImpressionsMode:     cfg.Sync.ImpressionsMode,
+		ImpressionsListener: impListener,
+		ImpressionCounter:   impCounter,
+		FetchSize:           int(cfg.Sync.Advanced.ImpressionsFetchSize),
+	})
 	if err != nil {
-		log.Instance.Error(err)
-		os.Exit(splitio.ExitTaskInitialization)
+		return common.NewInitError(fmt.Errorf("error instantiating impressions worker: %w", err), common.ExitTaskInitialization)
 	}
-	splitTasks.ImpressionSyncTask = tasks.NewRecordImpressionsTasks(impressionRecorder, conf.Data.ImpressionsPostRate, log.Instance, advanced.ImpressionsBulkSize, conf.Data.ImpressionsThreads)
 
-	// Creating Synchronizer for tasks
-	syncImpl := synchronizer.NewSynchronizer(
-		advanced,
-		splitTasks,
-		workers,
-		log.Instance,
-		nil,
-	)
+	impTask, err := task.NewPipelinedTask(&task.Config{
+		Name:               "impressions",
+		Logger:             logger,
+		Worker:             impWorker,
+		ProcessConcurrency: cfg.Sync.Advanced.ImpressionsProcessConcurrency,
+		ProcessBatchSize:   cfg.Sync.Advanced.ImpressionsProcessBatchSize,
+		PostConcurrency:    cfg.Sync.Advanced.ImpressionsPostConcurrency,
+		MaxAccumWait:       time.Duration(cfg.Sync.Advanced.ImpressionsAccumWaitMs) * time.Millisecond,
+		HTTPTimeout:        0, // TODO(mredolatti): forward appropriate config
+	})
+	if err != nil {
+		return common.NewInitError(fmt.Errorf("error instantiating impressions pipelined task: %w", err), common.ExitTaskInitialization)
+	}
+
+	evWorker, err := task.NewEventsWorker(&task.EventWorkerConfig{
+		Logger:          logger,
+		Storage:         storages.EventStorage,
+		URL:             advanced.EventsURL,
+		EvictionMonitor: eventEvictionMonitor,
+		Apikey:          cfg.Apikey,
+		FetchSize:       int(cfg.Sync.Advanced.EventsFetchSize),
+	})
+	if err != nil {
+		return common.NewInitError(fmt.Errorf("error instantiating events worker: %w", err), common.ExitTaskInitialization)
+	}
+
+	evTask, err := task.NewPipelinedTask(&task.Config{
+		Name:               "events",
+		Logger:             logger,
+		Worker:             evWorker,
+		ProcessConcurrency: cfg.Sync.Advanced.ImpressionsProcessConcurrency,
+		ProcessBatchSize:   cfg.Sync.Advanced.ImpressionsProcessBatchSize,
+		PostConcurrency:    cfg.Sync.Advanced.ImpressionsPostConcurrency,
+		MaxAccumWait:       time.Duration(cfg.Sync.Advanced.EventsAccumWaitMs) * time.Millisecond,
+		HTTPTimeout:        0, // TODO(mredolatti): forward appropriate config
+	})
+	if err != nil {
+		return common.NewInitError(fmt.Errorf("error instantiating events pipelined task: %w", err), common.ExitTaskInitialization)
+	}
+
+	splitTasks.ImpressionSyncTask = impTask
+	splitTasks.EventSyncTask = evTask
+	// @}
+
+	sdkTelemetryWorker := worker.NewTelemetryMultiWorker(logger, sdkTelemetryStorage, splitAPI.TelemetryRecorder)
+	sdkTelemetryTask := task.NewTelemetrySyncTask(sdkTelemetryWorker, logger, int(cfg.Sync.Advanced.TelemetryPushRateMs/1000))
+	syncImpl := ssync.NewSynchronizer(*advanced, splitTasks, workers, logger, nil, []tasks.Task{sdkTelemetryTask}, appMonitor)
 	managerStatus := make(chan int, 1)
 	syncManager, err := synchronizer.NewSynchronizerManager(
 		syncImpl,
-		log.Instance,
-		advanced,
+		logger,
+		*advanced,
 		splitAPI.AuthClient,
 		storages.SplitStorage,
 		managerStatus,
+		syncTelemetryStorage,
+		metadata,
+		&clientKey,
+		appMonitor,
 	)
+
 	if err != nil {
-		log.Instance.Error(err)
-		os.Exit(splitio.ExitTaskInitialization)
+		return common.NewInitError(fmt.Errorf("error instantiating sync manager: %w", err), common.ExitTaskInitialization)
 	}
 
-	// Producer mode - graceful shutdown
-	go gracefulShutdownProducer(sigs, gracefulShutdownWaitingGroup, syncManager)
+	rtm := common.NewRuntime(false, syncManager, logger, "Split Synchronizer", nil, nil, appMonitor, servicesMonitor)
 
 	// --------------------------- ADMIN DASHBOARD ------------------------------
-	// WebAdmin configuration
-	waOptions := &admin.WebAdminOptions{
-		Port:          conf.Data.Producer.Admin.Port,
-		AdminUsername: conf.Data.Producer.Admin.Username,
-		AdminPassword: conf.Data.Producer.Admin.Password,
-		DebugOn:       conf.Data.Logger.DebugOn,
+	adminServer, err := admin.NewServer(&admin.Options{
+		Host:              cfg.Admin.Host,
+		Port:              int(cfg.Admin.Port),
+		Name:              "Split Synchronizer dashboard (producer mode)",
+		Proxy:             false,
+		Username:          cfg.Admin.Username,
+		Password:          cfg.Admin.Password,
+		Logger:            logger,
+		Storages:          storages,
+		ImpressionsEvCalc: impressionEvictionMonitor,
+		EventsEvCalc:      eventEvictionMonitor,
+		Runtime:           rtm,
+		HcAppMonitor:      appMonitor,
+		HcServicesMonitor: servicesMonitor,
+	})
+	if err != nil {
+		panic(err.Error())
 	}
-
-	// Run WebAdmin Server
-	httpClients := common.HTTPClients{
-		AuthClient:   api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.AuthServiceURL, log.Instance, metadata),
-		SdkClient:    api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.SdkURL, log.Instance, metadata),
-		EventsClient: api.NewHTTPClient(conf.Data.APIKey, advanced, advanced.EventsURL, log.Instance, metadata),
-	}
-	recorders := common.Recorders{
-		Impression: impressionRecorder,
-		Event:      eventRecorder,
-	}
-	admin.StartAdminWebAdmin(waOptions, storages, httpClients, recorders)
-	// ---------------------------------------------------------------------------
+	go adminServer.ListenAndServe()
 
 	// Run Sync Manager
+	before := time.Now()
 	go syncManager.Start()
 	select {
 	case status := <-managerStatus:
 		switch status {
 		case synchronizer.Ready:
-			log.Instance.Info("Synchronizer tasks started")
+			logger.Info("Synchronizer tasks started")
+			appMonitor.Start()
+			servicesMonitor.Start()
+			workers.TelemetryRecorder.SynchronizeConfig(
+				telemetry.InitConfig{
+					AdvancedConfig: *advanced,
+					TaskPeriods: cconf.TaskPeriods{
+						SplitSync:     int(cfg.Sync.SplitRefreshRateMs / 1000),
+						SegmentSync:   int(cfg.Sync.SegmentRefreshRateMs / 1000),
+						TelemetrySync: int(cfg.Sync.Advanced.InternalMetricsRateMs / 1000),
+					},
+					ManagerConfig: cconf.ManagerConfig{
+						ImpressionsMode: cfg.Sync.ImpressionsMode,
+						OperationMode:   cconf.ProducerSync,
+						ListenerEnabled: impListener != nil,
+					},
+				},
+				time.Now().Sub(before).Milliseconds(),
+				map[string]int64{cfg.Apikey: 1},
+				nil,
+			)
 		case synchronizer.Error:
-			log.Instance.Error("Error starting synchronizer")
-			os.Exit(splitio.ExitTaskInitialization)
-		}
-	}
-	task.InitializeEvictionCalculator()
-
-	if impressionListenerEnabled {
-		for i := 0; i < conf.Data.ImpressionsThreads; i++ {
-			go task.PostImpressionsToListener(recorder.ImpressionListenerSubmitter{Endpoint: conf.Data.ImpressionListener.Endpoint})
+			logger.Error("Initial synchronization failed. Either split is unreachable or the APIKey is incorrect. Aborting execution.")
+			return common.NewInitError(fmt.Errorf("error instantiating sync manager: %w", err), common.ExitTaskInitialization)
 		}
 	}
 
-	go task.CheckEnvirontmentStatus(gracefulShutdownWaitingGroup, storages.SplitStorage, httpClients)
+	rtm.RegisterShutdownHandler()
+	rtm.Block()
+	return nil
+}
 
-	// Keeping service alive
-	startLoop(500)
+func getAppCounterConfigs(storage storageCommon.SplitStorage) (hcAppCounter.ThresholdConfig, hcAppCounter.ThresholdConfig, hcAppCounter.PeriodicConfig) {
+	splitsConfig := hcAppCounter.DefaultThresholdConfig("Splits")
+	segmentsConfig := hcAppCounter.DefaultThresholdConfig("Segments")
+	storageConfig := hcAppCounter.PeriodicConfig{
+		Name:                     "Storage",
+		MaxErrorsAllowedInPeriod: 5,
+		Period:                   3600,
+		Severity:                 hcAppCounter.Low,
+		ValidationFunc: func(c hcAppCounter.PeriodicCounterInterface) {
+			_, err := storage.ChangeNumber()
+			if err != nil {
+				c.NotifyError()
+			}
+		},
+		ValidationFuncPeriod: 10,
+	}
+
+	return splitsConfig, segmentsConfig, storageConfig
+}
+
+func getServicesCountersConfig(advanced *cconf.AdvancedConfig) []hcServicesCounter.Config {
+	var cfgs []hcServicesCounter.Config
+
+	apiConfig := hcServicesCounter.DefaultConfig("API", advanced.SdkURL, "/version")
+	eventsConfig := hcServicesCounter.DefaultConfig("Events", advanced.EventsURL, "/version")
+	authConfig := hcServicesCounter.DefaultConfig("Auth", advanced.AuthServiceURL, "/health")
+
+	telemetryURL, err := url.Parse(advanced.TelemetryServiceURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	telemetryConfig := hcServicesCounter.DefaultConfig("Telemetry", fmt.Sprintf("%s://%s", telemetryURL.Scheme, telemetryURL.Host), "/health")
+
+	streamingURL, err := url.Parse(advanced.StreamingServiceURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	streamingConfig := hcServicesCounter.DefaultConfig("Streaming", fmt.Sprintf("%s://%s", streamingURL.Scheme, streamingURL.Host), "/health")
+
+	return append(cfgs, telemetryConfig, authConfig, apiConfig, eventsConfig, streamingConfig)
 }

@@ -1,3 +1,14 @@
+5.0.0-rc1 (Nov 1, 2021)
+ - BREAKING CHANGE: Split the project to produce two different binaries for syncrhonizer & proxy tools
+ - BREAKING CHANGE: Config options cleanup
+ - BREAKING CHANGE: Docker images entrypoint update
+ - Full refactor of components & general structure
+ - Migrate to `BBolt` for persistent storage (an actively maintained fork of boltd by by etcd)
+ - Add optimized storages for splits & mysegments
+ - Added an http cache with purgeable surrogate keys for split-proxy
+ - Fixed issue that caused eviction calculations to be off
+ - Fixed issue with erroneous logs when initializing on an empty redis
+
 4.0.5 (Sep 23, 2021)
  - Updated docker base image to patch security vulnerabilities.
  - Updated gin to 1.7.0

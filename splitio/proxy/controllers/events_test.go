@@ -1,112 +1,546 @@
 package controllers
 
 import (
+	"bytes"
 	"encoding/json"
-	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"sync"
 	"testing"
-	"time"
 
-	"github.com/splitio/go-split-commons/v3/dtos"
-	"github.com/splitio/go-toolkit/v4/logging"
-	"github.com/splitio/split-synchronizer/v4/conf"
-	"github.com/splitio/split-synchronizer/v4/log"
-	"github.com/splitio/split-synchronizer/v4/splitio/proxy/interfaces"
+	"github.com/gin-gonic/gin"
+	"github.com/splitio/go-split-commons/v4/dtos"
+	"github.com/splitio/go-toolkit/v5/logging"
+	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
+	ilMock "github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener/mocks"
+	mw "github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers/middleware"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/internal"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks/mocks"
 )
 
-func TestEventBufferCounter(t *testing.T) {
-	var p = eventPoolBufferSizeStruct{size: 0}
+func TestPostImpressionsbulk(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	resp := httptest.NewRecorder()
+	ctx, router := gin.CreateTestContext(resp)
 
-	p.Addition(1)
-	p.Addition(2)
-	if !p.GreaterThan(2) || p.GreaterThan(4) {
-		t.Error("Error on Addition method")
+	logger := logging.NewLogger(nil)
+	proxyTelemetry := storage.NewProxyTelemetryFacade()
+	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"})
+
+	group := router.Group("/api")
+	controller := NewEventsServerController(
+		logger,
+		proxyTelemetry,
+		&mocks.MockDeferredRecordingTask{
+			StageCall: func(rawData interface{}) error {
+				data := rawData.(*internal.RawImpressions)
+
+				if data.Mode != "optimized" {
+					t.Error("mode should be optimized. Is: ", data.Mode)
+				}
+
+				expected := dtos.Metadata{SDKVersion: "go-1.1.1", MachineIP: "1.2.3.4", MachineName: "ip-1-2-3-4"}
+				if data.Metadata != expected {
+					t.Error("wrong metadata", expected, data.Metadata)
+				}
+
+				var parsed []dtos.ImpressionsDTO
+				err := json.Unmarshal(data.Payload, &parsed)
+				if err != nil {
+					t.Error("error deserializing incoming data")
+					return nil
+				}
+				if len(parsed) != 2 {
+					t.Error("incorect number of events received")
+				}
+
+				t1 := parsed[0]
+				if t1.TestName != "test1" || len(t1.KeyImpressions) != 3 {
+					t.Error("wrong test or impressions amount")
+				}
+
+				t2 := parsed[1]
+				if t2.TestName != "test2" || len(t2.KeyImpressions) != 4 {
+					t.Error("wrong test or impressions amount")
+				}
+
+				return nil
+			},
+		}, // impssions
+		&mocks.MockDeferredRecordingTask{}, // imp counts
+		&mocks.MockDeferredRecordingTask{}, // events
+		&ilMock.ImpressionBulkListenerMock{
+			SubmitCall: func(imps []impressionlistener.ImpressionsForListener, metadata *dtos.Metadata) error {
+				expected := dtos.Metadata{SDKVersion: "go-1.1.1", MachineIP: "1.2.3.4", MachineName: "ip-1-2-3-4"}
+				if *metadata != expected {
+					t.Error("wrong metadata")
+				}
+
+				if len(imps) != 2 || len(imps[0].KeyImpressions) != 3 || len(imps[1].KeyImpressions) != 4 {
+					t.Error("wrong payload passed to impressions listener")
+				}
+				return nil
+			},
+		},
+		apikeyValidator.IsValid,
+	)
+	controller.Register(group, group)
+
+	serialized, err := json.Marshal([]dtos.ImpressionsDTO{
+		dtos.ImpressionsDTO{
+			TestName: "test1",
+			KeyImpressions: []dtos.ImpressionDTO{
+				dtos.ImpressionDTO{KeyName: "k1", Treatment: "on", Time: 1, ChangeNumber: 2, Label: "l1", BucketingKey: "b1", Pt: 0},
+				dtos.ImpressionDTO{KeyName: "k2", Treatment: "on", Time: 2, ChangeNumber: 3, Label: "l2", BucketingKey: "b2", Pt: 0},
+				dtos.ImpressionDTO{KeyName: "k3", Treatment: "on", Time: 3, ChangeNumber: 4, Label: "l3", BucketingKey: "b3", Pt: 0},
+			},
+		},
+		dtos.ImpressionsDTO{
+			TestName: "test2",
+			KeyImpressions: []dtos.ImpressionDTO{
+				dtos.ImpressionDTO{KeyName: "k1", Treatment: "off", Time: 1, ChangeNumber: 2, Label: "l1", BucketingKey: "b1", Pt: 0},
+				dtos.ImpressionDTO{KeyName: "k2", Treatment: "off", Time: 2, ChangeNumber: 3, Label: "l2", BucketingKey: "b2", Pt: 0},
+				dtos.ImpressionDTO{KeyName: "k3", Treatment: "off", Time: 3, ChangeNumber: 4, Label: "l3", BucketingKey: "b3", Pt: 0},
+				dtos.ImpressionDTO{KeyName: "k4", Treatment: "off", Time: 4, ChangeNumber: 5, Label: "l4", BucketingKey: "b4", Pt: 0},
+			},
+		},
+	})
+
+	if err != nil {
+		t.Error("should not have errors when serializing: ", err)
 	}
 
-	p.Reset()
-	if !p.GreaterThan(-1) || p.GreaterThan(1) {
-		t.Error("Error on Reset")
+	ctx.Request, _ = http.NewRequest(http.MethodPost, "/api/testImpressions/bulk", bytes.NewBuffer(serialized))
+	ctx.Request.Header.Set("Authorization", "Bearer someApiKey")
+	ctx.Request.Header.Set("SplitSDKImpressionsMode", "optimized")
+	ctx.Request.Header.Set("SplitSDKVersion", "go-1.1.1")
+	ctx.Request.Header.Set("SplitSDKMachineIp", "1.2.3.4")
+	ctx.Request.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
+	router.ServeHTTP(resp, ctx.Request)
+	if resp.Code != 200 {
+		t.Error("Status code should be 200 and is ", resp.Code)
 	}
-
 }
 
-func TestAddEvents(t *testing.T) {
-	conf.Initialize()
-	if log.Instance == nil {
-		stdoutWriter := ioutil.Discard //os.Stdout
-		log.Initialize(stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, stdoutWriter, logging.LevelNone)
-	}
-	interfaces.Initialize()
+func TestPostEventsBulk(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	resp := httptest.NewRecorder()
+	ctx, router := gin.CreateTestContext(resp)
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	logger := logging.NewLogger(nil)
+	proxyTelemetry := storage.NewProxyTelemetryFacade()
+	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"})
 
-		sdkVersion := r.Header.Get("SplitSDKVersion")
-		sdkMachine := r.Header.Get("SplitSDKMachineIP")
+	group := router.Group("/api")
+	controller := NewEventsServerController(
+		logger,
+		proxyTelemetry,
+		&mocks.MockDeferredRecordingTask{}, // impssions
+		&mocks.MockDeferredRecordingTask{}, // imp counts
+		&mocks.MockDeferredRecordingTask{
+			StageCall: func(rawData interface{}) error {
+				data := rawData.(*internal.RawEvents)
+				expected := dtos.Metadata{SDKVersion: "go-1.1.1", MachineIP: "1.2.3.4", MachineName: "ip-1-2-3-4"}
+				if data.Metadata != expected {
+					t.Error("wrong metadata", expected, data.Metadata)
+				}
 
-		if sdkVersion != "test-1.0.0" {
-			t.Error("SDK Version HEADER not match")
-		}
+				var parsed []dtos.EventDTO
+				err := json.Unmarshal(data.Payload, &parsed)
+				if err != nil {
+					t.Error("error deserializing incoming data")
+					return nil
+				}
+				if len(parsed) != 3 {
+					t.Error("incorect number of events received")
+				}
+				return nil
+			},
+		}, // events
+		&ilMock.ImpressionBulkListenerMock{},
+		apikeyValidator.IsValid,
+	)
+	controller.Register(group, group)
 
-		if sdkMachine != "127.0.0.1" {
-			t.Error("SDK Machine HEADER not match")
-		}
+	serialized, err := json.Marshal([]dtos.EventDTO{
+		{Key: "k1", TrafficTypeName: "tt1", EventTypeID: "e1", Value: 1, Timestamp: 123},
+		{Key: "k2", TrafficTypeName: "tt1", EventTypeID: "e1", Value: 1, Timestamp: 123},
+		{Key: "k3", TrafficTypeName: "tt1", EventTypeID: "e1", Value: 1, Timestamp: 123},
+	})
 
-		sdkMachineName := r.Header.Get("SplitSDKMachineName")
-		if sdkMachineName != "SOME_MACHINE_NAME" {
-			t.Error("SDK Machine Name HEADER not match", sdkMachineName)
-		}
-
-		rBody, _ := ioutil.ReadAll(r.Body)
-
-		var eventsInPost []dtos.EventDTO
-		err := json.Unmarshal(rBody, &eventsInPost)
-		if err != nil {
-			t.Error(err)
-			return
-		}
-
-		if eventsInPost[0].Key != "some_key" ||
-			eventsInPost[0].EventTypeID != "some_event" ||
-			eventsInPost[0].TrafficTypeName != "some_traffic_type" {
-			t.Error("Posted events arrived mal-formed")
-		}
-
-		fmt.Fprintln(w, "ok!!")
-	}))
-	defer ts.Close()
-
-	os.Setenv("SPLITIO_SDK_URL", ts.URL)
-	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
-
-	e1 := dtos.EventDTO{
-		Key:             "some_key",
-		EventTypeID:     "some_event",
-		TrafficTypeName: "some_traffic_type",
-	}
-
-	e2 := dtos.EventDTO{
-		Key:             "another_key",
-		EventTypeID:     "some_event",
-		TrafficTypeName: "some_traffic_type",
-	}
-
-	events := []dtos.EventDTO{e1, e2}
-
-	data, err := json.Marshal(events)
 	if err != nil {
-		t.Error(err)
-		return
+		t.Error("should not have errors when serializing: ", err)
 	}
 
-	// Init Impressions controller.
-	wg := &sync.WaitGroup{}
-	InitializeEventWorkers(200, 2, wg)
-	AddEvents(data, "test-1.0.0", "127.0.0.1", "SOME_MACHINE_NAME")
+	ctx.Request, _ = http.NewRequest(http.MethodPost, "/api/events/bulk", bytes.NewBuffer(serialized))
+	ctx.Request.Header.Set("Authorization", "Bearer someApiKey")
+	ctx.Request.Header.Set("SplitSDKVersion", "go-1.1.1")
+	ctx.Request.Header.Set("SplitSDKMachineIp", "1.2.3.4")
+	ctx.Request.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
+	router.ServeHTTP(resp, ctx.Request)
+	if resp.Code != 200 {
+		t.Error("Status code should be 200 and is ", resp.Code)
+	}
+}
 
-	// Lets async function post impressions
-	time.Sleep(time.Duration(4) * time.Second)
+func TestPostImpressionsCounts(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	resp := httptest.NewRecorder()
+	ctx, router := gin.CreateTestContext(resp)
+
+	logger := logging.NewLogger(nil)
+	proxyTelemetry := storage.NewProxyTelemetryFacade()
+	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"})
+
+	group := router.Group("/api")
+	controller := NewEventsServerController(
+		logger,
+		proxyTelemetry,
+		&mocks.MockDeferredRecordingTask{}, // impssions
+		&mocks.MockDeferredRecordingTask{
+			StageCall: func(rawData interface{}) error {
+				data := rawData.(*internal.RawImpressionCount)
+				expected := dtos.Metadata{SDKVersion: "go-1.1.1", MachineIP: "1.2.3.4", MachineName: "ip-1-2-3-4"}
+				if data.Metadata != expected {
+					t.Error("wrong metadata", expected, data.Metadata)
+				}
+
+				var parsed dtos.ImpressionsCountDTO
+				err := json.Unmarshal(data.Payload, &parsed)
+				if err != nil {
+					t.Error("error deserializing incoming data")
+					return nil
+				}
+				if len(parsed.PerFeature) != 3 {
+					t.Error("incorect number of events received")
+				}
+				return nil
+			},
+		}, // imp counts
+		&mocks.MockDeferredRecordingTask{}, // events
+		&ilMock.ImpressionBulkListenerMock{},
+		apikeyValidator.IsValid,
+	)
+	controller.Register(group, group)
+
+	serialized, err := json.Marshal(dtos.ImpressionsCountDTO{
+		PerFeature: []dtos.ImpressionsInTimeFrameDTO{
+			dtos.ImpressionsInTimeFrameDTO{FeatureName: "f1", TimeFrame: 1, RawCount: 1},
+			dtos.ImpressionsInTimeFrameDTO{FeatureName: "f2", TimeFrame: 2, RawCount: 2},
+			dtos.ImpressionsInTimeFrameDTO{FeatureName: "f3", TimeFrame: 3, RawCount: 3},
+		},
+	})
+
+	if err != nil {
+		t.Error("should not have errors when serializing: ", err)
+	}
+
+	ctx.Request, _ = http.NewRequest(http.MethodPost, "/api/testImpressions/count", bytes.NewBuffer(serialized))
+	ctx.Request.Header.Set("Authorization", "Bearer someApiKey")
+	ctx.Request.Header.Set("SplitSDKVersion", "go-1.1.1")
+	ctx.Request.Header.Set("SplitSDKMachineIp", "1.2.3.4")
+	ctx.Request.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
+	router.ServeHTTP(resp, ctx.Request)
+	if resp.Code != 200 {
+		t.Error("Status code should be 200 and is ", resp.Code)
+	}
+}
+
+func TestPostLegacyMetrics(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	resp := httptest.NewRecorder()
+	ctx, router := gin.CreateTestContext(resp)
+
+	logger := logging.NewLogger(nil)
+	proxyTelemetry := storage.NewProxyTelemetryFacade()
+	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"})
+
+	group := router.Group("/api")
+	controller := NewEventsServerController(
+		logger,
+		proxyTelemetry,
+		&mocks.MockDeferredRecordingTask{}, // impssions
+		&mocks.MockDeferredRecordingTask{}, // imp counts
+		&mocks.MockDeferredRecordingTask{}, // events
+		&ilMock.ImpressionBulkListenerMock{},
+		apikeyValidator.IsValid,
+	)
+	controller.Register(group, group)
+
+	ctx.Request, _ = http.NewRequest(http.MethodPost, "/api/metrics/counter", nil)
+	ctx.Request.Header.Set("Authorization", "Bearer someApiKey")
+	ctx.Request.Header.Set("SplitSDKVersion", "go-1.1.1")
+	ctx.Request.Header.Set("SplitSDKMachineIp", "1.2.3.4")
+	ctx.Request.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
+	router.ServeHTTP(resp, ctx.Request)
+	if resp.Code != 200 {
+		t.Error("Status code should be 200 and is ", resp.Code)
+	}
+
+	ctx.Request, _ = http.NewRequest(http.MethodPost, "/api/metrics/counters", nil)
+	ctx.Request.Header.Set("Authorization", "Bearer someApiKey")
+	ctx.Request.Header.Set("SplitSDKVersion", "go-1.1.1")
+	ctx.Request.Header.Set("SplitSDKMachineIp", "1.2.3.4")
+	ctx.Request.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
+	router.ServeHTTP(resp, ctx.Request)
+	if resp.Code != 200 {
+		t.Error("Status code should be 200 and is ", resp.Code)
+	}
+
+	ctx.Request, _ = http.NewRequest(http.MethodPost, "/api/metrics/time", nil)
+	ctx.Request.Header.Set("Authorization", "Bearer someApiKey")
+	ctx.Request.Header.Set("SplitSDKVersion", "go-1.1.1")
+	ctx.Request.Header.Set("SplitSDKMachineIp", "1.2.3.4")
+	ctx.Request.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
+	router.ServeHTTP(resp, ctx.Request)
+	if resp.Code != 200 {
+		t.Error("Status code should be 200 and is ", resp.Code)
+	}
+
+	ctx.Request, _ = http.NewRequest(http.MethodPost, "/api/metrics/times", nil)
+	ctx.Request.Header.Set("Authorization", "Bearer someApiKey")
+	ctx.Request.Header.Set("SplitSDKVersion", "go-1.1.1")
+	ctx.Request.Header.Set("SplitSDKMachineIp", "1.2.3.4")
+	ctx.Request.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
+	router.ServeHTTP(resp, ctx.Request)
+	if resp.Code != 200 {
+		t.Error("Status code should be 200 and is ", resp.Code)
+	}
+
+	ctx.Request, _ = http.NewRequest(http.MethodPost, "/api/metrics/gauge", nil)
+	ctx.Request.Header.Set("Authorization", "Bearer someApiKey")
+	ctx.Request.Header.Set("SplitSDKVersion", "go-1.1.1")
+	ctx.Request.Header.Set("SplitSDKMachineIp", "1.2.3.4")
+	ctx.Request.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
+	router.ServeHTTP(resp, ctx.Request)
+	if resp.Code != 200 {
+		t.Error("Status code should be 200 and is ", resp.Code)
+	}
+}
+
+func TestPostBeaconImpressionsbulk(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	resp := httptest.NewRecorder()
+	ctx, router := gin.CreateTestContext(resp)
+
+	logger := logging.NewLogger(nil)
+	proxyTelemetry := storage.NewProxyTelemetryFacade()
+	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"})
+
+	group := router.Group("/api")
+	controller := NewEventsServerController(
+		logger,
+		proxyTelemetry,
+		&mocks.MockDeferredRecordingTask{
+			StageCall: func(rawData interface{}) error {
+				data := rawData.(*internal.RawImpressions)
+
+				expected := dtos.Metadata{SDKVersion: "go-1.1.1", MachineIP: "NA", MachineName: "NA"}
+				if data.Metadata != expected {
+					t.Error("wrong metadata", expected, data.Metadata)
+				}
+
+				var parsed []dtos.ImpressionsDTO
+				err := json.Unmarshal(data.Payload, &parsed)
+				if err != nil {
+					t.Error("error deserializing incoming data", err, "--", string(data.Payload))
+					return nil
+				}
+				if len(parsed) != 2 {
+					t.Error("incorect number of events received")
+				}
+
+				t1 := parsed[0]
+				if t1.TestName != "test1" || len(t1.KeyImpressions) != 3 {
+					t.Error("wrong test or impressions amount")
+				}
+
+				t2 := parsed[1]
+				if t2.TestName != "test2" || len(t2.KeyImpressions) != 4 {
+					t.Error("wrong test or impressions amount")
+				}
+
+				return nil
+			},
+		}, // impssions
+		&mocks.MockDeferredRecordingTask{}, // imp counts
+		&mocks.MockDeferredRecordingTask{}, // events
+		&ilMock.ImpressionBulkListenerMock{
+			SubmitCall: func(imps []impressionlistener.ImpressionsForListener, metadata *dtos.Metadata) error {
+				expected := dtos.Metadata{SDKVersion: "go-1.1.1", MachineIP: "1.2.3.4", MachineName: "ip-1-2-3-4"}
+				if *metadata != expected {
+					t.Error("wrong metadata")
+				}
+
+				if len(imps) != 2 || len(imps[0].KeyImpressions) != 3 || len(imps[1].KeyImpressions) != 4 {
+					t.Error("wrong payload passed to impressions listener")
+				}
+				return nil
+			},
+		},
+		apikeyValidator.IsValid,
+	)
+	controller.Register(group, group)
+
+	entries, err := json.Marshal([]dtos.ImpressionsDTO{
+		dtos.ImpressionsDTO{
+			TestName: "test1",
+			KeyImpressions: []dtos.ImpressionDTO{
+				dtos.ImpressionDTO{KeyName: "k1", Treatment: "on", Time: 1, ChangeNumber: 2, Label: "l1", BucketingKey: "b1", Pt: 0},
+				dtos.ImpressionDTO{KeyName: "k2", Treatment: "on", Time: 2, ChangeNumber: 3, Label: "l2", BucketingKey: "b2", Pt: 0},
+				dtos.ImpressionDTO{KeyName: "k3", Treatment: "on", Time: 3, ChangeNumber: 4, Label: "l3", BucketingKey: "b3", Pt: 0},
+			},
+		},
+		dtos.ImpressionsDTO{
+			TestName: "test2",
+			KeyImpressions: []dtos.ImpressionDTO{
+				dtos.ImpressionDTO{KeyName: "k1", Treatment: "off", Time: 1, ChangeNumber: 2, Label: "l1", BucketingKey: "b1", Pt: 0},
+				dtos.ImpressionDTO{KeyName: "k2", Treatment: "off", Time: 2, ChangeNumber: 3, Label: "l2", BucketingKey: "b2", Pt: 0},
+				dtos.ImpressionDTO{KeyName: "k3", Treatment: "off", Time: 3, ChangeNumber: 4, Label: "l3", BucketingKey: "b3", Pt: 0},
+				dtos.ImpressionDTO{KeyName: "k4", Treatment: "off", Time: 4, ChangeNumber: 5, Label: "l4", BucketingKey: "b4", Pt: 0},
+			},
+		},
+	})
+	if err != nil {
+		t.Error("should not have errors when serializing: ", err)
+	}
+
+	serialized, err := json.Marshal(beaconMessage{Entries: entries, Sdk: "go-1.1.1", Token: "someApiKey"})
+	if err != nil {
+		t.Error("should not have errors when serializing: ", err)
+	}
+
+	ctx.Request, _ = http.NewRequest(http.MethodPost, "/api/testImpressions/beacon", bytes.NewBuffer(serialized))
+	ctx.Request.Header.Set("Authorization", "Bearer someApiKey")
+	ctx.Request.Header.Set("SplitSDKImpressionsMode", "optimized")
+	router.ServeHTTP(resp, ctx.Request)
+	if resp.Code != 204 {
+		t.Error("Status code should be 200 and is ", resp.Code)
+	}
+}
+
+func TestPostBeaconEventsBulk(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	resp := httptest.NewRecorder()
+	ctx, router := gin.CreateTestContext(resp)
+
+	logger := logging.NewLogger(nil)
+	proxyTelemetry := storage.NewProxyTelemetryFacade()
+	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"})
+
+	group := router.Group("/api")
+	controller := NewEventsServerController(
+		logger,
+		proxyTelemetry,
+		&mocks.MockDeferredRecordingTask{}, // impssions
+		&mocks.MockDeferredRecordingTask{}, // imp counts
+		&mocks.MockDeferredRecordingTask{
+			StageCall: func(rawData interface{}) error {
+				data := rawData.(*internal.RawEvents)
+				expected := dtos.Metadata{SDKVersion: "go-1.1.1", MachineIP: "NA", MachineName: "NA"}
+				if data.Metadata != expected {
+					t.Error("wrong metadata", expected, data.Metadata)
+				}
+
+				var parsed []dtos.EventDTO
+				err := json.Unmarshal(data.Payload, &parsed)
+				if err != nil {
+					t.Error("error deserializing incoming data")
+					return nil
+				}
+				if len(parsed) != 3 {
+					t.Error("incorect number of events received")
+				}
+				return nil
+			},
+		}, // events
+		&ilMock.ImpressionBulkListenerMock{},
+		apikeyValidator.IsValid,
+	)
+	controller.Register(group, group)
+
+	entries, err := json.Marshal([]dtos.EventDTO{
+		{Key: "k1", TrafficTypeName: "tt1", EventTypeID: "e1", Value: 1, Timestamp: 123},
+		{Key: "k2", TrafficTypeName: "tt1", EventTypeID: "e1", Value: 1, Timestamp: 123},
+		{Key: "k3", TrafficTypeName: "tt1", EventTypeID: "e1", Value: 1, Timestamp: 123},
+	})
+
+	if err != nil {
+		t.Error("should not have errors when serializing: ", err)
+	}
+
+	serialized, err := json.Marshal(beaconMessage{Entries: entries, Sdk: "go-1.1.1", Token: "someApiKey"})
+	if err != nil {
+		t.Error("should not have errors when serializing: ", err)
+	}
+
+	ctx.Request, _ = http.NewRequest(http.MethodPost, "/api/events/beacon", bytes.NewBuffer(serialized))
+	router.ServeHTTP(resp, ctx.Request)
+	if resp.Code != 204 {
+		t.Error("Status code should be 200 and is ", resp.Code)
+	}
+}
+
+func TestPostBeaconImpressionsCounts(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	resp := httptest.NewRecorder()
+	ctx, router := gin.CreateTestContext(resp)
+
+	logger := logging.NewLogger(nil)
+	proxyTelemetry := storage.NewProxyTelemetryFacade()
+	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"})
+
+	group := router.Group("/api")
+	controller := NewEventsServerController(
+		logger,
+		proxyTelemetry,
+		&mocks.MockDeferredRecordingTask{}, // impssions
+		&mocks.MockDeferredRecordingTask{
+			StageCall: func(rawData interface{}) error {
+				data := rawData.(*internal.RawImpressionCount)
+				expected := dtos.Metadata{SDKVersion: "go-1.1.1", MachineIP: "NA", MachineName: "NA"}
+				if data.Metadata != expected {
+					t.Error("wrong metadata", expected, data.Metadata)
+				}
+
+				var parsed dtos.ImpressionsCountDTO
+				err := json.Unmarshal(data.Payload, &parsed)
+				if err != nil {
+					t.Error("error deserializing incoming data")
+					return nil
+				}
+				if len(parsed.PerFeature) != 3 {
+					t.Error("incorect number of events received")
+				}
+				return nil
+			},
+		}, // imp counts
+		&mocks.MockDeferredRecordingTask{}, // events
+		&ilMock.ImpressionBulkListenerMock{},
+		apikeyValidator.IsValid,
+	)
+	controller.Register(group, group)
+
+	entries, err := json.Marshal(dtos.ImpressionsCountDTO{
+		PerFeature: []dtos.ImpressionsInTimeFrameDTO{
+			dtos.ImpressionsInTimeFrameDTO{FeatureName: "f1", TimeFrame: 1, RawCount: 1},
+			dtos.ImpressionsInTimeFrameDTO{FeatureName: "f2", TimeFrame: 2, RawCount: 2},
+			dtos.ImpressionsInTimeFrameDTO{FeatureName: "f3", TimeFrame: 3, RawCount: 3},
+		},
+	})
+
+	if err != nil {
+		t.Error("should not have errors when serializing: ", err)
+	}
+
+	serialized, err := json.Marshal(beaconMessage{Entries: entries, Sdk: "go-1.1.1", Token: "someApiKey"})
+	if err != nil {
+		t.Error("should not have errors when serializing: ", err)
+	}
+
+	ctx.Request, _ = http.NewRequest(http.MethodPost, "/api/testImpressions/count/beacon", bytes.NewBuffer(serialized))
+	router.ServeHTTP(resp, ctx.Request)
+	if resp.Code != 204 {
+		t.Error("Status code should be 200 and is ", resp.Code)
+	}
 }
