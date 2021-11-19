@@ -22,8 +22,12 @@ func NewShutdownController(runtime common.Runtime) *ShutdownController {
 	return &ShutdownController{runtime: runtime}
 }
 
-// StopProcess handles requests to shut down the synchronizer app
-func (c *ShutdownController) StopProcess(ctx *gin.Context) {
+// Register mounts the endpoints
+func (c *ShutdownController) Register(router gin.IRouter) {
+	router.GET("/stop/:stopType", c.stopProcess)
+}
+
+func (c *ShutdownController) stopProcess(ctx *gin.Context) {
 	stopType := ctx.Param("stopType")
 	var toReturn string
 

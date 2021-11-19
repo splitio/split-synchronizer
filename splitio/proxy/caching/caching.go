@@ -38,11 +38,21 @@ func MakeSurrogateForMySegments(mysegments []dtos.MySegmentDTO) []string {
 		return nil
 	}
 
-	surrogates := make([]string, 0, len(mysegments))
-	for idx := range mysegments {
-		surrogates = append(surrogates, segmentPrefix+mysegments[idx].Name)
-	}
-	return surrogates
+	/*
+		surrogates := make([]string, 0, len(mysegments))
+		for idx := range mysegments {
+			surrogates = append(surrogates, segmentPrefix+mysegments[idx].Name)
+		}
+		return surrogates
+	*/
+
+	// Since we are now evicting individually for every updated key, we don't need surrogates for mySegments
+	return nil
+}
+
+// MakeMySegmentsEntry create a cache entry key for mysegments
+func MakeMySegmentsEntry(key string) string {
+	return "/api/mySegments/" + key
 }
 
 // MakeProxyCache creates and configures a split-proxy-ready cache
