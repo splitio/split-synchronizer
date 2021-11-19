@@ -38,9 +38,13 @@ type Options struct {
 
 // NewServer instantiates a new admin server
 func NewServer(options *Options) (*http.Server, error) {
-
 	router := gin.New()
 	admin := router.Group(basepath)
+	var adminWithAuth *gin.RouterGroup = admin
+	if options.Username != "" && options.Password != "" {
+		adminWithAuth = router.Group(basepath, gin.BasicAuth(gin.Accounts{options.Username: options.Password}))
+	}
+
 	dashboardController, err := controllers.NewDashboardController(
 		options.Name,
 		options.Proxy,
@@ -56,13 +60,8 @@ func NewServer(options *Options) (*http.Server, error) {
 	}
 
 	shutdownController := controllers.NewShutdownController(options.Runtime)
-	shutdownController.Register(admin)
-
-	dashboardController.Register(admin)
-	// infoctrl, err := controllers.NewInfoController(options.Proxy, options.Runtime, options.Storages.LocalTelemetryStorage)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("error instantiating info controller: %w", err)
-	// }
+	shutdownController.Register(adminWithAuth)
+	dashboardController.Register(adminWithAuth)
 
 	healthcheckController := controllers.NewHealthCheckController(
 		options.Logger,
