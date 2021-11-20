@@ -12,7 +12,7 @@ Ideally, paste the output in `https://markdownlivepreview.com/` and check that i
 
 import argparse
 import re
-from typing import Optional, List
+from typing import Optional, List, Tuple
  
 
 _CLI_REGEX = 's-cli:"([^"]*)" '
@@ -27,7 +27,7 @@ def main():
     parser.add_argument('-f', '--files', help='files to process', required=True)
     args = parser.parse_args()
 
-    header = ['| Command line option | JSON option | Environment variable (container-only) | Description |',
+    header = ['| **Command line option** | **JSON option** | **Environment variable** (container-only) | **Description** |',
               '| --- | --- | --- | --- |']
 
     opts_by_file = [parse_section_file(args.env_prefix, fn) for fn in args.files.split(',')]
@@ -35,7 +35,7 @@ def main():
     print('\n'.join(header + [line for flines in opts_by_file for line in flines]))
 
 
-def parse_line(line: str) -> Optional[str]:
+def parse_line(line: str) -> Optional[Tuple[str, str, str]]:
     """Parse a `sections.go` line and return either a config option or None."""
     cli_search = re.search(_CLI_REGEX, line)
     json_search = re.search(_JSON_REGEX, line)
@@ -49,6 +49,7 @@ def parse_line(line: str) -> Optional[str]:
 #   return (cli_search.group(1) if cli_search  else None,
 #          json_search.group(1) if json_search else None,
 #          desc_search.group(1) if desc_search else None)
+
 
 def cli_to_env(prefix: str, cli: str) -> str:
     """Build the environment variable for a specific cli option."""
