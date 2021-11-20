@@ -16,7 +16,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const basepath = "/admin"
+const baseAdminPath = "/admin"
+const baseInfoPath = "/info"
+const baseShutdownPath = "/shutdown"
 
 // Options encapsulates dependencies & config options for the Admin server
 type Options struct {
@@ -34,15 +36,19 @@ type Options struct {
 	HcAppMonitor      application.MonitorIterface
 	HcServicesMonitor services.MonitorIterface
 	Snapshotter       cstorage.Snapshotter
+	FullConfig        interface{}
 }
 
 // NewServer instantiates a new admin server
 func NewServer(options *Options) (*http.Server, error) {
 	router := gin.New()
-	admin := router.Group(basepath)
-	var adminWithAuth *gin.RouterGroup = admin
+	admin := router.Group(baseAdminPath)
+	info := router.Group(baseInfoPath)
+	shutdown := router.Group(baseShutdownPath)
 	if options.Username != "" && options.Password != "" {
-		adminWithAuth = router.Group(basepath, gin.BasicAuth(gin.Accounts{options.Username: options.Password}))
+		admin = router.Group(baseAdminPath, gin.BasicAuth(gin.Accounts{options.Username: options.Password}))
+		info = router.Group(baseInfoPath, gin.BasicAuth(gin.Accounts{options.Username: options.Password}))
+		shutdown = router.Group(baseShutdownPath, gin.BasicAuth(gin.Accounts{options.Username: options.Password}))
 	}
 
 	dashboardController, err := controllers.NewDashboardController(
@@ -58,10 +64,10 @@ func NewServer(options *Options) (*http.Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error instantiating dashboard controller: %w", err)
 	}
+	dashboardController.Register(admin)
 
 	shutdownController := controllers.NewShutdownController(options.Runtime)
-	shutdownController.Register(adminWithAuth)
-	dashboardController.Register(adminWithAuth)
+	shutdownController.Register(shutdown)
 
 	healthcheckController := controllers.NewHealthCheckController(
 		options.Logger,
@@ -70,6 +76,10 @@ func NewServer(options *Options) (*http.Server, error) {
 	)
 
 	healthcheckController.Register(router)
+
+	infoController := controllers.NewInfoController(options.Proxy, options.Runtime, options.FullConfig)
+	infoController.Register(info)
+
 	if options.Snapshotter != nil {
 		snapshotController := controllers.NewSnapshotController(options.Logger, options.Snapshotter)
 		snapshotController.Register(admin)
