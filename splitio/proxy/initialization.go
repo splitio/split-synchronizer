@@ -198,6 +198,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		Snapshotter:       dbInstance,
 		HcAppMonitor:      appMonitor,
 		HcServicesMonitor: servicesMonitor,
+		FullConfig:        cfg,
 	})
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error starting admin server: %w", err), common.ExitAdminError)

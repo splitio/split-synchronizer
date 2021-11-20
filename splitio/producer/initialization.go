@@ -236,6 +236,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		Runtime:           rtm,
 		HcAppMonitor:      appMonitor,
 		HcServicesMonitor: servicesMonitor,
+		FullConfig:        cfg,
 	})
 	if err != nil {
 		panic(err.Error())
