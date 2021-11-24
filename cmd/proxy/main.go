@@ -51,6 +51,7 @@ func main() {
 			fmt.Printf("error writing config file with default values: %s", err.Error())
 			os.Exit(exitCodeConfigError)
 		}
+		fmt.Println("Configuration file written successfully to: ", fn)
 		os.Exit(exitCodeSuccess)
 	}
 
