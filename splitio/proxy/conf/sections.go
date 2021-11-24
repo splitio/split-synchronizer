@@ -58,7 +58,7 @@ type Volatile struct {
 
 // Persistent storage configuration options
 type Persistent struct {
-	Filename string `json:"filename" s-cli:"persisntant-storage-fn" s-def:"" s-desc:"Where to store flags & user-generated data. (Default: temporary file)"`
+	Filename string `json:"filename" s-cli:"persistent-storage-fn" s-def:"" s-desc:"Where to store flags & user-generated data. (Default: temporary file)"`
 }
 
 // Sync configuration options
