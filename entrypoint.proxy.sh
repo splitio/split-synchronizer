@@ -11,7 +11,7 @@ FLAGS=(
     "server-host"
     "server-port"
     "http-cache-size"
-    "persisntant-storage-fn"
+    "persistent-storage-fn"
     "split-refresh-rate-ms"
     "segment-refresh-rate-ms"
     "streaming-enabled"

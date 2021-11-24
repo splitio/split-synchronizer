@@ -185,6 +185,8 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	}
 
 	// --------------------------- ADMIN DASHBOARD ------------------------------
+	cfgForAdmin := *cfg
+	cfgForAdmin.Apikey = logging.ObfuscateAPIKey(cfgForAdmin.Apikey)
 	adminServer, err := admin.NewServer(&admin.Options{
 		Host:              cfg.Admin.Host,
 		Port:              int(cfg.Admin.Port),
@@ -198,7 +200,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		Snapshotter:       dbInstance,
 		HcAppMonitor:      appMonitor,
 		HcServicesMonitor: servicesMonitor,
-		FullConfig:        cfg,
+		FullConfig:        cfgForAdmin,
 	})
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error starting admin server: %w", err), common.ExitAdminError)
