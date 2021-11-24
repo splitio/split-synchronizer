@@ -222,6 +222,8 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	rtm := common.NewRuntime(false, syncManager, logger, "Split Synchronizer", nil, nil, appMonitor, servicesMonitor)
 
 	// --------------------------- ADMIN DASHBOARD ------------------------------
+	cfgForAdmin := *cfg
+	cfgForAdmin.Apikey = logging.ObfuscateAPIKey(cfgForAdmin.Apikey)
 	adminServer, err := admin.NewServer(&admin.Options{
 		Host:              cfg.Admin.Host,
 		Port:              int(cfg.Admin.Port),
@@ -236,7 +238,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		Runtime:           rtm,
 		HcAppMonitor:      appMonitor,
 		HcServicesMonitor: servicesMonitor,
-		FullConfig:        cfg,
+		FullConfig:        cfgForAdmin,
 	})
 	if err != nil {
 		panic(err.Error())
