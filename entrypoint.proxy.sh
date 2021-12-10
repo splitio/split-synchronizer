@@ -1,4 +1,4 @@
-#!/bin/env sh
+#!/usr/bin/env bash
 
 FLAGS=(
 # Proxy CLI ARGS
@@ -43,5 +43,4 @@ FLAGS=(
 
 source functions.sh
 cli_args=$(parse_env "SPLIT_PROXY" "${FLAGS[@]}")
-echo $cli_args
-split-proxy $cli_args
+exec split-proxy $cli_args
