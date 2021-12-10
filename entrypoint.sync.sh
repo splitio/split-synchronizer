@@ -1,4 +1,4 @@
-#!/bin/env sh
+#!/usr/bin/env bash
 
 FLAGS=(
 # Sync CLI ARGS
@@ -70,5 +70,4 @@ FLAGS=(
 
 source functions.sh
 cli_args=$(parse_env "SPLIT_SYNC" "${FLAGS[@]}")
-echo $cli_args
-split-sync $cli_args
+exec split-sync $cli_args
