@@ -1,4 +1,9 @@
-5.0.0-rc1 (Nov 1, 2021)
+5.0.1-rc1 (TBD)
+ - Fixed healthcheck in polling mode (both)
+ - Fixed app healthcheck endpoint status code when the monitor isn't healthy (both)
+ - Fixed Splits & segments metrics in dashboard when running in redis-cluster mode (split-sync)
+
+5.0.0 (Nov 1, 2021)
  - BREAKING CHANGE: Split the project to produce two different binaries for syncrhonizer & proxy tools
  - BREAKING CHANGE: Config options cleanup
  - BREAKING CHANGE: Docker images entrypoint update
