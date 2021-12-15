@@ -29,7 +29,7 @@ echo -e "   / / \ \  \___ \| '_ \| | | __|"
 echo -e "   \ \  \ \  ___) | |_) | | | |_"
 echo -e "    \_\ / / |____/| .__/|_|_|\__|"
 echo -e "       /_/        |_|"
-echo -e "Split Synchronizer Agent - installer v${INSTALLER_VERSION}"
+echo -e "Split AUTO_REPLACE_APP_NAME - installer v${INSTALLER_VERSION}"
 echo -e "Commit version: AUTO_REPLACE_COMMIT_VERSION"
 echo -e "Build version: AUTO_REPLACE_BUILD_VERSION"
 echo -e "Split Software Inc."
@@ -70,8 +70,8 @@ unzip ${PDIR}/${ZIP_FILENAME}
 # ------------------------------------------------------------
 # Installing binary
 # ------------------------------------------------------------
-echo "* Installing split-sync binary in /usr/local/bin"
-if install AUTO_REPLACE_BIN_FILENAME /usr/local/bin/split-sync
+echo "* Installing AUTO_REPLACE_INSTALL_NAME binary in /usr/local/bin"
+if install AUTO_REPLACE_BIN_FILENAME /usr/local/bin/AUTO_REPLACE_INSTALL_NAME
 then SUCCESS_INSTALL=true
 fi
 
@@ -83,8 +83,8 @@ rm -f ${PDIR}/${ZIP_FILENAME}
 rm -f AUTO_REPLACE_BIN_FILENAME
 
 if [ "$SUCCESS_INSTALL" = true ]; then
-  echo "Split Synchronizer Agent has been installed."
-  echo -e "Type \033[0;34msplit-sync --help\033[0m for more information or visit https://split.io "
+  echo "Split AUTO_REPLACE_APP_NAME has been installed."
+  echo -e "Type \033[0;34mAUTO_REPLACE_INSTALL_NAME --help\033[0m for more information or visit https://split.io "
 else
   echo -e "\033[0;31mSomething were wrong on the installation.\033[0m"
   echo "Please try again, remember to check permissions or run it as root user."
