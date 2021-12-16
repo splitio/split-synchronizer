@@ -28,8 +28,16 @@ installer_dir	:= $(build_prefix)/installer
 $(shell cat release/commitversion.go.template | sed -e "s/commit_version/${commit_version}/" > ./splitio/commitversion.go)
 
 
-.PHONY: help clean build test build_release images_release \
-    sync_options_table proxy_options_table
+.PHONY: help \
+	clean \
+	build \
+	test \
+	build_release \
+	images_release \
+	sync_options_table \
+	proxy_options_table \
+	download_pages
+
 default: help
 
 # --------------------------------------------------------------------------
@@ -182,16 +190,16 @@ help:
 #
 # These macros are used to manipulate filenames (extract infromation from them, substitute portions, etc)
 # TODO(mredolatti): we might be able to make this quite simplet with a better folder structure in `build/`
-remove_ext		= $(1:%.zip=%)
+remove_zip_ext		= $(1:%.zip=%)
 remove_exec_path	= $(1:$(exec_dir)/%=%)
 remove_zip_path		= $(1:$(zip_dir)/%=%)
 extract_os		= $(word 3,$(subst _, ,$1))
 remove_os		= $(subst _$(call extract_os,$(1)),,$(1))
-progname_from_zip 	= $(subst _,-,$(call remove_os,$(call remove_ext,$(call remove_zip_path,$(1)))))
+progname_from_zip 	= $(subst _,-,$(call remove_os,$(call remove_zip_ext,$(call remove_zip_path,$(1)))))
 apptitle_from_zip	= $(if $(subst split-sync,,$(call progname_from_zip,$1)),Proxy,Synchronizer)
 mainfolder_from_bin	= $(if $(findstring split_sync,$1),synchronizer,proxy)
 os_from_bin		= $(call extract_os,$(call remove_exec_path, $(1)))
-bin_from_zip		= $(call remove_zip_path,$(call remove_ext,$1))
+bin_from_zip		= $(call remove_zip_path,$(call remove_zip_ext,$1))
 
 # "constants"
 comma :=,

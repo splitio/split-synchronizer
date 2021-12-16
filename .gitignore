@@ -1,5 +1,9 @@
 #Project files
 split-synchronizer
+split-sync
+split-proxy
+entrypoint.proxy.sh
+entrypoint.sync.sh
 run.sh
 bin/*
 *.yaml
