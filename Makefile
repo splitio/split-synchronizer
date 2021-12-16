@@ -2,6 +2,8 @@
 GO ?= go
 ZIP ?= zip
 ARCH ?= amd64
+PYTHON ?= python
+DOCKER ?= docker
 
 
 # TODO(mredolatti): we can eventually have 2 sources variables (for sync & proxy), and filter out
@@ -26,7 +28,8 @@ installer_dir	:= $(build_prefix)/installer
 $(shell cat release/commitversion.go.template | sed -e "s/commit_version/${commit_version}/" > ./splitio/commitversion.go)
 
 
-.PHONY: help clean build test build_release images_dev images_release
+.PHONY: help clean build test build_release images_release \
+    sync_options_table proxy_options_table
 default: help
 
 # --------------------------------------------------------------------------
@@ -39,6 +42,7 @@ default: help
 clean:
 	rm -f ./split-sync
 	rm -f ./split-proxy
+	rm -f ./entrypoint.*.sh
 	rm -f build/{executable,compressed,installer}/*
 
 ## Build split-sync and split-proxy
@@ -69,13 +73,25 @@ build_release: \
 	$(foreach f,$^,$(info - $(f)))
 	$(info )
 
-entrypoints: \
-    entrypoint.sync.sh \
-    entrypoint.proxy.sh
+## Generate cli/json/env-var options table Markdown for split-poxy
+proxy_options_table: splitio/common/conf/sections.go splitio/proxy/conf/sections.go
 	$(info )
-	$(info Entrypoints generated:)
-	$(foreach f,$^,$(info - $(f)))
+	@$(PYTHON) release/docgen.py -e SPLIT_PROXY -f $(subst $(space),$(comma),$^)
+
+## Generate cli/json/env-var options table Markdown for split-sync
+sync_options_table: splitio/common/conf/sections.go splitio/producer/conf/sections.go
 	$(info )
+	@$(PYTHON) release/docgen.py -e SPLIT_SYNC -f $(subst $(space),$(comma),$^)
+
+## Build docker images with proper tags and output push commands in stdout
+images_release: entrypoint.sync.sh entrypoint.proxy.sh
+	$(DOCKER) build -t splitsoftware/split-synchronizer:latest -t splitsoftware/split-synchronizer:$(version) -f docker/Dockerfile.synchronizer .
+	$(DOCKER) build -t splitsoftware/split-proxy:latest -t splitsoftware/split-proxy:$(version) -f docker/Dockerfile.proxy .
+	@echo "Images created. Make sure everything works ok, and then run the following commands to push them."
+	@echo "$(DOCKER) push splitsoftware/split-synchronizer:$(version)"
+	@echo "$(DOCKER) push splitsoftware/split-synchronizer:latest"
+	@echo "$(DOCKER) push splitsoftware/split-proxy:$(version)"
+	@echo "$(DOCKER) push splitsoftware/split-proxy:latest"
 
 
 # --------------------------------------------------------------------------
@@ -129,6 +145,19 @@ $(installer_dir)/split_%_installer.bin: $(zip_dir)/split_%.zip
 	rm $@.tmp
 # @}
 
+entrypoint.proxy.sh: splitio/common/conf/sections.go splitio/proxy/conf/sections.go
+	cat docker/entrypoint.sh.tpl \
+	    | sed 's/{{ARGS}}/$(shell $(PYTHON) docker/parse_opts.py -f $(subst $(space),$(comma),$^))/' \
+	    | sed 's/{{PREFIX}}/SPLIT_PROXY/' \
+	    | sed 's/{{EXECUTABLE}}/split-proxy/' \
+	    > $@
+
+entrypoint.sync.sh: splitio/common/conf/sections.go splitio/producer/conf/sections.go
+	cat docker/entrypoint.sh.tpl \
+	    | sed 's/{{ARGS}}/$(shell $(PYTHON) docker/parse_opts.py -f $(subst $(space),$(comma),$^))/' \
+	    | sed 's/{{PREFIX}}/SPLIT_SYNC/' \
+	    | sed 's/{{EXECUTABLE}}/split-sync/' \
+	    > $@
 
 # Help target borrowed from: https://docs.cloudposse.com/reference/best-practices/make-best-practices/
 ## This help screen
@@ -163,3 +192,9 @@ apptitle_from_zip	= $(if $(subst split-sync,,$(call progname_from_zip,$1)),Proxy
 mainfolder_from_bin	= $(if $(findstring split_sync,$1),synchronizer,proxy)
 os_from_bin		= $(call extract_os,$(call remove_exec_path, $(1)))
 bin_from_zip		= $(call remove_zip_path,$(call remove_ext,$1))
+
+# "constants"
+comma :=,
+# the variable below ends in a space (and its on purpose). DON'T "fix" it.
+space := 
+space +=
