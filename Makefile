@@ -2,7 +2,7 @@
 GO ?= go
 ZIP ?= zip
 ARCH ?= amd64
-PYTHON ?= python
+PYTHON ?= python3
 DOCKER ?= docker
 BUILD ?= build
 
@@ -107,7 +107,7 @@ images_release: entrypoint.sync.sh entrypoint.proxy.sh
 go.sum: go.mod
 	$(GO) mod tidy
 
-# because of windows .exe suffix, we need a macro on the right side, which needs to be executed 
+# because of windows .exe suffix, we need a macro on the right side, which needs to be executed
 # after the `%` evaluation, therefore, in a second expansion
 .SECONDEXPANSION:
 $(BUILD)/split_%.zip: $(BUILD)/split_$$(call make_exec,%)
@@ -187,5 +187,5 @@ cmdfolder_from_bin	= $(if $(findstring split_sync,$1),synchronizer,proxy)
 
 # "constants" -- `space` ends in a space (and its on purpose). DON'T "fix" it.
 comma :=,
-space := 
+space :=
 space +=
