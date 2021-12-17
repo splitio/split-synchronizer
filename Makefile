@@ -187,5 +187,5 @@ cmdfolder_from_bin	= $(if $(findstring split_sync,$1),synchronizer,proxy)
 
 # "constants" -- `space` ends in a space (and its on purpose). DON'T "fix" it.
 comma :=,
-space :=
+space := 
 space +=

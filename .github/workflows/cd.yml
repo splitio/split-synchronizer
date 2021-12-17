@@ -36,9 +36,17 @@ jobs:
         run: make test_coverage
       - name: Generate entry-points for Docker images
         run: make etrypoints
-      - name: Docker Build and Push
+      - name: Docker Build and Push split-sync
         uses: docker/build-push-action@v2
         with:
+          context: .
+          file: docker/Dockerfile.synchronizer
+          push: true
+          tags: splitio-docker.jfrog.io/${{ github.event.repository.name }}:${{ github.sha }}
+      - name: Docker Build and Push split-proxy
+        uses: docker/build-push-action@v2
+        with:
+          file: docker/Dockerfile.proxy
           context: .
           push: true
           tags: splitio-docker.jfrog.io/${{ github.event.repository.name }}:${{ github.sha }}
