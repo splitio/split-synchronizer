@@ -100,7 +100,9 @@ func (c *PeriodicImp) Start() {
 		for c.running.IsSet() {
 			time.Sleep(time.Duration(c.validationFuncPeriod) * time.Minute)
 			c.validationFunc(c)
+			c.lock.Lock()
 			c.updateLastHit()
+			c.lock.Unlock()
 		}
 	}()
 

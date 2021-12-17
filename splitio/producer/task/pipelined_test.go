@@ -72,8 +72,8 @@ func TestPipelineTask(t *testing.T) {
 	var httpCalls int64
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt64(&httpCalls, 1)
-		if httpCalls > 4 {
-			t.Error("there hsould be 4 requests. Currently have: ", httpCalls)
+		if c := atomic.LoadInt64(&httpCalls); c > 4 {
+			t.Error("there hsould be 4 requests. Currently have: ", c)
 		}
 		which := r.Header.Get("which")
 		switch which {
@@ -114,7 +114,7 @@ func TestPipelineTask(t *testing.T) {
 		},
 		buildRequestCall: func(data interface{}) (*http.Request, func(), error) {
 			atomic.AddInt64(&postCalls, 1)
-			if postCalls > 4 {
+			if atomic.LoadInt64(&postCalls) > 4 {
 				t.Error("build request should be called 4 times only")
 			}
 
@@ -157,12 +157,12 @@ func TestPipelineTask(t *testing.T) {
 		t.Error("fetch should be called only once. Got: ", processCalls)
 	}
 
-	if postCalls != 4 {
-		t.Error("fetch should be called 4 times . Got: ", postCalls)
+	if atomic.LoadInt64(&postCalls) != 4 {
+		t.Error("fetch should be called 4 times . Got: ", atomic.LoadInt64(&postCalls))
 	}
 
-	if httpCalls != 4 {
-		t.Error("fetch should be called 4 times . Got: ", httpCalls)
+	if c := httpCalls; c != 4 {
+		t.Error("fetch should be called 4 times . Got: ", c)
 	}
 
 	poolWrapper.validate(t)
