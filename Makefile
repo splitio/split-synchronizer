@@ -14,7 +14,7 @@ installer_tpl		:= ./release/install_script_template
 installer_tpl_lines	:= $(shell echo $$(( $$(wc -l $(installer_tpl) | awk '{print $$1}') +1 )))
 
 # Always update commit version
-$(shell cat release/commitversion.go.template | sed -e "s/commit_version/${commit_version}/" > ./splitio/commitversion.go)
+$(shell cat release/commitversion.go.template | sed -e "s/COMMIT_VERSION/${commit_version}/" > ./splitio/commitversion.go)
 
 .PHONY: help clean build test test_coverage release_assets images_release \
     sync_options_table proxy_options_table download_pages
