@@ -65,5 +65,3 @@ function parse_env() {
     echo $args
     return 0
 }
-
-
