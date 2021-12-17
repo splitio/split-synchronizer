@@ -25,7 +25,7 @@ jobs:
       - name: Set build version
         run: echo "VERSION=$(tail -n 1 splitio/version.go | awk '{print $4}' | tr -d '"')" >> $GITHUB_ENV
       - name: Execute build
-        run: make build_release
+        run: make release_assets
       - name: Run test
         run: go test -v -cover $(go list ./... | grep -v /vendor/) -coverprofile=coverage.out
       - name: Generate entrypoints
