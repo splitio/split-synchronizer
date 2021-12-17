@@ -61,3 +61,5 @@ release/versions.html
 Gopkg.lock
 
 .vscode/*
+
+build/*

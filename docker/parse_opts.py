@@ -16,7 +16,7 @@ This file is meant to be used from the Makefile to generate docker entry points
 import argparse
 import re
 from typing import Optional, List, Tuple
- 
+
 
 _CLI_REGEX = 's-cli:"([^"]*)" '
 
@@ -29,7 +29,7 @@ def main():
 
     opts = [
         item for fn in args.files.split(',')
-        for item in parse_section_file(fn) 
+        for item in parse_section_file(fn)
     ]
 
     print(' '.join(map(lambda o: f'"{o}"', opts)))
