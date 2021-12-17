@@ -108,7 +108,9 @@ func (c *ThresholdImp) Start() {
 				c.lock.Unlock()
 				return
 			case <-c.reset:
+				c.lock.Lock()
 				timer.Reset(time.Duration(c.period) * time.Second)
+				c.lock.Unlock()
 			case <-c.cancel:
 				return
 			}

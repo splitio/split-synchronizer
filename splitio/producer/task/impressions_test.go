@@ -209,7 +209,7 @@ func TestImpressionsIntegration(t *testing.T) {
 	poolWrapper := newTrackingAllocator()
 	w, err := NewImpressionWorker(&ImpressionWorkerConfig{
 		EvictionMonitor:     evcalc.New(1),
-		Logger:              logging.NewLogger(nil),
+		Logger:              logging.NewLogger(&logging.LoggerOptions{LogLevel: logging.LevelDebug}),
 		ImpressionsMode:     conf.ImpressionsModeOptimized,
 		ImpressionsListener: nil,
 		Telemetry:           &rts,
@@ -224,7 +224,7 @@ func TestImpressionsIntegration(t *testing.T) {
 	w.pool = poolWrapper
 
 	task, err := NewPipelinedTask(&Config{
-		Logger:       logging.NewLogger(nil),
+		Logger:       logging.NewLogger(&logging.LoggerOptions{LogLevel: logging.LevelError}),
 		Worker:       w,
 		MaxAccumWait: 500 * time.Millisecond,
 	})
@@ -233,7 +233,7 @@ func TestImpressionsIntegration(t *testing.T) {
 	}
 
 	task.Start()
-	time.Sleep(2 * time.Second)
+	time.Sleep(100 * time.Millisecond)
 	task.Stop(true)
 
 	if l := len(impsByMachineName); l != 3 {
@@ -242,12 +242,12 @@ func TestImpressionsIntegration(t *testing.T) {
 
 	expectedImpressionsPerMeta := 500 * 4 * 20 // bulks * features * keys
 	if r := impsByMachineName["machine_0"]; r != expectedImpressionsPerMeta {
-		t.Error("machine0 should have 500 impressions. Has ", r)
+		t.Errorf("machine0 should have %d impressions. Has %d", expectedImpressionsPerMeta, r)
 	}
 	if r := impsByMachineName["machine_1"]; r != expectedImpressionsPerMeta {
-		t.Error("machine1 should have 500 impressions. Has ", r)
+		t.Errorf("machine0 should have %d impressions. Has %d", expectedImpressionsPerMeta, r)
 	}
 	if r := impsByMachineName["machine_2"]; r != expectedImpressionsPerMeta {
-		t.Error("machine2 should have 500 impressions. Has ", r)
+		t.Errorf("machine0 should have %d impressions. Has %d", expectedImpressionsPerMeta, r)
 	}
 }
