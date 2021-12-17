@@ -5,7 +5,7 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
-    <title>Split Sync Download Page</title>
+    <title>{title}</title>
 
     <!-- Latest compiled and minified CSS -->
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
@@ -25,101 +25,7 @@
 
     <link href="https://fonts.googleapis.com/css?family=Open+Sans:300" rel="stylesheet">
 
-    <style>
-    /* Space out content a bit */
-body {
-  padding-top: 20px;
-  padding-bottom: 20px;
-  font-family: 'Open Sans', sans-serif;
-}
-
-/* Everything but the jumbotron gets side spacing for mobile first views */
-.header,
-.marketing,
-.footer {
-  padding-right: 15px;
-  padding-left: 15px;
-}
-
-/* Custom page header */
-.header {
-  padding-bottom: 20px;
-  border-bottom: 1px solid #e5e5e5;
-}
-/* Make the masthead heading the same height as the navigation */
-.header h3 {
-  margin-top: 0;
-  margin-bottom: 0;
-  line-height: 40px;
-}
-
-/* Custom page footer */
-.footer {
-  padding-top: 19px;
-  color: #777;
-  border-top: 1px solid #e5e5e5;
-}
-
-.download-icon {
-    font-size: 14pt;
-}
-
-.download-version {
-    float: left;
-}
-
-table.table thead tr th.download-icon {
-    font-size: 20pt;
-}
-
-/* Customize container */
-@media (min-width: 768px) {
-  .container {
-    max-width: 730px;
-  }
-}
-.container-narrow > hr {
-  margin: 30px 0;
-}
-
-/* Main marketing message and sign up button */
-.jumbotron {
-  text-align: center;
-  border-bottom: 0px;
-}
-/*.jumbotron .btn {
-  padding: 14px 24px;
-  font-size: 21px;
-}*/
-
-/* Supporting marketing content */
-.marketing {
-  margin: 40px 0;
-}
-.marketing p + h4 {
-  margin-top: 28px;
-}
-
-/* Responsive: Portrait tablets and up */
-@media screen and (min-width: 768px) {
-  /* Remove the padding we set earlier */
-  .header,
-  .marketing,
-  .footer {
-    padding-right: 0;
-    padding-left: 0;
-  }
-  /* Space out the masthead */
-  .header {
-    margin-bottom: 30px;
-  }
-  /* Remove the bottom border on the jumbotron for visual effect */
-  .jumbotron {
-    border-bottom: 0;
-    background-color: #ffffff;
-  }
-}
-    </style>
+    <style>{style}</style>
   </head>
   <body>
 
@@ -162,13 +68,13 @@ table.table thead tr th.download-icon {
         </div>
 
         <div class="jumbotron">
-          <h1>Split-sync</h1>
-          <p class="lead">Download latest version of split-sync a background service to synchronize Split information with your SDK</p>
+          <h1>{title}</h1>
+          <p class="lead">{description}</p>
           <p>
-              <a class="btn btn-primary" href="./install_osx.bin" role="button"><i class="fab fa-apple"></i>&nbsp;Download</a>
-              <a class="btn btn-primary" href="./install_linux.bin" role="button"><i class="fab fa-linux"></i>&nbsp;Download</a>
-              <a class="btn btn-primary" href="./split-sync-win.zip" role="button"><i class="fab fa-windows"></i>&nbsp;Download</a>
-              <a class="btn btn-primary" href="https://hub.docker.com/r/splitsoftware/split-synchronizer/" role="button"><i class="fab fa-docker"></i>&nbsp;Docker Hub</a>
+          <a class="btn btn-primary" href="./{latest_osx}" role="button"><i class="fab fa-apple"></i>&nbsp;Download</a>
+          <a class="btn btn-primary" href="./{latest_linux}" role="button"><i class="fab fa-linux"></i>&nbsp;Download</a>
+          <a class="btn btn-primary" href="./{latest_windows}" role="button"><i class="fab fa-windows"></i>&nbsp;Download</a>
+          <a class="btn btn-primary" href="{dockerhub_url}" role="button"><i class="fab fa-docker"></i>&nbsp;Docker Hub</a>
            </p>
         </div>
 
