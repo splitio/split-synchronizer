@@ -27,7 +27,7 @@ jobs:
       - name: Execute build
         run: make release_assets
       - name: Run test
-        run: go test -v -cover $(go list ./... | grep -v /vendor/) -coverprofile=coverage.out
+        run: make test_coverage
       - name: Generate entrypoints
         run: make entrypoints
       - name: Docker Build for Sync

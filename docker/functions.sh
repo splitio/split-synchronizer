@@ -1,4 +1,4 @@
-#!/bin/env bash
+#!/usr/bin/env bash
 
 function parse_flags_from_conf_file() {
     fn=$1
