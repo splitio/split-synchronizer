@@ -25,11 +25,11 @@ jobs:
       - name: Set build version
         run: echo "VERSION=$(tail -n 1 splitio/version.go | awk '{print $4}' | tr -d '"')" >> $GITHUB_ENV
       - name: Execute build
-        run: |
-          mkdir -p ./release/deploy/synchronizer/$VERSION
-          cd ./release; sh build.sh
+        run: make build_release
       - name: Run test
         run: go test -v -cover $(go list ./... | grep -v /vendor/) -coverprofile=coverage.out
+      - name: Generate entrypoints
+        run: make entrypoints
       - name: Docker Build for Sync
         uses: docker/build-push-action@v2
         with:

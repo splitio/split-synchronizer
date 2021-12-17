@@ -2,6 +2,7 @@
 split-synchronizer
 split-sync
 split-proxy
+coverage.out
 entrypoint.proxy.sh
 entrypoint.sync.sh
 run.sh
