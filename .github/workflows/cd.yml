@@ -31,8 +31,7 @@ jobs:
       - name: Set build version
         run: echo "VERSION=$(tail -n 1 splitio/version.go | awk '{print $4}' | tr -d '"')" >> $GITHUB_ENV
       - name: Execute build
-        run: |
-          make release_assets
+        run: make release_assets
       - name: Run test
         run: make test_coverage
       - name: Generate entry-points for Docker images
