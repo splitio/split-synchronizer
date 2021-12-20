@@ -97,7 +97,10 @@ func (c *ThresholdImp) Start() {
 	c.running.Set()
 
 	go func() {
+		c.lock.Lock()
 		timer := time.NewTimer(time.Duration(c.period) * time.Second)
+		c.lock.Unlock()
+
 		defer timer.Stop()
 		defer c.running.Unset()
 		for {
