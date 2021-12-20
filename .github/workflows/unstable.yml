@@ -1,10 +1,8 @@
 name: unstable
 on:
   push:
-    branches:
-      - '*'
-      - '!master'
-      - '!main'
+    branches-ignore:
+      - master
 
 jobs:
   push-synchronizer-docker-image:
