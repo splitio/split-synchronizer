@@ -1,0 +1,997 @@
+GNU Make 3.81
+Copyright (C) 2006  Free Software Foundation, Inc.
+This is free software; see the source for copying conditions.
+There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE.
+
+This program built for i386-apple-darwin11.3.0
+Reading makefiles...
+Reading makefile `Makefile'...
+Updating makefiles....
+ Considering target file `Makefile'.
+  Looking for an implicit rule for `Makefile'.
+  Trying pattern rule with stem `Makefile'.
+  Trying implicit prerequisite `Makefile.o'.
+  Trying pattern rule with stem `Makefile'.
+  Trying implicit prerequisite `Makefile.c'.
+  Trying pattern rule with stem `Makefile'.
+  Trying implicit prerequisite `Makefile.cc'.
+  Trying pattern rule with stem `Makefile'.
+  Trying implicit prerequisite `Makefile.C'.
+  Trying pattern rule with stem `Makefile'.
+  Trying implicit prerequisite `Makefile.cpp'.
+  Trying pattern rule with stem `Makefile'.
+  Trying implicit prerequisite `Makefile.p'.
+  Trying pattern rule with stem `Makefile'.
+  Trying implicit prerequisite `Makefile.f'.
+  Trying pattern rule with stem `Makefile'.
+  Trying implicit prerequisite `Makefile.F'.
+  Trying pattern rule with stem `Makefile'.
+  Trying implicit prerequisite `Makefile.m'.
+  Trying pattern rule with stem `Makefile'.
+  Trying implicit prerequisite `Makefile.r'.
+  Trying pattern rule with stem `Makefile'.
+  Trying implicit prerequisite `Makefile.s'.
+  Trying pattern rule with stem `Makefile'.
+  Trying implicit prerequisite `Makefile.S'.
+  Trying pattern rule with stem `Makefile'.
+  Trying implicit prerequisite `Makefile.mod'.
+  Trying pattern rule with stem `Makefile'.
+  Trying implicit prerequisite `Makefile.sh'.
+  Trying pattern rule with stem `Makefile'.
+  Trying implicit prerequisite `Makefile,v'.
+  Trying pattern rule with stem `Makefile'.
+  Trying implicit prerequisite `RCS/Makefile,v'.
+  Trying pattern rule with stem `Makefile'.
+  Trying implicit prerequisite `RCS/Makefile'.
+  Trying pattern rule with stem `Makefile'.
+  Trying implicit prerequisite `s.Makefile'.
+  Trying pattern rule with stem `Makefile'.
+  Trying implicit prerequisite `SCCS/s.Makefile'.
+  Trying pattern rule with stem `Makefile'.
+  Trying implicit prerequisite `Makefile.o'.
+  Looking for a rule with intermediate file `Makefile.o'.
+   Avoiding implicit rule recursion.
+   Trying pattern rule with stem `Makefile'.
+   Trying implicit prerequisite `Makefile.c'.
+   Trying pattern rule with stem `Makefile'.
+   Trying implicit prerequisite `Makefile.cc'.
+   Trying pattern rule with stem `Makefile'.
+   Trying implicit prerequisite `Makefile.C'.
+   Trying pattern rule with stem `Makefile'.
+   Trying implicit prerequisite `Makefile.cpp'.
+   Trying pattern rule with stem `Makefile'.
+   Trying implicit prerequisite `Makefile.p'.
+   Trying pattern rule with stem `Makefile'.
+   Trying implicit prerequisite `Makefile.f'.
+   Trying pattern rule with stem `Makefile'.
+   Trying implicit prerequisite `Makefile.F'.
+   Trying pattern rule with stem `Makefile'.
+   Trying implicit prerequisite `Makefile.m'.
+   Trying pattern rule with stem `Makefile'.
+   Trying implicit prerequisite `Makefile.r'.
+   Trying pattern rule with stem `Makefile'.
+   Trying implicit prerequisite `Makefile.s'.
+   Trying pattern rule with stem `Makefile'.
+   Trying implicit prerequisite `Makefile.S'.
+   Trying pattern rule with stem `Makefile'.
+   Trying implicit prerequisite `Makefile.mod'.
+   Trying pattern rule with stem `Makefile.o'.
+   Trying implicit prerequisite `Makefile.o,v'.
+   Trying pattern rule with stem `Makefile.o'.
+   Trying implicit prerequisite `RCS/Makefile.o,v'.
+   Trying pattern rule with stem `Makefile.o'.
+   Trying implicit prerequisite `RCS/Makefile.o'.
+   Trying pattern rule with stem `Makefile.o'.
+   Trying implicit prerequisite `s.Makefile.o'.
+   Trying pattern rule with stem `Makefile.o'.
+   Trying implicit prerequisite `SCCS/s.Makefile.o'.
+   Trying pattern rule with stem `Makefile'.
+   Trying implicit prerequisite `Makefile.c'.
+   Looking for a rule with intermediate file `Makefile.c'.
+    Avoiding implicit rule recursion.
+    Avoiding implicit rule recursion.
+    Trying pattern rule with stem `Makefile'.
+    Trying implicit prerequisite `Makefile.y'.
+    Trying pattern rule with stem `Makefile'.
+    Trying implicit prerequisite `Makefile.l'.
+    Trying pattern rule with stem `Makefile'.
+    Trying implicit prerequisite `Makefile.w'.
+    Trying pattern rule with stem `Makefile'.
+    Trying implicit prerequisite `Makefile.w'.
+    Trying pattern rule with stem `Makefile.c'.
+    Trying implicit prerequisite `Makefile.c,v'.
+    Trying pattern rule with stem `Makefile.c'.
+    Trying implicit prerequisite `RCS/Makefile.c,v'.
+    Trying pattern rule with stem `Makefile.c'.
+    Trying implicit prerequisite `RCS/Makefile.c'.
+    Trying pattern rule with stem `Makefile.c'.
+    Trying implicit prerequisite `s.Makefile.c'.
+    Trying pattern rule with stem `Makefile.c'.
+    Trying implicit prerequisite `SCCS/s.Makefile.c'.
+    Trying pattern rule with stem `Makefile'.
+    Trying implicit prerequisite `Makefile.y'.
+    Looking for a rule with intermediate file `Makefile.y'.
+     Avoiding implicit rule recursion.
+     Avoiding implicit rule recursion.
+     Avoiding implicit rule recursion.
+     Trying pattern rule with stem `Makefile.y'.
+     Trying implicit prerequisite `Makefile.y,v'.
+     Trying pattern rule with stem `Makefile.y'.
+     Trying implicit prerequisite `RCS/Makefile.y,v'.
+     Trying pattern rule with stem `Makefile.y'.
+     Trying implicit prerequisite `RCS/Makefile.y'.
+     Trying pattern rule with stem `Makefile.y'.
+     Trying implicit prerequisite `s.Makefile.y'.
+     Trying pattern rule with stem `Makefile.y'.
+     Trying implicit prerequisite `SCCS/s.Makefile.y'.
+    Trying pattern rule with stem `Makefile'.
+    Trying implicit prerequisite `Makefile.l'.
+    Looking for a rule with intermediate file `Makefile.l'.
+     Avoiding implicit rule recursion.
+     Avoiding implicit rule recursion.
+     Avoiding implicit rule recursion.
+     Trying pattern rule with stem `Makefile.l'.
+     Trying implicit prerequisite `Makefile.l,v'.
+     Trying pattern rule with stem `Makefile.l'.
+     Trying implicit prerequisite `RCS/Makefile.l,v'.
+     Trying pattern rule with stem `Makefile.l'.
+     Trying implicit prerequisite `RCS/Makefile.l'.
+     Trying pattern rule with stem `Makefile.l'.
+     Trying implicit prerequisite `s.Makefile.l'.
+     Trying pattern rule with stem `Makefile.l'.
+     Trying implicit prerequisite `SCCS/s.Makefile.l'.
+    Trying pattern rule with stem `Makefile'.
+    Trying implicit prerequisite `Makefile.w'.
+    Looking for a rule with intermediate file `Makefile.w'.
+     Avoiding implicit rule recursion.
+     Avoiding implicit rule recursion.
+     Avoiding implicit rule recursion.
+     Trying pattern rule with stem `Makefile.w'.
+     Trying implicit prerequisite `Makefile.w,v'.
+     Trying pattern rule with stem `Makefile.w'.
+     Trying implicit prerequisite `RCS/Makefile.w,v'.
+     Trying pattern rule with stem `Makefile.w'.
+     Trying implicit prerequisite `RCS/Makefile.w'.
+     Trying pattern rule with stem `Makefile.w'.
+     Trying implicit prerequisite `s.Makefile.w'.
+     Trying pattern rule with stem `Makefile.w'.
+     Trying implicit prerequisite `SCCS/s.Makefile.w'.
+    Trying pattern rule with stem `Makefile'.
+    Rejecting impossible implicit prerequisite `Makefile.w'.
+   Trying pattern rule with stem `Makefile'.
+   Trying implicit prerequisite `Makefile.cc'.
+   Looking for a rule with intermediate file `Makefile.cc'.
+    Avoiding implicit rule recursion.
+    Avoiding implicit rule recursion.
+    Trying pattern rule with stem `Makefile.cc'.
+    Trying implicit prerequisite `Makefile.cc,v'.
+    Trying pattern rule with stem `Makefile.cc'.
+    Trying implicit prerequisite `RCS/Makefile.cc,v'.
+    Trying pattern rule with stem `Makefile.cc'.
+    Trying implicit prerequisite `RCS/Makefile.cc'.
+    Trying pattern rule with stem `Makefile.cc'.
+    Trying implicit prerequisite `s.Makefile.cc'.
+    Trying pattern rule with stem `Makefile.cc'.
+    Trying implicit prerequisite `SCCS/s.Makefile.cc'.
+   Trying pattern rule with stem `Makefile'.
+   Trying implicit prerequisite `Makefile.C'.
+   Looking for a rule with intermediate file `Makefile.C'.
+    Avoiding implicit rule recursion.
+    Avoiding implicit rule recursion.
+    Trying pattern rule with stem `Makefile.C'.
+    Trying implicit prerequisite `Makefile.C,v'.
+    Trying pattern rule with stem `Makefile.C'.
+    Trying implicit prerequisite `RCS/Makefile.C,v'.
+    Trying pattern rule with stem `Makefile.C'.
+    Trying implicit prerequisite `RCS/Makefile.C'.
+    Trying pattern rule with stem `Makefile.C'.
+    Trying implicit prerequisite `s.Makefile.C'.
+    Trying pattern rule with stem `Makefile.C'.
+    Trying implicit prerequisite `SCCS/s.Makefile.C'.
+   Trying pattern rule with stem `Makefile'.
+   Trying implicit prerequisite `Makefile.cpp'.
+   Looking for a rule with intermediate file `Makefile.cpp'.
+    Avoiding implicit rule recursion.
+    Avoiding implicit rule recursion.
+    Trying pattern rule with stem `Makefile.cpp'.
+    Trying implicit prerequisite `Makefile.cpp,v'.
+    Trying pattern rule with stem `Makefile.cpp'.
+    Trying implicit prerequisite `RCS/Makefile.cpp,v'.
+    Trying pattern rule with stem `Makefile.cpp'.
+    Trying implicit prerequisite `RCS/Makefile.cpp'.
+    Trying pattern rule with stem `Makefile.cpp'.
+    Trying implicit prerequisite `s.Makefile.cpp'.
+    Trying pattern rule with stem `Makefile.cpp'.
+    Trying implicit prerequisite `SCCS/s.Makefile.cpp'.
+   Trying pattern rule with stem `Makefile'.
+   Trying implicit prerequisite `Makefile.p'.
+   Looking for a rule with intermediate file `Makefile.p'.
+    Avoiding implicit rule recursion.
+    Avoiding implicit rule recursion.
+    Trying pattern rule with stem `Makefile'.
+    Trying implicit prerequisite `Makefile.web'.
+    Trying pattern rule with stem `Makefile.p'.
+    Trying implicit prerequisite `Makefile.p,v'.
+    Trying pattern rule with stem `Makefile.p'.
+    Trying implicit prerequisite `RCS/Makefile.p,v'.
+    Trying pattern rule with stem `Makefile.p'.
+    Trying implicit prerequisite `RCS/Makefile.p'.
+    Trying pattern rule with stem `Makefile.p'.
+    Trying implicit prerequisite `s.Makefile.p'.
+    Trying pattern rule with stem `Makefile.p'.
+    Trying implicit prerequisite `SCCS/s.Makefile.p'.
+    Trying pattern rule with stem `Makefile'.
+    Trying implicit prerequisite `Makefile.web'.
+    Looking for a rule with intermediate file `Makefile.web'.
+     Avoiding implicit rule recursion.
+     Avoiding implicit rule recursion.
+     Avoiding implicit rule recursion.
+     Trying pattern rule with stem `Makefile.web'.
+     Trying implicit prerequisite `Makefile.web,v'.
+     Trying pattern rule with stem `Makefile.web'.
+     Trying implicit prerequisite `RCS/Makefile.web,v'.
+     Trying pattern rule with stem `Makefile.web'.
+     Trying implicit prerequisite `RCS/Makefile.web'.
+     Trying pattern rule with stem `Makefile.web'.
+     Trying implicit prerequisite `s.Makefile.web'.
+     Trying pattern rule with stem `Makefile.web'.
+     Trying implicit prerequisite `SCCS/s.Makefile.web'.
+   Trying pattern rule with stem `Makefile'.
+   Trying implicit prerequisite `Makefile.f'.
+   Looking for a rule with intermediate file `Makefile.f'.
+    Avoiding implicit rule recursion.
+    Avoiding implicit rule recursion.
+    Trying pattern rule with stem `Makefile'.
+    Trying implicit prerequisite `Makefile.F'.
+    Trying pattern rule with stem `Makefile'.
+    Trying implicit prerequisite `Makefile.r'.
+    Trying pattern rule with stem `Makefile.f'.
+    Trying implicit prerequisite `Makefile.f,v'.
+    Trying pattern rule with stem `Makefile.f'.
+    Trying implicit prerequisite `RCS/Makefile.f,v'.
+    Trying pattern rule with stem `Makefile.f'.
+    Trying implicit prerequisite `RCS/Makefile.f'.
+    Trying pattern rule with stem `Makefile.f'.
+    Trying implicit prerequisite `s.Makefile.f'.
+    Trying pattern rule with stem `Makefile.f'.
+    Trying implicit prerequisite `SCCS/s.Makefile.f'.
+    Trying pattern rule with stem `Makefile'.
+    Trying implicit prerequisite `Makefile.F'.
+    Looking for a rule with intermediate file `Makefile.F'.
+     Avoiding implicit rule recursion.
+     Avoiding implicit rule recursion.
+     Avoiding implicit rule recursion.
+     Trying pattern rule with stem `Makefile.F'.
+     Trying implicit prerequisite `Makefile.F,v'.
+     Trying pattern rule with stem `Makefile.F'.
+     Trying implicit prerequisite `RCS/Makefile.F,v'.
+     Trying pattern rule with stem `Makefile.F'.
+     Trying implicit prerequisite `RCS/Makefile.F'.
+     Trying pattern rule with stem `Makefile.F'.
+     Trying implicit prerequisite `s.Makefile.F'.
+     Trying pattern rule with stem `Makefile.F'.
+     Trying implicit prerequisite `SCCS/s.Makefile.F'.
+    Trying pattern rule with stem `Makefile'.
+    Trying implicit prerequisite `Makefile.r'.
+    Looking for a rule with intermediate file `Makefile.r'.
+     Avoiding implicit rule recursion.
+     Avoiding implicit rule recursion.
+     Avoiding implicit rule recursion.
+     Trying pattern rule with stem `Makefile'.
+     Rejecting impossible implicit prerequisite `Makefile.l'.
+     Trying pattern rule with stem `Makefile.r'.
+     Trying implicit prerequisite `Makefile.r,v'.
+     Trying pattern rule with stem `Makefile.r'.
+     Trying implicit prerequisite `RCS/Makefile.r,v'.
+     Trying pattern rule with stem `Makefile.r'.
+     Trying implicit prerequisite `RCS/Makefile.r'.
+     Trying pattern rule with stem `Makefile.r'.
+     Trying implicit prerequisite `s.Makefile.r'.
+     Trying pattern rule with stem `Makefile.r'.
+     Trying implicit prerequisite `SCCS/s.Makefile.r'.
+   Trying pattern rule with stem `Makefile'.
+   Rejecting impossible implicit prerequisite `Makefile.F'.
+   Trying pattern rule with stem `Makefile'.
+   Trying implicit prerequisite `Makefile.m'.
+   Looking for a rule with intermediate file `Makefile.m'.
+    Avoiding implicit rule recursion.
+    Avoiding implicit rule recursion.
+    Trying pattern rule with stem `Makefile'.
+    Trying implicit prerequisite `Makefile.ym'.
+    Trying pattern rule with stem `Makefile'.
+    Trying implicit prerequisite `Makefile.lm'.
+    Trying pattern rule with stem `Makefile.m'.
+    Trying implicit prerequisite `Makefile.m,v'.
+    Trying pattern rule with stem `Makefile.m'.
+    Trying implicit prerequisite `RCS/Makefile.m,v'.
+    Trying pattern rule with stem `Makefile.m'.
+    Trying implicit prerequisite `RCS/Makefile.m'.
+    Trying pattern rule with stem `Makefile.m'.
+    Trying implicit prerequisite `s.Makefile.m'.
+    Trying pattern rule with stem `Makefile.m'.
+    Trying implicit prerequisite `SCCS/s.Makefile.m'.
+    Trying pattern rule with stem `Makefile'.
+    Trying implicit prerequisite `Makefile.ym'.
+    Looking for a rule with intermediate file `Makefile.ym'.
+     Avoiding implicit rule recursion.
+     Avoiding implicit rule recursion.
+     Avoiding implicit rule recursion.
+     Trying pattern rule with stem `Makefile.ym'.
+     Trying implicit prerequisite `Makefile.ym,v'.
+     Trying pattern rule with stem `Makefile.ym'.
+     Trying implicit prerequisite `RCS/Makefile.ym,v'.
+     Trying pattern rule with stem `Makefile.ym'.
+     Trying implicit prerequisite `RCS/Makefile.ym'.
+     Trying pattern rule with stem `Makefile.ym'.
+     Trying implicit prerequisite `s.Makefile.ym'.
+     Trying pattern rule with stem `Makefile.ym'.
+     Trying implicit prerequisite `SCCS/s.Makefile.ym'.
+    Trying pattern rule with stem `Makefile'.
+    Trying implicit prerequisite `Makefile.lm'.
+    Looking for a rule with intermediate file `Makefile.lm'.
+     Avoiding implicit rule recursion.
+     Avoiding implicit rule recursion.
+     Avoiding implicit rule recursion.
+     Trying pattern rule with stem `Makefile.lm'.
+     Trying implicit prerequisite `Makefile.lm,v'.
+     Trying pattern rule with stem `Makefile.lm'.
+     Trying implicit prerequisite `RCS/Makefile.lm,v'.
+     Trying pattern rule with stem `Makefile.lm'.
+     Trying implicit prerequisite `RCS/Makefile.lm'.
+     Trying pattern rule with stem `Makefile.lm'.
+     Trying implicit prerequisite `s.Makefile.lm'.
+     Trying pattern rule with stem `Makefile.lm'.
+     Trying implicit prerequisite `SCCS/s.Makefile.lm'.
+   Trying pattern rule with stem `Makefile'.
+   Rejecting impossible implicit prerequisite `Makefile.r'.
+   Trying pattern rule with stem `Makefile'.
+   Trying implicit prerequisite `Makefile.s'.
+   Looking for a rule with intermediate file `Makefile.s'.
+    Avoiding implicit rule recursion.
+    Avoiding implicit rule recursion.
+    Trying pattern rule with stem `Makefile'.
+    Trying implicit prerequisite `Makefile.S'.
+    Trying pattern rule with stem `Makefile.s'.
+    Trying implicit prerequisite `Makefile.s,v'.
+    Trying pattern rule with stem `Makefile.s'.
+    Trying implicit prerequisite `RCS/Makefile.s,v'.
+    Trying pattern rule with stem `Makefile.s'.
+    Trying implicit prerequisite `RCS/Makefile.s'.
+    Trying pattern rule with stem `Makefile.s'.
+    Trying implicit prerequisite `s.Makefile.s'.
+    Trying pattern rule with stem `Makefile.s'.
+    Trying implicit prerequisite `SCCS/s.Makefile.s'.
+    Trying pattern rule with stem `Makefile'.
+    Trying implicit prerequisite `Makefile.S'.
+    Looking for a rule with intermediate file `Makefile.S'.
+     Avoiding implicit rule recursion.
+     Avoiding implicit rule recursion.
+     Avoiding implicit rule recursion.
+     Trying pattern rule with stem `Makefile.S'.
+     Trying implicit prerequisite `Makefile.S,v'.
+     Trying pattern rule with stem `Makefile.S'.
+     Trying implicit prerequisite `RCS/Makefile.S,v'.
+     Trying pattern rule with stem `Makefile.S'.
+     Trying implicit prerequisite `RCS/Makefile.S'.
+     Trying pattern rule with stem `Makefile.S'.
+     Trying implicit prerequisite `s.Makefile.S'.
+     Trying pattern rule with stem `Makefile.S'.
+     Trying implicit prerequisite `SCCS/s.Makefile.S'.
+   Trying pattern rule with stem `Makefile'.
+   Rejecting impossible implicit prerequisite `Makefile.S'.
+   Trying pattern rule with stem `Makefile'.
+   Trying implicit prerequisite `Makefile.mod'.
+   Looking for a rule with intermediate file `Makefile.mod'.
+    Avoiding implicit rule recursion.
+    Avoiding implicit rule recursion.
+    Trying pattern rule with stem `Makefile.mod'.
+    Trying implicit prerequisite `Makefile.mod,v'.
+    Trying pattern rule with stem `Makefile.mod'.
+    Trying implicit prerequisite `RCS/Makefile.mod,v'.
+    Trying pattern rule with stem `Makefile.mod'.
+    Trying implicit prerequisite `RCS/Makefile.mod'.
+    Trying pattern rule with stem `Makefile.mod'.
+    Trying implicit prerequisite `s.Makefile.mod'.
+    Trying pattern rule with stem `Makefile.mod'.
+    Trying implicit prerequisite `SCCS/s.Makefile.mod'.
+  Trying pattern rule with stem `Makefile'.
+  Rejecting impossible implicit prerequisite `Makefile.c'.
+  Trying pattern rule with stem `Makefile'.
+  Rejecting impossible implicit prerequisite `Makefile.cc'.
+  Trying pattern rule with stem `Makefile'.
+  Rejecting impossible implicit prerequisite `Makefile.C'.
+  Trying pattern rule with stem `Makefile'.
+  Rejecting impossible implicit prerequisite `Makefile.cpp'.
+  Trying pattern rule with stem `Makefile'.
+  Rejecting impossible implicit prerequisite `Makefile.p'.
+  Trying pattern rule with stem `Makefile'.
+  Rejecting impossible implicit prerequisite `Makefile.f'.
+  Trying pattern rule with stem `Makefile'.
+  Rejecting impossible implicit prerequisite `Makefile.F'.
+  Trying pattern rule with stem `Makefile'.
+  Rejecting impossible implicit prerequisite `Makefile.m'.
+  Trying pattern rule with stem `Makefile'.
+  Rejecting impossible implicit prerequisite `Makefile.r'.
+  Trying pattern rule with stem `Makefile'.
+  Rejecting impossible implicit prerequisite `Makefile.s'.
+  Trying pattern rule with stem `Makefile'.
+  Rejecting impossible implicit prerequisite `Makefile.S'.
+  Trying pattern rule with stem `Makefile'.
+  Rejecting impossible implicit prerequisite `Makefile.mod'.
+  Trying pattern rule with stem `Makefile'.
+  Trying implicit prerequisite `Makefile.sh'.
+  Looking for a rule with intermediate file `Makefile.sh'.
+   Avoiding implicit rule recursion.
+   Trying pattern rule with stem `Makefile.sh'.
+   Trying implicit prerequisite `Makefile.sh,v'.
+   Trying pattern rule with stem `Makefile.sh'.
+   Trying implicit prerequisite `RCS/Makefile.sh,v'.
+   Trying pattern rule with stem `Makefile.sh'.
+   Trying implicit prerequisite `RCS/Makefile.sh'.
+   Trying pattern rule with stem `Makefile.sh'.
+   Trying implicit prerequisite `s.Makefile.sh'.
+   Trying pattern rule with stem `Makefile.sh'.
+   Trying implicit prerequisite `SCCS/s.Makefile.sh'.
+  No implicit rule found for `Makefile'.
+  Finished prerequisites of target file `Makefile'.
+ No need to remake target `Makefile'.
+Updating goal targets....
+Considering target file `build_release'.
+ File `build_release' does not exist.
+  Considering target file `build/install_split_sync_linux.bin'.
+   File `build/install_split_sync_linux.bin' does not exist.
+   Looking for an implicit rule for `build/install_split_sync_linux.bin'.
+   Trying pattern rule with stem `sync_linux'.
+   Trying implicit prerequisite `build/split_sync_linux.zip'.
+   Trying pattern rule with stem `install_split_sync_linux.bin'.
+   Trying implicit prerequisite `build/install_split_sync_linux.bin,v'.
+   Trying pattern rule with stem `install_split_sync_linux.bin'.
+   Trying implicit prerequisite `build/RCS/install_split_sync_linux.bin,v'.
+   Trying pattern rule with stem `install_split_sync_linux.bin'.
+   Trying implicit prerequisite `build/RCS/install_split_sync_linux.bin'.
+   Trying pattern rule with stem `install_split_sync_linux.bin'.
+   Trying implicit prerequisite `build/s.install_split_sync_linux.bin'.
+   Trying pattern rule with stem `install_split_sync_linux.bin'.
+   Trying implicit prerequisite `build/SCCS/s.install_split_sync_linux.bin'.
+   Trying pattern rule with stem `sync_linux'.
+   Trying implicit prerequisite `build/split_sync_linux.zip'.
+   Looking for a rule with intermediate file `build/split_sync_linux.zip'.
+    Avoiding implicit rule recursion.
+    Trying pattern rule with stem `sync_linux'.
+    Trying implicit prerequisite `build/split_sync_linux'.
+    Trying pattern rule with stem `sync_linux.zip'.
+    Trying rule prerequisite `cmd/proxy/main.go'.
+    Trying rule prerequisite `cmd/synchronizer/main.go'.
+    Trying rule prerequisite `splitio/version.go'.
+    Trying rule prerequisite `splitio/producer/evcalc/mocks/evcalc.go'.
+    Trying rule prerequisite `splitio/producer/evcalc/evcalc.go'.
+    Trying rule prerequisite `splitio/producer/evcalc/evcalc_test.go'.
+    Trying rule prerequisite `splitio/producer/util.go'.
+    Trying rule prerequisite `splitio/producer/storage/mocks/telemetry.go'.
+    Trying rule prerequisite `splitio/producer/storage/telemetry_test.go'.
+    Trying rule prerequisite `splitio/producer/storage/telemetry.go'.
+    Trying rule prerequisite `splitio/producer/task/events_test.go'.
+    Trying rule prerequisite `splitio/producer/task/telemetry.go'.
+    Trying rule prerequisite `splitio/producer/task/impressions.go'.
+    Trying rule prerequisite `splitio/producer/task/events.go'.
+    Trying rule prerequisite `splitio/producer/task/impressions_test.go'.
+    Trying rule prerequisite `splitio/producer/task/pipelined_test.go'.
+    Trying rule prerequisite `splitio/producer/task/pipelined.go'.
+    Trying rule prerequisite `splitio/producer/initialization_test.go'.
+    Trying rule prerequisite `splitio/producer/initialization.go'.
+    Trying rule prerequisite `splitio/producer/worker/telemetry_test.go'.
+    Trying rule prerequisite `splitio/producer/worker/telemetry.go'.
+    Trying rule prerequisite `splitio/producer/conf/sections.go'.
+    Trying rule prerequisite `splitio/proxy/tasks/mocks/deferred.go'.
+    Trying rule prerequisite `splitio/proxy/tasks/impcount.go'.
+    Trying rule prerequisite `splitio/proxy/tasks/telemetry.go'.
+    Trying rule prerequisite `splitio/proxy/tasks/impressions.go'.
+    Trying rule prerequisite `splitio/proxy/tasks/events.go'.
+    Trying rule prerequisite `splitio/proxy/tasks/deferred.go'.
+    Trying rule prerequisite `splitio/proxy/internal/dtos.go'.
+    Trying rule prerequisite `splitio/proxy/proxy.go'.
+    Trying rule prerequisite `splitio/proxy/storage/mocks/mocks.go'.
+    Trying rule prerequisite `splitio/proxy/storage/persistent/splits_test.go'.
+    Trying rule prerequisite `splitio/proxy/storage/persistent/segments.go'.
+    Trying rule prerequisite `splitio/proxy/storage/persistent/boltdb.go'.
+    Trying rule prerequisite `splitio/proxy/storage/persistent/splits.go'.
+    Trying rule prerequisite `splitio/proxy/storage/persistent/segments_test.go'.
+    Trying rule prerequisite `splitio/proxy/storage/persistent/helpers_test.go'.
+    Trying rule prerequisite `splitio/proxy/storage/persistent/helpers.go'.
+    Trying rule prerequisite `splitio/proxy/storage/telemetry.go'.
+    Trying rule prerequisite `splitio/proxy/storage/segments.go'.
+    Trying rule prerequisite `splitio/proxy/storage/splits.go'.
+    Trying rule prerequisite `splitio/proxy/storage/optimized/mysegments_test.go'.
+    Trying rule prerequisite `splitio/proxy/storage/optimized/changesummary.go'.
+    Trying rule prerequisite `splitio/proxy/storage/optimized/mysegments.go'.
+    Trying rule prerequisite `splitio/proxy/storage/optimized/changesummary_test.go'.
+    Trying rule prerequisite `splitio/proxy/doc.go'.
+    Trying rule prerequisite `splitio/proxy/initialization.go'.
+    Trying rule prerequisite `splitio/proxy/proxy_test.go'.
+    Trying rule prerequisite `splitio/proxy/caching/workers_test.go'.
+    Trying rule prerequisite `splitio/proxy/caching/caching_test.go'.
+    Trying rule prerequisite `splitio/proxy/caching/caching.go'.
+    Trying rule prerequisite `splitio/proxy/caching/workers.go'.
+    Trying rule prerequisite `splitio/proxy/controllers/middleware/auth_test.go'.
+    Trying rule prerequisite `splitio/proxy/controllers/middleware/auth.go'.
+    Trying rule prerequisite `splitio/proxy/controllers/middleware/latency.go'.
+    Trying rule prerequisite `splitio/proxy/controllers/middleware/latency_test.go'.
+    Trying rule prerequisite `splitio/proxy/controllers/sdk.go'.
+    Trying rule prerequisite `splitio/proxy/controllers/telemetry_test.go'.
+    Trying rule prerequisite `splitio/proxy/controllers/auth.go'.
+    Trying rule prerequisite `splitio/proxy/controllers/events_test.go'.
+    Trying rule prerequisite `splitio/proxy/controllers/telemetry.go'.
+    Trying rule prerequisite `splitio/proxy/controllers/events.go'.
+    Trying rule prerequisite `splitio/proxy/controllers/util.go'.
+    Trying rule prerequisite `splitio/proxy/controllers/sdk_test.go'.
+    Trying rule prerequisite `splitio/proxy/conf/sections.go'.
+    Trying rule prerequisite `splitio/util/utils_test.go'.
+    Trying rule prerequisite `splitio/util/utils.go'.
+    Trying rule prerequisite `splitio/admin/common/config.go'.
+    Trying rule prerequisite `splitio/admin/admin.go'.
+    Trying rule prerequisite `splitio/admin/controllers/healthcheck.go'.
+    Trying rule prerequisite `splitio/admin/controllers/shutdown.go'.
+    Trying rule prerequisite `splitio/admin/controllers/snapshot_test.go'.
+    Trying rule prerequisite `splitio/admin/controllers/dashboard.go'.
+    Trying rule prerequisite `splitio/admin/controllers/snapshot.go'.
+    Trying rule prerequisite `splitio/admin/controllers/helpers.go'.
+    Trying rule prerequisite `splitio/admin/controllers/info.go'.
+    Trying rule prerequisite `splitio/admin/views/dashboard/bootstrap.go'.
+    Trying rule prerequisite `splitio/admin/views/dashboard/queuemanager.go'.
+    Trying rule prerequisite `splitio/admin/views/dashboard/js.go'.
+    Trying rule prerequisite `splitio/admin/views/dashboard/stats.go'.
+    Trying rule prerequisite `splitio/admin/views/dashboard/menu.go'.
+    Trying rule prerequisite `splitio/admin/views/dashboard/logo.go'.
+    Trying rule prerequisite `splitio/admin/views/dashboard/chartjs.go'.
+    Trying rule prerequisite `splitio/admin/views/dashboard/main.go'.
+    Trying rule prerequisite `splitio/admin/views/dashboard/datainspector.go'.
+    Trying rule prerequisite `splitio/common/snapshot/snapshot_test.go'.
+    Trying rule prerequisite `splitio/common/snapshot/snapshot.go'.
+    Trying rule prerequisite `splitio/common/runtime.go'.
+    Trying rule prerequisite `splitio/common/storage/snapshotter.go'.
+    Trying rule prerequisite `splitio/common/impressionlistener/mocks/listener.go'.
+    Trying rule prerequisite `splitio/common/impressionlistener/listener_test.go'.
+    Trying rule prerequisite `splitio/common/impressionlistener/dtos.go'.
+    Trying rule prerequisite `splitio/common/impressionlistener/listener.go'.
+    Trying rule prerequisite `splitio/common/sync/sync.go'.
+    Trying rule prerequisite `splitio/common/conf/sections.go'.
+    Trying rule prerequisite `splitio/common/conf/advanced.go'.
+    Trying rule prerequisite `splitio/common/conf/parser_test.go'.
+    Trying rule prerequisite `splitio/common/conf/basic.go'.
+    Trying rule prerequisite `splitio/common/conf/file.go'.
+    Trying rule prerequisite `splitio/common/conf/parser.go'.
+    Trying rule prerequisite `splitio/common/errors.go'.
+    Trying rule prerequisite `splitio/provisional/healthcheck/application/monitor.go'.
+    Trying rule prerequisite `splitio/provisional/healthcheck/application/monitor_test.go'.
+    Trying rule prerequisite `splitio/provisional/healthcheck/application/counter/periodic.go'.
+    Trying rule prerequisite `splitio/provisional/healthcheck/application/counter/basecounter.go'.
+    Trying rule prerequisite `splitio/provisional/healthcheck/application/counter/periodic_test.go'.
+    Trying rule prerequisite `splitio/provisional/healthcheck/application/counter/threshold_test.go'.
+    Trying rule prerequisite `splitio/provisional/healthcheck/application/counter/threshold.go'.
+    Trying rule prerequisite `splitio/provisional/healthcheck/services/monitor.go'.
+    Trying rule prerequisite `splitio/provisional/healthcheck/services/monitor_test.go'.
+    Trying rule prerequisite `splitio/provisional/healthcheck/services/counter/bypercentage.go'.
+    Trying rule prerequisite `splitio/provisional/healthcheck/services/counter/bypercentage_test.go'.
+    Trying rule prerequisite `splitio/log/custom.go'.
+    Trying rule prerequisite `splitio/log/custom_test.go'.
+    Trying rule prerequisite `splitio/log/initialization.go'.
+    Trying rule prerequisite `splitio/log/slack.go'.
+    Trying rule prerequisite `splitio/banner.go'.
+    Trying rule prerequisite `go.sum'.
+    Trying implicit prerequisite `dummysync_linux.zip'.
+    Trying pattern rule with stem `split_sync_linux.zip'.
+    Trying implicit prerequisite `build/split_sync_linux.zip,v'.
+    Trying pattern rule with stem `split_sync_linux.zip'.
+    Trying implicit prerequisite `build/RCS/split_sync_linux.zip,v'.
+    Trying pattern rule with stem `split_sync_linux.zip'.
+    Trying implicit prerequisite `build/RCS/split_sync_linux.zip'.
+    Trying pattern rule with stem `split_sync_linux.zip'.
+    Trying implicit prerequisite `build/s.split_sync_linux.zip'.
+    Trying pattern rule with stem `split_sync_linux.zip'.
+    Trying implicit prerequisite `build/SCCS/s.split_sync_linux.zip'.
+    Trying pattern rule with stem `sync_linux'.
+    Trying implicit prerequisite `build/split_sync_linux'.
+    Looking for a rule with intermediate file `build/split_sync_linux'.
+     Avoiding implicit rule recursion.
+     Avoiding implicit rule recursion.
+     Trying pattern rule with stem `sync_linux'.
+     Trying rule prerequisite `cmd/proxy/main.go'.
+     Trying rule prerequisite `cmd/synchronizer/main.go'.
+     Trying rule prerequisite `splitio/version.go'.
+     Trying rule prerequisite `splitio/producer/evcalc/mocks/evcalc.go'.
+     Trying rule prerequisite `splitio/producer/evcalc/evcalc.go'.
+     Trying rule prerequisite `splitio/producer/evcalc/evcalc_test.go'.
+     Trying rule prerequisite `splitio/producer/util.go'.
+     Trying rule prerequisite `splitio/producer/storage/mocks/telemetry.go'.
+     Trying rule prerequisite `splitio/producer/storage/telemetry_test.go'.
+     Trying rule prerequisite `splitio/producer/storage/telemetry.go'.
+     Trying rule prerequisite `splitio/producer/task/events_test.go'.
+     Trying rule prerequisite `splitio/producer/task/telemetry.go'.
+     Trying rule prerequisite `splitio/producer/task/impressions.go'.
+     Trying rule prerequisite `splitio/producer/task/events.go'.
+     Trying rule prerequisite `splitio/producer/task/impressions_test.go'.
+     Trying rule prerequisite `splitio/producer/task/pipelined_test.go'.
+     Trying rule prerequisite `splitio/producer/task/pipelined.go'.
+     Trying rule prerequisite `splitio/producer/initialization_test.go'.
+     Trying rule prerequisite `splitio/producer/initialization.go'.
+     Trying rule prerequisite `splitio/producer/worker/telemetry_test.go'.
+     Trying rule prerequisite `splitio/producer/worker/telemetry.go'.
+     Trying rule prerequisite `splitio/producer/conf/sections.go'.
+     Trying rule prerequisite `splitio/proxy/tasks/mocks/deferred.go'.
+     Trying rule prerequisite `splitio/proxy/tasks/impcount.go'.
+     Trying rule prerequisite `splitio/proxy/tasks/telemetry.go'.
+     Trying rule prerequisite `splitio/proxy/tasks/impressions.go'.
+     Trying rule prerequisite `splitio/proxy/tasks/events.go'.
+     Trying rule prerequisite `splitio/proxy/tasks/deferred.go'.
+     Trying rule prerequisite `splitio/proxy/internal/dtos.go'.
+     Trying rule prerequisite `splitio/proxy/proxy.go'.
+     Trying rule prerequisite `splitio/proxy/storage/mocks/mocks.go'.
+     Trying rule prerequisite `splitio/proxy/storage/persistent/splits_test.go'.
+     Trying rule prerequisite `splitio/proxy/storage/persistent/segments.go'.
+     Trying rule prerequisite `splitio/proxy/storage/persistent/boltdb.go'.
+     Trying rule prerequisite `splitio/proxy/storage/persistent/splits.go'.
+     Trying rule prerequisite `splitio/proxy/storage/persistent/segments_test.go'.
+     Trying rule prerequisite `splitio/proxy/storage/persistent/helpers_test.go'.
+     Trying rule prerequisite `splitio/proxy/storage/persistent/helpers.go'.
+     Trying rule prerequisite `splitio/proxy/storage/telemetry.go'.
+     Trying rule prerequisite `splitio/proxy/storage/segments.go'.
+     Trying rule prerequisite `splitio/proxy/storage/splits.go'.
+     Trying rule prerequisite `splitio/proxy/storage/optimized/mysegments_test.go'.
+     Trying rule prerequisite `splitio/proxy/storage/optimized/changesummary.go'.
+     Trying rule prerequisite `splitio/proxy/storage/optimized/mysegments.go'.
+     Trying rule prerequisite `splitio/proxy/storage/optimized/changesummary_test.go'.
+     Trying rule prerequisite `splitio/proxy/doc.go'.
+     Trying rule prerequisite `splitio/proxy/initialization.go'.
+     Trying rule prerequisite `splitio/proxy/proxy_test.go'.
+     Trying rule prerequisite `splitio/proxy/caching/workers_test.go'.
+     Trying rule prerequisite `splitio/proxy/caching/caching_test.go'.
+     Trying rule prerequisite `splitio/proxy/caching/caching.go'.
+     Trying rule prerequisite `splitio/proxy/caching/workers.go'.
+     Trying rule prerequisite `splitio/proxy/controllers/middleware/auth_test.go'.
+     Trying rule prerequisite `splitio/proxy/controllers/middleware/auth.go'.
+     Trying rule prerequisite `splitio/proxy/controllers/middleware/latency.go'.
+     Trying rule prerequisite `splitio/proxy/controllers/middleware/latency_test.go'.
+     Trying rule prerequisite `splitio/proxy/controllers/sdk.go'.
+     Trying rule prerequisite `splitio/proxy/controllers/telemetry_test.go'.
+     Trying rule prerequisite `splitio/proxy/controllers/auth.go'.
+     Trying rule prerequisite `splitio/proxy/controllers/events_test.go'.
+     Trying rule prerequisite `splitio/proxy/controllers/telemetry.go'.
+     Trying rule prerequisite `splitio/proxy/controllers/events.go'.
+     Trying rule prerequisite `splitio/proxy/controllers/util.go'.
+     Trying rule prerequisite `splitio/proxy/controllers/sdk_test.go'.
+     Trying rule prerequisite `splitio/proxy/conf/sections.go'.
+     Trying rule prerequisite `splitio/util/utils_test.go'.
+     Trying rule prerequisite `splitio/util/utils.go'.
+     Trying rule prerequisite `splitio/admin/common/config.go'.
+     Trying rule prerequisite `splitio/admin/admin.go'.
+     Trying rule prerequisite `splitio/admin/controllers/healthcheck.go'.
+     Trying rule prerequisite `splitio/admin/controllers/shutdown.go'.
+     Trying rule prerequisite `splitio/admin/controllers/snapshot_test.go'.
+     Trying rule prerequisite `splitio/admin/controllers/dashboard.go'.
+     Trying rule prerequisite `splitio/admin/controllers/snapshot.go'.
+     Trying rule prerequisite `splitio/admin/controllers/helpers.go'.
+     Trying rule prerequisite `splitio/admin/controllers/info.go'.
+     Trying rule prerequisite `splitio/admin/views/dashboard/bootstrap.go'.
+     Trying rule prerequisite `splitio/admin/views/dashboard/queuemanager.go'.
+     Trying rule prerequisite `splitio/admin/views/dashboard/js.go'.
+     Trying rule prerequisite `splitio/admin/views/dashboard/stats.go'.
+     Trying rule prerequisite `splitio/admin/views/dashboard/menu.go'.
+     Trying rule prerequisite `splitio/admin/views/dashboard/logo.go'.
+     Trying rule prerequisite `splitio/admin/views/dashboard/chartjs.go'.
+     Trying rule prerequisite `splitio/admin/views/dashboard/main.go'.
+     Trying rule prerequisite `splitio/admin/views/dashboard/datainspector.go'.
+     Trying rule prerequisite `splitio/common/snapshot/snapshot_test.go'.
+     Trying rule prerequisite `splitio/common/snapshot/snapshot.go'.
+     Trying rule prerequisite `splitio/common/runtime.go'.
+     Trying rule prerequisite `splitio/common/storage/snapshotter.go'.
+     Trying rule prerequisite `splitio/common/impressionlistener/mocks/listener.go'.
+     Trying rule prerequisite `splitio/common/impressionlistener/listener_test.go'.
+     Trying rule prerequisite `splitio/common/impressionlistener/dtos.go'.
+     Trying rule prerequisite `splitio/common/impressionlistener/listener.go'.
+     Trying rule prerequisite `splitio/common/sync/sync.go'.
+     Trying rule prerequisite `splitio/common/conf/sections.go'.
+     Trying rule prerequisite `splitio/common/conf/advanced.go'.
+     Trying rule prerequisite `splitio/common/conf/parser_test.go'.
+     Trying rule prerequisite `splitio/common/conf/basic.go'.
+     Trying rule prerequisite `splitio/common/conf/file.go'.
+     Trying rule prerequisite `splitio/common/conf/parser.go'.
+     Trying rule prerequisite `splitio/common/errors.go'.
+     Trying rule prerequisite `splitio/provisional/healthcheck/application/monitor.go'.
+     Trying rule prerequisite `splitio/provisional/healthcheck/application/monitor_test.go'.
+     Trying rule prerequisite `splitio/provisional/healthcheck/application/counter/periodic.go'.
+     Trying rule prerequisite `splitio/provisional/healthcheck/application/counter/basecounter.go'.
+     Trying rule prerequisite `splitio/provisional/healthcheck/application/counter/periodic_test.go'.
+     Trying rule prerequisite `splitio/provisional/healthcheck/application/counter/threshold_test.go'.
+     Trying rule prerequisite `splitio/provisional/healthcheck/application/counter/threshold.go'.
+     Trying rule prerequisite `splitio/provisional/healthcheck/services/monitor.go'.
+     Trying rule prerequisite `splitio/provisional/healthcheck/services/monitor_test.go'.
+     Trying rule prerequisite `splitio/provisional/healthcheck/services/counter/bypercentage.go'.
+     Trying rule prerequisite `splitio/provisional/healthcheck/services/counter/bypercentage_test.go'.
+     Trying rule prerequisite `splitio/log/custom.go'.
+     Trying rule prerequisite `splitio/log/custom_test.go'.
+     Trying rule prerequisite `splitio/log/initialization.go'.
+     Trying rule prerequisite `splitio/log/slack.go'.
+     Trying rule prerequisite `splitio/banner.go'.
+     Trying rule prerequisite `go.sum'.
+     Trying implicit prerequisite `dummysync_linux'.
+     Trying pattern rule with stem `split_sync_linux'.
+     Trying implicit prerequisite `build/split_sync_linux,v'.
+     Trying pattern rule with stem `split_sync_linux'.
+     Trying implicit prerequisite `build/RCS/split_sync_linux,v'.
+     Trying pattern rule with stem `split_sync_linux'.
+     Trying implicit prerequisite `build/RCS/split_sync_linux'.
+     Trying pattern rule with stem `split_sync_linux'.
+     Trying implicit prerequisite `build/s.split_sync_linux'.
+     Trying pattern rule with stem `split_sync_linux'.
+     Trying implicit prerequisite `build/SCCS/s.split_sync_linux'.
+     Trying pattern rule with stem `sync_linux'.
+     Trying rule prerequisite `cmd/proxy/main.go'.
+     Trying rule prerequisite `cmd/synchronizer/main.go'.
+     Trying rule prerequisite `splitio/version.go'.
+     Trying rule prerequisite `splitio/producer/evcalc/mocks/evcalc.go'.
+     Trying rule prerequisite `splitio/producer/evcalc/evcalc.go'.
+     Trying rule prerequisite `splitio/producer/evcalc/evcalc_test.go'.
+     Trying rule prerequisite `splitio/producer/util.go'.
+     Trying rule prerequisite `splitio/producer/storage/mocks/telemetry.go'.
+     Trying rule prerequisite `splitio/producer/storage/telemetry_test.go'.
+     Trying rule prerequisite `splitio/producer/storage/telemetry.go'.
+     Trying rule prerequisite `splitio/producer/task/events_test.go'.
+     Trying rule prerequisite `splitio/producer/task/telemetry.go'.
+     Trying rule prerequisite `splitio/producer/task/impressions.go'.
+     Trying rule prerequisite `splitio/producer/task/events.go'.
+     Trying rule prerequisite `splitio/producer/task/impressions_test.go'.
+     Trying rule prerequisite `splitio/producer/task/pipelined_test.go'.
+     Trying rule prerequisite `splitio/producer/task/pipelined.go'.
+     Trying rule prerequisite `splitio/producer/initialization_test.go'.
+     Trying rule prerequisite `splitio/producer/initialization.go'.
+     Trying rule prerequisite `splitio/producer/worker/telemetry_test.go'.
+     Trying rule prerequisite `splitio/producer/worker/telemetry.go'.
+     Trying rule prerequisite `splitio/producer/conf/sections.go'.
+     Trying rule prerequisite `splitio/proxy/tasks/mocks/deferred.go'.
+     Trying rule prerequisite `splitio/proxy/tasks/impcount.go'.
+     Trying rule prerequisite `splitio/proxy/tasks/telemetry.go'.
+     Trying rule prerequisite `splitio/proxy/tasks/impressions.go'.
+     Trying rule prerequisite `splitio/proxy/tasks/events.go'.
+     Trying rule prerequisite `splitio/proxy/tasks/deferred.go'.
+     Trying rule prerequisite `splitio/proxy/internal/dtos.go'.
+     Trying rule prerequisite `splitio/proxy/proxy.go'.
+     Trying rule prerequisite `splitio/proxy/storage/mocks/mocks.go'.
+     Trying rule prerequisite `splitio/proxy/storage/persistent/splits_test.go'.
+     Trying rule prerequisite `splitio/proxy/storage/persistent/segments.go'.
+     Trying rule prerequisite `splitio/proxy/storage/persistent/boltdb.go'.
+     Trying rule prerequisite `splitio/proxy/storage/persistent/splits.go'.
+     Trying rule prerequisite `splitio/proxy/storage/persistent/segments_test.go'.
+     Trying rule prerequisite `splitio/proxy/storage/persistent/helpers_test.go'.
+     Trying rule prerequisite `splitio/proxy/storage/persistent/helpers.go'.
+     Trying rule prerequisite `splitio/proxy/storage/telemetry.go'.
+     Trying rule prerequisite `splitio/proxy/storage/segments.go'.
+     Trying rule prerequisite `splitio/proxy/storage/splits.go'.
+     Trying rule prerequisite `splitio/proxy/storage/optimized/mysegments_test.go'.
+     Trying rule prerequisite `splitio/proxy/storage/optimized/changesummary.go'.
+     Trying rule prerequisite `splitio/proxy/storage/optimized/mysegments.go'.
+     Trying rule prerequisite `splitio/proxy/storage/optimized/changesummary_test.go'.
+     Trying rule prerequisite `splitio/proxy/doc.go'.
+     Trying rule prerequisite `splitio/proxy/initialization.go'.
+     Trying rule prerequisite `splitio/proxy/proxy_test.go'.
+     Trying rule prerequisite `splitio/proxy/caching/workers_test.go'.
+     Trying rule prerequisite `splitio/proxy/caching/caching_test.go'.
+     Trying rule prerequisite `splitio/proxy/caching/caching.go'.
+     Trying rule prerequisite `splitio/proxy/caching/workers.go'.
+     Trying rule prerequisite `splitio/proxy/controllers/middleware/auth_test.go'.
+     Trying rule prerequisite `splitio/proxy/controllers/middleware/auth.go'.
+     Trying rule prerequisite `splitio/proxy/controllers/middleware/latency.go'.
+     Trying rule prerequisite `splitio/proxy/controllers/middleware/latency_test.go'.
+     Trying rule prerequisite `splitio/proxy/controllers/sdk.go'.
+     Trying rule prerequisite `splitio/proxy/controllers/telemetry_test.go'.
+     Trying rule prerequisite `splitio/proxy/controllers/auth.go'.
+     Trying rule prerequisite `splitio/proxy/controllers/events_test.go'.
+     Trying rule prerequisite `splitio/proxy/controllers/telemetry.go'.
+     Trying rule prerequisite `splitio/proxy/controllers/events.go'.
+     Trying rule prerequisite `splitio/proxy/controllers/util.go'.
+     Trying rule prerequisite `splitio/proxy/controllers/sdk_test.go'.
+     Trying rule prerequisite `splitio/proxy/conf/sections.go'.
+     Trying rule prerequisite `splitio/util/utils_test.go'.
+     Trying rule prerequisite `splitio/util/utils.go'.
+     Trying rule prerequisite `splitio/admin/common/config.go'.
+     Trying rule prerequisite `splitio/admin/admin.go'.
+     Trying rule prerequisite `splitio/admin/controllers/healthcheck.go'.
+     Trying rule prerequisite `splitio/admin/controllers/shutdown.go'.
+     Trying rule prerequisite `splitio/admin/controllers/snapshot_test.go'.
+     Trying rule prerequisite `splitio/admin/controllers/dashboard.go'.
+     Trying rule prerequisite `splitio/admin/controllers/snapshot.go'.
+     Trying rule prerequisite `splitio/admin/controllers/helpers.go'.
+     Trying rule prerequisite `splitio/admin/controllers/info.go'.
+     Trying rule prerequisite `splitio/admin/views/dashboard/bootstrap.go'.
+     Trying rule prerequisite `splitio/admin/views/dashboard/queuemanager.go'.
+     Trying rule prerequisite `splitio/admin/views/dashboard/js.go'.
+     Trying rule prerequisite `splitio/admin/views/dashboard/stats.go'.
+     Trying rule prerequisite `splitio/admin/views/dashboard/menu.go'.
+     Trying rule prerequisite `splitio/admin/views/dashboard/logo.go'.
+     Trying rule prerequisite `splitio/admin/views/dashboard/chartjs.go'.
+     Trying rule prerequisite `splitio/admin/views/dashboard/main.go'.
+     Trying rule prerequisite `splitio/admin/views/dashboard/datainspector.go'.
+     Trying rule prerequisite `splitio/common/snapshot/snapshot_test.go'.
+     Trying rule prerequisite `splitio/common/snapshot/snapshot.go'.
+     Trying rule prerequisite `splitio/common/runtime.go'.
+     Trying rule prerequisite `splitio/common/storage/snapshotter.go'.
+     Trying rule prerequisite `splitio/common/impressionlistener/mocks/listener.go'.
+     Trying rule prerequisite `splitio/common/impressionlistener/listener_test.go'.
+     Trying rule prerequisite `splitio/common/impressionlistener/dtos.go'.
+     Trying rule prerequisite `splitio/common/impressionlistener/listener.go'.
+     Trying rule prerequisite `splitio/common/sync/sync.go'.
+     Trying rule prerequisite `splitio/common/conf/sections.go'.
+     Trying rule prerequisite `splitio/common/conf/advanced.go'.
+     Trying rule prerequisite `splitio/common/conf/parser_test.go'.
+     Trying rule prerequisite `splitio/common/conf/basic.go'.
+     Trying rule prerequisite `splitio/common/conf/file.go'.
+     Trying rule prerequisite `splitio/common/conf/parser.go'.
+     Trying rule prerequisite `splitio/common/errors.go'.
+     Trying rule prerequisite `splitio/provisional/healthcheck/application/monitor.go'.
+     Trying rule prerequisite `splitio/provisional/healthcheck/application/monitor_test.go'.
+     Trying rule prerequisite `splitio/provisional/healthcheck/application/counter/periodic.go'.
+     Trying rule prerequisite `splitio/provisional/healthcheck/application/counter/basecounter.go'.
+     Trying rule prerequisite `splitio/provisional/healthcheck/application/counter/periodic_test.go'.
+     Trying rule prerequisite `splitio/provisional/healthcheck/application/counter/threshold_test.go'.
+     Trying rule prerequisite `splitio/provisional/healthcheck/application/counter/threshold.go'.
+     Trying rule prerequisite `splitio/provisional/healthcheck/services/monitor.go'.
+     Trying rule prerequisite `splitio/provisional/healthcheck/services/monitor_test.go'.
+     Trying rule prerequisite `splitio/provisional/healthcheck/services/counter/bypercentage.go'.
+     Trying rule prerequisite `splitio/provisional/healthcheck/services/counter/bypercentage_test.go'.
+     Trying rule prerequisite `splitio/log/custom.go'.
+     Trying rule prerequisite `splitio/log/custom_test.go'.
+     Trying rule prerequisite `splitio/log/initialization.go'.
+     Trying rule prerequisite `splitio/log/slack.go'.
+     Trying rule prerequisite `splitio/banner.go'.
+     Trying rule prerequisite `go.sum'.
+     Trying implicit prerequisite `dummysync_linux'.
+     Looking for a rule with intermediate file `dummysync_linux'.
+      Avoiding implicit rule recursion.
+      Avoiding implicit rule recursion.
+      Avoiding implicit rule recursion.
+      Trying pattern rule with stem `dummysync_linux'.
+      Trying implicit prerequisite `dummysync_linux,v'.
+      Trying pattern rule with stem `dummysync_linux'.
+      Trying implicit prerequisite `RCS/dummysync_linux,v'.
+      Trying pattern rule with stem `dummysync_linux'.
+      Trying implicit prerequisite `RCS/dummysync_linux'.
+      Trying pattern rule with stem `dummysync_linux'.
+      Trying implicit prerequisite `s.dummysync_linux'.
+      Trying pattern rule with stem `dummysync_linux'.
+      Trying implicit prerequisite `SCCS/s.dummysync_linux'.
+    Trying pattern rule with stem `sync_linux.zip'.
+    Trying rule prerequisite `cmd/proxy/main.go'.
+    Trying rule prerequisite `cmd/synchronizer/main.go'.
+    Trying rule prerequisite `splitio/version.go'.
+    Trying rule prerequisite `splitio/producer/evcalc/mocks/evcalc.go'.
+    Trying rule prerequisite `splitio/producer/evcalc/evcalc.go'.
+    Trying rule prerequisite `splitio/producer/evcalc/evcalc_test.go'.
+    Trying rule prerequisite `splitio/producer/util.go'.
+    Trying rule prerequisite `splitio/producer/storage/mocks/telemetry.go'.
+    Trying rule prerequisite `splitio/producer/storage/telemetry_test.go'.
+    Trying rule prerequisite `splitio/producer/storage/telemetry.go'.
+    Trying rule prerequisite `splitio/producer/task/events_test.go'.
+    Trying rule prerequisite `splitio/producer/task/telemetry.go'.
+    Trying rule prerequisite `splitio/producer/task/impressions.go'.
+    Trying rule prerequisite `splitio/producer/task/events.go'.
+    Trying rule prerequisite `splitio/producer/task/impressions_test.go'.
+    Trying rule prerequisite `splitio/producer/task/pipelined_test.go'.
+    Trying rule prerequisite `splitio/producer/task/pipelined.go'.
+    Trying rule prerequisite `splitio/producer/initialization_test.go'.
+    Trying rule prerequisite `splitio/producer/initialization.go'.
+    Trying rule prerequisite `splitio/producer/worker/telemetry_test.go'.
+    Trying rule prerequisite `splitio/producer/worker/telemetry.go'.
+    Trying rule prerequisite `splitio/producer/conf/sections.go'.
+    Trying rule prerequisite `splitio/proxy/tasks/mocks/deferred.go'.
+    Trying rule prerequisite `splitio/proxy/tasks/impcount.go'.
+    Trying rule prerequisite `splitio/proxy/tasks/telemetry.go'.
+    Trying rule prerequisite `splitio/proxy/tasks/impressions.go'.
+    Trying rule prerequisite `splitio/proxy/tasks/events.go'.
+    Trying rule prerequisite `splitio/proxy/tasks/deferred.go'.
+    Trying rule prerequisite `splitio/proxy/internal/dtos.go'.
+    Trying rule prerequisite `splitio/proxy/proxy.go'.
+    Trying rule prerequisite `splitio/proxy/storage/mocks/mocks.go'.
+    Trying rule prerequisite `splitio/proxy/storage/persistent/splits_test.go'.
+    Trying rule prerequisite `splitio/proxy/storage/persistent/segments.go'.
+    Trying rule prerequisite `splitio/proxy/storage/persistent/boltdb.go'.
+    Trying rule prerequisite `splitio/proxy/storage/persistent/splits.go'.
+    Trying rule prerequisite `splitio/proxy/storage/persistent/segments_test.go'.
+    Trying rule prerequisite `splitio/proxy/storage/persistent/helpers_test.go'.
+    Trying rule prerequisite `splitio/proxy/storage/persistent/helpers.go'.
+    Trying rule prerequisite `splitio/proxy/storage/telemetry.go'.
+    Trying rule prerequisite `splitio/proxy/storage/segments.go'.
+    Trying rule prerequisite `splitio/proxy/storage/splits.go'.
+    Trying rule prerequisite `splitio/proxy/storage/optimized/mysegments_test.go'.
+    Trying rule prerequisite `splitio/proxy/storage/optimized/changesummary.go'.
+    Trying rule prerequisite `splitio/proxy/storage/optimized/mysegments.go'.
+    Trying rule prerequisite `splitio/proxy/storage/optimized/changesummary_test.go'.
+    Trying rule prerequisite `splitio/proxy/doc.go'.
+    Trying rule prerequisite `splitio/proxy/initialization.go'.
+    Trying rule prerequisite `splitio/proxy/proxy_test.go'.
+    Trying rule prerequisite `splitio/proxy/caching/workers_test.go'.
+    Trying rule prerequisite `splitio/proxy/caching/caching_test.go'.
+    Trying rule prerequisite `splitio/proxy/caching/caching.go'.
+    Trying rule prerequisite `splitio/proxy/caching/workers.go'.
+    Trying rule prerequisite `splitio/proxy/controllers/middleware/auth_test.go'.
+    Trying rule prerequisite `splitio/proxy/controllers/middleware/auth.go'.
+    Trying rule prerequisite `splitio/proxy/controllers/middleware/latency.go'.
+    Trying rule prerequisite `splitio/proxy/controllers/middleware/latency_test.go'.
+    Trying rule prerequisite `splitio/proxy/controllers/sdk.go'.
+    Trying rule prerequisite `splitio/proxy/controllers/telemetry_test.go'.
+    Trying rule prerequisite `splitio/proxy/controllers/auth.go'.
+    Trying rule prerequisite `splitio/proxy/controllers/events_test.go'.
+    Trying rule prerequisite `splitio/proxy/controllers/telemetry.go'.
+    Trying rule prerequisite `splitio/proxy/controllers/events.go'.
+    Trying rule prerequisite `splitio/proxy/controllers/util.go'.
+    Trying rule prerequisite `splitio/proxy/controllers/sdk_test.go'.
+    Trying rule prerequisite `splitio/proxy/conf/sections.go'.
+    Trying rule prerequisite `splitio/util/utils_test.go'.
+    Trying rule prerequisite `splitio/util/utils.go'.
+    Trying rule prerequisite `splitio/admin/common/config.go'.
+    Trying rule prerequisite `splitio/admin/admin.go'.
+    Trying rule prerequisite `splitio/admin/controllers/healthcheck.go'.
+    Trying rule prerequisite `splitio/admin/controllers/shutdown.go'.
+    Trying rule prerequisite `splitio/admin/controllers/snapshot_test.go'.
+    Trying rule prerequisite `splitio/admin/controllers/dashboard.go'.
+    Trying rule prerequisite `splitio/admin/controllers/snapshot.go'.
+    Trying rule prerequisite `splitio/admin/controllers/helpers.go'.
+    Trying rule prerequisite `splitio/admin/controllers/info.go'.
+    Trying rule prerequisite `splitio/admin/views/dashboard/bootstrap.go'.
+    Trying rule prerequisite `splitio/admin/views/dashboard/queuemanager.go'.
+    Trying rule prerequisite `splitio/admin/views/dashboard/js.go'.
+    Trying rule prerequisite `splitio/admin/views/dashboard/stats.go'.
+    Trying rule prerequisite `splitio/admin/views/dashboard/menu.go'.
+    Trying rule prerequisite `splitio/admin/views/dashboard/logo.go'.
+    Trying rule prerequisite `splitio/admin/views/dashboard/chartjs.go'.
+    Trying rule prerequisite `splitio/admin/views/dashboard/main.go'.
+    Trying rule prerequisite `splitio/admin/views/dashboard/datainspector.go'.
+    Trying rule prerequisite `splitio/common/snapshot/snapshot_test.go'.
+    Trying rule prerequisite `splitio/common/snapshot/snapshot.go'.
+    Trying rule prerequisite `splitio/common/runtime.go'.
+    Trying rule prerequisite `splitio/common/storage/snapshotter.go'.
+    Trying rule prerequisite `splitio/common/impressionlistener/mocks/listener.go'.
+    Trying rule prerequisite `splitio/common/impressionlistener/listener_test.go'.
+    Trying rule prerequisite `splitio/common/impressionlistener/dtos.go'.
+    Trying rule prerequisite `splitio/common/impressionlistener/listener.go'.
+    Trying rule prerequisite `splitio/common/sync/sync.go'.
+    Trying rule prerequisite `splitio/common/conf/sections.go'.
+    Trying rule prerequisite `splitio/common/conf/advanced.go'.
+    Trying rule prerequisite `splitio/common/conf/parser_test.go'.
+    Trying rule prerequisite `splitio/common/conf/basic.go'.
+    Trying rule prerequisite `splitio/common/conf/file.go'.
+    Trying rule prerequisite `splitio/common/conf/parser.go'.
+    Trying rule prerequisite `splitio/common/errors.go'.
+    Trying rule prerequisite `splitio/provisional/healthcheck/application/monitor.go'.
+    Trying rule prerequisite `splitio/provisional/healthcheck/application/monitor_test.go'.
+    Trying rule prerequisite `splitio/provisional/healthcheck/application/counter/periodic.go'.
+    Trying rule prerequisite `splitio/provisional/healthcheck/application/counter/basecounter.go'.
+    Trying rule prerequisite `splitio/provisional/healthcheck/application/counter/periodic_test.go'.
+    Trying rule prerequisite `splitio/provisional/healthcheck/application/counter/threshold_test.go'.
+    Trying rule prerequisite `splitio/provisional/healthcheck/application/counter/threshold.go'.
+    Trying rule prerequisite `splitio/provisional/healthcheck/services/monitor.go'.
+    Trying rule prerequisite `splitio/provisional/healthcheck/services/monitor_test.go'.
+    Trying rule prerequisite `splitio/provisional/healthcheck/services/counter/bypercentage.go'.
+    Trying rule prerequisite `splitio/provisional/healthcheck/services/counter/bypercentage_test.go'.
+    Trying rule prerequisite `splitio/log/custom.go'.
+    Trying rule prerequisite `splitio/log/custom_test.go'.
+    Trying rule prerequisite `splitio/log/initialization.go'.
+    Trying rule prerequisite `splitio/log/slack.go'.
+    Trying rule prerequisite `splitio/banner.go'.
+    Trying rule prerequisite `go.sum'.
+    Trying implicit prerequisite `dummysync_linux.zip'.
+    Looking for a rule with intermediate file `dummysync_linux.zip'.
+     Avoiding implicit rule recursion.
+     Avoiding implicit rule recursion.
+     Trying pattern rule with stem `dummysync_linux.zip'.
+     Trying implicit prerequisite `dummysync_linux.zip,v'.
+     Trying pattern rule with stem `dummysync_linux.zip'.
+     Trying implicit prerequisite `RCS/dummysync_linux.zip,v'.
+     Trying pattern rule with stem `dummysync_linux.zip'.
+     Trying implicit prerequisite `RCS/dummysync_linux.zip'.
+     Trying pattern rule with stem `dummysync_linux.zip'.
+     Trying implicit prerequisite `s.dummysync_linux.zip'.
+     Trying pattern rule with stem `dummysync_linux.zip'.
+     Trying implicit prerequisite `SCCS/s.dummysync_linux.zip'.
+   No implicit rule found for `build/install_split_sync_linux.bin'.
+   Finished prerequisites of target file `build/install_split_sync_linux.bin'.
+  Must remake target `build/install_split_sync_linux.bin'.

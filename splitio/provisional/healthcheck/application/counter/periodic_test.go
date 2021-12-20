@@ -13,6 +13,7 @@ func TestPeriodicCounter(t *testing.T) {
 		Period:                   2,
 		MaxErrorsAllowedInPeriod: 2,
 		Severity:                 0,
+		ValidationFunc:           func(PeriodicCounterInterface) {},
 	}, logging.NewLogger(nil))
 
 	counter.Start()
