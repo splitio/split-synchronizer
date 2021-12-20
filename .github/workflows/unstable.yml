@@ -27,7 +27,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: Dockerfile.synchronizer
+          file: docker/Dockerfile.synchronizer
           push: true
           tags: splitio-docker-dev.jfrog.io/split-synchronizer:${{ env.SHORT_SHA }}
 
@@ -51,6 +51,6 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: Dockerfile.proxy
+          file: docker/Dockerfile.proxy
           push: true
           tags: splitio-docker-dev.jfrog.io/split-proxy:${{ env.SHORT_SHA }}
