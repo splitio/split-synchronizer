@@ -81,10 +81,10 @@ github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZb
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/splitio/gincache v0.0.1-rc6 h1:dnF1rGEB1I7K0W2d/oTXXPw8t1sqXdR9elYxnVY5NVw=
 github.com/splitio/gincache v0.0.1-rc6/go.mod h1:IUKPDIlTSH8bNqpgMDWjgrbbkqhApnQHSxXp5uKjGg8=
-github.com/splitio/go-split-commons/v4 v4.0.1-rc1 h1:+K5jFqrAVVRwFoX3C5uYEdJc6K9J2P9REfbtX96hRVE=
-github.com/splitio/go-split-commons/v4 v4.0.1-rc1/go.mod h1:gJF0U35eI2lA5w6w42eNDa7vVGuTeza1BdUb2x43ktc=
-github.com/splitio/go-toolkit/v5 v5.0.1-rc1 h1:xQPEXXxYsrZmFyotWesnIcgJzsnXmU4dqpjVeHk2APY=
-github.com/splitio/go-toolkit/v5 v5.0.1-rc1/go.mod h1:9BUgx8JTFZYmN+3A4i4EAhGlX4Zw7KR1d2x6UxCtDdU=
+github.com/splitio/go-split-commons/v4 v4.0.1-rc3 h1:86BpTLgohVDz+ASpIM/yaGQavZiRnsqsllsdZL96M2s=
+github.com/splitio/go-split-commons/v4 v4.0.1-rc3/go.mod h1:qFNuo38wgLSU0/6TYOQKVzfbM2tmAzT0kKmq8HNVCzc=
+github.com/splitio/go-toolkit/v5 v5.0.1-rc2 h1:yZneYei3cMIWxOLkj1RyNOSa5VIvxj3aJlvE0ZVt8aA=
+github.com/splitio/go-toolkit/v5 v5.0.1-rc2/go.mod h1:9BUgx8JTFZYmN+3A4i4EAhGlX4Zw7KR1d2x6UxCtDdU=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
 github.com/stretchr/testify v1.4.0/go.mod h1:j7eGeouHqKxXV5pUuKE4zz7dFj8WfuZ+81PSLYec5m4=
