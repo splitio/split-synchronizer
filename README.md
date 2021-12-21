@@ -1,4 +1,4 @@
-# Split Synchronizer 
+# Split Synchronizer
 [![Build Status](https://api.travis-ci.com/splitio/split-synchronizer.svg?branch=master)](https://api.travis-ci.com/splitio/split-synchronizer)
 
 ## Overview
@@ -37,7 +37,7 @@ docker run --rm --name split-synchronizer \
 
 Please refer to [our official docs](https://help.split.io/hc/en-us/articles/360019686092-Split-Synchronizer-Proxy) to learn about all the functionality provided by Split Synchronizer and the configuration options available for tailoring it to your current application setup.
 
-## Submitting issues 
+## Submitting issues
 The Split team monitors all issues submitted to this [issue tracker](https://github.com/splitio/split-synchronizer/issues). We encourage you to use this issue tracker to submit any bug reports, feedback, and feature enhancements. We'll do our best to respond in a timely manner.
 
 ## Contributing
