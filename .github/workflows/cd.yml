@@ -27,12 +27,14 @@ jobs:
         run: echo "VERSION=$(tail -n 1 splitio/version.go | awk '{print $4}' | tr -d '"')" >> $GITHUB_ENV
 
       - name: Execute build
-
         run: make release_assets
+
       - name: Run test
         run: make test_coverage
+
       - name: Generate entry-points for Docker images
         run: make etrypoints
+
       - name: Docker Build and Push split-sync
         uses: docker/build-push-action@v2
         with:
@@ -92,10 +94,13 @@ jobs:
       - name: Get version
         run: echo "VERSION=$(tail -n 1 splitio/version.go | awk '{print $4}' | tr -d '"')" >> $GITHUB_ENV
 
+      - name: Generate entry-points for Docker images
+        run: make etrypoints
+
       - name: Docker Build and Push
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: Dockerfile.${{ matrix.mode }}
+          file: docker/Dockerfile.${{ matrix.mode }}
           push: true
           tags: splitio-docker.jfrog.io/split-${{ matrix.mode }}:${{ env.VERSION }}
