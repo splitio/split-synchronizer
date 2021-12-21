@@ -3,7 +3,7 @@
         </table>
 
         <footer class="footer">
-          <p>&copy; 2018 Split Software, Inc.</p>
+          <p>&copy; 2021 Split Software, Inc.</p>
         </footer>
 
       </div> <!-- /container -->

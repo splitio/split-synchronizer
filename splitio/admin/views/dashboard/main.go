@@ -26,7 +26,7 @@ const main = `
   <meta http-equiv="x-ua-compatible" content="ie=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <title>Split Sync - Dashboard | {{.DashboardTitle}}</title>
+  <title>Split Sync - Dashboard</title>
   
   {{template "ChartJS" .}}
   {{template "BootstrapMainStyle" .}}
@@ -40,7 +40,7 @@ const main = `
     <div class="row">
       <div class="col-md-12" style="background-color: #182A3C;">
         <div class="logosvg pull-left">
-          <p class="navbar-brand pull-right split-nav-title" href="#">| {{.RunningMode}}</p>
+          <p class="navbar-brand pull-right split-nav-title" href="#"></p>
           <p class="navbar-brand pull-right split-nav-title" href="#">{{.DashboardTitle}}</p>
 	  {{template "SplitLogo" .}}
         </div>
@@ -74,6 +74,18 @@ const main = `
 </html>
 `
 
+// RootObject is the main/root object used to render the dashboard
+type RootObject struct {
+	DashboardTitle string
+	Version        string
+	ProxyMode      bool
+	RefreshTime    int64
+	Stats          GlobalStats           `json:"stats"`
+	Health         application.HealthDto `json:"health"`
+	ServicesHealth services.HealthDto    `json:"servicesHealth"`
+}
+
+// GlobalStats runtime stats used to render the dashboard
 type GlobalStats struct {
 	BackendTotalRequests   int64            `json:"backendTotalRequests"`
 	RequestsOk             int64            `json:"requestsOk"`
@@ -92,18 +104,6 @@ type GlobalStats struct {
 	EventsQueueSize        int64            `json:"eventsQueueSize"`
 	EventsLambda           float64          `json:"eventsLambda"`
 	Uptime                 int64            `json:"uptime"`
-}
-
-type DashboardInitializationVars struct {
-	DashboardTitle     string
-	RunningMode        string
-	Version            string
-	ProxyMode          bool
-	RefreshTime        int64
-	DataControllerPath string
-	Stats              GlobalStats           `json:"stats"`
-	Health             application.HealthDto `json:"health"`
-	ServicesHealth     services.HealthDto    `json:"servicesHealth"`
 }
 
 // SplitSummary encapsulates a minimalistic view of split properties to be presented in the dashboard

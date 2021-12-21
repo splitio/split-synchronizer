@@ -4,9 +4,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/splitio/go-split-commons/v4/storage"
-	"github.com/splitio/go-split-commons/v4/synchronizer/worker/event"
-	"github.com/splitio/go-split-commons/v4/synchronizer/worker/impression"
 	"github.com/splitio/go-toolkit/v5/logging"
 	adminCommon "github.com/splitio/split-synchronizer/v5/splitio/admin/common"
 	"github.com/splitio/split-synchronizer/v5/splitio/admin/controllers"
@@ -19,36 +16,39 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const basepath = "/admin"
+const baseAdminPath = "/admin"
+const baseInfoPath = "/info"
+const baseShutdownPath = "/shutdown"
 
 // Options encapsulates dependencies & config options for the Admin server
 type Options struct {
-	Host                string
-	Port                int
-	Name                string
-	Proxy               bool
-	Username            string
-	Password            string
-	Logger              logging.LoggerInterface
-	Storages            adminCommon.Storages
-	ImpressionsEvCalc   evcalc.Monitor
-	ImpressionsRecorder impression.ImpressionRecorder
-	EventRecorder       event.EventRecorder
-	EventsEvCalc        evcalc.Monitor
-	Runtime             common.Runtime
-	HcAppMonitor        application.MonitorIterface
-	HcServicesMonitor   services.MonitorIterface
-	Snapshotter         cstorage.Snapshotter
+	Host              string
+	Port              int
+	Name              string
+	Proxy             bool
+	Username          string
+	Password          string
+	Logger            logging.LoggerInterface
+	Storages          adminCommon.Storages
+	ImpressionsEvCalc evcalc.Monitor
+	EventsEvCalc      evcalc.Monitor
+	Runtime           common.Runtime
+	HcAppMonitor      application.MonitorIterface
+	HcServicesMonitor services.MonitorIterface
+	Snapshotter       cstorage.Snapshotter
+	FullConfig        interface{}
 }
 
 // NewServer instantiates a new admin server
 func NewServer(options *Options) (*http.Server, error) {
-
 	router := gin.New()
-	admin := router.Group(basepath)
-	dataController := setupDataController(options, basepath)
-	if dataController != nil {
-		dataController.Register(admin)
+	admin := router.Group(baseAdminPath)
+	info := router.Group(baseInfoPath)
+	shutdown := router.Group(baseShutdownPath)
+	if options.Username != "" && options.Password != "" {
+		admin = router.Group(baseAdminPath, gin.BasicAuth(gin.Accounts{options.Username: options.Password}))
+		info = router.Group(baseInfoPath, gin.BasicAuth(gin.Accounts{options.Username: options.Password}))
+		shutdown = router.Group(baseShutdownPath, gin.BasicAuth(gin.Accounts{options.Username: options.Password}))
 	}
 
 	dashboardController, err := controllers.NewDashboardController(
@@ -59,20 +59,15 @@ func NewServer(options *Options) (*http.Server, error) {
 		options.ImpressionsEvCalc,
 		options.EventsEvCalc,
 		options.Runtime,
-		dataController,
 		options.HcAppMonitor,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error instantiating dashboard controller: %w", err)
 	}
-
 	dashboardController.Register(admin)
-	// infoctrl, err := controllers.NewInfoController(options.Proxy, options.Runtime, options.Storages.LocalTelemetryStorage)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("error instantiating info controller: %w", err)
-	// }
 
-	//router.GET("/admin/dashboard/segmentKeys/:segment", dctrl.SegmentKeys)
+	shutdownController := controllers.NewShutdownController(options.Runtime)
+	shutdownController.Register(shutdown)
 
 	healthcheckController := controllers.NewHealthCheckController(
 		options.Logger,
@@ -81,6 +76,10 @@ func NewServer(options *Options) (*http.Server, error) {
 	)
 
 	healthcheckController.Register(router)
+
+	infoController := controllers.NewInfoController(options.Proxy, options.Runtime, options.FullConfig)
+	infoController.Register(info)
+
 	if options.Snapshotter != nil {
 		snapshotController := controllers.NewSnapshotController(options.Logger, options.Snapshotter)
 		snapshotController.Register(admin)
@@ -90,26 +89,4 @@ func NewServer(options *Options) (*http.Server, error) {
 		Addr:    fmt.Sprintf("%s:%d", options.Host, options.Port),
 		Handler: router,
 	}, nil
-}
-
-func setupDataController(opts *Options, basepath string) *controllers.DataManagerController {
-	if opts.Proxy {
-		return nil
-	}
-
-	asImpressionDropper, idOk := opts.Storages.ImpressionStorage.(storage.DataDropper)
-	asEventsDropper, edOk := opts.Storages.EventStorage.(storage.DataDropper)
-
-	if !idOk || !edOk || opts.ImpressionsRecorder == nil || opts.EventRecorder == nil {
-		return nil
-	}
-
-	return controllers.NewDataManagerController(
-		asImpressionDropper,
-		asEventsDropper,
-		opts.ImpressionsRecorder,
-		opts.EventRecorder,
-		opts.Logger,
-		basepath,
-	)
 }

@@ -101,6 +101,10 @@ func (m *MonitorImpl) calculateLambda() float64 {
 	dataInT1 := m.flushingStats[0].DataInStorage
 	dataInT2 := m.flushingStats[len(m.flushingStats)-1].DataInStorage
 	amountGeneratedBetweenT1andT2 := float64(dataInT2 - dataInT1 + t)
+
+	if amountGeneratedBetweenT1andT2 == 0 {
+		return 1
+	}
 	return float64(t) / amountGeneratedBetweenT1andT2
 }
 

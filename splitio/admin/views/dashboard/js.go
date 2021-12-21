@@ -6,15 +6,13 @@ const mainScript = `
     function sendSignal(sigType){
       if(confirm("The proccess will be stopped, are you sure?")) {
         console.log("Shutting proccess down as",sigType)
-        var processUrl
+        let processUrl = "/admin/stop/force"
         if(sigType == 'graceful') {
-          processUrl = "/admin/stop/graceful"
-        } else {
-          processUrl = "/admin/stop/force"
-        }
-  
+	    processUrl = "/admin/stop/graceful"
+	}
+ 
         $.get(processUrl, function(data) {
-          console.log("Response:", data);
+	    console.log("Response:", data);
         })
       }
     }
@@ -87,53 +85,6 @@ const mainScript = `
           $this.addClass("filterDisplayNone");
         }
       });
-    }
-  
-    function dropImpressions(){
-      if(confirm("This action will drop all the impressions, are you sure?")) {
-        console.log("Dropping impressions")
-  
-        $.post("{{.DataControllerPath}}/impressions/drop", function(data) {
-          console.log("Response:", data);
-        })
-      }
-    }
-  
-    function flushImpressions(){
-      if(confirm("This action will flush impressions to the server, are you sure?")) {
-        console.log("Flushing impressions")
-	const baseUrl = "{{.DataControllerPath}}/impressions/flush"
-        const size = document.getElementById("impressionsSize").value;
-        const finalUrl = size === "" ? baseUrl : (baseUrl + "?size=" + size);
-  
-        $.post(finalUrl, function(data) {
-          console.log("Response:", data);
-        })
-      }
-    }
-  
-    function dropEvents(){
-      if(confirm("This action will drop all the events, are you sure?")) {
-        console.log("Dropping events")
-  
-        $.post("{{.DataControllerPath}}/events/drop", function(data) {
-          console.log("Response:", data);
-        })
-      }
-    }
-  
-    function flushEvents(){
-      if(confirm("This action will flush events to the server, are you sure?")) {
-        console.log("Flushing events")
-	const baseUrl = "/admin/events/flush"
-  
-        const size = document.getElementById("eventsSize").value;
-        const api = size === "" ? baseUrl : (baseUrl + "?size=" + size);
-  
-        $.post(api, function(data) {
-          console.log("Response:", data);
-        })
-      }
     }
   
     $(function () {
@@ -277,65 +228,6 @@ const mainScript = `
     });
   }
   
-  function handleHealthcheck(response) {
-    const dateHealthy = new Date(Date.parse(response.healthySince)).toLocaleString()
-    $('#healthy_since').text(dateHealthy);
-    $('#uptime').text(response.uptime);
-  
-    if (response.sdk.healthy) {
-      $('#sdk_server_div_error').addClass('hidden')
-      $('#sdk_server_div_ok').removeClass('hidden')
-    } else {
-      $('#sdk_server_div_ok').addClass('hidden')
-      $('#sdk_server_div_error').removeClass('hidden')
-    }
-  
-    if (response.events.healthy) {
-      $('#event_server_div_error').addClass('hidden')
-      $('#event_server_div_ok').removeClass('hidden')
-    } else {
-      $('#event_server_div_ok').addClass('hidden')
-      $('#event_server_div_error').removeClass('hidden')
-    }
-  
-    if (response.auth.healthy) {
-      $('#auth_server_div_error').addClass('hidden')
-      $('#auth_server_div_ok').removeClass('hidden')
-    } else {
-      $('#auth_server_div_ok').addClass('hidden')
-      $('#auth_server_div_error').removeClass('hidden')
-    }
-  
-    if (response.sync) {
-      if (response.storage.healthy) {
-        $('#storage_div_error').addClass('hidden')
-        $('#storage_div_ok').removeClass('hidden')
-      } else {
-        $('#storage_div_ok').addClass('hidden')
-        $('#storage_div_error').removeClass('hidden')
-      }
-    }
-  
-    setTimeout(function() {
-    }, {{.RefreshTime}});
-  };
-  
-  function refreshHealthcheck() {
-    $.ajax({
-      url: "healthcheck",
-      cache: false,
-      dataType: "json",
-      success: function(response) {
-        handleHealthcheck(response)
-      },
-      error: function(response) {
-        if (response.status == 500 && response.responseJSON && response.responseJSON.sdk) {
-          handleHealthcheck(response.responseJSON)
-        }
-      }
-    });
-  };
-
   function formatTreatments(split) {
     return split.treatments
       .map(t => (t == split.defaultTreatment) ?  ('<strong>' + t + '</strong>') : t)
@@ -435,8 +327,12 @@ const mainScript = `
   };
 
   function updateHealthCards(health) {
-      const dateHealthy = new Date(Date.parse(health.healthySince)).toLocaleString()
-      $('#healthy_since').html(dateHealthy);
+      if (health.healthySince != null) {
+        const dateHealthy = new Date(Date.parse(health.healthySince)).toLocaleString()
+        $('#healthy_since').html(dateHealthy);
+      } else {
+        $('#healthy_since').html('<strong>NOT HEALTHY</strong>'); 
+      }
       if (health.dependencies == null) { return }
       const payload = {};
       health.dependencies.forEach(service => {
@@ -504,10 +400,6 @@ const mainScript = `
         .join(''));
   }
 
-  function processHealth(health) {
-    updateHealthCards(health);
-  }
-
   function processStats(stats) {
     updateMetricCards(stats)
     updateSplits(stats.splits);
@@ -525,7 +417,13 @@ const mainScript = `
   };
 
   function refreshHealth() {
-    $.getJSON("/health/dependencies", processHealth);
+    $.ajax({
+	dataType: "json",
+	url: "/health/application",
+	success: updateHealthCards,
+	error: updateHealthCards,
+    });
+    // $.getJSON("/health/application", updateHealthCards);
   };
 
  
@@ -549,7 +447,7 @@ const mainScript = `
     $('[data-toggle="popover-events"]').popover(popOverData);
   
     processStats(initialData.stats);
-    processHealth(initialData.health);
+    updateHealthCards(initialData.health);
 
   
     setInterval(function() {
