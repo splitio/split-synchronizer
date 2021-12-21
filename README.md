@@ -1,4 +1,4 @@
-# Split Synchronizer 
+# Split Synchronizer
 [![Build Status](https://api.travis-ci.com/splitio/split-synchronizer.svg?branch=master)](https://api.travis-ci.com/splitio/split-synchronizer)
 
 ## Overview
@@ -7,14 +7,14 @@ By default, Split’s SDKs keep segment and split data synchronized as users nav
 [![Twitter Follow](https://img.shields.io/twitter/follow/splitsoftware.svg?style=social&label=Follow&maxAge=1529000)](https://twitter.com/intent/follow?screen_name=splitsoftware)
 
 ## Compatibility
-Split Synchronizer supports Go version 1.8 or higher.
+Split Synchronizer supports Go version 1.17 or higher.
 
 ## Getting started
 Below is a simple example that describes the instantiation of Split Synchronizer:
 
 ### Usage via Go
-1. Install dependencies via `dep ensure`
-2. Then, execute `go run main.go -api-key "<YOUR_SDK_TYPE_API_KEY>" -redis-host "<YOUR_REDIS_HOST>" -redis-port <YOUR_REDIS_PORT> -redis-prefix "<YOUR_PREFIX>"`
+1. Install dependencies via `go build` || `go mod vendor`
+2. Then, execute `go run main.go -apikey "<YOUR_SDK_TYPE_API_KEY>" -redis-host "<YOUR_REDIS_HOST>" -redis-port <YOUR_REDIS_PORT> -redis-prefix "<YOUR_PREFIX>"`
 
 ### Docker
 1. You can pull the Docker image from [Docker Hub](https://hub.docker.com/r/splitsoftware/split-synchronizer) and run it into your container environment.
@@ -28,7 +28,7 @@ docker pull splitsoftware/split-synchronizer:latest
 ```shell
 docker run --rm --name split-synchronizer \
  -p 3010:3010 \
- -e SPLIT_SYNC_API_KEY=<YOUR_SDK_TYPE_API_KEY> \
+ -e SPLIT_SYNC_APIKEY=<YOUR_SDK_TYPE_API_KEY> \
  -e SPLIT_SYNC_REDIS_HOST=<YOUR_REDIS_HOST> \
  -e SPLIT_SYNC_REDIS_PORT=<YOUR_REDIS_PORT> \
  -e SPLIT_SYNC_REDIS_PREFIX=<YOUR_PREFIX> \
@@ -37,7 +37,7 @@ docker run --rm --name split-synchronizer \
 
 Please refer to [our official docs](https://help.split.io/hc/en-us/articles/360019686092-Split-Synchronizer-Proxy) to learn about all the functionality provided by Split Synchronizer and the configuration options available for tailoring it to your current application setup.
 
-## Submitting issues 
+## Submitting issues
 The Split team monitors all issues submitted to this [issue tracker](https://github.com/splitio/split-synchronizer/issues). We encourage you to use this issue tracker to submit any bug reports, feedback, and feature enhancements. We'll do our best to respond in a timely manner.
 
 ## Contributing

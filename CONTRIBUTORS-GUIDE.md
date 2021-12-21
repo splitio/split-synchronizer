@@ -22,7 +22,7 @@ Split Synchronizer is an open source project and we welcome feedback and contrib
 
 #### Usage with go
 If you're just trying to run the app, run `dep ensure`` on the root of the project.
-Then, execute `go run main.go` 
+Then, execute `go run main.go`
 
 #### Docker
 If you want to build a Docker Image, you need to execute the following command at root folder: docker build -t splitsoftware/split-synchronizer:X.X.X .

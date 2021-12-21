@@ -20,16 +20,15 @@ import (
 
 // DashboardController contains handlers for rendering the dashboard and its associated FE queries
 type DashboardController struct {
-	title              string
-	proxy              bool
-	logger             logging.LoggerInterface
-	storages           adminCommon.Storages
-	layout             *template.Template
-	impressionsEvCalc  evcalc.Monitor
-	eventsEvCalc       evcalc.Monitor
-	runtime            common.Runtime
-	dataControllerPath string
-	appMonitor         application.MonitorIterface
+	title             string
+	proxy             bool
+	logger            logging.LoggerInterface
+	storages          adminCommon.Storages
+	layout            *template.Template
+	impressionsEvCalc evcalc.Monitor
+	eventsEvCalc      evcalc.Monitor
+	runtime           common.Runtime
+	appMonitor        application.MonitorIterface
 }
 
 // NewDashboardController instantiates a new dashboard controller
@@ -41,25 +40,18 @@ func NewDashboardController(
 	impressionEvCalc evcalc.Monitor,
 	eventsEvCalc evcalc.Monitor,
 	runtime common.Runtime,
-	dataController *DataManagerController,
 	appMonitor application.MonitorIterface,
 ) (*DashboardController, error) {
 
-	var dataControllerPath string
-	if dataController != nil {
-		dataControllerPath = dataController.BasePath()
-	}
-
 	toReturn := &DashboardController{
-		title:              name,
-		proxy:              proxy,
-		logger:             logger,
-		runtime:            runtime,
-		storages:           storages,
-		eventsEvCalc:       eventsEvCalc,
-		impressionsEvCalc:  impressionEvCalc,
-		dataControllerPath: dataControllerPath,
-		appMonitor:         appMonitor,
+		title:             name,
+		proxy:             proxy,
+		logger:            logger,
+		runtime:           runtime,
+		storages:          storages,
+		eventsEvCalc:      eventsEvCalc,
+		impressionsEvCalc: impressionEvCalc,
+		appMonitor:        appMonitor,
 	}
 
 	var err error
@@ -110,21 +102,14 @@ func (c *DashboardController) segmentKeys(ctx *gin.Context) {
 // \} -- end of endpoint functions
 
 func (c *DashboardController) renderDashboard() ([]byte, error) {
-	runningMode := "Running as Producer Mode"
-	if c.proxy {
-		runningMode = "Running as Proxy Mode"
-	}
-
 	var layoutBuffer bytes.Buffer
-	err := c.layout.Execute(&layoutBuffer, dashboard.DashboardInitializationVars{
-		DashboardTitle:     c.title,
-		RunningMode:        runningMode,
-		Version:            splitio.Version,
-		ProxyMode:          c.proxy,
-		RefreshTime:        10000,
-		Stats:              *c.gatherStats(),
-		Health:             c.appMonitor.GetHealthStatus(),
-		DataControllerPath: c.dataControllerPath,
+	err := c.layout.Execute(&layoutBuffer, dashboard.RootObject{
+		DashboardTitle: c.title,
+		Version:        splitio.Version,
+		ProxyMode:      c.proxy,
+		RefreshTime:    30000,
+		Stats:          *c.gatherStats(),
+		Health:         c.appMonitor.GetHealthStatus(),
 	})
 
 	if err != nil {
@@ -144,6 +129,16 @@ func (c *DashboardController) gatherStats() *dashboard.GlobalStats {
 	upstreamOkReqs, upstreamErrorReqs := getUpstreamRequestCount(c.storages.LocalTelemetryStorage)
 	proxyOkReqs, proxyErrorReqs := getProxyRequestCount(c.storages.LocalTelemetryStorage)
 
+	impressionsLambda := float64(0)
+	if c.impressionsEvCalc != nil {
+		impressionsLambda = c.impressionsEvCalc.Lambda()
+	}
+
+	eventsLambda := float64(0)
+	if c.eventsEvCalc != nil {
+		eventsLambda = c.eventsEvCalc.Lambda()
+	}
+
 	return &dashboard.GlobalStats{
 		Splits:                 bundleSplitInfo(c.storages.SplitStorage),
 		Segments:               bundleSegmentInfo(c.storages.SplitStorage, c.storages.SegmentStorage),
@@ -151,8 +146,8 @@ func (c *DashboardController) gatherStats() *dashboard.GlobalStats {
 		BackendLatencies:       bundleLocalSyncLatencies(c.storages.LocalTelemetryStorage),
 		ImpressionsQueueSize:   getImpressionSize(c.storages.ImpressionStorage),
 		EventsQueueSize:        getEventsSize(c.storages.EventStorage),
-		ImpressionsLambda:      c.impressionsEvCalc.Lambda(),
-		EventsLambda:           c.eventsEvCalc.Lambda(),
+		ImpressionsLambda:      impressionsLambda,
+		EventsLambda:           eventsLambda,
 		RequestsOk:             proxyOkReqs,
 		RequestsErrored:        proxyErrorReqs,
 		SdksTotalRequests:      proxyOkReqs + proxyErrorReqs,

@@ -1,4 +1,4 @@
-#!/bin/env bash
+#!/usr/bin/env bash
 
 function parse_flags_from_conf_file() {
     fn=$1
@@ -23,6 +23,20 @@ function flag_to_env_var() {
 
     echo "${prefix}_${flag}" | tr "[a-z]" "[A-Z]" | tr "-" "_"
     return 0
+}
+
+function print_env_vars() {
+    flags=("$@")
+    prefix=${flags[0]}
+    unset flags[0]
+    for idx in ${!flags[@]}; do
+        flag=${flags[idx]}
+        env=$(flag_to_env_var "$prefix" "$flag")
+        if [ $? -ne 0 ]; then
+            continue
+        fi
+        echo "$flag || $env"
+    done
 }
 
 # ack 's-cli:([^ ]*) ' --output '$1' sections.go
@@ -51,5 +65,3 @@ function parse_env() {
     echo $args
     return 0
 }
-
-

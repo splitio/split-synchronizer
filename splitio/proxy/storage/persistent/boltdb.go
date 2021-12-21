@@ -34,7 +34,7 @@ type DBWrapper interface {
 	GetRawSnapshot() ([]byte, error)
 }
 
-// BoltDBWrapper is a boltdb-based implmentation of a persisntant storage wrapper
+// BoltDBWrapper is a boltdb-based implmentation of a persistent storage wrapper
 type BoltDBWrapper struct {
 	wrapped *bolt.DB
 	mutex   sync.Mutex

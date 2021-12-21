@@ -21,7 +21,7 @@ type Main struct {
 
 // BuildAdvancedConfig generates a commons-compatible advancedconfig with default + overriden parameters
 func (m *Main) BuildAdvancedConfig() *cconf.AdvancedConfig {
-	tmp := conf.InitAdvancedOptions() // defaults + url overrides
+	tmp := conf.InitAdvancedOptions(true) // defaults + url overrides
 	tmp.HTTPTimeout = int(m.Sync.Advanced.HTTPTimeoutMs / 1000)
 	tmp.ImpressionsQueueSize = int(m.Sync.Advanced.ImpressionsBuffer / 1000)
 	tmp.EventsQueueSize = int(m.Sync.Advanced.EventsBuffer)
@@ -58,7 +58,7 @@ type Volatile struct {
 
 // Persistent storage configuration options
 type Persistent struct {
-	Filename string `json:"filename" s-cli:"persisntant-storage-fn" s-def:"" s-desc:"Where to store flags & user-generated data. (Default: temporary file)"`
+	Filename string `json:"filename" s-cli:"persistent-storage-fn" s-def:"" s-desc:"Where to store flags & user-generated data. (Default: temporary file)"`
 }
 
 // Sync configuration options

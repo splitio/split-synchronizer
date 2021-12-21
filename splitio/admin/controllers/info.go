@@ -1,10 +1,9 @@
 package controllers
 
 import (
+	"fmt"
 	"net/http"
-
-	"github.com/splitio/go-split-commons/v4/storage"
-	"github.com/splitio/go-split-commons/v4/telemetry"
+	"time"
 
 	"github.com/splitio/split-synchronizer/v5/splitio"
 	"github.com/splitio/split-synchronizer/v5/splitio/common"
@@ -14,54 +13,40 @@ import (
 
 // InfoController contains handlers for system information purposes
 type InfoController struct {
-	proxy          bool
-	localTelemetry storage.TelemetryPeeker
-	runtime        common.Runtime
+	proxy   bool
+	runtime common.Runtime
+	cfg     interface{}
 }
 
 // NewInfoController constructs a new InfoController to be mounted on a gin router
-func NewInfoController(proxy bool, runtime common.Runtime, localTelemetry storage.TelemetryPeeker) (*InfoController, error) {
+func NewInfoController(proxy bool, runtime common.Runtime, config interface{}) *InfoController {
 	return &InfoController{
-		proxy:          proxy,
-		localTelemetry: localTelemetry,
-		runtime:        runtime,
-	}, nil
+		proxy:   proxy,
+		runtime: runtime,
+		cfg:     config,
+	}
 }
 
-// Uptime returns the service uptime
-func (c *InfoController) Uptime(ctx *gin.Context) {
-	ctx.JSON(http.StatusOK, gin.H{"uptime": c.runtime.Uptime()})
+// Register info controller endpoints
+func (c *InfoController) Register(router gin.IRouter) {
+	router.GET("/uptime", c.uptime)
+	router.GET("/version", c.version)
+	router.GET("/ping", c.ping)
+	router.GET("/config", c.config)
 }
 
-// Version returns the service version
-func (c *InfoController) Version(ctx *gin.Context) {
+func (c *InfoController) config(ctx *gin.Context) {
+	ctx.JSON(http.StatusOK, gin.H{"config": c.cfg})
+}
+
+func (c *InfoController) uptime(ctx *gin.Context) {
+	ctx.JSON(http.StatusOK, gin.H{"uptime": fmt.Sprintf("%s", c.runtime.Uptime().Round(time.Second))})
+}
+
+func (c *InfoController) version(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{"version": splitio.Version})
 }
 
-// Ping returns a 200 HTTP status code
-func (c *InfoController) Ping(ctx *gin.Context) {
+func (c *InfoController) ping(ctx *gin.Context) {
 	ctx.String(http.StatusOK, "%s", "pong")
-}
-
-// ShowStats returns stats
-func (c *InfoController) ShowStats(ctx *gin.Context) {
-	httpErrors := map[string]map[int]int{
-		"splitChanges":    c.localTelemetry.PeekHTTPErrors(telemetry.SplitSync),
-		"segmentChanges":  c.localTelemetry.PeekHTTPErrors(telemetry.SegmentSync),
-		"impressions":     c.localTelemetry.PeekHTTPErrors(telemetry.ImpressionSync),
-		"impressionCount": c.localTelemetry.PeekHTTPErrors(telemetry.ImpressionCountSync),
-		"events":          c.localTelemetry.PeekHTTPErrors(telemetry.EventSync),
-		"telemetry":       c.localTelemetry.PeekHTTPErrors(telemetry.TelemetrySync),
-	}
-
-	httpLatencies := map[string][]int64{
-		"splitChanges":    c.localTelemetry.PeekHTTPLatencies(telemetry.SplitSync),
-		"segmentChanges":  c.localTelemetry.PeekHTTPLatencies(telemetry.SegmentSync),
-		"impressions":     c.localTelemetry.PeekHTTPLatencies(telemetry.ImpressionSync),
-		"impressionCount": c.localTelemetry.PeekHTTPLatencies(telemetry.ImpressionCountSync),
-		"events":          c.localTelemetry.PeekHTTPLatencies(telemetry.EventSync),
-		"telemetry":       c.localTelemetry.PeekHTTPLatencies(telemetry.TelemetrySync),
-	}
-
-	ctx.JSON(http.StatusOK, gin.H{"errors": httpErrors, "latencies": httpLatencies})
 }

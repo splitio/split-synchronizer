@@ -185,10 +185,12 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	}
 
 	// --------------------------- ADMIN DASHBOARD ------------------------------
+	cfgForAdmin := *cfg
+	cfgForAdmin.Apikey = logging.ObfuscateAPIKey(cfgForAdmin.Apikey)
 	adminServer, err := admin.NewServer(&admin.Options{
 		Host:              cfg.Admin.Host,
 		Port:              int(cfg.Admin.Port),
-		Name:              "Split Synchronizer dashboard (producer mode)",
+		Name:              "Split Proxy dashboard",
 		Proxy:             true,
 		Username:          cfg.Admin.Username,
 		Password:          cfg.Admin.Password,
@@ -198,6 +200,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		Snapshotter:       dbInstance,
 		HcAppMonitor:      appMonitor,
 		HcServicesMonitor: servicesMonitor,
+		FullConfig:        cfgForAdmin,
 	})
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error starting admin server: %w", err), common.ExitAdminError)
