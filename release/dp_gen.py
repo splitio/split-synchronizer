@@ -103,10 +103,10 @@ def main():
     args = parse_args()
     logging.basicConfig(level=logging.INFO)
     basepath = pathlib.Path(__file__).parent.resolve()
-    with open(f"{basepath}/versions.css", 'r') as flo: style = flo.read()
-    with open(f"{basepath}/versions.pre.html", 'r') as flo: tpl_pre = flo.read()
-    with open(f"{basepath}/versions.pos.html", 'r') as flo: tpl_post = flo.read()
-    with open(f"{basepath}/versions.download-row.html", 'r') as flo: tpl_row = flo.read()
+    with open(f"{basepath}/versions.css.tpl", 'r') as flo: style = flo.read()
+    with open(f"{basepath}/versions.pre.html.tpl", 'r') as flo: tpl_pre = flo.read()
+    with open(f"{basepath}/versions.pos.html.tpl", 'r') as flo: tpl_post = flo.read()
+    with open(f"{basepath}/versions.download-row.html.tpl", 'r') as flo: tpl_row = flo.read()
 
     tags = get_tags()
 

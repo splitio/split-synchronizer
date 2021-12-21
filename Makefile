@@ -49,7 +49,7 @@ split-proxy: $(sources) go.sum
 test: $(sources) go.sum
 	$(GO) test ./... -count=1 -race
 
-## Run unit tests and generate coverage output
+### Run unit tests and generate coverage output
 test_coverage: $(sources) go.sum
 	$(GO) test -v -cover -coverprofile=coverage.out ./...
 
@@ -73,6 +73,10 @@ release_assets: \
 	$(info Release files generated:)
 	$(foreach f,$^,$(info - $(f)))
 	$(info )
+
+## Generate download pages for split-sync & split-proxy
+download_pages: $(BUILD)/downloads.proxy.html $(BUILD)/downloads.sync.html
+
 
 ## Generate cli/json/env-var options table Markdown for split-poxy
 proxy_options_table: splitio/common/conf/sections.go splitio/proxy/conf/sections.go
@@ -142,7 +146,6 @@ entrypoint.%.sh: $(sources) go.sum
 	    > $@
 	chmod +x $@
 
-# Thes
 $(BUILD)/$(version)/%_$(version).bin : $(BUILD)/%.bin
 	mkdir -p $(BUILD)/$(version)
 	cp $< $@
