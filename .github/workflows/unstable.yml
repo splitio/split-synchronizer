@@ -29,6 +29,6 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: Dockerfile.${{ matrix.mode }}
+          file: docker/Dockerfile.${{ matrix.mode }}
           push: true
           tags: splitio-docker-dev.jfrog.io/split-${{ matrix.mode }}:${{ env.SHORT_SHA }}
