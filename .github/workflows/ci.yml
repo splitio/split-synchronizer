@@ -32,18 +32,6 @@ jobs:
         run: make test_coverage
       - name: Generate entrypoints
         run: make entrypoints
-      - name: Docker Build for Sync
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: docker/Dockerfile.synchronizer
-          push: false
-      - name: Docker Build for Proxy
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: docker/Dockerfile.synchronizer
-          push: false
       - name: SonarQube Scan (Pull Request)
         uses: SonarSource/sonarcloud-github-action@v1.5
         env:
