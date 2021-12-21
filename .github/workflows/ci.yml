@@ -69,5 +69,5 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: Dockerfile.${{ matrix.mode }}
+          file: docker/Dockerfile.${{ matrix.mode }}
           push: false
