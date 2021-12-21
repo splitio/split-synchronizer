@@ -63,3 +63,5 @@ Gopkg.lock
 .vscode/*
 
 build/*
+split-proxy
+split-sync
