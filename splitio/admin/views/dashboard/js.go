@@ -417,7 +417,13 @@ const mainScript = `
   };
 
   function refreshHealth() {
-    $.getJSON("/health/application", updateHealthCards);
+    $.ajax({
+	dataType: "json",
+	url: "/health/application",
+	success: updateHealthCards,
+	error: updateHealthCards,
+    });
+    // $.getJSON("/health/application", updateHealthCards);
   };
 
  
