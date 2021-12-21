@@ -1,5 +1,10 @@
 #Project files
 split-synchronizer
+split-sync
+split-proxy
+coverage.out
+entrypoint.proxy.sh
+entrypoint.sync.sh
 run.sh
 bin/*
 *.yaml
@@ -57,6 +62,6 @@ Gopkg.lock
 
 .vscode/*
 
-# binary files
+build/*
 split-proxy
 split-sync

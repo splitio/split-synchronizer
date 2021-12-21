@@ -86,12 +86,11 @@ type PipelinedSyncTask struct {
 	maxAccumWait       time.Duration
 
 	// synchronization elements
-	inputBuffer       chan []string
-	preSubmitBuffer   chan interface{}
-	waiter            sync.WaitGroup
-	running           *tsync.AtomicBool
-	shutdown          chan struct{}
-	processChanClosed *tsync.AtomicBool
+	inputBuffer     chan []string
+	preSubmitBuffer chan interface{}
+	waiter          sync.WaitGroup
+	running         *tsync.AtomicBool
+	shutdown        chan struct{}
 }
 
 // NewPipelinedTask constructs a pipelined task
@@ -115,7 +114,6 @@ func NewPipelinedTask(config *Config) (*PipelinedSyncTask, error) {
 		inputBuffer:        make(chan []string, config.InputBufferSize),
 		preSubmitBuffer:    make(chan interface{}, config.PostConcurrency*4),
 		shutdown:           make(chan struct{}, 1),
-		processChanClosed:  tsync.NewAtomicBool(false),
 	}, nil
 }
 
@@ -126,9 +124,19 @@ func (p *PipelinedSyncTask) Start() {
 		go p.sinker()
 	}
 
+	processWaiter := &sync.WaitGroup{}
+	processWaiter.Add(p.processConcurrency)
 	for idx := 0; idx < p.processConcurrency; idx++ {
-		go p.processor()
+		go func() {
+			p.processor()
+			processWaiter.Done()
+		}()
 	}
+
+	go func() {
+		processWaiter.Wait()
+		close(p.preSubmitBuffer)
+	}()
 
 	go p.filler()
 }
@@ -189,6 +197,7 @@ func (p *PipelinedSyncTask) processor() {
 	timer := time.NewTimer(p.maxAccumWait)
 	defer timer.Stop()
 	processing := tsync.NewAtomicBool(true)
+
 	for processing.IsSet() {
 		func() {
 			batch := p.pool.getRawBuffer() // acquire a buffer from the pool and schedule a release
@@ -199,12 +208,9 @@ func (p *PipelinedSyncTask) processor() {
 				timer.Reset(p.maxAccumWait)
 				select {
 				case raws, ok := <-p.inputBuffer:
-					if !ok { // no more elements to process, we can shut down
-						if p.processChanClosed.TestAndSet() { // only the first one to stop should close the channel
-							close(p.preSubmitBuffer)
-						}
+					if !ok { // no more elements to process, this is the last iteration
 						processing.Unset()
-						return
+						ready = true
 					}
 
 					// Regular flow
@@ -243,6 +249,7 @@ func (p *PipelinedSyncTask) sinker() {
 		if !ok { // no more processed data available, end this goroutine
 			return
 		}
+
 		p.logger.Debug(fmt.Sprintf("[pipelined/%s] - impressions post ready. making request", p.name))
 		req, cleanup, err := p.worker.BuildRequest(bulk)
 		if err != nil {
