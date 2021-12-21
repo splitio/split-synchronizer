@@ -8,47 +8,52 @@ import (
 
 func TestPeriodicCounter(t *testing.T) {
 
+	steps := make(chan struct{}, 1)
 	counter := NewPeriodicCounter(PeriodicConfig{
 		Name:                     "Test",
 		Period:                   2,
 		MaxErrorsAllowedInPeriod: 2,
 		Severity:                 0,
-		ValidationFunc:           func(PeriodicCounterInterface) {},
+		ValidationFunc: func(c PeriodicCounterInterface) {
+			<-steps
+			c.NotifyError()
+			<-steps
+			c.NotifyError()
+		},
 	}, logging.NewLogger(nil))
 
 	counter.Start()
 
-	res := counter.IsHealthy()
-	if !res.Healthy {
+	if res := counter.IsHealthy(); !res.Healthy {
 		t.Errorf("Healthy should be true")
 	}
 
-	counter.NotifyError()
-	res = counter.IsHealthy()
-	if !res.Healthy {
+	steps <- struct{}{}
+	if res := counter.IsHealthy(); !res.Healthy {
 		t.Errorf("Healthy should be true")
 	}
 
-	counter.resetErrorCount()
-	res = counter.IsHealthy()
-	if !res.Healthy {
-		t.Errorf("Healthy should be true")
-	}
-
-	if counter.errorCount != 0 {
-		t.Errorf("Errors should be 0")
-	}
-
-	counter.NotifyError()
-	counter.NotifyError()
-	res = counter.IsHealthy()
-	if res.Healthy {
+	steps <- struct{}{}
+	if res := counter.IsHealthy(); res.Healthy {
 		t.Errorf("Healthy should be false")
 	}
 
+	counter.lock.RLock()
 	if counter.errorCount != 2 {
 		t.Errorf("Errors should be 2")
 	}
+	counter.lock.RUnlock()
 
+	counter.resetErrorCount()
+
+	if res := counter.IsHealthy(); !res.Healthy {
+		t.Errorf("Healthy should be true")
+	}
+
+	counter.lock.RLock()
+	if counter.errorCount != 0 {
+		t.Errorf("Errors should be 0")
+	}
+	counter.lock.RUnlock()
 	counter.Stop()
 }

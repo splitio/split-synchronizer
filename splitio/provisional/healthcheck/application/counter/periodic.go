@@ -48,6 +48,7 @@ func (c *PeriodicImp) resetErrorCount() {
 	defer c.lock.Unlock()
 
 	c.errorCount = 0
+	c.healthy = true
 
 	return
 }
