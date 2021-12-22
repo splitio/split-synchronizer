@@ -1,6 +1,6 @@
 # Build stage
 FROM golang:1.17.5-alpine3.15 AS builder
-RUN apk add build-base
+RUN apk add build-base git
 
 WORKDIR /go/src/github.com/splitio/split-synchronizer
 
