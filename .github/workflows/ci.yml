@@ -32,9 +32,6 @@ jobs:
       - name: Execute build
         run: make release_assets
 
-      - name: Generate entrypoints
-        run: make entrypoints
-
       - name: SonarQube Scan (Pull Request)
         uses: SonarSource/sonarcloud-github-action@v1.5
         env:
@@ -64,9 +61,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-
-      - name: Generate entrypoints
-        run: make entrypoints
 
       - name: Docker Build and Push
         uses: docker/build-push-action@v2
