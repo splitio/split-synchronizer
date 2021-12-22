@@ -17,7 +17,12 @@ type HealthCheckController struct {
 }
 
 func (c *HealthCheckController) appHealth(ctx *gin.Context) {
-	ctx.JSON(http.StatusOK, c.appMonitor.GetHealthStatus())
+	status := c.appMonitor.GetHealthStatus()
+	if status.Healthy {
+		ctx.JSON(http.StatusOK, status)
+		return
+	}
+	ctx.JSON(http.StatusInternalServerError, status)
 }
 
 func (c *HealthCheckController) dependenciesHealth(ctx *gin.Context) {

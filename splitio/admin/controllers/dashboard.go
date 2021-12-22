@@ -102,18 +102,12 @@ func (c *DashboardController) segmentKeys(ctx *gin.Context) {
 // \} -- end of endpoint functions
 
 func (c *DashboardController) renderDashboard() ([]byte, error) {
-	runningMode := "Running as Producer Mode"
-	if c.proxy {
-		runningMode = "Running as Proxy Mode"
-	}
-
 	var layoutBuffer bytes.Buffer
 	err := c.layout.Execute(&layoutBuffer, dashboard.RootObject{
 		DashboardTitle: c.title,
-		RunningMode:    runningMode,
 		Version:        splitio.Version,
 		ProxyMode:      c.proxy,
-		RefreshTime:    10000,
+		RefreshTime:    30000,
 		Stats:          *c.gatherStats(),
 		Health:         c.appMonitor.GetHealthStatus(),
 	})

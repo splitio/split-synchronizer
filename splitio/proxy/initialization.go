@@ -190,7 +190,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	adminServer, err := admin.NewServer(&admin.Options{
 		Host:              cfg.Admin.Host,
 		Port:              int(cfg.Admin.Port),
-		Name:              "Split Synchronizer dashboard (producer mode)",
+		Name:              "Split Proxy dashboard",
 		Proxy:             true,
 		Username:          cfg.Admin.Username,
 		Password:          cfg.Admin.Password,

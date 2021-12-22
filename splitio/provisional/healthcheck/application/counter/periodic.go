@@ -48,6 +48,7 @@ func (c *PeriodicImp) resetErrorCount() {
 	defer c.lock.Unlock()
 
 	c.errorCount = 0
+	c.healthy = true
 
 	return
 }
@@ -98,9 +99,11 @@ func (c *PeriodicImp) Start() {
 
 	go func() {
 		for c.running.IsSet() {
-			time.Sleep(time.Duration(c.validationFuncPeriod) * time.Minute)
+			time.Sleep(time.Duration(c.validationFuncPeriod) * time.Second)
 			c.validationFunc(c)
+			c.lock.Lock()
 			c.updateLastHit()
+			c.lock.Unlock()
 		}
 	}()
 

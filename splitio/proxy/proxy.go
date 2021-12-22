@@ -171,6 +171,7 @@ func setupCorsMiddleware() func(*gin.Context) {
 		"SplitSDKMachineName",
 		"SplitSDKMachineIP",
 		"SplitSDKVersion",
+		"SplitSDKImpressionsMode",
 		"Authorization",
 	}
 	return cors.New(corsConfig)

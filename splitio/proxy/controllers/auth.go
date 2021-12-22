@@ -17,6 +17,7 @@ func NewAuthServerController() *AuthServerController {
 // Register mounts the sdk-server endpoints onto the supplied router
 func (c *AuthServerController) Register(router gin.IRouter) {
 	router.GET("/auth", c.AuthV1)
+	router.GET("/v2/auth", c.AuthV1)
 }
 
 // AuthV1 always returns pushEnabled = false and no token

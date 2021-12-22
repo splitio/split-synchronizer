@@ -1,15 +1,16 @@
 name: unstable
 on:
   push:
-    branches:
-      - '*'
-      - '!master'
-      - '!main'
+    branches-ignore:
+      - master
 
 jobs:
-  push-synchronizer-docker-image:
-    name: Build and Push Sync Docker Image
+  push-docker-image:
+    name: Build and Push Docker Image
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        mode: [synchronizer, proxy]
     steps:
       - name: Login to Artifactory
         uses: docker/login-action@v1
@@ -17,36 +18,17 @@ jobs:
           registry: splitio-docker-dev.jfrog.io
           username: ${{ secrets.ARTIFACTORY_DOCKER_USER }}
           password: ${{ secrets.ARTIFACTORY_DOCKER_PASS }}
-      - name: Checkout code
-        uses: actions/checkout@v2
-      - name: Get short hash
-        run: echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-      - name: Docker Build and Push
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: Dockerfile.synchronizer
-          push: true
-          tags: splitio-docker-dev.jfrog.io/split-synchronizer:${{ env.SHORT_SHA }}
 
-  push-split-proxy-image:
-    name: Build and Push Proxy Docker Image
-    runs-on: ubuntu-latest
-    steps:
-      - name: Login to Artifactory
-        uses: docker/login-action@v1
-        with:
-          registry: splitio-docker-dev.jfrog.io
-          username: ${{ secrets.ARTIFACTORY_DOCKER_USER }}
-          password: ${{ secrets.ARTIFACTORY_DOCKER_PASS }}
       - name: Checkout code
         uses: actions/checkout@v2
+
       - name: Get short hash
         run: echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
       - name: Docker Build and Push
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: Dockerfile.proxy
+          file: docker/Dockerfile.${{ matrix.mode }}
           push: true
-          tags: splitio-docker-dev.jfrog.io/split-proxy:${{ env.SHORT_SHA }}
+          tags: splitio-docker-dev.jfrog.io/split-${{ matrix.mode }}:${{ env.SHORT_SHA }}
