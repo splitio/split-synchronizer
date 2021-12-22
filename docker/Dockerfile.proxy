@@ -1,12 +1,16 @@
 # Build stage
 FROM golang:1.17.5-alpine3.15 AS builder
-RUN apk add build-base git
+
+RUN apk add \
+  build-base \
+  git
 
 WORKDIR /go/src/github.com/splitio/split-synchronizer
 
 COPY . .
 
 RUN make split-proxy
+RUN make entrypoints
 
 # Runner stage
 FROM alpine:3.15 AS runner
@@ -24,9 +28,9 @@ RUN adduser \
     'split-proxy'
 
 COPY docker/functions.sh .
-COPY entrypoint.proxy.sh .
 
 COPY --from=builder /go/src/github.com/splitio/split-synchronizer/split-proxy /usr/bin/
+COPY --from=builder /go/src/github.com/splitio/split-synchronizer/entrypoint.proxy.sh .
 
 EXPOSE 3000 3010
 
