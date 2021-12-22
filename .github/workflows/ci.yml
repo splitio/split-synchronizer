@@ -26,12 +26,15 @@ jobs:
       - name: Get version
         run: echo "VERSION=$(tail -n 1 splitio/version.go | awk '{print $4}' | tr -d '"')" >> $GITHUB_ENV
 
-      - name: Execute build
-        run: make release_assets
       - name: Run test
         run: make test_coverage
+
+      - name: Execute build
+        run: make release_assets
+
       - name: Generate entrypoints
         run: make entrypoints
+
       - name: SonarQube Scan (Pull Request)
         uses: SonarSource/sonarcloud-github-action@v1.5
         env:
