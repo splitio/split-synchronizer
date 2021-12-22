@@ -327,8 +327,12 @@ const mainScript = `
   };
 
   function updateHealthCards(health) {
-      const dateHealthy = new Date(Date.parse(health.healthySince)).toLocaleString()
-      $('#healthy_since').html(dateHealthy);
+      if (health.healthySince != null) {
+        const dateHealthy = new Date(Date.parse(health.healthySince)).toLocaleString()
+        $('#healthy_since').html(dateHealthy);
+      } else {
+        $('#healthy_since').html('<strong>NOT HEALTHY</strong>'); 
+      }
       if (health.dependencies == null) { return }
       const payload = {};
       health.dependencies.forEach(service => {
@@ -413,7 +417,13 @@ const mainScript = `
   };
 
   function refreshHealth() {
-    $.getJSON("/health/application", updateHealthCards);
+    $.ajax({
+	dataType: "json",
+	url: "/health/application",
+	success: updateHealthCards,
+	error: updateHealthCards,
+    });
+    // $.getJSON("/health/application", updateHealthCards);
   };
 
  

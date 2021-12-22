@@ -58,6 +58,10 @@ func bundleSegmentInfo(splitStorage storage.SplitStorage, segmentStorage storage
 		}
 
 		keys := segmentStorage.Keys(strName)
+		if keys == nil {
+			// error or segment not found
+			continue
+		}
 		cn, _ := segmentStorage.ChangeNumber(strName)
 		removed := removedKeyCounter(strName)
 		summaries = append(summaries, dashboard.SegmentSummary{
