@@ -9,7 +9,7 @@ COPY . .
 RUN go build -o split-sync cmd/synchronizer/main.go
 
 # Runner stage
-FROM alpine:3.14 AS runner
+FROM alpine:3.15 AS runner
 
 RUN apk add bash
 
