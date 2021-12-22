@@ -10,8 +10,7 @@ WORKDIR /go/src/github.com/splitio/split-synchronizer
 
 COPY . .
 
-RUN make split-proxy
-RUN make entrypoints
+RUN make clean split-proxy entrypoints
 
 # Runner stage
 FROM alpine:3.15 AS runner
