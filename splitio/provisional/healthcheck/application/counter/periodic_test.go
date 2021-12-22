@@ -9,6 +9,7 @@ import (
 func TestPeriodicCounter(t *testing.T) {
 
 	steps := make(chan struct{}, 1)
+	done := make(chan struct{}, 1)
 	counter := NewPeriodicCounter(PeriodicConfig{
 		Name:                     "Test",
 		Period:                   2,
@@ -17,8 +18,10 @@ func TestPeriodicCounter(t *testing.T) {
 		ValidationFunc: func(c PeriodicCounterInterface) {
 			<-steps
 			c.NotifyError()
+			done <- struct{}{}
 			<-steps
 			c.NotifyError()
+			done <- struct{}{}
 		},
 	}, logging.NewLogger(nil))
 
@@ -29,11 +32,13 @@ func TestPeriodicCounter(t *testing.T) {
 	}
 
 	steps <- struct{}{}
+	<-done
 	if res := counter.IsHealthy(); !res.Healthy {
 		t.Errorf("Healthy should be true")
 	}
 
 	steps <- struct{}{}
+	<-done
 	if res := counter.IsHealthy(); res.Healthy {
 		t.Errorf("Healthy should be false")
 	}
