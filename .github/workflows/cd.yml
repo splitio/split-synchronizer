@@ -26,29 +26,12 @@ jobs:
       - name: Get version
         run: echo "VERSION=$(tail -n 1 splitio/version.go | awk '{print $4}' | tr -d '"')" >> $GITHUB_ENV
 
-      - name: Execute build
-        run: make release_assets
-
       - name: Run test
         run: make test_coverage
 
-      - name: Generate entry-points for Docker images
-        run: make etrypoints
+      - name: Execute build
+        run: make release_assets
 
-      - name: Docker Build and Push split-sync
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: docker/Dockerfile.synchronizer
-          push: true
-          tags: splitio-docker.jfrog.io/${{ github.event.repository.name }}:${{ github.sha }}
-      - name: Docker Build and Push split-proxy
-        uses: docker/build-push-action@v2
-        with:
-          file: docker/Dockerfile.proxy
-          context: .
-          push: true
-          tags: splitio-docker.jfrog.io/${{ github.event.repository.name }}:${{ github.sha }}
       - name: Deploy to S3
         uses: jakejarvis/s3-sync-action@v0.5.1
         env:
@@ -57,6 +40,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.ARTIFACTS_SYNCHRONIZER_AWS_SECRET }}
           AWS_REGION: 'us-east-1'
           SOURCE_DIR: './build'
+
       - name: SonarQube Scan (Push)
         uses: SonarSource/sonarcloud-github-action@v1.5
         env:
@@ -95,7 +79,7 @@ jobs:
         run: echo "VERSION=$(tail -n 1 splitio/version.go | awk '{print $4}' | tr -d '"')" >> $GITHUB_ENV
 
       - name: Generate entry-points for Docker images
-        run: make etrypoints
+        run: make entrypoints
 
       - name: Docker Build and Push
         uses: docker/build-push-action@v2
