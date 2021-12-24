@@ -5,6 +5,7 @@ ARCH ?= amd64
 PYTHON ?= python3
 DOCKER ?= docker
 BUILD ?= build
+SHELL = /usr/bin/env bash -o pipefail
 
 # don't depend on commit version, to avoid rebuilding unnecessarily
 sources			:= $(shell find . -name *.go -not -name "commitversion.go")
@@ -55,20 +56,8 @@ test_coverage: $(sources) go.sum
 
 ## Generate binaires for all architectures, ready to upload for distribution (with and without version)
 release_assets: \
-    $(BUILD)/$(version)/install_split_sync_linux_$(version).bin \
-    $(BUILD)/$(version)/install_split_sync_osx_$(version).bin \
-    $(BUILD)/$(version)/split_sync_windows_$(version).zip \
-    $(BUILD)/$(version)/install_split_proxy_linux_$(version).bin \
-    $(BUILD)/$(version)/install_split_proxy_osx_$(version).bin \
-    $(BUILD)/$(version)/split_proxy_windows_$(version).zip \
-    $(BUILD)/install_split_sync_linux.bin \
-    $(BUILD)/install_split_sync_osx.bin \
-    $(BUILD)/split_sync_windows.zip \
-    $(BUILD)/install_split_proxy_linux.bin \
-    $(BUILD)/install_split_proxy_osx.bin \
-    $(BUILD)/split_proxy_windows.zip \
-    $(BUILD)/downloads.proxy.html \
-    $(BUILD)/downloads.sync.html
+    $(BUILD)/synchronizer \
+    $(BUILD)/proxy
 	$(info )
 	$(info Release files generated:)
 	$(foreach f,$^,$(info - $(f)))
@@ -148,13 +137,23 @@ entrypoint.%.sh: $(sources) go.sum
 	    > $@
 	chmod +x $@
 
-$(BUILD)/$(version)/%_$(version).bin : $(BUILD)/%.bin
-	mkdir -p $(BUILD)/$(version)
-	cp $< $@
+$(BUILD)/synchronizer : \
+    $(BUILD)/downloads.sync.html \
+    $(BUILD)/install_split_sync_linux.bin \
+    $(BUILD)/install_split_sync_osx.bin \
+    $(BUILD)/split_sync_windows.zip
+	mkdir -p $(BUILD)/synchronizer/$(version)
+	cp $(BUILD)/{$(subst $(space),$(comma),$(patsubst $(BUILD)/%,%,$^)}) $(BUILD)/synchronizer
+	cp $(BUILD)/{$(subst $(space),$(comma),$(patsubst $(BUILD)/%,%,$^)}) $(BUILD)/synchronizer/$(version)
 
-$(BUILD)/$(version)/%_$(version).zip : $(BUILD)/%.zip
-	mkdir -p $(BUILD)/$(version)
-	cp $< $@
+$(BUILD)/proxy : \
+    $(BUILD)/downloads.proxy.html \
+    $(BUILD)/install_split_proxy_linux.bin \
+    $(BUILD)/install_split_proxy_osx.bin \
+    $(BUILD)/split_proxy_windows.zip
+	mkdir -p $(BUILD)/proxy/$(version)
+	cp $(BUILD)/{$(subst $(space),$(comma),$(patsubst $(BUILD)/%,%,$^)}) $(BUILD)/proxy
+	cp $(BUILD)/{$(subst $(space),$(comma),$(patsubst $(BUILD)/%,%,$^)}) $(BUILD)/proxy/$(version)
 
 $(BUILD)/downloads.%.html:
 	$(PYTHON) release/dp_gen.py --app $* > $@
@@ -190,7 +189,7 @@ installed_from_zip 	= $(if $(findstring split_sync,$1),split-sync,split-proxy)
 apptitle_from_zip	= $(if $(findstring split_sync,$1),Synchronizer,Proxy)
 cmdfolder_from_bin	= $(if $(findstring split_sync,$1),synchronizer,proxy)
 
-# "constants" -- `space` ends in a space (and its on purpose). DON'T "fix" it.
-comma :=,
-space := 
-space +=
+# "constants"
+null  :=
+space := $(null) #
+comma := ,
