@@ -137,23 +137,23 @@ entrypoint.%.sh: $(sources) go.sum
 	    > $@
 	chmod +x $@
 
-$(BUILD)/synchronizer : \
+$(BUILD)/synchronizer: \
     $(BUILD)/downloads.sync.html \
     $(BUILD)/install_split_sync_linux.bin \
     $(BUILD)/install_split_sync_osx.bin \
     $(BUILD)/split_sync_windows.zip
 	mkdir -p $(BUILD)/synchronizer/$(version)
-	cp $(BUILD)/{$(subst $(space),$(comma),$(patsubst $(BUILD)/%,%,$^)}) $(BUILD)/synchronizer
-	cp $(BUILD)/{$(subst $(space),$(comma),$(patsubst $(BUILD)/%,%,$^)}) $(BUILD)/synchronizer/$(version)
+	for f in $^; do cp $$f $(BUILD)/synchronizer/$(version)/$$(basename "$${f%.*}")_$(version).$${f##*.}; done
+	cp {$(subst $(space),$(comma),$^)} $(BUILD)/synchronizer
 
-$(BUILD)/proxy : \
+$(BUILD)/proxy: \
     $(BUILD)/downloads.proxy.html \
     $(BUILD)/install_split_proxy_linux.bin \
     $(BUILD)/install_split_proxy_osx.bin \
     $(BUILD)/split_proxy_windows.zip
 	mkdir -p $(BUILD)/proxy/$(version)
-	cp $(BUILD)/{$(subst $(space),$(comma),$(patsubst $(BUILD)/%,%,$^)}) $(BUILD)/proxy
-	cp $(BUILD)/{$(subst $(space),$(comma),$(patsubst $(BUILD)/%,%,$^)}) $(BUILD)/proxy/$(version)
+	for f in $^; do cp $$f $(BUILD)/proxy/$(version)/$$(basename "$${f%.*}")_$(version).$${f##*.}; done
+	cp {$(subst $(space),$(comma),$^)} $(BUILD)/proxy
 
 $(BUILD)/downloads.%.html:
 	$(PYTHON) release/dp_gen.py --app $* > $@
