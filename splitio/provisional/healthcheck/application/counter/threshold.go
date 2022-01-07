@@ -87,7 +87,7 @@ func (c *ThresholdImp) IsHealthy() HealthyResult {
 // Start counter and timer
 func (c *ThresholdImp) Start() {
 	if c.running.IsSet() {
-		c.logger.Debug(fmt.Sprintf("%s counter is alredy running.", c.name))
+		c.logger.Debug(fmt.Sprintf("%s counter is already running.", c.name))
 		return
 	}
 
@@ -126,7 +126,7 @@ func (c *ThresholdImp) Start() {
 // Stop counter
 func (c *ThresholdImp) Stop() {
 	if !c.running.IsSet() {
-		c.logger.Debug(fmt.Sprintf("%s counter is alredy stopped.", c.name))
+		c.logger.Debug(fmt.Sprintf("%s counter is already stopped.", c.name))
 		return
 	}
 
