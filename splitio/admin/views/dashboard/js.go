@@ -6,9 +6,9 @@ const mainScript = `
     function sendSignal(sigType){
       if(confirm("The proccess will be stopped, are you sure?")) {
         console.log("Shutting proccess down as",sigType)
-        let processUrl = "/admin/stop/force"
+        let processUrl = "/shutdown/stop/force"
         if(sigType == 'graceful') {
-	    processUrl = "/admin/stop/graceful"
+	    processUrl = "/shutdown/stop/graceful"
 	}
  
         $.get(processUrl, function(data) {
