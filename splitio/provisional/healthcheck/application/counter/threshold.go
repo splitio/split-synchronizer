@@ -66,7 +66,7 @@ func (c *ThresholdImp) ResetThreshold(newThreshold int) error {
 	c.period = newThreshold
 	c.reset <- struct{}{}
 
-	c.logger.Debug("updating threshold for counter '%s'", c.name)
+	c.logger.Debug(fmt.Sprintf("updated threshold for counter '%s' to %d seconds", c.name, newThreshold))
 
 	return nil
 }
