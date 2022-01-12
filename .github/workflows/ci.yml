@@ -31,8 +31,8 @@ jobs:
 
       - name: Execute build
         run:
-            - mkdir -p build
-            - make release_assets
+          - mkdir -p build
+          - make release_assets
 
       - name: SonarQube Scan (Pull Request)
         uses: SonarSource/sonarcloud-github-action@v1.5
