@@ -1,8 +1,8 @@
 name: ci
 on:
-  pull_request:
-    branches:
-      - master
+  push:
+    branches-ignore:
+      - none
 
 jobs:
   build-and-test:
@@ -29,7 +29,10 @@ jobs:
       - name: Run test
         run: make test_coverage
 
-      - name: Execute build
+      - name: Create build folder 
+        run: mkdir -p build
+
+      - name: Build assets
         run: make release_assets
 
       - name: SonarQube Scan (Pull Request)
