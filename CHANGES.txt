@@ -1,3 +1,8 @@
+5.0.2 (Jan 12, 2021)
+ - Fix issue with healthcheck returning spurious errors
+ - Fix HTTP_PROXY behaviour on SSE connection
+ - Fix some typos in log messages
+
 5.0.1 (Dec 22,2021)
  - Fixed CORS issues in proxy mode
  - Fixed healthcheck in polling mode (both)
