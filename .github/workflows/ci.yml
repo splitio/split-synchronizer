@@ -1,4 +1,8 @@
 name: ci
+on:
+  push:
+    branches-ignore:
+      - none
 
 jobs:
   build-and-test:
