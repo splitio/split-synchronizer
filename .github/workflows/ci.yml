@@ -2,7 +2,7 @@ name: ci
 on:
   pull_request:
     branches:
-      - master
+      - *
 
 jobs:
   build-and-test:
@@ -28,6 +28,9 @@ jobs:
 
       - name: Run test
         run: make test_coverage
+
+      - name: Create build folder 
+        run: mkdir -p build
 
       - name: Build assets
         run: make release_assets
