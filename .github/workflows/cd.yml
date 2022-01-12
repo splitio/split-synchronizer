@@ -29,6 +29,9 @@ jobs:
       - name: Run test
         run: make test_coverage
 
+      - name: Create build folder
+        run: mkdir -p build
+
       - name: Execute build
         run: make release_assets
 
