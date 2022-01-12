@@ -1,8 +1,5 @@
 name: ci
-on:
-  pull_request:
-    branches:
-      - '**'
+on: {}
 
 jobs:
   build-and-test:
