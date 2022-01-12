@@ -2,6 +2,7 @@
 FROM golang:1.17.5-alpine3.15 AS builder
 
 RUN apk add \
+  bash \
   build-base \
   python3 \
   git

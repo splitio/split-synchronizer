@@ -2,6 +2,9 @@
 split-synchronizer
 split-sync
 split-proxy
+proxy-opts.md
+sync-opts.md
+
 coverage.out
 entrypoint.proxy.sh
 entrypoint.sync.sh

@@ -78,7 +78,10 @@ func (r *RuntimeImpl) RegisterShutdownHandler() error {
 
 	signal.Notify(r.osSignals, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	go func() {
-		<-r.osSignals
+		s := <-r.osSignals
+		if s == syscall.SIGKILL {
+			os.Exit(0)
+		}
 		r.Shutdown()
 	}()
 
@@ -116,10 +119,6 @@ func (r *RuntimeImpl) Block() {
 
 // Kill sends a SIGKILL and aborts the app immediately
 func (r *RuntimeImpl) Kill() {
-	if r.slackWriter != nil {
-		message, attachments := buildSlackShutdownMessage(r.dashboardTitle, true)
-		r.slackWriter.PostNow(message, attachments)
-	}
 	r.osSignals <- syscall.SIGKILL
 }
 

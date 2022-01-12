@@ -113,7 +113,7 @@ func (c *PeriodicImp) Start() {
 // Stop counter
 func (c *PeriodicImp) Stop() {
 	if !c.running.IsSet() {
-		c.logger.Debug(fmt.Sprintf("%s counter is alredy stopped.", c.name))
+		c.logger.Debug(fmt.Sprintf("%s counter is already stopped.", c.name))
 		return
 	}
 
