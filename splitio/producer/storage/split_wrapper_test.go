@@ -94,4 +94,4 @@ func (e *extMockSplitStorage) UpdateWithErrors(toAdd []dtos.SplitDTO, toRemove [
 	return e.UpdateWithErrorsCall(toAdd, toRemove, cn)
 }
 
-var _ supportsUpdateWithErrors = (*extMockSplitStorage)(nil)
+var _ extendedSplitStorage = (*extMockSplitStorage)(nil)

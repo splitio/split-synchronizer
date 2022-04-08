@@ -23,7 +23,7 @@ type ObservableSplitStorage interface {
 // ObservableSplitStorageImpl is an implementaion of the ObservableSplitStorage inteface that wraps an existing storage
 // caches and caches splitnames in-memory (in case the underlying one is non-local, ie: redis)
 type ObservableSplitStorageImpl struct {
-	storage.SplitStorage
+	extendedSplitStorage
 	active *activeSplitTracker
 }
 
@@ -34,35 +34,31 @@ func NewObservableSplitStorage(toWrap storage.SplitStorage, logger logging.Logge
 	active := newActiveSplitTracker(len(names))
 	active.update(names, nil)
 
-	if _, ok := toWrap.(supportsUpdateWithErrors); !ok {
+	extended, ok := toWrap.(extendedSplitStorage)
+	if !ok {
 		return nil, ErrIncompatibleSplitStorage
 	}
 
 	return &ObservableSplitStorageImpl{
-		SplitStorage: toWrap,
-		active:       active,
+		extendedSplitStorage: extended,
+		active:               active,
 	}, nil
 }
 
 // Update is an override that wraps the original Update method and calls update on the local cache as well
 func (s *ObservableSplitStorageImpl) Update(toAdd []dtos.SplitDTO, toRemove []dtos.SplitDTO, changeNumber int64) {
-	if rs, ok := s.SplitStorage.(supportsUpdateWithErrors); ok {
-		if err := rs.UpdateWithErrors(toAdd, toRemove, changeNumber); err != nil {
-			switch parsedErr := err.(type) {
-			case nil:
-				// no error
-			case *redis.UpdateError:
-				toAdd = filterFailed(toAdd, parsedErr.FailedToAdd)
-				toRemove = filterFailed(toRemove, parsedErr.FailedToRemove)
-			default:
-				// Other types of error are considered critical, meaning nothing got updated,
-				// hence our cache should not be updated as well
-				return
-			}
+	if err := s.UpdateWithErrors(toAdd, toRemove, changeNumber); err != nil {
+		switch parsedErr := err.(type) {
+		case nil:
+			// no error
+		case *redis.UpdateError:
+			toAdd = filterFailed(toAdd, parsedErr.FailedToAdd)
+			toRemove = filterFailed(toRemove, parsedErr.FailedToRemove)
+		default:
+			// Other types of error are considered critical, meaning nothing got updated,
+			// hence our cache should not be updated as well
+			return
 		}
-	} else {
-		// TODO(mredolatti): is this worth logging? are we just going to annoy people?
-		s.SplitStorage.Update(toAdd, toRemove, changeNumber)
 	}
 	s.active.update(splitNames(toAdd), splitNames(toRemove))
 }
@@ -149,7 +145,8 @@ func filterFailed(in []dtos.SplitDTO, failed map[string]error) []dtos.SplitDTO {
 	return in[:newSliceEnd]
 }
 
-type supportsUpdateWithErrors interface {
+type extendedSplitStorage interface {
+	storage.SplitStorage
 	UpdateWithErrors(toAdd []dtos.SplitDTO, toRemove []dtos.SplitDTO, changeNumber int64) error
 }
 
