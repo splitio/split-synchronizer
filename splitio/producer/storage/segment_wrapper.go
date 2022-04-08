@@ -21,7 +21,7 @@ type ObservableSegmentStorage interface {
 
 // ObservableSegmentStorageImpl is an implementation of the ObservableSegmentStorage interface
 type ObservableSegmentStorageImpl struct {
-	storage.SegmentStorage
+	extendedSegmentStorage
 	counter *activeSegmentTracker
 	logger  logging.LoggerInterface
 }
@@ -33,17 +33,13 @@ func NewObservableSegmentStorage(
 	toWrap storage.SegmentStorage,
 ) (*ObservableSegmentStorageImpl, error) {
 
-	if _, ok := toWrap.(supportsUpdateWithSummary); !ok {
+	extended, ok := toWrap.(extendedSegmentStorage)
+	if !ok {
 		return nil, ErrIncompatibleSegmentStorage
 	}
 
 	segmentNames := splitStorage.SegmentNames()
 	tracker := newActiveSegmentTracker(segmentNames.Size() + 1)
-
-	extSS, ok := toWrap.(supportsCardinality)
-	if !ok {
-		return nil, ErrIncompatibleSegmentStorage
-	}
 
 	segmentNames.Each(func(i interface{}) bool {
 		strName, ok := i.(string)
@@ -52,7 +48,7 @@ func NewObservableSegmentStorage(
 			return true
 		}
 
-		count, err := extSS.Size(strName)
+		count, err := extended.Size(strName)
 		if err != nil {
 			logger.Warning(fmt.Sprintf("failed to get size for segment %s. This may introduce inconsistencies in observability endpoints", strName))
 		}
@@ -62,26 +58,17 @@ func NewObservableSegmentStorage(
 	})
 
 	return &ObservableSegmentStorageImpl{
-		SegmentStorage: toWrap,
-		counter:        tracker,
-		logger:         logger,
+		extendedSegmentStorage: extended,
+		counter:                tracker,
+		logger:                 logger,
 	}, nil
 }
 
 // Update updates the local segment cache and forwards the call to he underlying storage
 func (s *ObservableSegmentStorageImpl) Update(name string, toAdd *set.ThreadUnsafeSet, toRemove *set.ThreadUnsafeSet, changeNumber int64) error {
-	var added, removed int
-	if rs, ok := s.SegmentStorage.(supportsUpdateWithSummary); ok {
-		var err error
-		added, removed, err = rs.UpdateWithSummary(name, toAdd, toRemove, changeNumber)
-		if err != nil {
-			// TODO(mredolatti): log!
-		}
-	} else {
-		// TODO(mredolatti): is this worth logging? are we just going to annoy people?
-		s.SegmentStorage.Update(name, toAdd, toRemove, changeNumber) // this method doesn't return errors despite it's signature, no need to capture it
-		added = toAdd.Size()
-		removed = toRemove.Size()
+	added, removed, err := s.UpdateWithSummary(name, toAdd, toRemove, changeNumber)
+	if err != nil {
+		s.logger.Error(fmt.Sprintf("something went wrong when updating segment '%s': %s", name, err.Error()))
 	}
 	s.counter.update(name, added, removed)
 	return nil
@@ -133,11 +120,9 @@ func (t *activeSegmentTracker) namesAndCount() map[string]int {
 }
 
 type (
-	supportsUpdateWithSummary interface {
+	extendedSegmentStorage interface {
+		storage.SegmentStorage
 		UpdateWithSummary(name string, toAdd *set.ThreadUnsafeSet, toRemove *set.ThreadUnsafeSet, till int64) (added int, removed int, err error)
-	}
-
-	supportsCardinality interface {
 		Size(name string) (int, error)
 	}
 )
