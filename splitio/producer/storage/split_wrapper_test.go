@@ -23,7 +23,7 @@ func TestSplitWrapper(t *testing.T) {
 		nil,
 	}
 
-	observer := NewObservableSplitStorage(st, logging.NewLogger(nil))
+	observer, _ := NewObservableSplitStorage(st, logging.NewLogger(nil))
 	if c := observer.Count(); c != 2 {
 		t.Error("count sohuld be 2. Is ", c)
 	}
