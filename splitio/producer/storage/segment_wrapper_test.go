@@ -35,7 +35,7 @@ func TestSegmentWrapper(t *testing.T) {
 		SegmentNamesCall: func() *set.ThreadUnsafeSet { return set.NewSet("segment1", "segment2") },
 	}
 
-	observer := NewObservableSegmentStorage(logging.NewLogger(nil), splitStorage, st)
+	observer, _ := NewObservableSegmentStorage(logging.NewLogger(nil), splitStorage, st)
 
 	expected := map[string]int{
 		"segment1": 10,

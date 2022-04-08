@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 
@@ -8,6 +9,9 @@ import (
 	"github.com/splitio/go-toolkit/v5/datastructures/set"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
+
+// ErrIncompatibleSegmentStorage is returned when the supplied storage that not have the required methods
+var ErrIncompatibleSegmentStorage = errors.New("supplied segment storage doesn't report errors")
 
 // ObservableSegmentStorage builds on top of the SegmentStorage interface adding some observability methods
 type ObservableSegmentStorage interface {
@@ -27,40 +31,41 @@ func NewObservableSegmentStorage(
 	logger logging.LoggerInterface,
 	splitStorage storage.SplitStorage,
 	toWrap storage.SegmentStorage,
-) *ObservableSegmentStorageImpl {
+) (*ObservableSegmentStorageImpl, error) {
 
 	if _, ok := toWrap.(supportsUpdateWithSummary); !ok {
-		logger.Warning("supplied segment storage doesn't report added/removed counts, this may introduce inconcistencies in observability endpoints")
+		return nil, ErrIncompatibleSegmentStorage
 	}
 
 	segmentNames := splitStorage.SegmentNames()
 	tracker := newActiveSegmentTracker(segmentNames.Size() + 1)
 
-	if extSS, ok := toWrap.(supportsCardinality); ok {
-		segmentNames.Each(func(i interface{}) bool {
-			strName, ok := i.(string)
-			if !ok {
-				logger.Warning(fmt.Sprintf("non-string segment name fetched: '%+v'//'%T'. This is a bug, please report it.", i, i))
-				return true
-			}
-
-			count, err := extSS.Size(strName)
-			if err != nil {
-				logger.Warning(fmt.Sprintf("failed to get size for segment %s. This may introduce inconsistencies in observability endpoints", strName))
-			}
-
-			tracker.update(strName, count, 0)
-			return true
-		})
-	} else {
-		logger.Warning("storage does not support querying segment size. This may introduce inconsistencies in observability endpoints")
+	extSS, ok := toWrap.(supportsCardinality)
+	if !ok {
+		return nil, ErrIncompatibleSegmentStorage
 	}
+
+	segmentNames.Each(func(i interface{}) bool {
+		strName, ok := i.(string)
+		if !ok {
+			logger.Warning(fmt.Sprintf("non-string segment name fetched: '%+v'//'%T'. This is a bug, please report it.", i, i))
+			return true
+		}
+
+		count, err := extSS.Size(strName)
+		if err != nil {
+			logger.Warning(fmt.Sprintf("failed to get size for segment %s. This may introduce inconsistencies in observability endpoints", strName))
+		}
+
+		tracker.update(strName, count, 0)
+		return true
+	})
 
 	return &ObservableSegmentStorageImpl{
 		SegmentStorage: toWrap,
 		counter:        tracker,
 		logger:         logger,
-	}
+	}, nil
 }
 
 // Update updates the local segment cache and forwards the call to he underlying storage

@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"errors"
 	"sync"
 
 	"github.com/splitio/go-split-commons/v4/dtos"
@@ -8,6 +9,9 @@ import (
 	"github.com/splitio/go-split-commons/v4/storage/redis"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
+
+// ErrIncompatibleSplitStorage is returned when the supplied storage that not have the required methods
+var ErrIncompatibleSplitStorage = errors.New("supplied split storage doesn't report errors")
 
 // ObservableSplitStorage is an interface extender that adds the method `Count` to the split storage
 type ObservableSplitStorage interface {
@@ -24,20 +28,20 @@ type ObservableSplitStorageImpl struct {
 }
 
 // NewObservableSplitStorage constructs a NewObservableSplitStorage
-func NewObservableSplitStorage(toWrap storage.SplitStorage, logger logging.LoggerInterface) *ObservableSplitStorageImpl {
+func NewObservableSplitStorage(toWrap storage.SplitStorage, logger logging.LoggerInterface) (*ObservableSplitStorageImpl, error) {
 
 	names := toWrap.SplitNames()
 	active := newActiveSplitTracker(len(names))
 	active.update(names, nil)
 
 	if _, ok := toWrap.(supportsUpdateWithErrors); !ok {
-		logger.Warning("supplied split storage doesn't report errors, this may introduce inconcistencies in observability endpoints")
+		return nil, ErrIncompatibleSplitStorage
 	}
 
 	return &ObservableSplitStorageImpl{
 		SplitStorage: toWrap,
 		active:       active,
-	}
+	}, nil
 }
 
 // Update is an override that wraps the original Update method and calls update on the local cache as well

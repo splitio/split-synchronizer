@@ -5,5 +5,4 @@ This file is created automatically, please do not edit
 */
 
 // CommitVersion is the version of the last commit previous to release
-
-const CommitVersion = "92bfeaf"
+const CommitVersion = "c7a63e1"
