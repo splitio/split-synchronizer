@@ -209,7 +209,7 @@ type ProxyEndpointLatenciesImpl struct {
 
 // RecordEndpointLatency records a (bucketed) latency for a specific endpoint
 func (p *ProxyEndpointLatenciesImpl) RecordEndpointLatency(endpoint int, latency time.Duration) {
-	bucket := telemetry.Bucket(latency.Milliseconds())
+	bucket := telemetry.Bucket(latency.Microseconds())
 	switch endpoint {
 	case AuthEndpoint:
 		p.auth.Incr(bucket)
