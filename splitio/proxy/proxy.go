@@ -9,6 +9,7 @@ import (
 
 	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers/middleware"
 	proxyMW "github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers/middleware"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 	proxyStorage "github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
@@ -89,7 +90,7 @@ func New(options *Options) *API {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	apikeyValidator := proxyMW.NewAPIKeyValidator(options.APIKeys)
+	apikeyValidator := proxyMW.NewAPIKeyValidator(options.APIKeys, options.Telemetry)
 	authController := controllers.NewAuthServerController()
 	sdkController := setupSdkController(options)
 	eventsController := setupEventsController(options, apikeyValidator)
@@ -98,6 +99,7 @@ func New(options *Options) *API {
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.Use(setupCorsMiddleware())
+	router.Use(middleware.SetEndpoint)
 	router.Use(proxyMW.NewProxyLatencyMiddleware(options.Telemetry).Track)
 
 	// split the main router into regular & beacon endpoints

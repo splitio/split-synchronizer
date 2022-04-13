@@ -12,7 +12,6 @@ import (
 	"github.com/splitio/go-toolkit/v5/logging"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/caching"
-	tmw "github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers/middleware"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 )
 
@@ -51,7 +50,6 @@ func (c *SdkServerController) Register(router gin.IRouter) {
 
 // SplitChanges Returns a diff containing changes in splits from a certain point in time until now.
 func (c *SdkServerController) SplitChanges(ctx *gin.Context) {
-	ctx.Set(tmw.EndpointKey, storage.SplitChangesEndpoint)
 	c.logger.Debug(fmt.Sprintf("Headers: %v", ctx.Request.Header))
 	since, err := strconv.ParseInt(ctx.DefaultQuery("since", "-1"), 10, 64)
 	if err != nil {
@@ -74,7 +72,6 @@ func (c *SdkServerController) SplitChanges(ctx *gin.Context) {
 
 // SegmentChanges Returns a diff containing changes in splits from a certain point in time until now.
 func (c *SdkServerController) SegmentChanges(ctx *gin.Context) {
-	ctx.Set(tmw.EndpointKey, storage.SegmentChangesEndpoint)
 	c.logger.Debug(fmt.Sprintf("Headers: %v", ctx.Request.Header))
 	since, err := strconv.ParseInt(ctx.DefaultQuery("since", "-1"), 10, 64)
 	if err != nil {
@@ -106,7 +103,6 @@ func (c *SdkServerController) SegmentChanges(ctx *gin.Context) {
 
 // MySegments Returns a diff containing changes in splits from a certain point in time until now.
 func (c *SdkServerController) MySegments(ctx *gin.Context) {
-	ctx.Set(tmw.EndpointKey, storage.MySegmentsEndpoint)
 	c.logger.Debug(fmt.Sprintf("Headers: %v", ctx.Request.Header))
 	key := ctx.Param("key")
 	segmentList, err := c.proxySegmentStorage.SegmentsFor(key)

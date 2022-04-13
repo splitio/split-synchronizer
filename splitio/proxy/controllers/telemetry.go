@@ -7,7 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/go-toolkit/v5/logging"
 
-	tmw "github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers/middleware"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/internal"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks"
@@ -44,7 +43,6 @@ func (c *TelemetryServerController) Register(router gin.IRouter) {
 
 // Config endpoint accepts telemtetry config objects
 func (c *TelemetryServerController) Config(ctx *gin.Context) {
-	ctx.Set(tmw.EndpointKey, storage.TelemetryConfigEndpoint)
 	metadata := metadataFromHeaders(ctx)
 	data, err := ioutil.ReadAll(ctx.Request.Body)
 	if err != nil {
@@ -69,7 +67,6 @@ func (c *TelemetryServerController) Config(ctx *gin.Context) {
 
 // Usage endpoint accepts telemtetry config objects
 func (c *TelemetryServerController) Usage(ctx *gin.Context) {
-	ctx.Set(tmw.EndpointKey, storage.TelemetryRuntimeEndpoint)
 	metadata := metadataFromHeaders(ctx)
 	data, err := ioutil.ReadAll(ctx.Request.Body)
 	if err != nil {

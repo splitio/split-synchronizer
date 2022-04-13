@@ -7,9 +7,6 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 )
 
-// EndpointKey is used to set the endpoint for latency tracker within the request handler
-const EndpointKey = "ep"
-
 // LatencyMiddleware is meant to be used for capturing endpoint latencies
 type LatencyMiddleware struct {
 	tracker storage.ProxyEndpointLatencies

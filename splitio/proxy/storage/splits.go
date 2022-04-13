@@ -11,6 +11,7 @@ import (
 	"github.com/splitio/go-toolkit/v5/datastructures/set"
 	"github.com/splitio/go-toolkit/v5/logging"
 
+	"github.com/splitio/split-synchronizer/v5/splitio/provisional/observability"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/optimized"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/persistent"
 )
@@ -159,6 +160,11 @@ func (p *ProxySplitStorageImpl) TrafficTypeExists(tt string) bool {
 	return p.snapshot.TrafficTypeExists(tt)
 }
 
+// Count returns the number of cached splits
+func (p *ProxySplitStorageImpl) Count() int {
+	return len(p.SplitNames())
+}
+
 func snapshotFromDisk(dst *mutexmap.MMSplitStorage, src *persistent.SplitChangesCollection, logger logging.LoggerInterface) {
 	cn := src.ChangeNumber()
 	all, err := src.FetchAll()
@@ -179,3 +185,4 @@ func snapshotFromDisk(dst *mutexmap.MMSplitStorage, src *persistent.SplitChanges
 
 var _ ProxySplitStorage = (*ProxySplitStorageImpl)(nil)
 var _ storage.SplitStorage = (*ProxySplitStorageImpl)(nil)
+var _ observability.ObservableSplitStorage = (*ProxySplitStorageImpl)(nil)

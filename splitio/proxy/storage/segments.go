@@ -5,9 +5,11 @@ import (
 	"fmt"
 
 	"github.com/splitio/go-split-commons/v4/dtos"
+	"github.com/splitio/go-split-commons/v4/storage"
 	"github.com/splitio/go-toolkit/v5/datastructures/set"
 	"github.com/splitio/go-toolkit/v5/logging"
 
+	"github.com/splitio/split-synchronizer/v5/splitio/provisional/observability"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/optimized"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/persistent"
 )
@@ -25,22 +27,25 @@ type ProxySegmentStorage interface {
 
 // ProxySegmentStorageImpl implements the ProxySegmentStorage interface
 type ProxySegmentStorageImpl struct {
-	logger     logging.LoggerInterface
-	db         *persistent.SegmentChangesCollection
-	mysegments optimized.MySegmentsCache
+	logger         logging.LoggerInterface
+	nameCountCache *observability.ActiveSegmentTracker
+	db             *persistent.SegmentChangesCollection
+	mysegments     optimized.MySegmentsCache
 }
 
 // NewProxySegmentStorage for proxy
 func NewProxySegmentStorage(db persistent.DBWrapper, logger logging.LoggerInterface, restoreFromBackup bool) *ProxySegmentStorageImpl {
 	cache := optimized.NewMySegmentsCache()
 	disk := persistent.NewSegmentChangesCollection(db, logger)
+	nameCountCache := observability.NewActiveSegmentTracker(100) // just a guess, we don't know the size yet
 	if restoreFromBackup {
-		populateCacheFromDisk(cache, disk, logger)
+		populateCachesFromDisk(cache, nameCountCache, disk, logger)
 	}
 	return &ProxySegmentStorageImpl{
-		db:         disk,
-		mysegments: cache,
-		logger:     logger,
+		db:             disk,
+		mysegments:     cache,
+		logger:         logger,
+		nameCountCache: nameCountCache,
 	}
 }
 
@@ -135,6 +140,7 @@ func (s *ProxySegmentStorageImpl) Update(name string, toAdd *set.ThreadUnsafeSet
 	errCache := s.mysegments.Update(name, toAdd, toRemove)
 	errDB := s.db.Update(name, toAdd, toRemove, changeNumber)
 	if errCache == nil && errDB == nil {
+		s.nameCountCache.Update(name, toAdd.Size(), toRemove.Size())
 		return nil
 	}
 
@@ -163,7 +169,17 @@ func (s *ProxySegmentStorageImpl) CountRemovedKeys(segmentName string) int {
 	return removedKeys
 }
 
-func populateCacheFromDisk(dst optimized.MySegmentsCache, src *persistent.SegmentChangesCollection, logger logging.LoggerInterface) {
+// NamesAndCount returns a map of segment names to key count
+func (s *ProxySegmentStorageImpl) NamesAndCount() map[string]int {
+	return s.nameCountCache.NamesAndCount()
+}
+
+func populateCachesFromDisk(
+	dst optimized.MySegmentsCache,
+	names *observability.ActiveSegmentTracker,
+	src *persistent.SegmentChangesCollection,
+	logger logging.LoggerInterface,
+) {
 	all, err := src.FetchAll()
 	if err != nil {
 		logger.Error("error popoulating segment cache from disk. Cache will be empty!: ", err)
@@ -172,11 +188,17 @@ func populateCacheFromDisk(dst optimized.MySegmentsCache, src *persistent.Segmen
 
 	for idx := range all {
 		s := set.NewSet()
+		count := 0
 		for _, k := range all[idx].Keys {
 			if !k.Removed {
 				s.Add(k.Name)
+				count++
 			}
 		}
 		dst.Update(all[idx].Name, s, set.NewSet())
+		names.Update(all[idx].Name, count, 0)
 	}
 }
+
+var _ storage.SegmentStorage = (*ProxySegmentStorageImpl)(nil)
+var _ observability.ObservableSegmentStorage = (*ProxySegmentStorageImpl)(nil)
