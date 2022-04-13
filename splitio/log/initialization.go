@@ -29,7 +29,7 @@ func BuildFromConfig(cfg *conf.Logging, prefix string, slackCfg *conf.Slack) *Hi
 
 	if !meansStdout(cfg.Output) {
 		mainWriter, err = logging.NewFileRotate(&logging.FileRotateOptions{
-			MaxBytes:    cfg.RotationMaxSize,
+			MaxBytes:    cfg.RotationMaxSizeKb * 1024,
 			BackupCount: int(cfg.RotationMaxFiles),
 			Path:        cfg.Output,
 		})

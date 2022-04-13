@@ -17,6 +17,7 @@ type Main struct {
 	Integrations     conf.Integrations `json:"integrations" s-nested:"true"`
 	Logging          conf.Logging      `json:"logging" s-nested:"true"`
 	Healthcheck      Healthcheck       `json:"healthcheck" s-nested:"true"`
+	Observability    Observability     `json:"observability" s-nested:"true"`
 }
 
 // BuildAdvancedConfig generates a commons-compatible advancedconfig with default + overriden parameters
@@ -89,4 +90,10 @@ type Healthcheck struct {
 // HealthcheckDependecines configuration options
 type HealthcheckDependecines struct {
 	DependenciesCheckRateMs int64 `json:"dependenciesCheckRateMs" s-cli:"dependencies-check-rate-ms" s-def:"3600000" s-desc:"How often to check dependecies health"`
+}
+
+// Observability configuration options
+type Observability struct {
+	TimeSliceWidthSecs int64 `json:"timeSliceWidhSecs" s-cli:"observability-time-slice-width-secs" s-def:"300" s-desc:"time slice size in windows"`
+	MaxTimeSliceCount  int64 `json:"maxTimeSliceCount" s-cli:"observability-time-slice-max-count" s-def:"100" s-desc:"max time slices to keep in memore before rotating"`
 }

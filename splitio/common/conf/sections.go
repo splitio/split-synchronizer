@@ -2,10 +2,10 @@ package conf
 
 // Logging configuration options
 type Logging struct {
-	Level            string `json:"level" s-cli:"log-level" s-def:"info" s-desc:"Log level (error|warning|info|debug|verbose)"`
-	Output           string `json:"output" s-cli:"log-output" s-def:"stdout" s-desc:"Where to output logs (defaults to stdout)"`
-	RotationMaxFiles int64  `json:"rotationMaxFiles" s-cli:"log-rotation-max-files" s-def:"10" s-desc:"Max number of files to keep when rotating logs"`
-	RotationMaxSize  int64  `json:"rotationMaxSizeKb" s-cli:"log-rotation-max-size-kb" s-def:"Maximum log file size in kbs"`
+	Level             string `json:"level" s-cli:"log-level" s-def:"info" s-desc:"Log level (error|warning|info|debug|verbose)"`
+	Output            string `json:"output" s-cli:"log-output" s-def:"stdout" s-desc:"Where to output logs (defaults to stdout)"`
+	RotationMaxFiles  int64  `json:"rotationMaxFiles" s-cli:"log-rotation-max-files" s-def:"10" s-desc:"Max number of files to keep when rotating logs"`
+	RotationMaxSizeKb int64  `json:"rotationMaxSizeKb" s-cli:"log-rotation-max-size-kb" s-def:"1024" s-desc:"Maximum log file size in kbs"`
 }
 
 // Admin configuration options

@@ -11,7 +11,6 @@ import (
 	"github.com/splitio/go-split-commons/v4/dtos"
 	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/internal"
-	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks/mocks"
 )
 
@@ -21,11 +20,9 @@ func TestPostConfig(t *testing.T) {
 	ctx, router := gin.CreateTestContext(resp)
 
 	logger := logging.NewLogger(nil)
-	proxyTelemetry := storage.NewProxyTelemetryFacade()
 
 	controller := NewTelemetryServerController(
 		logger,
-		proxyTelemetry,
 		&mocks.MockDeferredRecordingTask{
 			StageCall: func(raw interface{}) error {
 				data, ok := raw.(*internal.RawTelemetryConfig)
@@ -82,11 +79,9 @@ func TestPostRuntime(t *testing.T) {
 	ctx, router := gin.CreateTestContext(resp)
 
 	logger := logging.NewLogger(nil)
-	proxyTelemetry := storage.NewProxyTelemetryFacade()
 
 	controller := NewTelemetryServerController(
 		logger,
-		proxyTelemetry,
 		&mocks.MockDeferredRecordingTask{},
 		&mocks.MockDeferredRecordingTask{
 			StageCall: func(raw interface{}) error {
