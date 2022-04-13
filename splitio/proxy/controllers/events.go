@@ -10,7 +10,6 @@ import (
 	"github.com/splitio/go-toolkit/v5/logging"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
-	tmw "github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers/middleware"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/internal"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks"
@@ -69,7 +68,6 @@ func (c *EventsServerController) Register(regular gin.IRouter, beacon gin.IRoute
 
 // TestImpressionsBulk endpoint accepts impression bulks
 func (c *EventsServerController) TestImpressionsBulk(ctx *gin.Context) {
-	ctx.Set(tmw.EndpointKey, storage.ImpressionsBulkEndpoint)
 	metadata := metadataFromHeaders(ctx)
 	impressionsMode := parseImpressionsMode(ctx.Request.Header.Get("SplitSDKImpressionsMode"))
 	data, err := ioutil.ReadAll(ctx.Request.Body)
@@ -100,7 +98,6 @@ func (c *EventsServerController) TestImpressionsBulk(ctx *gin.Context) {
 
 // TestImpressionsBeacon accepts beacon style posts with impressions payload
 func (c *EventsServerController) TestImpressionsBeacon(ctx *gin.Context) {
-	ctx.Set(tmw.EndpointKey, storage.ImpressionsBulkBeaconEndpoint)
 	if ctx.Request.Body == nil {
 		c.logger.Error("Nil body when testImpressions/beacon request.")
 
@@ -147,7 +144,6 @@ func (c *EventsServerController) TestImpressionsBeacon(ctx *gin.Context) {
 
 // TestImpressionsCount accepts impression count payloads
 func (c *EventsServerController) TestImpressionsCount(ctx *gin.Context) {
-	ctx.Set(tmw.EndpointKey, storage.ImpressionsCountEndpoint)
 
 	metadata := metadataFromHeaders(ctx)
 	data, err := ioutil.ReadAll(ctx.Request.Body)
@@ -174,7 +170,6 @@ func (c *EventsServerController) TestImpressionsCount(ctx *gin.Context) {
 
 // TestImpressionsCountBeacon accepts beacon style posts with impression count payload
 func (c *EventsServerController) TestImpressionsCountBeacon(ctx *gin.Context) {
-	ctx.Set(tmw.EndpointKey, storage.ImpressionsCountBeaconEndpoint)
 	if ctx.Request.Body == nil {
 		ctx.JSON(http.StatusBadRequest, nil)
 		c.telemetry.IncrEndpointStatus(storage.ImpressionsCountBeaconEndpoint, http.StatusBadRequest)
@@ -221,7 +216,6 @@ func (c *EventsServerController) TestImpressionsCountBeacon(ctx *gin.Context) {
 
 // EventsBulk accepts incoming event bulks
 func (c *EventsServerController) EventsBulk(ctx *gin.Context) {
-	ctx.Set(tmw.EndpointKey, storage.EventsBulkEndpoint)
 	metadata := metadataFromHeaders(ctx)
 	data, err := ioutil.ReadAll(ctx.Request.Body)
 	if err != nil {
@@ -246,7 +240,6 @@ func (c *EventsServerController) EventsBulk(ctx *gin.Context) {
 
 // EventsBulkBeacon accepts incoming event bulks in a beacon-style request
 func (c *EventsServerController) EventsBulkBeacon(ctx *gin.Context) {
-	ctx.Set(tmw.EndpointKey, storage.EventsBulkBeaconEndpoint)
 	if ctx.Request.Body == nil {
 		ctx.JSON(http.StatusBadRequest, nil)
 		c.telemetry.IncrEndpointStatus(storage.EventsBulkBeaconEndpoint, http.StatusBadGateway)
