@@ -83,10 +83,11 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	tbufferSize := int(cfg.Sync.Advanced.TelemetryBuffer)
 	tworkers := int(cfg.Sync.Advanced.TelemetryWorkers)
 
-	// TODO(mredolatti) get these from config!
-	width := int64(60) // seconds
-	slices := 100      // max before rotation
-	localTelemetryStorage := storage.NewTimeslicedProxyEndpointTelemetry(storage.NewProxyTelemetryFacade(), width, slices)
+	localTelemetryStorage := storage.NewTimeslicedProxyEndpointTelemetry(
+		storage.NewProxyTelemetryFacade(),
+		cfg.Observability.TimeSliceWidthSecs,
+		int(cfg.Observability.MaxTimeSliceCount),
+	)
 
 	// Healcheck Monitor
 	splitsConfig, segmentsConfig := getAppCounterConfigs()

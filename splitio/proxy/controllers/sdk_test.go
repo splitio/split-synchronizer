@@ -23,7 +23,6 @@ func TestSplitChangesCachedRecipe(t *testing.T) {
 	ctx, router := gin.CreateTestContext(resp)
 
 	logger := logging.NewLogger(nil)
-	proxyTelemetry := storage.NewProxyTelemetryFacade()
 
 	group := router.Group("/api")
 	controller := NewSdkServerController(
@@ -54,7 +53,6 @@ func TestSplitChangesCachedRecipe(t *testing.T) {
 			},
 		},
 		nil,
-		proxyTelemetry,
 	)
 	controller.Register(group)
 
@@ -83,7 +81,6 @@ func TestSplitChangesNonCachedRecipe(t *testing.T) {
 	ctx, router := gin.CreateTestContext(resp)
 
 	logger := logging.NewLogger(nil)
-	proxyTelemetry := storage.NewProxyTelemetryFacade()
 
 	group := router.Group("/api")
 	controller := NewSdkServerController(
@@ -118,7 +115,6 @@ func TestSplitChangesNonCachedRecipe(t *testing.T) {
 			},
 		},
 		nil,
-		proxyTelemetry,
 	)
 	controller.Register(group)
 
@@ -147,7 +143,6 @@ func TestSplitChangesNonCachedRecipeAndFetchFails(t *testing.T) {
 	ctx, router := gin.CreateTestContext(resp)
 
 	logger := logging.NewLogger(nil)
-	proxyTelemetry := storage.NewProxyTelemetryFacade()
 
 	group := router.Group("/api")
 	controller := NewSdkServerController(
@@ -174,7 +169,6 @@ func TestSplitChangesNonCachedRecipeAndFetchFails(t *testing.T) {
 			},
 		},
 		nil,
-		proxyTelemetry,
 	)
 	controller.Register(group)
 
@@ -196,7 +190,6 @@ func TestSegmentChanges(t *testing.T) {
 	ctx, router := gin.CreateTestContext(resp)
 
 	logger := logging.NewLogger(nil)
-	proxyTelemetry := storage.NewProxyTelemetryFacade()
 
 	group := router.Group("/api")
 	controller := NewSdkServerController(
@@ -217,7 +210,6 @@ func TestSegmentChanges(t *testing.T) {
 				}, nil
 			},
 		},
-		proxyTelemetry,
 	)
 	controller.Register(group)
 
@@ -246,7 +238,6 @@ func TestSegmentChangesNotFound(t *testing.T) {
 	ctx, router := gin.CreateTestContext(resp)
 
 	logger := logging.NewLogger(nil)
-	proxyTelemetry := storage.NewProxyTelemetryFacade()
 
 	group := router.Group("/api")
 	controller := NewSdkServerController(
@@ -261,7 +252,6 @@ func TestSegmentChangesNotFound(t *testing.T) {
 				return nil, storage.ErrSegmentNotFound
 			},
 		},
-		proxyTelemetry,
 	)
 	controller.Register(group)
 
@@ -283,7 +273,6 @@ func TestMySegments(t *testing.T) {
 	ctx, router := gin.CreateTestContext(resp)
 
 	logger := logging.NewLogger(nil)
-	proxyTelemetry := storage.NewProxyTelemetryFacade()
 
 	group := router.Group("/api")
 	controller := NewSdkServerController(
@@ -299,7 +288,6 @@ func TestMySegments(t *testing.T) {
 				return []string{"segment1", "segment2"}, nil
 			},
 		},
-		proxyTelemetry,
 	)
 	controller.Register(group)
 
@@ -333,7 +321,6 @@ func TestMySegmentsError(t *testing.T) {
 	ctx, router := gin.CreateTestContext(resp)
 
 	logger := logging.NewLogger(nil)
-	proxyTelemetry := storage.NewProxyTelemetryFacade()
 
 	group := router.Group("/api")
 	controller := NewSdkServerController(
@@ -349,7 +336,6 @@ func TestMySegmentsError(t *testing.T) {
 				return nil, errors.New("something")
 			},
 		},
-		proxyTelemetry,
 	)
 	controller.Register(group)
 

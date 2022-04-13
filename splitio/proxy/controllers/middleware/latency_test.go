@@ -15,7 +15,7 @@ func TestLatencyMiddleWare(t *testing.T) {
 	ctx, router := gin.CreateTestContext(resp)
 
 	tStorage := storage.NewProxyTelemetryFacade()
-	tMw := NewProxyLatencyMiddleware(tStorage)
+	tMw := NewProxyMetricsMiddleware(tStorage)
 
 	router.GET("/api/test", tMw.Track, func(ctx *gin.Context) { ctx.Set(EndpointKey, storage.ImpressionsBulkEndpoint) })
 
