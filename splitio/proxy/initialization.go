@@ -75,14 +75,18 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	// Setup fetchers & recorders
 	splitAPI := api.NewSplitAPI(cfg.Apikey, *advanced, logger, metadata)
 
-	// Instantiating storages
+	// Proxy storages already implement the observable interface, so no need to wrap them
 	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, cfg.Initialization.Snapshot != "")
 	segmentStorage := storage.NewProxySegmentStorage(dbInstance, logger, cfg.Initialization.Snapshot != "")
 
 	// Local telemetry
 	tbufferSize := int(cfg.Sync.Advanced.TelemetryBuffer)
 	tworkers := int(cfg.Sync.Advanced.TelemetryWorkers)
-	localTelemetryStorage := storage.NewProxyTelemetryFacade()
+
+	// TODO(mredolatti) get these from config!
+	width := int64(60) // seconds
+	slices := 100      // max before rotation
+	localTelemetryStorage := storage.NewTimeslicedProxyEndpointTelemetry(storage.NewProxyTelemetryFacade(), width, slices)
 
 	// Healcheck Monitor
 	splitsConfig, segmentsConfig := getAppCounterConfigs()

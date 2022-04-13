@@ -36,6 +36,7 @@ import (
 	hcAppCounter "github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/application/counter"
 	hcServices "github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/services"
 	hcServicesCounter "github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/services/counter"
+	"github.com/splitio/split-synchronizer/v5/splitio/provisional/observability"
 	"github.com/splitio/split-synchronizer/v5/splitio/util"
 )
 
@@ -85,9 +86,18 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	sdkTelemetryStorage := storage.NewRedisTelemetryCosumerclient(redisClient, logger)
 
 	// These storages are forwarded to the dashboard, the sdk-telemetry is irrelevant there
+	splitStorage, err := observability.NewObservableSplitStorage(redis.NewSplitStorage(redisClient, logger), logger)
+	if err != nil {
+		return fmt.Errorf("error instantiating observable split storage: %w", err)
+	}
+
+	segmentStorage, err := observability.NewObservableSegmentStorage(logger, splitStorage, redis.NewSegmentStorage(redisClient, logger))
+	if err != nil {
+		return fmt.Errorf("error instantiating observable segment storage: %w", err)
+	}
 	storages := adminCommon.Storages{
-		SplitStorage:          redis.NewSplitStorage(redisClient, logger),
-		SegmentStorage:        redis.NewSegmentStorage(redisClient, logger),
+		SplitStorage:          splitStorage,
+		SegmentStorage:        segmentStorage,
 		LocalTelemetryStorage: syncTelemetryStorage,
 		ImpressionStorage:     redis.NewImpressionStorage(redisClient, dtos.Metadata{}, logger),
 		EventStorage:          redis.NewEventsStorage(redisClient, dtos.Metadata{}, logger),

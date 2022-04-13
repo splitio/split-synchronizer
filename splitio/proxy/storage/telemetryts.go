@@ -24,7 +24,7 @@ type TimeslicedProxyEndpointTelemetry interface {
 
 // TimeslicedProxyEndpointTelemetryImpl is an implementation of `TimeslicedProxyEnxpointTelemetry`
 type TimeslicedProxyEndpointTelemetryImpl struct {
-	accum                ProxyEndpointTelemetry
+	ProxyTelemetryFacade
 	telemetryByTimeSlice telemetryByTimeSlice
 	timeSliceWidth       int64
 	maxTimeSlices        int
@@ -33,9 +33,9 @@ type TimeslicedProxyEndpointTelemetryImpl struct {
 }
 
 // NewTimeslicedProxyEndpointTelemetry constructs a new timesliced proxy-endpoint telemetry
-func NewTimeslicedProxyEndpointTelemetry(wrapped ProxyEndpointTelemetry, width int64, maxTimeSlices int) *TimeslicedProxyEndpointTelemetryImpl {
+func NewTimeslicedProxyEndpointTelemetry(wrapped ProxyTelemetryFacade, width int64, maxTimeSlices int) *TimeslicedProxyEndpointTelemetryImpl {
 	return &TimeslicedProxyEndpointTelemetryImpl{
-		accum:                wrapped,
+		ProxyTelemetryFacade: wrapped,
 		telemetryByTimeSlice: make(telemetryByTimeSlice),
 		timeSliceWidth:       width,
 		maxTimeSlices:        maxTimeSlices,
@@ -59,26 +59,16 @@ func (t *TimeslicedProxyEndpointTelemetryImpl) TimeslicedReport() TimeSliceData 
 	return formatTimeSeriesData(data)
 }
 
-// PeekEndpointLatency returns the endpoint latencies for a specific resource (global only)
-func (t *TimeslicedProxyEndpointTelemetryImpl) PeekEndpointLatency(resource int) []int64 {
-	return t.accum.PeekEndpointLatency(resource)
-}
-
-// PeekEndpointStatus returns the global endpoint status codes for a specific resource (global only)
-func (t *TimeslicedProxyEndpointTelemetryImpl) PeekEndpointStatus(resource int) map[int]int64 {
-	return t.accum.PeekEndpointStatus(resource)
-}
-
 // RecordEndpointLatency increments the latency bucket for a specific endpoint (global + historic records are updated)
 func (t *TimeslicedProxyEndpointTelemetryImpl) RecordEndpointLatency(endpoint int, latency time.Duration) {
-	t.accum.RecordEndpointLatency(endpoint, latency)
+	t.ProxyTelemetryFacade.RecordEndpointLatency(endpoint, latency)
 	timesliced := t.geHistoricForTS(t.clock.Now())
 	timesliced.latencies.RecordEndpointLatency(endpoint, latency)
 }
 
 // IncrEndpointStatus increments the status code count for a specific endpont/status code (global + historic records are updated)
 func (t *TimeslicedProxyEndpointTelemetryImpl) IncrEndpointStatus(endpoint int, status int) {
-	t.accum.IncrEndpointStatus(endpoint, status)
+	t.ProxyTelemetryFacade.IncrEndpointStatus(endpoint, status)
 	timesliced := t.geHistoricForTS(t.clock.Now())
 	timesliced.statusCodes.IncrEndpointStatus(endpoint, status)
 }

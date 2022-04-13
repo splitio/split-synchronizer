@@ -74,11 +74,16 @@ func NewServer(options *Options) (*http.Server, error) {
 		options.HcAppMonitor,
 		options.HcServicesMonitor,
 	)
-
 	healthcheckController.Register(router)
 
 	infoController := controllers.NewInfoController(options.Proxy, options.Runtime, options.FullConfig)
 	infoController.Register(info)
+
+	observabilityController, err := controllers.NewObservabilityController(options.Proxy, options.Logger, options.Storages)
+	if err != nil {
+		return nil, fmt.Errorf("error instantiating observability controller: %w", err)
+	}
+	observabilityController.Register(admin)
 
 	if options.Snapshotter != nil {
 		snapshotController := controllers.NewSnapshotController(options.Logger, options.Snapshotter)
