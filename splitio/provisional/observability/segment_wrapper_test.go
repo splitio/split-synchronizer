@@ -1,4 +1,4 @@
-package storage
+package observability
 
 import (
 	"reflect"
@@ -83,36 +83,36 @@ func TestActiveSegmentTracker(t *testing.T) {
 		"segment3": 30,
 	}
 
-	trk := newActiveSegmentTracker(10)
-	trk.update("segment1", 50, 0)
-	trk.update("segment2", 40, 0)
-	trk.update("segment3", 30, 0)
-	if trk.count() != 3 {
+	trk := NewActiveSegmentTracker(10)
+	trk.Update("segment1", 50, 0)
+	trk.Update("segment2", 40, 0)
+	trk.Update("segment3", 30, 0)
+	if len(trk.activeSegmentMap) != 3 {
 		t.Error("there should be 3 segments cached")
 	}
 
-	if !reflect.DeepEqual(expected, trk.namesAndCount()) {
+	if !reflect.DeepEqual(expected, trk.NamesAndCount()) {
 		t.Error("current status doens't match expected")
 	}
 
-	trk.update("segment4", 0, 300)
-	if !reflect.DeepEqual(expected, trk.namesAndCount()) {
+	trk.Update("segment4", 0, 300)
+	if !reflect.DeepEqual(expected, trk.NamesAndCount()) {
 		t.Error("current status doens't match expected")
 	}
 
-	trk.update("segment1", 0, 49)
+	trk.Update("segment1", 0, 49)
 	expected["segment1"] = 1
-	if !reflect.DeepEqual(expected, trk.namesAndCount()) {
+	if !reflect.DeepEqual(expected, trk.NamesAndCount()) {
 		t.Error("current status doens't match expected")
 	}
 
-	trk.update("segment1", 0, 1)
+	trk.Update("segment1", 0, 1)
 	delete(expected, "segment1")
-	if !reflect.DeepEqual(expected, trk.namesAndCount()) {
+	if !reflect.DeepEqual(expected, trk.NamesAndCount()) {
 		t.Error("current status doens't match expected")
 	}
 
-	if trk.count() != 2 {
+	if len(trk.activeSegmentMap) != 2 {
 		t.Error("there should be 2 elements now")
 	}
 

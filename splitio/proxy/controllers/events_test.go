@@ -18,6 +18,15 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks/mocks"
 )
 
+// TODO(mredolatti): put this mock in the proper place
+type mockEndpointTracker struct {
+	incrEndpointStatusCall func(edpoint int, status int)
+}
+
+func (m *mockEndpointTracker) IncrEndpointStatus(endpoint int, status int) {
+	m.incrEndpointStatusCall(endpoint, status)
+}
+
 func TestPostImpressionsbulk(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	resp := httptest.NewRecorder()
@@ -25,7 +34,7 @@ func TestPostImpressionsbulk(t *testing.T) {
 
 	logger := logging.NewLogger(nil)
 	proxyTelemetry := storage.NewProxyTelemetryFacade()
-	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"})
+	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"}, &mockEndpointTracker{incrEndpointStatusCall: func(int, int) {}})
 
 	group := router.Group("/api")
 	controller := NewEventsServerController(
@@ -129,7 +138,7 @@ func TestPostEventsBulk(t *testing.T) {
 
 	logger := logging.NewLogger(nil)
 	proxyTelemetry := storage.NewProxyTelemetryFacade()
-	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"})
+	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"}, &mockEndpointTracker{incrEndpointStatusCall: func(int, int) {}})
 
 	group := router.Group("/api")
 	controller := NewEventsServerController(
@@ -190,7 +199,7 @@ func TestPostImpressionsCounts(t *testing.T) {
 
 	logger := logging.NewLogger(nil)
 	proxyTelemetry := storage.NewProxyTelemetryFacade()
-	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"})
+	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"}, &mockEndpointTracker{incrEndpointStatusCall: func(int, int) {}})
 
 	group := router.Group("/api")
 	controller := NewEventsServerController(
@@ -253,7 +262,7 @@ func TestPostLegacyMetrics(t *testing.T) {
 
 	logger := logging.NewLogger(nil)
 	proxyTelemetry := storage.NewProxyTelemetryFacade()
-	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"})
+	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"}, &mockEndpointTracker{incrEndpointStatusCall: func(int, int) {}})
 
 	group := router.Group("/api")
 	controller := NewEventsServerController(
@@ -325,7 +334,7 @@ func TestPostBeaconImpressionsbulk(t *testing.T) {
 
 	logger := logging.NewLogger(nil)
 	proxyTelemetry := storage.NewProxyTelemetryFacade()
-	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"})
+	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"}, &mockEndpointTracker{incrEndpointStatusCall: func(int, int) {}})
 
 	group := router.Group("/api")
 	controller := NewEventsServerController(
@@ -426,7 +435,7 @@ func TestPostBeaconEventsBulk(t *testing.T) {
 
 	logger := logging.NewLogger(nil)
 	proxyTelemetry := storage.NewProxyTelemetryFacade()
-	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"})
+	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"}, &mockEndpointTracker{incrEndpointStatusCall: func(int, int) {}})
 
 	group := router.Group("/api")
 	controller := NewEventsServerController(
@@ -488,7 +497,7 @@ func TestPostBeaconImpressionsCounts(t *testing.T) {
 
 	logger := logging.NewLogger(nil)
 	proxyTelemetry := storage.NewProxyTelemetryFacade()
-	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"})
+	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"}, &mockEndpointTracker{incrEndpointStatusCall: func(int, int) {}})
 
 	group := router.Group("/api")
 	controller := NewEventsServerController(

@@ -1,4 +1,4 @@
-package storage
+package observability
 
 import (
 	"errors"
@@ -22,7 +22,7 @@ type ObservableSegmentStorage interface {
 // ObservableSegmentStorageImpl is an implementation of the ObservableSegmentStorage interface
 type ObservableSegmentStorageImpl struct {
 	extendedSegmentStorage
-	counter *activeSegmentTracker
+	counter *ActiveSegmentTracker
 	logger  logging.LoggerInterface
 }
 
@@ -39,7 +39,7 @@ func NewObservableSegmentStorage(
 	}
 
 	segmentNames := splitStorage.SegmentNames()
-	tracker := newActiveSegmentTracker(segmentNames.Size() + 1)
+	tracker := NewActiveSegmentTracker(segmentNames.Size() + 1)
 
 	segmentNames.Each(func(i interface{}) bool {
 		strName, ok := i.(string)
@@ -53,7 +53,7 @@ func NewObservableSegmentStorage(
 			logger.Warning(fmt.Sprintf("failed to get size for segment %s. This may introduce inconsistencies in observability endpoints", strName))
 		}
 
-		tracker.update(strName, count, 0)
+		tracker.Update(strName, count, 0)
 		return true
 	})
 
@@ -70,27 +70,30 @@ func (s *ObservableSegmentStorageImpl) Update(name string, toAdd *set.ThreadUnsa
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("something went wrong when updating segment '%s': %s", name, err.Error()))
 	}
-	s.counter.update(name, added, removed)
+	s.counter.Update(name, added, removed)
 	return nil
 }
 
 // NamesAndCount returns a map of segment names with the number of keys
 func (s *ObservableSegmentStorageImpl) NamesAndCount() map[string]int {
-	return s.counter.namesAndCount()
+	return s.counter.NamesAndCount()
 }
 
-type activeSegmentTracker struct {
+// ActiveSegmentTracker accepts updates and keeps track of segment names & cardinality
+type ActiveSegmentTracker struct {
 	activeSegmentMap map[string]int
 	mtx              sync.RWMutex
 }
 
-func newActiveSegmentTracker(initialSize int) *activeSegmentTracker {
-	return &activeSegmentTracker{
+// NewActiveSegmentTracker constructs a new segment tracker
+func NewActiveSegmentTracker(initialSize int) *ActiveSegmentTracker {
+	return &ActiveSegmentTracker{
 		activeSegmentMap: make(map[string]int, initialSize+1), // to avoid ever constructing a map of size 0
 	}
 }
 
-func (t *activeSegmentTracker) update(name string, added int, removed int) {
+// Update the segment name/key-count cache
+func (t *ActiveSegmentTracker) Update(name string, added int, removed int) {
 	t.mtx.Lock()
 	defer t.mtx.Unlock()
 	current, _ := t.activeSegmentMap[name]
@@ -102,13 +105,8 @@ func (t *activeSegmentTracker) update(name string, added int, removed int) {
 	t.activeSegmentMap[name] = current
 }
 
-func (t *activeSegmentTracker) count() int {
-	t.mtx.RLock()
-	defer t.mtx.RUnlock()
-	return len(t.activeSegmentMap)
-}
-
-func (t *activeSegmentTracker) namesAndCount() map[string]int {
+// NamesAndCount returns a map of segment names to key count
+func (t *ActiveSegmentTracker) NamesAndCount() map[string]int {
 	t.mtx.RLock()
 	defer t.mtx.RUnlock()
 

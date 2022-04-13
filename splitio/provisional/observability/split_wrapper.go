@@ -1,4 +1,4 @@
-package storage
+package observability
 
 import (
 	"errors"
@@ -17,7 +17,6 @@ var ErrIncompatibleSplitStorage = errors.New("supplied split storage doesn't rep
 type ObservableSplitStorage interface {
 	storage.SplitStorage
 	Count() int
-	Names() []string
 }
 
 // ObservableSplitStorageImpl is an implementaion of the ObservableSplitStorage inteface that wraps an existing storage
@@ -68,8 +67,8 @@ func (s *ObservableSplitStorageImpl) Count() int {
 	return s.active.count()
 }
 
-// Names returns a list of cached splits
-func (s *ObservableSplitStorageImpl) Names() []string {
+// SplitNames returns a list of cached splits
+func (s *ObservableSplitStorageImpl) SplitNames() []string {
 	return s.active.names()
 }
 
