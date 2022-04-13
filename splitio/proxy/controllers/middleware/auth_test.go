@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// TODO(mredolatti): Put this mock in the right place
 type mockEndpointTracker struct {
 	incrEndpointStatusCall func(edpoint int, status int)
 }
