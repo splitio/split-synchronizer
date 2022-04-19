@@ -333,11 +333,8 @@ type ProxyEndpointTelemetry interface {
 // ProxyTelemetryFacade defines the set of methods required to accept local telemetry as well as runtime telemetry
 type ProxyTelemetryFacade interface {
 	storage.TelemetryStorage
+	storage.TelemetryPeeker
 	ProxyEndpointTelemetry
-}
-
-type EndpointStatusCodeProducer interface {
-	IncrEndpointStatus(endpoint int, status int)
 }
 
 // ProxyTelemetryFacadeImpl exposes local telemetry functionality
@@ -360,3 +357,4 @@ func NewProxyTelemetryFacade() *ProxyTelemetryFacadeImpl {
 // Ensure interface compliance
 var _ ProxyTelemetryFacade = (*ProxyTelemetryFacadeImpl)(nil)
 var _ storage.TelemetryStorage = (*ProxyTelemetryFacadeImpl)(nil)
+var _ storage.TelemetryPeeker = (*ProxyTelemetryFacadeImpl)(nil)

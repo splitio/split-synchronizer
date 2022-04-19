@@ -1,3 +1,6 @@
+5.0.4 (Apr 20, 2022)
+ - Fix dashboard in proxy mode
+
 5.0.3 (Apr 18, 2022)
  - Fix logging config
 
