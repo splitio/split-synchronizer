@@ -11,14 +11,12 @@ import (
 
 	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/internal"
-	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks"
 )
 
 // EventsServerController bundles all request handler for sdk-server apis
 type EventsServerController struct {
 	logger              logging.LoggerInterface
-	telemetry           storage.ProxyEndpointTelemetry
 	impressionsSink     tasks.DeferredRecordingTask
 	impressionCountSink tasks.DeferredRecordingTask
 	eventsSink          tasks.DeferredRecordingTask
@@ -29,7 +27,6 @@ type EventsServerController struct {
 // NewEventsServerController returns a new events server controller
 func NewEventsServerController(
 	logger logging.LoggerInterface,
-	telemetry storage.ProxyEndpointTelemetry,
 	impressionsSink tasks.DeferredRecordingTask,
 	impressionCountSink tasks.DeferredRecordingTask,
 	eventsSink tasks.DeferredRecordingTask,
@@ -38,7 +35,6 @@ func NewEventsServerController(
 ) *EventsServerController {
 	return &EventsServerController{
 		logger:              logger,
-		telemetry:           telemetry,
 		impressionsSink:     impressionsSink,
 		impressionCountSink: impressionCountSink,
 		eventsSink:          eventsSink,
@@ -73,7 +69,6 @@ func (c *EventsServerController) TestImpressionsBulk(ctx *gin.Context) {
 	data, err := ioutil.ReadAll(ctx.Request.Body)
 	if err != nil {
 		c.logger.Error(err)
-		c.telemetry.IncrEndpointStatus(storage.ImpressionsBulkEndpoint, http.StatusInternalServerError)
 		ctx.JSON(http.StatusInternalServerError, nil)
 		return
 	}
@@ -93,7 +88,6 @@ func (c *EventsServerController) TestImpressionsBulk(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, nil)
-	c.telemetry.IncrEndpointStatus(storage.ImpressionsBulkEndpoint, http.StatusOK)
 }
 
 // TestImpressionsBeacon accepts beacon style posts with impressions payload
@@ -101,7 +95,6 @@ func (c *EventsServerController) TestImpressionsBeacon(ctx *gin.Context) {
 	if ctx.Request.Body == nil {
 		c.logger.Error("Nil body when testImpressions/beacon request.")
 
-		c.telemetry.IncrEndpointStatus(storage.ImpressionsBulkBeaconEndpoint, http.StatusBadRequest)
 		ctx.JSON(http.StatusBadRequest, nil)
 		return
 	}
@@ -109,7 +102,6 @@ func (c *EventsServerController) TestImpressionsBeacon(ctx *gin.Context) {
 	data, err := ioutil.ReadAll(ctx.Request.Body)
 	if err != nil {
 		c.logger.Error("Error reading testImpressions/beacon request body: ", err)
-		c.telemetry.IncrEndpointStatus(storage.ImpressionsBulkBeaconEndpoint, http.StatusInternalServerError)
 		ctx.JSON(http.StatusInternalServerError, nil)
 		return
 	}
@@ -118,14 +110,12 @@ func (c *EventsServerController) TestImpressionsBeacon(ctx *gin.Context) {
 	if err := json.Unmarshal([]byte(data), &body); err != nil {
 		c.logger.Error("Error unmarshaling json in testImpressions/beacon request body: ", err)
 		ctx.JSON(http.StatusBadRequest, nil)
-		c.telemetry.IncrEndpointStatus(storage.ImpressionsBulkBeaconEndpoint, http.StatusBadRequest)
 		return
 	}
 
 	if !c.apikeyValidator(body.Token) {
 		c.logger.Error("Unknown/invalid token when parsing testImpressions/beacon request", err)
 		ctx.AbortWithStatus(401)
-		c.telemetry.IncrEndpointStatus(storage.ImpressionsBulkBeaconEndpoint, http.StatusUnauthorized)
 		return
 	}
 
@@ -139,7 +129,6 @@ func (c *EventsServerController) TestImpressionsBeacon(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusNoContent, nil)
-	c.telemetry.IncrEndpointStatus(storage.ImpressionsBulkBeaconEndpoint, http.StatusOK)
 }
 
 // TestImpressionsCount accepts impression count payloads
@@ -150,7 +139,6 @@ func (c *EventsServerController) TestImpressionsCount(ctx *gin.Context) {
 	if err != nil {
 		c.logger.Error("Error reading request body in testImpressions/count endpoint: ", err)
 		ctx.JSON(http.StatusInternalServerError, nil)
-		c.telemetry.IncrEndpointStatus(storage.ImpressionsCountEndpoint, http.StatusInternalServerError)
 		return
 	}
 
@@ -165,14 +153,12 @@ func (c *EventsServerController) TestImpressionsCount(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(code, nil)
-	c.telemetry.IncrEndpointStatus(storage.ImpressionsCountEndpoint, code)
 }
 
 // TestImpressionsCountBeacon accepts beacon style posts with impression count payload
 func (c *EventsServerController) TestImpressionsCountBeacon(ctx *gin.Context) {
 	if ctx.Request.Body == nil {
 		ctx.JSON(http.StatusBadRequest, nil)
-		c.telemetry.IncrEndpointStatus(storage.ImpressionsCountBeaconEndpoint, http.StatusBadRequest)
 		return
 	}
 
@@ -180,7 +166,6 @@ func (c *EventsServerController) TestImpressionsCountBeacon(ctx *gin.Context) {
 	if err != nil {
 		c.logger.Error(err)
 		ctx.JSON(http.StatusInternalServerError, nil)
-		c.telemetry.IncrEndpointStatus(storage.ImpressionsCountBeaconEndpoint, http.StatusInternalServerError)
 		return
 	}
 
@@ -188,13 +173,11 @@ func (c *EventsServerController) TestImpressionsCountBeacon(ctx *gin.Context) {
 	if err := json.Unmarshal([]byte(data), &body); err != nil {
 		c.logger.Error(err)
 		ctx.JSON(http.StatusBadRequest, nil)
-		c.telemetry.IncrEndpointStatus(storage.ImpressionsCountBeaconEndpoint, http.StatusBadRequest)
 		return
 	}
 
 	if !c.apikeyValidator(body.Token) {
 		ctx.AbortWithStatus(401)
-		c.telemetry.IncrEndpointStatus(storage.ImpressionsCountBeaconEndpoint, http.StatusUnauthorized)
 		return
 	}
 
@@ -211,7 +194,6 @@ func (c *EventsServerController) TestImpressionsCountBeacon(ctx *gin.Context) {
 	}
 
 	ctx.JSON(code, nil)
-	c.telemetry.IncrEndpointStatus(storage.ImpressionsCountBeaconEndpoint, code)
 }
 
 // EventsBulk accepts incoming event bulks
@@ -221,7 +203,6 @@ func (c *EventsServerController) EventsBulk(ctx *gin.Context) {
 	if err != nil {
 		c.logger.Error("Error reading request body when accepting an event bulk: ", err)
 		ctx.JSON(http.StatusInternalServerError, nil)
-		c.telemetry.IncrEndpointStatus(storage.EventsBulkEndpoint, http.StatusInternalServerError)
 		return
 	}
 
@@ -235,14 +216,12 @@ func (c *EventsServerController) EventsBulk(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, nil)
-	c.telemetry.IncrEndpointStatus(storage.EventsBulkEndpoint, http.StatusOK)
 }
 
 // EventsBulkBeacon accepts incoming event bulks in a beacon-style request
 func (c *EventsServerController) EventsBulkBeacon(ctx *gin.Context) {
 	if ctx.Request.Body == nil {
 		ctx.JSON(http.StatusBadRequest, nil)
-		c.telemetry.IncrEndpointStatus(storage.EventsBulkBeaconEndpoint, http.StatusBadGateway)
 		return
 	}
 
@@ -250,7 +229,6 @@ func (c *EventsServerController) EventsBulkBeacon(ctx *gin.Context) {
 	if err != nil {
 		c.logger.Error(err)
 		ctx.JSON(http.StatusInternalServerError, nil)
-		c.telemetry.IncrEndpointStatus(storage.EventsBulkBeaconEndpoint, http.StatusInternalServerError)
 		return
 	}
 
@@ -258,13 +236,11 @@ func (c *EventsServerController) EventsBulkBeacon(ctx *gin.Context) {
 	if err := json.Unmarshal([]byte(data), &body); err != nil {
 		c.logger.Error(err)
 		ctx.JSON(http.StatusBadRequest, nil)
-		c.telemetry.IncrEndpointStatus(storage.EventsBulkBeaconEndpoint, http.StatusBadRequest)
 		return
 	}
 
 	if !c.apikeyValidator(body.Token) {
 		ctx.AbortWithStatus(401)
-		c.telemetry.IncrEndpointStatus(storage.EventsBulkBeaconEndpoint, http.StatusUnauthorized)
 		return
 	}
 
@@ -278,7 +254,6 @@ func (c *EventsServerController) EventsBulkBeacon(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusNoContent, nil)
-	c.telemetry.IncrEndpointStatus(storage.EventsBulkBeaconEndpoint, http.StatusNoContent)
 }
 
 // DummyAlwaysOk accepts anything and returns 200 without even reading the body

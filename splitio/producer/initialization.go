@@ -66,9 +66,6 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	}
 	redisClient, err := redis.NewRedisClient(redisOptions, logger)
 	if err != nil {
-		// THIS BRANCH WILL CURRENTLY NEVER BE REACHED
-		// TODO(mredolatti/mmelograno): Currently the commons library panics if the redis server is unreachable.
-		// this behaviour should be revisited since this might bring down a client app if called from the sdk
 		return common.NewInitError(fmt.Errorf("error instantiating redis client: %w", err), common.ExitRedisInitializationFailed)
 	}
 
@@ -172,7 +169,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		ProcessBatchSize:   cfg.Sync.Advanced.ImpressionsProcessBatchSize,
 		PostConcurrency:    cfg.Sync.Advanced.ImpressionsPostConcurrency,
 		MaxAccumWait:       time.Duration(cfg.Sync.Advanced.ImpressionsAccumWaitMs) * time.Millisecond,
-		HTTPTimeout:        0, // TODO(mredolatti): forward appropriate config
+		HTTPTimeout:        time.Millisecond * time.Duration(cfg.Sync.Advanced.HTTPTimeoutMs),
 	})
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error instantiating impressions pipelined task: %w", err), common.ExitTaskInitialization)
@@ -198,7 +195,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		ProcessBatchSize:   cfg.Sync.Advanced.ImpressionsProcessBatchSize,
 		PostConcurrency:    cfg.Sync.Advanced.ImpressionsPostConcurrency,
 		MaxAccumWait:       time.Duration(cfg.Sync.Advanced.EventsAccumWaitMs) * time.Millisecond,
-		HTTPTimeout:        0, // TODO(mredolatti): forward appropriate config
+		HTTPTimeout:        time.Millisecond * time.Duration(cfg.Sync.Advanced.HTTPTimeoutMs),
 	})
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error instantiating events pipelined task: %w", err), common.ExitTaskInitialization)

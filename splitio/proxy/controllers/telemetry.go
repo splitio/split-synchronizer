@@ -8,14 +8,12 @@ import (
 	"github.com/splitio/go-toolkit/v5/logging"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/internal"
-	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks"
 )
 
 // TelemetryServerController bundles all request handler for sdk-server apis
 type TelemetryServerController struct {
 	logger     logging.LoggerInterface
-	telemetry  storage.ProxyEndpointTelemetry
 	configSink tasks.DeferredRecordingTask
 	usageSink  tasks.DeferredRecordingTask
 }
@@ -23,13 +21,11 @@ type TelemetryServerController struct {
 // NewTelemetryServerController returns a new events server controller
 func NewTelemetryServerController(
 	logger logging.LoggerInterface,
-	telemetry storage.ProxyEndpointTelemetry,
 	configSync tasks.DeferredRecordingTask,
 	usageSync tasks.DeferredRecordingTask,
 ) *TelemetryServerController {
 	return &TelemetryServerController{
 		logger:     logger,
-		telemetry:  telemetry,
 		configSink: configSync,
 		usageSink:  usageSync,
 	}
@@ -47,7 +43,6 @@ func (c *TelemetryServerController) Config(ctx *gin.Context) {
 	data, err := ioutil.ReadAll(ctx.Request.Body)
 	if err != nil {
 		c.logger.Error(err)
-		c.telemetry.IncrEndpointStatus(storage.TelemetryConfigEndpoint, http.StatusInternalServerError)
 		ctx.JSON(http.StatusInternalServerError, nil)
 		return
 	}
@@ -62,7 +57,6 @@ func (c *TelemetryServerController) Config(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, nil)
-	c.telemetry.IncrEndpointStatus(storage.TelemetryConfigEndpoint, http.StatusOK)
 }
 
 // Usage endpoint accepts telemtetry config objects
@@ -71,7 +65,6 @@ func (c *TelemetryServerController) Usage(ctx *gin.Context) {
 	data, err := ioutil.ReadAll(ctx.Request.Body)
 	if err != nil {
 		c.logger.Error(err)
-		c.telemetry.IncrEndpointStatus(storage.TelemetryRuntimeEndpoint, http.StatusInternalServerError)
 		ctx.JSON(http.StatusInternalServerError, nil)
 		return
 	}
@@ -86,5 +79,4 @@ func (c *TelemetryServerController) Usage(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, nil)
-	c.telemetry.IncrEndpointStatus(storage.TelemetryRuntimeEndpoint, http.StatusOK)
 }

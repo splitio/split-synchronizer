@@ -4,6 +4,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/splitio/go-split-commons/v4/storage/inmemory"
 )
 
 // Granularity selection constants to be used upon component instantiation
@@ -12,8 +14,6 @@ const (
 	HistoricTelemetryGranularityHour
 	HistoricTelemetryGranularityDay
 )
-
-type telemetryByTimeSlice map[int64]*timeSliceTelemetry
 
 // TimeslicedProxyEndpointTelemetry is a proxy telemetry facade (yet another) that bundles global data
 // and historic data by timeslice (for observability purposes)
@@ -55,7 +55,6 @@ func (t *TimeslicedProxyEndpointTelemetryImpl) TimeslicedReport() TimeSliceData 
 	}
 	t.mutex.Unlock()
 
-	// format & return
 	return formatTimeSeriesData(data)
 }
 
@@ -110,6 +109,8 @@ func (t *TimeslicedProxyEndpointTelemetryImpl) unsafeRollover() {
 	}
 }
 
+type telemetryByTimeSlice map[int64]*timeSliceTelemetry
+
 type timeSliceTelemetry struct {
 	timeSlice   int64
 	statusCodes EndpointStatusCodes
@@ -130,77 +131,54 @@ func keyForTimeSlice(t time.Time, intervalWidthInSeconds int64) int64 {
 }
 
 // TimeSliceData splits the latest metrics in N entries of fixed x-seconds width timeslices
-type TimeSliceData []map[string]ForResource
+type TimeSliceData []ForTimeSlice
+
+// ForTimeSlice stores all the data for a certain time-slice
+type ForTimeSlice struct {
+	TimeSlice int64                  `json:"timeslice"`
+	Resources map[string]ForResource `json:"resources"`
+}
 
 // ForResource bundles latencies & status code for a specific timeslice
 type ForResource struct {
-	TimeSlice   int64         `json:"timeslice"`
-	Latencies   []int64       `json:"latencies"`
-	StatusCodes map[int]int64 `json:"statusCodes"`
+	Latencies    []int64       `json:"latencies"`
+	StatusCodes  map[int]int64 `json:"statusCodes"`
+	RequestCount int           `json:"requestCount"`
+}
+
+func newForResource(latencies *inmemory.AtomicInt64Slice, statusCodes *statusCodeMap) ForResource {
+	var count int64
+	for _, partialCount := range statusCodes.codes {
+		count += partialCount
+	}
+
+	return ForResource{
+		Latencies:    latencies.ReadAll(),
+		StatusCodes:  statusCodes.peek(),
+		RequestCount: int(count),
+	}
 }
 
 func formatTimeSeriesData(data []*timeSliceTelemetry) TimeSliceData {
 	sort.Slice(data, func(i, j int) bool { return data[i].timeSlice < data[j].timeSlice })
 	toRet := make(TimeSliceData, 0, len(data))
 	for _, ts := range data {
-		forTS := map[string]ForResource{
-			"auth": ForResource{
-				TimeSlice:   ts.timeSlice,
-				Latencies:   ts.latencies.auth.ReadAll(),
-				StatusCodes: ts.statusCodes.auth.peek(),
+		toRet = append(toRet, ForTimeSlice{
+			TimeSlice: ts.timeSlice,
+			Resources: map[string]ForResource{
+				"auth":                   newForResource(&ts.latencies.auth, &ts.statusCodes.auth),
+				"splitChanges":           newForResource(&ts.latencies.splitChanges, &ts.statusCodes.splitChanges),
+				"segmentChanges":         newForResource(&ts.latencies.segmentChanges, &ts.statusCodes.segmentChanges),
+				"impressionsBulk":        newForResource(&ts.latencies.impressionsBulk, &ts.statusCodes.impressionsBulk),
+				"impressionsBulkBeacon":  newForResource(&ts.latencies.impressionsBulkBeacon, &ts.statusCodes.impressionsBulkBeacon),
+				"impressionsCount":       newForResource(&ts.latencies.impressionsCount, &ts.statusCodes.impressionsCount),
+				"impressionsCountBeacon": newForResource(&ts.latencies.impressionsCountBeacon, &ts.statusCodes.impressionsCountBeacon),
+				"eventsBulk":             newForResource(&ts.latencies.eventsBulk, &ts.statusCodes.eventsBulk),
+				"eventsBulkBeacon":       newForResource(&ts.latencies.eventsBulkBeacon, &ts.statusCodes.eventsBulkBeacon),
+				"telemetryConfig":        newForResource(&ts.latencies.telemetryConfig, &ts.statusCodes.telemetryConfig),
+				"telemetryRuntime":       newForResource(&ts.latencies.telemetryRuntime, &ts.statusCodes.telemetryRuntime),
 			},
-			"splitChanges": ForResource{
-				TimeSlice:   ts.timeSlice,
-				Latencies:   ts.latencies.splitChanges.ReadAll(),
-				StatusCodes: ts.statusCodes.splitChanges.peek(),
-			},
-			"segmentChanges": ForResource{
-				TimeSlice:   ts.timeSlice,
-				Latencies:   ts.latencies.segmentChanges.ReadAll(),
-				StatusCodes: ts.statusCodes.segmentChanges.peek(),
-			},
-			"impressionsBulk": ForResource{
-				TimeSlice:   ts.timeSlice,
-				Latencies:   ts.latencies.impressionsBulk.ReadAll(),
-				StatusCodes: ts.statusCodes.impressionsBulk.peek(),
-			},
-			"impressionsBulkBeacon": ForResource{
-				TimeSlice:   ts.timeSlice,
-				Latencies:   ts.latencies.impressionsBulkBeacon.ReadAll(),
-				StatusCodes: ts.statusCodes.impressionsBulkBeacon.peek(),
-			},
-			"impressionsCount": ForResource{
-				TimeSlice:   ts.timeSlice,
-				Latencies:   ts.latencies.impressionsCount.ReadAll(),
-				StatusCodes: ts.statusCodes.impressionsCount.peek(),
-			},
-			"impressionsCountBeacon": ForResource{
-				TimeSlice:   ts.timeSlice,
-				Latencies:   ts.latencies.impressionsCountBeacon.ReadAll(),
-				StatusCodes: ts.statusCodes.impressionsCountBeacon.peek(),
-			},
-			"eventsBulk": ForResource{
-				TimeSlice:   ts.timeSlice,
-				Latencies:   ts.latencies.eventsBulk.ReadAll(),
-				StatusCodes: ts.statusCodes.eventsBulk.peek(),
-			},
-			"eventsBulkBeacon": ForResource{
-				TimeSlice:   ts.timeSlice,
-				Latencies:   ts.latencies.eventsBulkBeacon.ReadAll(),
-				StatusCodes: ts.statusCodes.eventsBulkBeacon.peek(),
-			},
-			"telemetryConfig": ForResource{
-				TimeSlice:   ts.timeSlice,
-				Latencies:   ts.latencies.telemetryConfig.ReadAll(),
-				StatusCodes: ts.statusCodes.telemetryConfig.peek(),
-			},
-			"telemetryRuntime": ForResource{
-				TimeSlice:   ts.timeSlice,
-				Latencies:   ts.latencies.telemetryRuntime.ReadAll(),
-				StatusCodes: ts.statusCodes.telemetryRuntime.peek(),
-			},
-		}
-		toRet = append(toRet, forTS)
+		})
 	}
 	return toRet
 }

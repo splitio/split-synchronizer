@@ -75,21 +75,23 @@ func TestHistoricProxyTelemetry(t *testing.T) {
 	// manually build the expected report and check it against the generated one
 	expectedStatusCodes := map[int]int64{200: 1, 500: 1}
 	expectedLatencies := []int64{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
-	expectedTimeSlices := []int64{oldestTs + 60, oldestTs + 120, oldestTs + 180, oldestTs + 240, oldestTs + 300}
-	expectedData := []map[string]ForResource{}
-	for _, ts := range expectedTimeSlices {
-		expectedData = append(expectedData, map[string]ForResource{
-			"auth":                   ForResource{ts, expectedLatencies, expectedStatusCodes},
-			"splitChanges":           ForResource{ts, expectedLatencies, expectedStatusCodes},
-			"segmentChanges":         ForResource{ts, expectedLatencies, expectedStatusCodes},
-			"impressionsBulk":        ForResource{ts, expectedLatencies, expectedStatusCodes},
-			"impressionsBulkBeacon":  ForResource{ts, expectedLatencies, expectedStatusCodes},
-			"impressionsCount":       ForResource{ts, expectedLatencies, expectedStatusCodes},
-			"impressionsCountBeacon": ForResource{ts, expectedLatencies, expectedStatusCodes},
-			"eventsBulk":             ForResource{ts, expectedLatencies, expectedStatusCodes},
-			"eventsBulkBeacon":       ForResource{ts, expectedLatencies, expectedStatusCodes},
-			"telemetryConfig":        ForResource{ts, expectedLatencies, expectedStatusCodes},
-			"telemetryRuntime":       ForResource{ts, expectedLatencies, expectedStatusCodes},
+	expectedData := TimeSliceData{}
+	for _, ts := range []int64{oldestTs + 60, oldestTs + 120, oldestTs + 180, oldestTs + 240, oldestTs + 300} {
+		expectedData = append(expectedData, ForTimeSlice{
+			TimeSlice: ts,
+			Resources: map[string]ForResource{
+				"auth":                   ForResource{expectedLatencies, expectedStatusCodes, 2},
+				"splitChanges":           ForResource{expectedLatencies, expectedStatusCodes, 2},
+				"segmentChanges":         ForResource{expectedLatencies, expectedStatusCodes, 2},
+				"impressionsBulk":        ForResource{expectedLatencies, expectedStatusCodes, 2},
+				"impressionsBulkBeacon":  ForResource{expectedLatencies, expectedStatusCodes, 2},
+				"impressionsCount":       ForResource{expectedLatencies, expectedStatusCodes, 2},
+				"impressionsCountBeacon": ForResource{expectedLatencies, expectedStatusCodes, 2},
+				"eventsBulk":             ForResource{expectedLatencies, expectedStatusCodes, 2},
+				"eventsBulkBeacon":       ForResource{expectedLatencies, expectedStatusCodes, 2},
+				"telemetryConfig":        ForResource{expectedLatencies, expectedStatusCodes, 2},
+				"telemetryRuntime":       ForResource{expectedLatencies, expectedStatusCodes, 2},
+			},
 		})
 	}
 
