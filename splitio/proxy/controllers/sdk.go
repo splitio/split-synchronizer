@@ -12,7 +12,6 @@ import (
 	"github.com/splitio/go-toolkit/v5/logging"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/caching"
-	tmw "github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers/middleware"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 )
 
@@ -22,7 +21,6 @@ type SdkServerController struct {
 	fetcher             service.SplitFetcher
 	proxySplitStorage   storage.ProxySplitStorage
 	proxySegmentStorage storage.ProxySegmentStorage
-	telemetry           storage.ProxyEndpointTelemetry
 }
 
 // NewSdkServerController instantiates a new sdk server controller
@@ -31,14 +29,12 @@ func NewSdkServerController(
 	fetcher service.SplitFetcher,
 	proxySplitStorage storage.ProxySplitStorage,
 	proxySegmentStorage storage.ProxySegmentStorage,
-	telemetry storage.ProxyEndpointTelemetry,
 ) *SdkServerController {
 	return &SdkServerController{
 		logger:              logger,
 		fetcher:             fetcher,
 		proxySplitStorage:   proxySplitStorage,
 		proxySegmentStorage: proxySegmentStorage,
-		telemetry:           telemetry,
 	}
 }
 
@@ -51,7 +47,6 @@ func (c *SdkServerController) Register(router gin.IRouter) {
 
 // SplitChanges Returns a diff containing changes in splits from a certain point in time until now.
 func (c *SdkServerController) SplitChanges(ctx *gin.Context) {
-	ctx.Set(tmw.EndpointKey, storage.SplitChangesEndpoint)
 	c.logger.Debug(fmt.Sprintf("Headers: %v", ctx.Request.Header))
 	since, err := strconv.ParseInt(ctx.DefaultQuery("since", "-1"), 10, 64)
 	if err != nil {
@@ -62,11 +57,9 @@ func (c *SdkServerController) SplitChanges(ctx *gin.Context) {
 	splits, err := c.fetchSplitChangesSince(since)
 	if err != nil {
 		c.logger.Error("error fetching splitChanges payload from storage: ", err)
-		c.telemetry.IncrEndpointStatus(storage.SplitChangesEndpoint, http.StatusInternalServerError)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.telemetry.IncrEndpointStatus(storage.SplitChangesEndpoint, http.StatusOK)
 	ctx.JSON(http.StatusOK, splits)
 	ctx.Set(caching.SurrogateContextKey, []string{caching.SplitSurrogate})
 	ctx.Set(caching.StickyContextKey, true)
@@ -74,7 +67,6 @@ func (c *SdkServerController) SplitChanges(ctx *gin.Context) {
 
 // SegmentChanges Returns a diff containing changes in splits from a certain point in time until now.
 func (c *SdkServerController) SegmentChanges(ctx *gin.Context) {
-	ctx.Set(tmw.EndpointKey, storage.SegmentChangesEndpoint)
 	c.logger.Debug(fmt.Sprintf("Headers: %v", ctx.Request.Header))
 	since, err := strconv.ParseInt(ctx.DefaultQuery("since", "-1"), 10, 64)
 	if err != nil {
@@ -87,18 +79,15 @@ func (c *SdkServerController) SegmentChanges(ctx *gin.Context) {
 	if err != nil {
 		if errors.Is(err, storage.ErrSegmentNotFound) {
 			c.logger.Error("the following segment was requested and is not present: ", segmentName)
-			c.telemetry.IncrEndpointStatus(storage.SegmentChangesEndpoint, http.StatusNotFound)
 			ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 			return
 		}
 
 		c.logger.Error("error fetching segmentChanges payload from storage: ", err)
-		c.telemetry.IncrEndpointStatus(storage.SegmentChangesEndpoint, http.StatusInternalServerError)
 		ctx.JSON(http.StatusInternalServerError, nil)
 		return
 	}
 
-	c.telemetry.IncrEndpointStatus(storage.SegmentChangesEndpoint, http.StatusOK)
 	ctx.JSON(http.StatusOK, payload)
 	ctx.Set(caching.SurrogateContextKey, []string{caching.MakeSurrogateForSegmentChanges(segmentName)})
 	ctx.Set(caching.StickyContextKey, true)
@@ -106,13 +95,11 @@ func (c *SdkServerController) SegmentChanges(ctx *gin.Context) {
 
 // MySegments Returns a diff containing changes in splits from a certain point in time until now.
 func (c *SdkServerController) MySegments(ctx *gin.Context) {
-	ctx.Set(tmw.EndpointKey, storage.MySegmentsEndpoint)
 	c.logger.Debug(fmt.Sprintf("Headers: %v", ctx.Request.Header))
 	key := ctx.Param("key")
 	segmentList, err := c.proxySegmentStorage.SegmentsFor(key)
 	if err != nil {
 		c.logger.Error(fmt.Sprintf("error fetching segments for user '%s': %s", key, err.Error()))
-		c.telemetry.IncrEndpointStatus(storage.MySegmentsEndpoint, http.StatusInternalServerError)
 		ctx.JSON(http.StatusInternalServerError, gin.H{})
 	}
 
@@ -122,7 +109,6 @@ func (c *SdkServerController) MySegments(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"mySegments": mySegments})
-	c.telemetry.IncrEndpointStatus(storage.MySegmentsEndpoint, http.StatusOK)
 	ctx.Set(caching.SurrogateContextKey, caching.MakeSurrogateForMySegments(mySegments))
 }
 

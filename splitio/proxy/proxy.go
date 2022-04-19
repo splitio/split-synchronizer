@@ -9,6 +9,7 @@ import (
 
 	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers/middleware"
 	proxyMW "github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers/middleware"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 	proxyStorage "github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
@@ -98,7 +99,8 @@ func New(options *Options) *API {
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.Use(setupCorsMiddleware())
-	router.Use(proxyMW.NewProxyLatencyMiddleware(options.Telemetry).Track)
+	router.Use(middleware.SetEndpoint)
+	router.Use(proxyMW.NewProxyMetricsMiddleware(options.Telemetry).Track)
 
 	// split the main router into regular & beacon endpoints
 	regular := router.Group("/api")
@@ -136,14 +138,12 @@ func setupSdkController(options *Options) *controllers.SdkServerController {
 		options.SplitFetcher,
 		options.ProxySplitStorage,
 		options.ProxySegmentStorage,
-		options.Telemetry,
 	)
 }
 
 func setupEventsController(options *Options, apikeyValidator *proxyMW.APIKeyValidator) *controllers.EventsServerController {
 	return controllers.NewEventsServerController(
 		options.Logger,
-		options.Telemetry,
 		options.ImpressionsSink,
 		options.ImpressionCountSink,
 		options.EventsSink,
@@ -155,7 +155,6 @@ func setupEventsController(options *Options, apikeyValidator *proxyMW.APIKeyVali
 func setupTelemetryController(options *Options) *controllers.TelemetryServerController {
 	return controllers.NewTelemetryServerController(
 		options.Logger,
-		options.Telemetry,
 		options.TelemetryConfigSink,
 		options.TelemetryUsageSink,
 	)
