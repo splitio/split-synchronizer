@@ -94,6 +94,6 @@ type HealthcheckDependecines struct {
 
 // Observability configuration options
 type Observability struct {
-	TimeSliceWidthSecs int64 `json:"timeSliceWidhSecs" s-cli:"observability-time-slice-width-secs" s-def:"300" s-desc:"time slice size in windows"`
-	MaxTimeSliceCount  int64 `json:"maxTimeSliceCount" s-cli:"observability-time-slice-max-count" s-def:"100" s-desc:"max time slices to keep in memore before rotating"`
+	TimeSliceWidthSecs int64 `json:"timeSliceWidthSecs" s-cli:"observability-time-slice-width-secs" s-def:"300" s-desc:"time slice size in seconds"`
+	MaxTimeSliceCount  int64 `json:"maxTimeSliceCount" s-cli:"observability-time-slice-max-count" s-def:"100" s-desc:"max time slices to keep in memory before rotating"`
 }
