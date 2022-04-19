@@ -1,3 +1,6 @@
+5.0.3 (Apr 18, 2022)
+ - Fix logging config
+
 5.0.2 (Jan 12, 2021)
  - Fix issue with healthcheck returning spurious errors
  - Fix HTTP_PROXY behaviour on SSE connection

@@ -14,18 +14,8 @@ import (
 	ilMock "github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener/mocks"
 	mw "github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers/middleware"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/internal"
-	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks/mocks"
 )
-
-// TODO(mredolatti): put this mock in the proper place
-type mockEndpointTracker struct {
-	incrEndpointStatusCall func(edpoint int, status int)
-}
-
-func (m *mockEndpointTracker) IncrEndpointStatus(endpoint int, status int) {
-	m.incrEndpointStatusCall(endpoint, status)
-}
 
 func TestPostImpressionsbulk(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -33,13 +23,11 @@ func TestPostImpressionsbulk(t *testing.T) {
 	ctx, router := gin.CreateTestContext(resp)
 
 	logger := logging.NewLogger(nil)
-	proxyTelemetry := storage.NewProxyTelemetryFacade()
-	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"}, &mockEndpointTracker{incrEndpointStatusCall: func(int, int) {}})
+	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"})
 
 	group := router.Group("/api")
 	controller := NewEventsServerController(
 		logger,
-		proxyTelemetry,
 		&mocks.MockDeferredRecordingTask{
 			StageCall: func(rawData interface{}) error {
 				data := rawData.(*internal.RawImpressions)
@@ -137,13 +125,11 @@ func TestPostEventsBulk(t *testing.T) {
 	ctx, router := gin.CreateTestContext(resp)
 
 	logger := logging.NewLogger(nil)
-	proxyTelemetry := storage.NewProxyTelemetryFacade()
-	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"}, &mockEndpointTracker{incrEndpointStatusCall: func(int, int) {}})
+	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"})
 
 	group := router.Group("/api")
 	controller := NewEventsServerController(
 		logger,
-		proxyTelemetry,
 		&mocks.MockDeferredRecordingTask{}, // impssions
 		&mocks.MockDeferredRecordingTask{}, // imp counts
 		&mocks.MockDeferredRecordingTask{
@@ -198,13 +184,11 @@ func TestPostImpressionsCounts(t *testing.T) {
 	ctx, router := gin.CreateTestContext(resp)
 
 	logger := logging.NewLogger(nil)
-	proxyTelemetry := storage.NewProxyTelemetryFacade()
-	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"}, &mockEndpointTracker{incrEndpointStatusCall: func(int, int) {}})
+	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"})
 
 	group := router.Group("/api")
 	controller := NewEventsServerController(
 		logger,
-		proxyTelemetry,
 		&mocks.MockDeferredRecordingTask{}, // impssions
 		&mocks.MockDeferredRecordingTask{
 			StageCall: func(rawData interface{}) error {
@@ -261,13 +245,11 @@ func TestPostLegacyMetrics(t *testing.T) {
 	ctx, router := gin.CreateTestContext(resp)
 
 	logger := logging.NewLogger(nil)
-	proxyTelemetry := storage.NewProxyTelemetryFacade()
-	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"}, &mockEndpointTracker{incrEndpointStatusCall: func(int, int) {}})
+	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"})
 
 	group := router.Group("/api")
 	controller := NewEventsServerController(
 		logger,
-		proxyTelemetry,
 		&mocks.MockDeferredRecordingTask{}, // impssions
 		&mocks.MockDeferredRecordingTask{}, // imp counts
 		&mocks.MockDeferredRecordingTask{}, // events
@@ -333,13 +315,11 @@ func TestPostBeaconImpressionsbulk(t *testing.T) {
 	ctx, router := gin.CreateTestContext(resp)
 
 	logger := logging.NewLogger(nil)
-	proxyTelemetry := storage.NewProxyTelemetryFacade()
-	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"}, &mockEndpointTracker{incrEndpointStatusCall: func(int, int) {}})
+	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"})
 
 	group := router.Group("/api")
 	controller := NewEventsServerController(
 		logger,
-		proxyTelemetry,
 		&mocks.MockDeferredRecordingTask{
 			StageCall: func(rawData interface{}) error {
 				data := rawData.(*internal.RawImpressions)
@@ -434,13 +414,11 @@ func TestPostBeaconEventsBulk(t *testing.T) {
 	ctx, router := gin.CreateTestContext(resp)
 
 	logger := logging.NewLogger(nil)
-	proxyTelemetry := storage.NewProxyTelemetryFacade()
-	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"}, &mockEndpointTracker{incrEndpointStatusCall: func(int, int) {}})
+	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"})
 
 	group := router.Group("/api")
 	controller := NewEventsServerController(
 		logger,
-		proxyTelemetry,
 		&mocks.MockDeferredRecordingTask{}, // impssions
 		&mocks.MockDeferredRecordingTask{}, // imp counts
 		&mocks.MockDeferredRecordingTask{
@@ -496,13 +474,11 @@ func TestPostBeaconImpressionsCounts(t *testing.T) {
 	ctx, router := gin.CreateTestContext(resp)
 
 	logger := logging.NewLogger(nil)
-	proxyTelemetry := storage.NewProxyTelemetryFacade()
-	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"}, &mockEndpointTracker{incrEndpointStatusCall: func(int, int) {}})
+	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"})
 
 	group := router.Group("/api")
 	controller := NewEventsServerController(
 		logger,
-		proxyTelemetry,
 		&mocks.MockDeferredRecordingTask{}, // impssions
 		&mocks.MockDeferredRecordingTask{
 			StageCall: func(rawData interface{}) error {

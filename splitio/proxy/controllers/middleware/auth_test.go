@@ -8,20 +8,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// TODO(mredolatti): Put this mock in the right place
-type mockEndpointTracker struct {
-	incrEndpointStatusCall func(edpoint int, status int)
-}
-
-func (m *mockEndpointTracker) IncrEndpointStatus(endpoint int, status int) {
-	m.incrEndpointStatusCall(endpoint, status)
-}
-
 func TestAuthMiddleWare(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	resp := httptest.NewRecorder()
 	ctx, router := gin.CreateTestContext(resp)
-	authMW := NewAPIKeyValidator([]string{"apikey1", "apikey2"}, &mockEndpointTracker{incrEndpointStatusCall: func(int, int) {}})
+	authMW := NewAPIKeyValidator([]string{"apikey1", "apikey2"})
 
 	router.GET("/api/test", authMW.AsMiddleware, func(ctx *gin.Context) {})
 

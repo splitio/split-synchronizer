@@ -90,7 +90,7 @@ func New(options *Options) *API {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	apikeyValidator := proxyMW.NewAPIKeyValidator(options.APIKeys, options.Telemetry)
+	apikeyValidator := proxyMW.NewAPIKeyValidator(options.APIKeys)
 	authController := controllers.NewAuthServerController()
 	sdkController := setupSdkController(options)
 	eventsController := setupEventsController(options, apikeyValidator)
@@ -100,7 +100,7 @@ func New(options *Options) *API {
 	router.Use(gin.Recovery())
 	router.Use(setupCorsMiddleware())
 	router.Use(middleware.SetEndpoint)
-	router.Use(proxyMW.NewProxyLatencyMiddleware(options.Telemetry).Track)
+	router.Use(proxyMW.NewProxyMetricsMiddleware(options.Telemetry).Track)
 
 	// split the main router into regular & beacon endpoints
 	regular := router.Group("/api")
@@ -138,14 +138,12 @@ func setupSdkController(options *Options) *controllers.SdkServerController {
 		options.SplitFetcher,
 		options.ProxySplitStorage,
 		options.ProxySegmentStorage,
-		options.Telemetry,
 	)
 }
 
 func setupEventsController(options *Options, apikeyValidator *proxyMW.APIKeyValidator) *controllers.EventsServerController {
 	return controllers.NewEventsServerController(
 		options.Logger,
-		options.Telemetry,
 		options.ImpressionsSink,
 		options.ImpressionCountSink,
 		options.EventsSink,
@@ -157,7 +155,6 @@ func setupEventsController(options *Options, apikeyValidator *proxyMW.APIKeyVali
 func setupTelemetryController(options *Options) *controllers.TelemetryServerController {
 	return controllers.NewTelemetryServerController(
 		options.Logger,
-		options.Telemetry,
 		options.TelemetryConfigSink,
 		options.TelemetryUsageSink,
 	)
