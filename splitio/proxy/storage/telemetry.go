@@ -336,6 +336,10 @@ type ProxyTelemetryFacade interface {
 	ProxyEndpointTelemetry
 }
 
+type EndpointStatusCodeProducer interface {
+	IncrEndpointStatus(endpoint int, status int)
+}
+
 // ProxyTelemetryFacadeImpl exposes local telemetry functionality
 type ProxyTelemetryFacadeImpl struct {
 	ProxyEndpointLatenciesImpl

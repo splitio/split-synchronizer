@@ -36,6 +36,7 @@ import (
 	hcAppCounter "github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/application/counter"
 	hcServices "github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/services"
 	hcServicesCounter "github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/services/counter"
+	"github.com/splitio/split-synchronizer/v5/splitio/provisional/observability"
 	"github.com/splitio/split-synchronizer/v5/splitio/util"
 )
 
@@ -65,9 +66,6 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	}
 	redisClient, err := redis.NewRedisClient(redisOptions, logger)
 	if err != nil {
-		// THIS BRANCH WILL CURRENTLY NEVER BE REACHED
-		// TODO(mredolatti/mmelograno): Currently the commons library panics if the redis server is unreachable.
-		// this behaviour should be revisited since this might bring down a client app if called from the sdk
 		return common.NewInitError(fmt.Errorf("error instantiating redis client: %w", err), common.ExitRedisInitializationFailed)
 	}
 
@@ -85,9 +83,18 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	sdkTelemetryStorage := storage.NewRedisTelemetryCosumerclient(redisClient, logger)
 
 	// These storages are forwarded to the dashboard, the sdk-telemetry is irrelevant there
+	splitStorage, err := observability.NewObservableSplitStorage(redis.NewSplitStorage(redisClient, logger), logger)
+	if err != nil {
+		return fmt.Errorf("error instantiating observable split storage: %w", err)
+	}
+
+	segmentStorage, err := observability.NewObservableSegmentStorage(logger, splitStorage, redis.NewSegmentStorage(redisClient, logger))
+	if err != nil {
+		return fmt.Errorf("error instantiating observable segment storage: %w", err)
+	}
 	storages := adminCommon.Storages{
-		SplitStorage:          redis.NewSplitStorage(redisClient, logger),
-		SegmentStorage:        redis.NewSegmentStorage(redisClient, logger),
+		SplitStorage:          splitStorage,
+		SegmentStorage:        segmentStorage,
 		LocalTelemetryStorage: syncTelemetryStorage,
 		ImpressionStorage:     redis.NewImpressionStorage(redisClient, dtos.Metadata{}, logger),
 		EventStorage:          redis.NewEventsStorage(redisClient, dtos.Metadata{}, logger),
@@ -162,7 +169,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		ProcessBatchSize:   cfg.Sync.Advanced.ImpressionsProcessBatchSize,
 		PostConcurrency:    cfg.Sync.Advanced.ImpressionsPostConcurrency,
 		MaxAccumWait:       time.Duration(cfg.Sync.Advanced.ImpressionsAccumWaitMs) * time.Millisecond,
-		HTTPTimeout:        0, // TODO(mredolatti): forward appropriate config
+		HTTPTimeout:        time.Millisecond * time.Duration(cfg.Sync.Advanced.HTTPTimeoutMs),
 	})
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error instantiating impressions pipelined task: %w", err), common.ExitTaskInitialization)
@@ -188,7 +195,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		ProcessBatchSize:   cfg.Sync.Advanced.ImpressionsProcessBatchSize,
 		PostConcurrency:    cfg.Sync.Advanced.ImpressionsPostConcurrency,
 		MaxAccumWait:       time.Duration(cfg.Sync.Advanced.EventsAccumWaitMs) * time.Millisecond,
-		HTTPTimeout:        0, // TODO(mredolatti): forward appropriate config
+		HTTPTimeout:        time.Millisecond * time.Duration(cfg.Sync.Advanced.HTTPTimeoutMs),
 	})
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error instantiating events pipelined task: %w", err), common.ExitTaskInitialization)
