@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/splitio/go-split-commons/v4/storage"
 	"github.com/splitio/go-split-commons/v4/storage/inmemory"
 )
 
@@ -18,7 +19,7 @@ const (
 // TimeslicedProxyEndpointTelemetry is a proxy telemetry facade (yet another) that bundles global data
 // and historic data by timeslice (for observability purposes)
 type TimeslicedProxyEndpointTelemetry interface {
-	ProxyEndpointTelemetry
+	ProxyTelemetryFacade
 	TimeslicedReport() TimeSliceData
 }
 
@@ -193,3 +194,5 @@ type sysClock struct{}
 func (c *sysClock) Now() time.Time { return time.Now() }
 
 var _ TimeslicedProxyEndpointTelemetry = (*TimeslicedProxyEndpointTelemetryImpl)(nil)
+var _ ProxyTelemetryPeeker = (*TimeslicedProxyEndpointTelemetryImpl)(nil)
+var _ storage.TelemetryPeeker = (*TimeslicedProxyEndpointTelemetryImpl)(nil)

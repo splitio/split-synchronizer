@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"encoding/json"
 	"errors"
 	"runtime"
 	"testing"
@@ -277,7 +278,7 @@ func TestRedisTelemetryLatencies(t *testing.T) {
 	}
 }
 
-func TestPopConfigsFromList(t *testing.T) {
+func TestPopConfigsPopulatedFromStorage(t *testing.T) {
 	redisPrefix, _ := getCurrentFuncName()
 	innerClient, _ := redis.NewClient(&redis.UniversalOptions{})
 	client, _ := redis.NewPrefixedRedisClient(innerClient, redisPrefix)
@@ -335,10 +336,10 @@ func TestPopConfigsFromHash(t *testing.T) {
 		innerClient.Del(keys...)
 	}()
 
-	err := client.HSet(redisSt.KeyConfig, "go-3.4/myName/1.1.1.1", `{"om": 4}`)
-	err = client.HSet(redisSt.KeyConfig, "go-3.4/myName/1.1.1.1", `{"om": 4}`)
-	err = client.HSet(redisSt.KeyConfig, "go-3.4/myName/1.1.1.1", `{"om": 4}`)
-	err = client.HSet(redisSt.KeyConfig, "go-3.4/myName/1.1.1.2", `{"om": 7}`)
+	err := client.HSet(redisSt.KeyInit, "go-3.4/myName/1.1.1.1", `{"om": 4}`)
+	err = client.HSet(redisSt.KeyInit, "go-3.4/myName/1.1.1.1", `{"om": 4}`)
+	err = client.HSet(redisSt.KeyInit, "go-3.4/myName/1.1.1.1", `{"om": 4}`)
+	err = client.HSet(redisSt.KeyInit, "go-3.4/myName/1.1.1.2", `{"om": 7}`)
 	if err != nil {
 		t.Error(err)
 	}
@@ -357,5 +358,39 @@ func TestPopConfigsFromHash(t *testing.T) {
 	if v, ok := cfgs[dtos.Metadata{SDKVersion: "go-3.4", MachineIP: "1.1.1.2", MachineName: "myName"}]; !ok || v.OperationMode != 7 {
 		t.Error("wrong data")
 	}
+}
 
+func TestPopConfigsFromList(t *testing.T) {
+	redisPrefix, _ := getCurrentFuncName()
+	innerClient, _ := redis.NewClient(&redis.UniversalOptions{})
+	client, _ := redis.NewPrefixedRedisClient(innerClient, redisPrefix)
+	defer func() {
+		keys, _ := innerClient.Keys(redisPrefix + "*").Multi()
+		innerClient.Del(keys...)
+	}()
+
+	toPush := []dtos.TelemetryQueueObject{
+		{Metadata: dtos.Metadata{SDKVersion: "a", MachineName: "b", MachineIP: "c"}, Config: dtos.Config{OperationMode: 4}},
+		{Metadata: dtos.Metadata{SDKVersion: "d", MachineName: "e", MachineIP: "f"}, Config: dtos.Config{OperationMode: 7}},
+	}
+	for _, cfg := range toPush {
+		serialized, _ := json.Marshal(cfg)
+		client.RPush(redisSt.KeyConfig, serialized)
+	}
+
+	logger := logging.NewLogger(nil)
+	consumer := NewRedisTelemetryCosumerclient(client, logger)
+	cfgs := consumer.PopConfigs()
+	if len(cfgs) != 2 {
+		t.Error("there should be 2 configs only (one per metadata)")
+		t.Error(cfgs)
+	}
+
+	if v, ok := cfgs[dtos.Metadata{SDKVersion: "a", MachineIP: "c", MachineName: "b"}]; !ok || v.OperationMode != 4 {
+		t.Error("wrong data")
+	}
+
+	if v, ok := cfgs[dtos.Metadata{SDKVersion: "d", MachineIP: "f", MachineName: "e"}]; !ok || v.OperationMode != 7 {
+		t.Error("wrong data")
+	}
 }
