@@ -266,8 +266,7 @@ func fetchConfigsGreedy(rclient *redis.PrefixedRedisClient, limit int64) ([]dtos
 	}
 
 	if len(fromHash) == 0 && len(fromList) == 0 {
-		// TODO(mredolatti): check and return error correctly
-		return nil, true, nil
+		return nil, true, formatTelemetryFetchErrors(errors)
 	}
 
 	toRet := make([]dtos.TelemetryQueueObject, 0, len(fromHash)+len(fromList))
