@@ -8,7 +8,7 @@ require (
 	github.com/gin-gonic/gin v1.7.7
 	github.com/google/uuid v1.3.0
 	github.com/splitio/gincache v0.0.1-rc7
-	github.com/splitio/go-split-commons/v4 v4.0.3
+	github.com/splitio/go-split-commons/v4 v4.0.4-rc2
 	github.com/splitio/go-toolkit/v5 v5.0.3
 	go.etcd.io/bbolt v1.3.6
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect

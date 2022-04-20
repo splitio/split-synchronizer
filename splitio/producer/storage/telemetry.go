@@ -2,6 +2,7 @@ package storage
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -241,79 +242,66 @@ func setException(result MultiMethodExceptions, metadata *dtos.Metadata, method 
 	return nil
 }
 
-func fetchConfigsGreedy(rclient *redis.PrefixedRedisClient, limit int64) (data []dtos.TelemetryQueueObject, done bool, err error) {
+func fetchConfigsGreedy(rclient *redis.PrefixedRedisClient, limit int64) ([]dtos.TelemetryQueueObject, bool, error) {
 
-	kt, err := rclient.Type(redisSt.KeyConfig)
+	var errors []error
+
+	// Fetch from hash & list
+	fromHash, err := rclient.HGetAll(redisSt.KeyInit)
 	if err != nil {
-		return nil, false, fmt.Errorf("error determining redis configs key type: %w", err)
+		errors = append(errors, err)
+	}
+	_, err = rclient.Del(redisSt.KeyInit)
+	if err != nil {
+		errors = append(errors, err)
 	}
 
-	switch kt {
-	case "list":
-		raws, err := rclient.LRange(redisSt.KeyConfig, 0, limit)
-		if err != nil {
-			return nil, false, fmt.Errorf("error fetching configs from redis: %w", err)
-		}
+	fromList, err := rclient.LRange(redisSt.KeyConfig, 0, limit)
+	if err != nil {
+		errors = append(errors, err)
+	}
+	err = rclient.LTrim(redisSt.KeyConfig, int64(len(fromList)), -1)
+	if err != nil {
+		errors = append(errors, err)
+	}
 
-		if len(raws) == 0 {
-			return nil, true, nil
-		}
-
-		err = rclient.LTrim(redisSt.KeyConfig, int64(len(raws)), -1)
-		if err != nil {
-			// Since we failed to delete the entries from redis, we fail early, so that we don't post them multiple times.
-			return nil, false, fmt.Errorf("error deleting fetched configs from redis: %w", err)
-		}
-
-		toRet := make([]dtos.TelemetryQueueObject, 0, len(raws))
-		for _, raw := range raws {
-			var parsed dtos.TelemetryQueueObject
-			err = json.Unmarshal([]byte(raw), &parsed)
-			if err != nil {
-				// TODO(mredolatti): Log?
-				continue
-			}
-			toRet = append(toRet, parsed)
-		}
-		return toRet, (len(raws) < int(limit)), nil
-	case "hash":
-		raws, err := rclient.HGetAll(redisSt.KeyConfig)
-		if err != nil {
-			return nil, false, fmt.Errorf("error fetching configs from redis: %w", err)
-		}
-
-		if len(raws) == 0 {
-			return nil, true, nil
-		}
-
-		toRet := make([]dtos.TelemetryQueueObject, 0, len(raws))
-		for rawMeta, raw := range raws {
-			meta, err := parseMetadata(rawMeta)
-			if err != nil {
-				// TODO(mredolatti): Log?
-				continue
-			}
-
-			var parsed dtos.Config
-			err = json.Unmarshal([]byte(raw), &parsed)
-			if err != nil {
-				// TODO(mredolatti): Log?
-				continue
-			}
-			toRet = append(toRet, dtos.TelemetryQueueObject{Metadata: *meta, Config: parsed})
-		}
-
-		_, err = rclient.Del(redisSt.KeyConfig)
-		if err != nil {
-			// Since we failed to delete the entries from redis, we fail early, so that we don't post them multiple times.
-			return nil, false, fmt.Errorf("error deleting fetched configs from redis: %w", err)
-		}
-		return toRet, true, nil
-	case "none":
-		// No metrics found
+	if len(fromHash) == 0 && len(fromList) == 0 {
+		// TODO(mredolatti): check and return error correctly
 		return nil, true, nil
 	}
-	return nil, false, fmt.Errorf("invalid config key type: '%s'", kt)
+
+	toRet := make([]dtos.TelemetryQueueObject, 0, len(fromHash)+len(fromList))
+
+	// Process items fetched from hash
+	for rawMeta, raw := range fromHash {
+		meta, err := parseMetadata(rawMeta)
+		if err != nil {
+			continue // TODO(mredolatti): Log?
+		}
+
+		var parsed dtos.Config
+		err = json.Unmarshal([]byte(raw), &parsed)
+		if err != nil {
+			continue // TODO(mredolatti): Log?
+		}
+		toRet = append(toRet, dtos.TelemetryQueueObject{Metadata: *meta, Config: parsed})
+	}
+
+	// process items fetched from list
+	for _, raw := range fromList {
+		var parsed dtos.TelemetryQueueObject
+		err = json.Unmarshal([]byte(raw), &parsed)
+		if err != nil {
+			continue // TODO(mredolatti): Log?
+		}
+		toRet = append(toRet, parsed)
+	}
+
+	if len(errors) == 0 {
+		return toRet, (len(fromList) < int(limit)), nil // done dependes on wether we have elments left in redis or not
+	}
+
+	return toRet, false, formatTelemetryFetchErrors(errors)
 
 }
 
@@ -321,4 +309,21 @@ func dedupeAndAdd(toRet MultiConfigs, data []dtos.TelemetryQueueObject) {
 	for _, dto := range data { // The map will only keep the last version of a config object for a particular metadata
 		toRet[dto.Metadata] = dto.Config
 	}
+}
+
+func formatTelemetryFetchErrors(errs []error) error {
+	if len(errs) == 0 {
+		return nil
+	}
+
+	b := strings.Builder{}
+	b.WriteString("the following errors occured when fetching telemetry config from redis: [")
+	for idx, err := range errs {
+		b.WriteString(`"` + err.Error() + `"`)
+		if (idx + 1) != len(errs) {
+			b.WriteString(", ")
+		}
+	}
+	b.WriteString("]")
+	return errors.New(b.String())
 }
