@@ -46,11 +46,10 @@ jobs:
           aws-region: us-east-1
 
       - name: Deploy to S3
-        uses: jakejarvis/s3-sync-action@v0.5.1
+        run: aws s3 sync $SOURCE_DIR s3://$BUCKET
         env:
-          AWS_S3_BUCKET: 'downloads.split.io'
-          AWS_REGION: 'us-east-1'
-          SOURCE_DIR: './build'
+          BUCKET: downloads.split.io
+          SOURCE_DIR: ./build
 
       - name: SonarQube Scan (Push)
         uses: SonarSource/sonarcloud-github-action@v1.5
