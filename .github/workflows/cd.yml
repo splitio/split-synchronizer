@@ -4,6 +4,10 @@ on:
     branches:
       - master
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   build-test-deploy:
     name: Build, run tests and Deploy to S3
