@@ -51,9 +51,10 @@ func (c *ProxyObservabilityController) Register(router gin.IRouter) {
 
 func (c *ProxyObservabilityController) observability(ctx *gin.Context) {
 	ctx.JSON(200, gin.H{
-		"activeSplits":       c.splits.SplitNames(),
-		"activeSegments":     c.segments.NamesAndCount(),
-		"proxyEndpointStats": c.telemetry.TimeslicedReport(),
+		"activeSplits":            c.splits.SplitNames(),
+		"activeSegments":          c.segments.NamesAndCount(),
+		"proxyEndpointStats":      c.telemetry.TimeslicedReport(),
+		"proxyEndpointStatsTotal": c.telemetry.TotalMetricsReport(),
 	})
 }
 
