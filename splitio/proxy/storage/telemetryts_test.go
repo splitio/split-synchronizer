@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 	"time"
@@ -26,6 +27,7 @@ func TestHistoricProxyTelemetry(t *testing.T) {
 		AuthEndpoint,
 		SplitChangesEndpoint,
 		SegmentChangesEndpoint,
+		MySegmentsEndpoint,
 		ImpressionsBulkEndpoint,
 		ImpressionsBulkBeaconEndpoint,
 		ImpressionsCountEndpoint,
@@ -83,6 +85,7 @@ func TestHistoricProxyTelemetry(t *testing.T) {
 				"auth":                   ForResource{expectedLatencies, expectedStatusCodes, 2},
 				"splitChanges":           ForResource{expectedLatencies, expectedStatusCodes, 2},
 				"segmentChanges":         ForResource{expectedLatencies, expectedStatusCodes, 2},
+				"mySegments":             ForResource{expectedLatencies, expectedStatusCodes, 2},
 				"impressionsBulk":        ForResource{expectedLatencies, expectedStatusCodes, 2},
 				"impressionsBulkBeacon":  ForResource{expectedLatencies, expectedStatusCodes, 2},
 				"impressionsCount":       ForResource{expectedLatencies, expectedStatusCodes, 2},
@@ -107,5 +110,31 @@ func TestHistoricProxyTelemetry(t *testing.T) {
 			t.Errorf("generated: %+v", generated[idx])
 			t.Errorf("expected: %+v", expectedData[idx])
 		}
+	}
+
+	// we update latencies & status codes with global number (everything was called 6 times)
+	expectedStatusCodes = map[int]int64{200: 6, 500: 6}
+	expectedLatencies = []int64{6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6}
+	expectedTotalReport := map[string]ForResource{
+		"auth":                   ForResource{expectedLatencies, expectedStatusCodes, 12},
+		"splitChanges":           ForResource{expectedLatencies, expectedStatusCodes, 12},
+		"segmentChanges":         ForResource{expectedLatencies, expectedStatusCodes, 12},
+		"mySegments":             ForResource{expectedLatencies, expectedStatusCodes, 12},
+		"impressionsBulk":        ForResource{expectedLatencies, expectedStatusCodes, 12},
+		"impressionsBulkBeacon":  ForResource{expectedLatencies, expectedStatusCodes, 12},
+		"impressionsCount":       ForResource{expectedLatencies, expectedStatusCodes, 12},
+		"impressionsCountBeacon": ForResource{expectedLatencies, expectedStatusCodes, 12},
+		"eventsBulk":             ForResource{expectedLatencies, expectedStatusCodes, 12},
+		"eventsBulkBeacon":       ForResource{expectedLatencies, expectedStatusCodes, 12},
+		"telemetryConfig":        ForResource{expectedLatencies, expectedStatusCodes, 12},
+		"telemetryRuntime":       ForResource{expectedLatencies, expectedStatusCodes, 12},
+	}
+
+	if gen := timesliced.TotalMetricsReport(); !reflect.DeepEqual(expectedTotalReport, gen) {
+		t.Error("generated total report differs frome expected one")
+		jsonGen, _ := json.Marshal(gen)
+		jsonExp, _ := json.Marshal(expectedTotalReport)
+		t.Errorf("generated: %+v", string(jsonGen))
+		t.Errorf("expected: %+v", string(jsonExp))
 	}
 }
