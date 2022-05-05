@@ -46,7 +46,7 @@ func (c *ThresholdImp) NotifyHit() {
 
 	c.updateLastHit()
 
-	c.logger.Debug("event received for counter '%s'", c.name)
+	c.logger.Debug(fmt.Sprintf("event received for counter '%s'", c.name))
 }
 
 // ResetThreshold the threshold value

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/splitio/go-split-commons/v4/storage"
-	"github.com/splitio/go-split-commons/v4/storage/inmemory"
 )
 
 // Granularity selection constants to be used upon component instantiation
@@ -21,6 +20,7 @@ const (
 type TimeslicedProxyEndpointTelemetry interface {
 	ProxyTelemetryFacade
 	TimeslicedReport() TimeSliceData
+	TotalMetricsReport() map[string]ForResource
 }
 
 // TimeslicedProxyEndpointTelemetryImpl is an implementation of `TimeslicedProxyEnxpointTelemetry`
@@ -41,6 +41,23 @@ func NewTimeslicedProxyEndpointTelemetry(wrapped ProxyTelemetryFacade, width int
 		timeSliceWidth:       width,
 		maxTimeSlices:        maxTimeSlices,
 		clock:                &sysClock{},
+	}
+}
+
+func (t *TimeslicedProxyEndpointTelemetryImpl) TotalMetricsReport() map[string]ForResource {
+	return map[string]ForResource{
+		"auth":                   newForResource(t.PeekEndpointLatency(AuthEndpoint), t.PeekEndpointStatus(AuthEndpoint)),
+		"splitChanges":           newForResource(t.PeekEndpointLatency(SplitChangesEndpoint), t.PeekEndpointStatus(SplitChangesEndpoint)),
+		"segmentChanges":         newForResource(t.PeekEndpointLatency(SegmentChangesEndpoint), t.PeekEndpointStatus(SegmentChangesEndpoint)),
+		"mySegments":             newForResource(t.PeekEndpointLatency(MySegmentsEndpoint), t.PeekEndpointStatus(MySegmentsEndpoint)),
+		"impressionsBulk":        newForResource(t.PeekEndpointLatency(ImpressionsBulkEndpoint), t.PeekEndpointStatus(ImpressionsBulkEndpoint)),
+		"impressionsBulkBeacon":  newForResource(t.PeekEndpointLatency(ImpressionsBulkBeaconEndpoint), t.PeekEndpointStatus(ImpressionsBulkBeaconEndpoint)),
+		"impressionsCount":       newForResource(t.PeekEndpointLatency(ImpressionsCountEndpoint), t.PeekEndpointStatus(ImpressionsCountEndpoint)),
+		"impressionsCountBeacon": newForResource(t.PeekEndpointLatency(ImpressionsCountBeaconEndpoint), t.PeekEndpointStatus(ImpressionsCountBeaconEndpoint)),
+		"eventsBulk":             newForResource(t.PeekEndpointLatency(EventsBulkEndpoint), t.PeekEndpointStatus(EventsBulkEndpoint)),
+		"eventsBulkBeacon":       newForResource(t.PeekEndpointLatency(EventsBulkBeaconEndpoint), t.PeekEndpointStatus(EventsBulkBeaconEndpoint)),
+		"telemetryConfig":        newForResource(t.PeekEndpointLatency(TelemetryConfigEndpoint), t.PeekEndpointStatus(TelemetryConfigEndpoint)),
+		"telemetryRuntime":       newForResource(t.PeekEndpointLatency(TelemetryRuntimeEndpoint), t.PeekEndpointStatus(TelemetryRuntimeEndpoint)),
 	}
 }
 
@@ -147,15 +164,15 @@ type ForResource struct {
 	RequestCount int           `json:"requestCount"`
 }
 
-func newForResource(latencies *inmemory.AtomicInt64Slice, statusCodes *statusCodeMap) ForResource {
+func newForResource(latencies []int64, statusCodes map[int]int64) ForResource {
 	var count int64
-	for _, partialCount := range statusCodes.codes {
+	for _, partialCount := range statusCodes {
 		count += partialCount
 	}
 
 	return ForResource{
-		Latencies:    latencies.ReadAll(),
-		StatusCodes:  statusCodes.peek(),
+		Latencies:    latencies,
+		StatusCodes:  statusCodes,
 		RequestCount: int(count),
 	}
 }
@@ -167,17 +184,18 @@ func formatTimeSeriesData(data []*timeSliceTelemetry) TimeSliceData {
 		toRet = append(toRet, ForTimeSlice{
 			TimeSlice: ts.timeSlice,
 			Resources: map[string]ForResource{
-				"auth":                   newForResource(&ts.latencies.auth, &ts.statusCodes.auth),
-				"splitChanges":           newForResource(&ts.latencies.splitChanges, &ts.statusCodes.splitChanges),
-				"segmentChanges":         newForResource(&ts.latencies.segmentChanges, &ts.statusCodes.segmentChanges),
-				"impressionsBulk":        newForResource(&ts.latencies.impressionsBulk, &ts.statusCodes.impressionsBulk),
-				"impressionsBulkBeacon":  newForResource(&ts.latencies.impressionsBulkBeacon, &ts.statusCodes.impressionsBulkBeacon),
-				"impressionsCount":       newForResource(&ts.latencies.impressionsCount, &ts.statusCodes.impressionsCount),
-				"impressionsCountBeacon": newForResource(&ts.latencies.impressionsCountBeacon, &ts.statusCodes.impressionsCountBeacon),
-				"eventsBulk":             newForResource(&ts.latencies.eventsBulk, &ts.statusCodes.eventsBulk),
-				"eventsBulkBeacon":       newForResource(&ts.latencies.eventsBulkBeacon, &ts.statusCodes.eventsBulkBeacon),
-				"telemetryConfig":        newForResource(&ts.latencies.telemetryConfig, &ts.statusCodes.telemetryConfig),
-				"telemetryRuntime":       newForResource(&ts.latencies.telemetryRuntime, &ts.statusCodes.telemetryRuntime),
+				"auth":                   newForResource(ts.latencies.auth.ReadAll(), ts.statusCodes.auth.peek()),
+				"splitChanges":           newForResource(ts.latencies.splitChanges.ReadAll(), ts.statusCodes.splitChanges.peek()),
+				"segmentChanges":         newForResource(ts.latencies.segmentChanges.ReadAll(), ts.statusCodes.segmentChanges.peek()),
+				"mySegments":             newForResource(ts.latencies.mySegments.ReadAll(), ts.statusCodes.mySegments.peek()),
+				"impressionsBulk":        newForResource(ts.latencies.impressionsBulk.ReadAll(), ts.statusCodes.impressionsBulk.peek()),
+				"impressionsBulkBeacon":  newForResource(ts.latencies.impressionsBulkBeacon.ReadAll(), ts.statusCodes.impressionsBulkBeacon.peek()),
+				"impressionsCount":       newForResource(ts.latencies.impressionsCount.ReadAll(), ts.statusCodes.impressionsCount.peek()),
+				"impressionsCountBeacon": newForResource(ts.latencies.impressionsCountBeacon.ReadAll(), ts.statusCodes.impressionsCountBeacon.peek()),
+				"eventsBulk":             newForResource(ts.latencies.eventsBulk.ReadAll(), ts.statusCodes.eventsBulk.peek()),
+				"eventsBulkBeacon":       newForResource(ts.latencies.eventsBulkBeacon.ReadAll(), ts.statusCodes.eventsBulkBeacon.peek()),
+				"telemetryConfig":        newForResource(ts.latencies.telemetryConfig.ReadAll(), ts.statusCodes.telemetryConfig.peek()),
+				"telemetryRuntime":       newForResource(ts.latencies.telemetryRuntime.ReadAll(), ts.statusCodes.telemetryRuntime.peek()),
 			},
 		})
 	}
