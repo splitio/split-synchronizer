@@ -4,6 +4,7 @@
  - Fixed debug log message in healthcheck logic
 
 5.0.4 (Apr 20, 2022)
+ - Exposed some internal metrics in observability endpoint
  - Fix dashboard in proxy mode
  - Fetch telemetry from redis keys in both old & new formats
 
