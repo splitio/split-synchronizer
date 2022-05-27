@@ -23,16 +23,13 @@ func parseTLSConfig(opt *conf.Redis) (*tls.Config, error) {
 		return nil, nil
 	}
 
-	if opt.SentinelReplication || opt.ClusterMode {
-		return nil, errors.New("TLS encryption cannot be used with Sentinel replication or Cluster mode enabled")
-	}
-
 	cfg := tls.Config{}
-
-	if opt.TLSServerName != "" {
-		cfg.ServerName = opt.TLSServerName
-	} else {
-		cfg.ServerName = opt.Host
+	if !opt.SentinelReplication && !opt.ClusterMode {
+		if opt.TLSServerName != "" {
+			cfg.ServerName = opt.TLSServerName
+		} else {
+			cfg.ServerName = opt.Host
+		}
 	}
 
 	if len(opt.TLSCACertificates) > 0 {
@@ -74,7 +71,7 @@ func parseTLSConfig(opt *conf.Redis) (*tls.Config, error) {
 func parseRedisOptions(cfg *conf.Redis) (*config.RedisConfig, error) {
 	tlsCfg, err := parseTLSConfig(cfg)
 	if err != nil {
-		return nil, errors.New("Error in Redis TLS Configuration")
+		return nil, fmt.Errorf("error parsing redis tls config options: %w", err)
 	}
 
 	redisCfg := &config.RedisConfig{
