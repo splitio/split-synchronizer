@@ -23,13 +23,10 @@ func parseTLSConfig(opt *conf.Redis) (*tls.Config, error) {
 		return nil, nil
 	}
 
-	if opt.SentinelReplication || opt.ClusterMode {
-		return nil, errors.New("TLS encryption cannot be used with Sentinel replication or Cluster mode enabled")
-	}
-
 	cfg := tls.Config{}
-
-	if opt.TLSServerName != "" {
+	if opt.SentinelReplication || opt.ClusterMode {
+		cfg.ServerName = ""
+	} else if opt.TLSServerName != "" {
 		cfg.ServerName = opt.TLSServerName
 	} else {
 		cfg.ServerName = opt.Host
