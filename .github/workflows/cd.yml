@@ -4,6 +4,10 @@ on:
     branches:
       - master
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   build-test-deploy:
     name: Build, run tests and Deploy to S3
@@ -35,14 +39,17 @@ jobs:
       - name: Execute build
         run: make release_assets
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: arn:aws:iam::825951051969:role/downloads-bucket
+          aws-region: us-east-1
+
       - name: Deploy to S3
-        uses: jakejarvis/s3-sync-action@v0.5.1
+        run: aws s3 sync $SOURCE_DIR s3://$BUCKET
         env:
-          AWS_S3_BUCKET: 'downloads.split.io'
-          AWS_ACCESS_KEY_ID: ${{ secrets.ARTIFACTS_SYNCHRONIZER_AWS_KEY }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.ARTIFACTS_SYNCHRONIZER_AWS_SECRET }}
-          AWS_REGION: 'us-east-1'
-          SOURCE_DIR: './build'
+          BUCKET: downloads.split.io
+          SOURCE_DIR: ./build
 
       - name: SonarQube Scan (Push)
         uses: SonarSource/sonarcloud-github-action@v1.5
