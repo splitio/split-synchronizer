@@ -15,7 +15,7 @@ func TestCacheAwareSplitSync(t *testing.T) {
 	var cn int64 = -1
 
 	splitSyncMock := &splitUpdaterMock{
-		SynchronizeSplitsCall: func(*int64, bool) (*split.UpdateResult, error) { return nil, nil },
+		SynchronizeSplitsCall: func(*int64) (*split.UpdateResult, error) { return nil, nil },
 		LocalKillCall:         func(string, string, int64) {},
 	}
 	cacheFlusherMock := &cacheMocks.CacheFlusherMock{
@@ -30,9 +30,9 @@ func TestCacheAwareSplitSync(t *testing.T) {
 		cacheFlusher: cacheFlusherMock,
 	}
 
-	css.SynchronizeSplits(nil, false)
+	css.SynchronizeSplits(nil)
 
-	splitSyncMock.SynchronizeSplitsCall = func(*int64, bool) (*split.UpdateResult, error) {
+	splitSyncMock.SynchronizeSplitsCall = func(*int64) (*split.UpdateResult, error) {
 		cn++
 		return nil, nil
 	}
@@ -45,7 +45,7 @@ func TestCacheAwareSplitSync(t *testing.T) {
 		calls++
 	}
 
-	css.SynchronizeSplits(nil, false)
+	css.SynchronizeSplits(nil)
 	if calls != 1 {
 		t.Error("should have flushed splits once")
 	}
@@ -57,11 +57,11 @@ func TestCacheAwareSplitSync(t *testing.T) {
 
 	// Test that going from cn > -1 to cn == -1 purges
 	cn = 123
-	splitSyncMock.SynchronizeSplitsCall = func(*int64, bool) (*split.UpdateResult, error) {
+	splitSyncMock.SynchronizeSplitsCall = func(*int64) (*split.UpdateResult, error) {
 		cn = -1
 		return nil, nil
 	}
-	css.SynchronizeSplits(nil, false)
+	css.SynchronizeSplits(nil)
 	if calls != 3 {
 		t.Error("should have flushed splits once", calls)
 	}
@@ -71,8 +71,8 @@ func TestCacheAwareSegmentSync(t *testing.T) {
 	cns := map[string]int64{"segment1": 0}
 
 	segmentSyncMock := &segmentUpdaterMock{
-		SynchronizeSegmentCall:  func(string, *int64, bool) (*segment.UpdateResult, error) { return &segment.UpdateResult{}, nil },
-		SynchronizeSegmentsCall: func(bool) (map[string]segment.UpdateResult, error) { return nil, nil },
+		SynchronizeSegmentCall:  func(string, *int64) (*segment.UpdateResult, error) { return &segment.UpdateResult{}, nil },
+		SynchronizeSegmentsCall: func() (map[string]segment.UpdateResult, error) { return nil, nil },
 	}
 	cacheFlusherMock := &cacheMocks.CacheFlusherMock{
 		EvictBySurrogateCall: func(string) { t.Error("nothing should be evicted") },
@@ -99,9 +99,9 @@ func TestCacheAwareSegmentSync(t *testing.T) {
 		cacheFlusher: cacheFlusherMock,
 	}
 
-	css.SynchronizeSegment("segment1", nil, false)
+	css.SynchronizeSegment("segment1", nil)
 
-	segmentSyncMock.SynchronizeSegmentCall = func(name string, c *int64, q bool) (*segment.UpdateResult, error) {
+	segmentSyncMock.SynchronizeSegmentCall = func(name string, c *int64) (*segment.UpdateResult, error) {
 		return &segment.UpdateResult{UpdatedKeys: []string{"k1"}, NewChangeNumber: 2}, nil
 	}
 
@@ -120,17 +120,17 @@ func TestCacheAwareSegmentSync(t *testing.T) {
 
 	// SynchronizeSegment
 
-	css.SynchronizeSegment("segment1", nil, false)
+	css.SynchronizeSegment("segment1", nil)
 	if evictBySurrogateCalls != 1 {
 		t.Error("should have flushed splits once. Got", evictBySurrogateCalls)
 	}
 
 	// Test that going from cn > -1 to cn == -1 purges
 	cns["segment1"] = 123
-	segmentSyncMock.SynchronizeSegmentCall = func(name string, s *int64, q bool) (*segment.UpdateResult, error) {
+	segmentSyncMock.SynchronizeSegmentCall = func(name string, s *int64) (*segment.UpdateResult, error) {
 		return &segment.UpdateResult{UpdatedKeys: []string{"k1"}, NewChangeNumber: -1}, nil
 	}
-	css.SynchronizeSegment("segment1", nil, false)
+	css.SynchronizeSegment("segment1", nil)
 	if evictBySurrogateCalls != 2 {
 		t.Error("should have flushed splits once", evictBySurrogateCalls)
 	}
@@ -139,7 +139,7 @@ func TestCacheAwareSegmentSync(t *testing.T) {
 
 	// Case 1: updated CN
 	cns["segment2"] = 0
-	segmentSyncMock.SynchronizeSegmentsCall = func(bool) (map[string]segment.UpdateResult, error) {
+	segmentSyncMock.SynchronizeSegmentsCall = func() (map[string]segment.UpdateResult, error) {
 		return map[string]segment.UpdateResult{"segment2": {UpdatedKeys: []string{"k1"}, NewChangeNumber: 1}}, nil
 	}
 
@@ -150,14 +150,14 @@ func TestCacheAwareSegmentSync(t *testing.T) {
 		evictBySurrogateCalls++
 	}
 
-	css.SynchronizeSegments(false)
+	css.SynchronizeSegments()
 	if evictBySurrogateCalls != 3 {
 		t.Error("should have flushed segments twice")
 	}
 
 	// Case 2: added segment
 	cns["segment3"] = 2
-	segmentSyncMock.SynchronizeSegmentsCall = func(bool) (map[string]segment.UpdateResult, error) {
+	segmentSyncMock.SynchronizeSegmentsCall = func() (map[string]segment.UpdateResult, error) {
 		return map[string]segment.UpdateResult{"segment3": {UpdatedKeys: []string{"k1"}, NewChangeNumber: 3}}, nil
 	}
 
@@ -168,13 +168,13 @@ func TestCacheAwareSegmentSync(t *testing.T) {
 		evictBySurrogateCalls++
 	}
 
-	css.SynchronizeSegments(false)
+	css.SynchronizeSegments()
 	if evictBySurrogateCalls != 4 {
 		t.Error("should have flushed segments twice")
 	}
 
 	// Case 3: deleted segment
-	segmentSyncMock.SynchronizeSegmentsCall = func(bool) (map[string]segment.UpdateResult, error) {
+	segmentSyncMock.SynchronizeSegmentsCall = func() (map[string]segment.UpdateResult, error) {
 		return map[string]segment.UpdateResult{"segment3": {UpdatedKeys: []string{"k1"}, NewChangeNumber: -1}}, nil
 	}
 
@@ -185,7 +185,7 @@ func TestCacheAwareSegmentSync(t *testing.T) {
 		evictBySurrogateCalls++
 	}
 
-	css.SynchronizeSegments(false)
+	css.SynchronizeSegments()
 	if evictBySurrogateCalls != 5 {
 		t.Error("should have flushed segments 5 times: ", evictBySurrogateCalls)
 	}
@@ -198,22 +198,22 @@ func TestCacheAwareSegmentSync(t *testing.T) {
 		evictBySurrogateCalls++
 	}
 	cns["segment2"] = 123
-	segmentSyncMock.SynchronizeSegmentsCall = func(bool) (map[string]segment.UpdateResult, error) {
+	segmentSyncMock.SynchronizeSegmentsCall = func() (map[string]segment.UpdateResult, error) {
 		return map[string]segment.UpdateResult{"segment2": {UpdatedKeys: []string{"k1"}, NewChangeNumber: -1}}, nil
 	}
-	css.SynchronizeSegments(false)
+	css.SynchronizeSegments()
 	if evictBySurrogateCalls != 6 {
 		t.Error("should have flushed segments twice")
 	}
 }
 
 type splitUpdaterMock struct {
-	SynchronizeSplitsCall func(till *int64, requestNoCache bool) (*split.UpdateResult, error)
+	SynchronizeSplitsCall func(till *int64) (*split.UpdateResult, error)
 	LocalKillCall         func(splitName string, defaultTreatment string, changeNumber int64)
 }
 
-func (s *splitUpdaterMock) SynchronizeSplits(till *int64, requestNoCache bool) (*split.UpdateResult, error) {
-	return s.SynchronizeSplitsCall(till, requestNoCache)
+func (s *splitUpdaterMock) SynchronizeSplits(till *int64) (*split.UpdateResult, error) {
+	return s.SynchronizeSplitsCall(till)
 }
 
 func (s *splitUpdaterMock) LocalKill(splitName string, defaultTreatment string, changeNumber int64) {
@@ -221,18 +221,18 @@ func (s *splitUpdaterMock) LocalKill(splitName string, defaultTreatment string, 
 }
 
 type segmentUpdaterMock struct {
-	SynchronizeSegmentCall  func(name string, till *int64, requestNoCache bool) (*segment.UpdateResult, error)
-	SynchronizeSegmentsCall func(requestNoCache bool) (map[string]segment.UpdateResult, error)
+	SynchronizeSegmentCall  func(name string, till *int64) (*segment.UpdateResult, error)
+	SynchronizeSegmentsCall func() (map[string]segment.UpdateResult, error)
 	SegmentNamesCall        func() []interface{}
 	IsSegmentCachedCall     func(segmentName string) bool
 }
 
-func (s *segmentUpdaterMock) SynchronizeSegment(name string, till *int64, requestNoCache bool) (*segment.UpdateResult, error) {
-	return s.SynchronizeSegmentCall(name, till, requestNoCache)
+func (s *segmentUpdaterMock) SynchronizeSegment(name string, till *int64) (*segment.UpdateResult, error) {
+	return s.SynchronizeSegmentCall(name, till)
 }
 
-func (s *segmentUpdaterMock) SynchronizeSegments(requestNoCache bool) (map[string]segment.UpdateResult, error) {
-	return s.SynchronizeSegmentsCall(requestNoCache)
+func (s *segmentUpdaterMock) SynchronizeSegments() (map[string]segment.UpdateResult, error) {
+	return s.SynchronizeSegmentsCall()
 }
 
 func (s *segmentUpdaterMock) SegmentNames() []interface{} {
