@@ -1,3 +1,6 @@
+5.0.8 (Jun XX, 2022)
+- Updated the synchronization flow to be more reliable in the event of an edge case generating delay in cache purge propagation, keeping the SDK cache properly synced
+
 5.0.7 (Jun 06, 2022)
  - Updated segments and splits storage to return -1 as default changeNumber instead of zero
 
