@@ -101,7 +101,7 @@ func parseRedisOptions(cfg *conf.Redis) (*config.RedisConfig, error) {
 }
 
 func isValidApikey(splitFetcher service.SplitFetcher) bool {
-	_, err := splitFetcher.Fetch(time.Now().UnixNano()/int64(time.Millisecond), false)
+	_, err := splitFetcher.Fetch(time.Now().UnixNano()/int64(time.Millisecond), &service.FetchOptions{CacheControlHeaders: false})
 	return err == nil
 }
 

@@ -35,9 +35,9 @@ func NewCacheAwareSplitSync(
 }
 
 // SynchronizeSplits synchronizes splits and if something changes, purges the cache appropriately
-func (c *CacheAwareSplitSynchronizer) SynchronizeSplits(till *int64, requestNoCache bool) (*split.UpdateResult, error) {
+func (c *CacheAwareSplitSynchronizer) SynchronizeSplits(till *int64) (*split.UpdateResult, error) {
 	previous, _ := c.splitStorage.ChangeNumber()
-	result, err := c.wrapped.SynchronizeSplits(till, requestNoCache)
+	result, err := c.wrapped.SynchronizeSplits(till)
 	if current, _ := c.splitStorage.ChangeNumber(); current > previous || (previous != -1 && current == -1) {
 		// if the changenumber was updated, evict splitChanges responses from cache
 		c.cacheFlusher.EvictBySurrogate(SplitSurrogate)
@@ -79,9 +79,9 @@ func NewCacheAwareSegmentSync(
 }
 
 // SynchronizeSegment synchronizes a segment and if it was updated, flushes all entries associated with it from the http cache
-func (c *CacheAwareSegmentSynchronizer) SynchronizeSegment(name string, till *int64, requestNoCache bool) (*segment.UpdateResult, error) {
+func (c *CacheAwareSegmentSynchronizer) SynchronizeSegment(name string, till *int64) (*segment.UpdateResult, error) {
 	previous, _ := c.segmentStorage.ChangeNumber(name)
-	result, err := c.wrapped.SynchronizeSegment(name, till, requestNoCache)
+	result, err := c.wrapped.SynchronizeSegment(name, till)
 	if current := result.NewChangeNumber; current > previous || (previous != -1 && current == -1) {
 		c.cacheFlusher.EvictBySurrogate(MakeSurrogateForSegmentChanges(name))
 	}
@@ -95,7 +95,7 @@ func (c *CacheAwareSegmentSynchronizer) SynchronizeSegment(name string, till *in
 }
 
 // SynchronizeSegments syncs all the segments cached and purges cache appropriately if needed
-func (c *CacheAwareSegmentSynchronizer) SynchronizeSegments(requestNoCache bool) (map[string]segment.UpdateResult, error) {
+func (c *CacheAwareSegmentSynchronizer) SynchronizeSegments() (map[string]segment.UpdateResult, error) {
 	// we need to keep track of all change numbers here to see if anything changed
 	previousSegmentNames := c.splitStorage.SegmentNames()
 	previousCNs := make(map[string]int64, previousSegmentNames.Size())
@@ -106,7 +106,7 @@ func (c *CacheAwareSegmentSynchronizer) SynchronizeSegments(requestNoCache bool)
 		}
 	}
 
-	results, err := c.wrapped.SynchronizeSegments(requestNoCache)
+	results, err := c.wrapped.SynchronizeSegments()
 	for segmentName := range results {
 		result := results[segmentName]
 		ccn := result.NewChangeNumber

@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/go-split-commons/v4/dtos"
+	"github.com/splitio/go-split-commons/v4/service"
 	"github.com/splitio/go-split-commons/v4/service/mocks"
 	"github.com/splitio/go-toolkit/v5/logging"
 
@@ -28,7 +29,7 @@ func TestSplitChangesCachedRecipe(t *testing.T) {
 	controller := NewSdkServerController(
 		logger,
 		&mocks.MockSplitFetcher{
-			FetchCall: func(changeNumber int64, requestNoCache bool) (*dtos.SplitChangesDTO, error) {
+			FetchCall: func(changeNumber int64, fetchOptions *service.FetchOptions) (*dtos.SplitChangesDTO, error) {
 				t.Error("should not be called")
 				return nil, nil
 			},
@@ -43,8 +44,8 @@ func TestSplitChangesCachedRecipe(t *testing.T) {
 					Since: -1,
 					Till:  1,
 					Splits: []dtos.SplitDTO{
-						dtos.SplitDTO{Name: "s1"},
-						dtos.SplitDTO{Name: "s2"},
+						{Name: "s1"},
+						{Name: "s2"},
 					},
 				}, nil
 			},
@@ -86,7 +87,7 @@ func TestSplitChangesNonCachedRecipe(t *testing.T) {
 	controller := NewSdkServerController(
 		logger,
 		&mocks.MockSplitFetcher{
-			FetchCall: func(changeNumber int64, requestNoCache bool) (*dtos.SplitChangesDTO, error) {
+			FetchCall: func(changeNumber int64, fetchOptions *service.FetchOptions) (*dtos.SplitChangesDTO, error) {
 				if changeNumber != -1 {
 					t.Error("changeNumber should be -1")
 				}
@@ -95,8 +96,8 @@ func TestSplitChangesNonCachedRecipe(t *testing.T) {
 					Since: -1,
 					Till:  1,
 					Splits: []dtos.SplitDTO{
-						dtos.SplitDTO{Name: "s1"},
-						dtos.SplitDTO{Name: "s2"},
+						{Name: "s1"},
+						{Name: "s2"},
 					},
 				}, nil
 			},
@@ -148,7 +149,7 @@ func TestSplitChangesNonCachedRecipeAndFetchFails(t *testing.T) {
 	controller := NewSdkServerController(
 		logger,
 		&mocks.MockSplitFetcher{
-			FetchCall: func(changeNumber int64, requestNoCache bool) (*dtos.SplitChangesDTO, error) {
+			FetchCall: func(changeNumber int64, fetchOptions *service.FetchOptions) (*dtos.SplitChangesDTO, error) {
 				if changeNumber != -1 {
 					t.Error("changeNumber should be -1")
 				}
