@@ -84,21 +84,21 @@ func TestPostImpressionsbulk(t *testing.T) {
 	controller.Register(group, group)
 
 	serialized, err := json.Marshal([]dtos.ImpressionsDTO{
-		dtos.ImpressionsDTO{
+		{
 			TestName: "test1",
 			KeyImpressions: []dtos.ImpressionDTO{
-				dtos.ImpressionDTO{KeyName: "k1", Treatment: "on", Time: 1, ChangeNumber: 2, Label: "l1", BucketingKey: "b1", Pt: 0},
-				dtos.ImpressionDTO{KeyName: "k2", Treatment: "on", Time: 2, ChangeNumber: 3, Label: "l2", BucketingKey: "b2", Pt: 0},
-				dtos.ImpressionDTO{KeyName: "k3", Treatment: "on", Time: 3, ChangeNumber: 4, Label: "l3", BucketingKey: "b3", Pt: 0},
+				{KeyName: "k1", Treatment: "on", Time: 1, ChangeNumber: 2, Label: "l1", BucketingKey: "b1", Pt: 0},
+				{KeyName: "k2", Treatment: "on", Time: 2, ChangeNumber: 3, Label: "l2", BucketingKey: "b2", Pt: 0},
+				{KeyName: "k3", Treatment: "on", Time: 3, ChangeNumber: 4, Label: "l3", BucketingKey: "b3", Pt: 0},
 			},
 		},
-		dtos.ImpressionsDTO{
+		{
 			TestName: "test2",
 			KeyImpressions: []dtos.ImpressionDTO{
-				dtos.ImpressionDTO{KeyName: "k1", Treatment: "off", Time: 1, ChangeNumber: 2, Label: "l1", BucketingKey: "b1", Pt: 0},
-				dtos.ImpressionDTO{KeyName: "k2", Treatment: "off", Time: 2, ChangeNumber: 3, Label: "l2", BucketingKey: "b2", Pt: 0},
-				dtos.ImpressionDTO{KeyName: "k3", Treatment: "off", Time: 3, ChangeNumber: 4, Label: "l3", BucketingKey: "b3", Pt: 0},
-				dtos.ImpressionDTO{KeyName: "k4", Treatment: "off", Time: 4, ChangeNumber: 5, Label: "l4", BucketingKey: "b4", Pt: 0},
+				{KeyName: "k1", Treatment: "off", Time: 1, ChangeNumber: 2, Label: "l1", BucketingKey: "b1", Pt: 0},
+				{KeyName: "k2", Treatment: "off", Time: 2, ChangeNumber: 3, Label: "l2", BucketingKey: "b2", Pt: 0},
+				{KeyName: "k3", Treatment: "off", Time: 3, ChangeNumber: 4, Label: "l3", BucketingKey: "b3", Pt: 0},
+				{KeyName: "k4", Treatment: "off", Time: 4, ChangeNumber: 5, Label: "l4", BucketingKey: "b4", Pt: 0},
 			},
 		},
 	})
@@ -218,9 +218,9 @@ func TestPostImpressionsCounts(t *testing.T) {
 
 	serialized, err := json.Marshal(dtos.ImpressionsCountDTO{
 		PerFeature: []dtos.ImpressionsInTimeFrameDTO{
-			dtos.ImpressionsInTimeFrameDTO{FeatureName: "f1", TimeFrame: 1, RawCount: 1},
-			dtos.ImpressionsInTimeFrameDTO{FeatureName: "f2", TimeFrame: 2, RawCount: 2},
-			dtos.ImpressionsInTimeFrameDTO{FeatureName: "f3", TimeFrame: 3, RawCount: 3},
+			{FeatureName: "f1", TimeFrame: 1, RawCount: 1},
+			{FeatureName: "f2", TimeFrame: 2, RawCount: 2},
+			{FeatureName: "f3", TimeFrame: 3, RawCount: 3},
 		},
 	})
 
@@ -372,21 +372,21 @@ func TestPostBeaconImpressionsbulk(t *testing.T) {
 	controller.Register(group, group)
 
 	entries, err := json.Marshal([]dtos.ImpressionsDTO{
-		dtos.ImpressionsDTO{
+		{
 			TestName: "test1",
 			KeyImpressions: []dtos.ImpressionDTO{
-				dtos.ImpressionDTO{KeyName: "k1", Treatment: "on", Time: 1, ChangeNumber: 2, Label: "l1", BucketingKey: "b1", Pt: 0},
-				dtos.ImpressionDTO{KeyName: "k2", Treatment: "on", Time: 2, ChangeNumber: 3, Label: "l2", BucketingKey: "b2", Pt: 0},
-				dtos.ImpressionDTO{KeyName: "k3", Treatment: "on", Time: 3, ChangeNumber: 4, Label: "l3", BucketingKey: "b3", Pt: 0},
+				{KeyName: "k1", Treatment: "on", Time: 1, ChangeNumber: 2, Label: "l1", BucketingKey: "b1", Pt: 0},
+				{KeyName: "k2", Treatment: "on", Time: 2, ChangeNumber: 3, Label: "l2", BucketingKey: "b2", Pt: 0},
+				{KeyName: "k3", Treatment: "on", Time: 3, ChangeNumber: 4, Label: "l3", BucketingKey: "b3", Pt: 0},
 			},
 		},
-		dtos.ImpressionsDTO{
+		{
 			TestName: "test2",
 			KeyImpressions: []dtos.ImpressionDTO{
-				dtos.ImpressionDTO{KeyName: "k1", Treatment: "off", Time: 1, ChangeNumber: 2, Label: "l1", BucketingKey: "b1", Pt: 0},
-				dtos.ImpressionDTO{KeyName: "k2", Treatment: "off", Time: 2, ChangeNumber: 3, Label: "l2", BucketingKey: "b2", Pt: 0},
-				dtos.ImpressionDTO{KeyName: "k3", Treatment: "off", Time: 3, ChangeNumber: 4, Label: "l3", BucketingKey: "b3", Pt: 0},
-				dtos.ImpressionDTO{KeyName: "k4", Treatment: "off", Time: 4, ChangeNumber: 5, Label: "l4", BucketingKey: "b4", Pt: 0},
+				{KeyName: "k1", Treatment: "off", Time: 1, ChangeNumber: 2, Label: "l1", BucketingKey: "b1", Pt: 0},
+				{KeyName: "k2", Treatment: "off", Time: 2, ChangeNumber: 3, Label: "l2", BucketingKey: "b2", Pt: 0},
+				{KeyName: "k3", Treatment: "off", Time: 3, ChangeNumber: 4, Label: "l3", BucketingKey: "b3", Pt: 0},
+				{KeyName: "k4", Treatment: "off", Time: 4, ChangeNumber: 5, Label: "l4", BucketingKey: "b4", Pt: 0},
 			},
 		},
 	})
@@ -508,9 +508,9 @@ func TestPostBeaconImpressionsCounts(t *testing.T) {
 
 	entries, err := json.Marshal(dtos.ImpressionsCountDTO{
 		PerFeature: []dtos.ImpressionsInTimeFrameDTO{
-			dtos.ImpressionsInTimeFrameDTO{FeatureName: "f1", TimeFrame: 1, RawCount: 1},
-			dtos.ImpressionsInTimeFrameDTO{FeatureName: "f2", TimeFrame: 2, RawCount: 2},
-			dtos.ImpressionsInTimeFrameDTO{FeatureName: "f3", TimeFrame: 3, RawCount: 3},
+			{FeatureName: "f1", TimeFrame: 1, RawCount: 1},
+			{FeatureName: "f2", TimeFrame: 2, RawCount: 2},
+			{FeatureName: "f3", TimeFrame: 3, RawCount: 3},
 		},
 	})
 

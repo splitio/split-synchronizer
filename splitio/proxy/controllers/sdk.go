@@ -121,7 +121,8 @@ func (c *SdkServerController) fetchSplitChangesSince(since int64) (*dtos.SplitCh
 		return nil, fmt.Errorf("unexpected error fetching split changes from storage: %w", err)
 	}
 
-	splits, err = c.fetcher.Fetch(since, true)
+	fetchOptions := service.NewFetchOptions(true, nil)
+	splits, err = c.fetcher.Fetch(since, &fetchOptions)
 	if err == nil {
 		c.proxySplitStorage.RegisterOlderCn(splits)
 		return splits, nil

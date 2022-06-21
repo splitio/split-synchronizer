@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.17.5-alpine3.15 AS builder
+FROM golang:1.17.11-alpine3.16 AS builder
 
 RUN apk add \
   bash \
@@ -14,7 +14,7 @@ COPY . .
 RUN make clean split-sync entrypoints
 
 # Runner stage
-FROM alpine:3.15 AS runner
+FROM alpine:3.16 AS runner
 
 RUN apk add bash
 

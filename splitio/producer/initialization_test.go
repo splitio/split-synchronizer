@@ -10,6 +10,7 @@ import (
 
 	config "github.com/splitio/go-split-commons/v4/conf"
 	"github.com/splitio/go-split-commons/v4/dtos"
+	"github.com/splitio/go-split-commons/v4/service"
 	"github.com/splitio/go-split-commons/v4/service/mocks"
 	predis "github.com/splitio/go-split-commons/v4/storage/redis"
 	"github.com/splitio/go-toolkit/v5/logging"
@@ -45,7 +46,9 @@ func TestIsApikeyValidOk(t *testing.T) {
 	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
 
 	httpSplitFetcher := mocks.MockSplitFetcher{
-		FetchCall: func(changeNumber int64, requestNoCache bool) (*dtos.SplitChangesDTO, error) { return nil, nil },
+		FetchCall: func(changeNumber int64, fetchOptions *service.FetchOptions) (*dtos.SplitChangesDTO, error) {
+			return nil, nil
+		},
 	}
 
 	if !isValidApikey(httpSplitFetcher) {
@@ -63,7 +66,7 @@ func TestIsApikeyValidNotOk(t *testing.T) {
 	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
 
 	httpSplitFetcher := mocks.MockSplitFetcher{
-		FetchCall: func(changeNumber int64, requestNoCache bool) (*dtos.SplitChangesDTO, error) {
+		FetchCall: func(changeNumber int64, fetchOptions *service.FetchOptions) (*dtos.SplitChangesDTO, error) {
 			return nil, errors.New("Some")
 		},
 	}
