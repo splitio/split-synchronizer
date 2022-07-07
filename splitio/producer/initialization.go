@@ -10,6 +10,7 @@ import (
 	cconf "github.com/splitio/go-split-commons/v4/conf"
 	"github.com/splitio/go-split-commons/v4/dtos"
 	"github.com/splitio/go-split-commons/v4/provisional"
+	"github.com/splitio/go-split-commons/v4/provisional/strategy"
 	"github.com/splitio/go-split-commons/v4/service/api"
 	storageCommon "github.com/splitio/go-split-commons/v4/storage"
 	"github.com/splitio/go-split-commons/v4/storage/inmemory"
@@ -100,13 +101,13 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		EventStorage:          redis.NewEventsStorage(redisClient, dtos.Metadata{}, logger),
 	}
 
-	// Creating Workers and Tasks
-	eventEvictionMonitor := evcalc.New(1)
-
 	// Healcheck Monitor
 	splitsConfig, segmentsConfig, storageConfig := getAppCounterConfigs(storages.SplitStorage)
 	appMonitor := hcApplication.NewMonitorImp(splitsConfig, segmentsConfig, &storageConfig, logger)
 	servicesMonitor := hcServices.NewMonitorImp(getServicesCountersConfig(advanced), logger)
+
+	// Creating Workers and Tasks
+	eventEvictionMonitor := evcalc.New(1)
 
 	workers := synchronizer.Workers{
 		SplitFetcher: split.NewSplitFetcher(storages.SplitStorage, splitAPI.SplitFetcher, logger, syncTelemetryStorage, appMonitor),
@@ -138,11 +139,9 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		impListener.Start()
 	}
 
-	var impCounter *provisional.ImpressionsCounter
-	if cfg.Sync.ImpressionsMode == cconf.ImpressionsModeOptimized {
-		impCounter = provisional.NewImpressionsCounter()
-		workers.ImpressionsCountRecorder = impressionscount.NewRecorderSingle(impCounter, splitAPI.ImpressionRecorder, metadata, logger, syncTelemetryStorage)
-		splitTasks.ImpressionsCountSyncTask = tasks.NewRecordImpressionsCountTask(workers.ImpressionsCountRecorder, logger)
+	impManager, err := buildImpressionManager(cfg.Sync.ImpressionsMode, impListener, syncTelemetryStorage, &splitTasks, &workers, splitAPI, metadata, logger)
+	if err != nil {
+		return common.NewInitError(fmt.Errorf("error instantiating impression manager: %w", err), common.ExitTaskInitialization)
 	}
 
 	// Impression & events pipelined tasks @{
@@ -152,10 +151,9 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		EvictionMonitor:     impressionEvictionMonitor,
 		URL:                 advanced.EventsURL,
 		Apikey:              cfg.Apikey,
-		ImpressionsMode:     cfg.Sync.ImpressionsMode,
 		ImpressionsListener: impListener,
-		ImpressionCounter:   impCounter,
 		FetchSize:           int(cfg.Sync.Advanced.ImpressionsFetchSize),
+		ImpressionManager:   impManager,
 	})
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error instantiating impressions worker: %w", err), common.ExitTaskInitialization)
@@ -270,11 +268,8 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 						SegmentSync:   int(cfg.Sync.SegmentRefreshRateMs / 1000),
 						TelemetrySync: int(cfg.Sync.Advanced.InternalMetricsRateMs / 1000),
 					},
-					ManagerConfig: cconf.ManagerConfig{
-						ImpressionsMode: cfg.Sync.ImpressionsMode,
-						OperationMode:   cconf.ProducerSync,
-						ListenerEnabled: impListener != nil,
-					},
+					ImpressionsMode: cfg.Sync.ImpressionsMode,
+					ListenerEnabled: impListener != nil,
 				},
 				time.Now().Sub(before).Milliseconds(),
 				map[string]int64{cfg.Apikey: 1},
@@ -331,4 +326,40 @@ func getServicesCountersConfig(advanced *cconf.AdvancedConfig) []hcServicesCount
 	streamingConfig := hcServicesCounter.DefaultConfig("Streaming", fmt.Sprintf("%s://%s", streamingURL.Scheme, streamingURL.Host), "/health")
 
 	return append(cfgs, telemetryConfig, authConfig, apiConfig, eventsConfig, streamingConfig)
+}
+
+func buildImpressionManager(
+	impressionsMode string,
+	impListener impressionlistener.ImpressionBulkListener,
+	runtimeTelemetry storageCommon.TelemetryRuntimeProducer,
+	splitTasks *synchronizer.SplitTasks,
+	workers *synchronizer.Workers,
+	splitAPI *api.SplitAPI,
+	metadata dtos.Metadata,
+	logger logging.LoggerInterface,
+) (provisional.ImpressionManager, error) {
+	listenerEnabled := impListener != nil
+	switch impressionsMode {
+	case cconf.ImpressionsModeDebug:
+		impressionObserver, err := strategy.NewImpressionObserver(500)
+		if err != nil {
+			return nil, err
+		}
+
+		strategy := strategy.NewDebugImpl(impressionObserver, listenerEnabled)
+
+		return provisional.NewImpressionManager(strategy), nil
+	default:
+		impressionsCounter := strategy.NewImpressionsCounter()
+		impressionObserver, err := strategy.NewImpressionObserver(500)
+		if err != nil {
+			return nil, err
+		}
+
+		workers.ImpressionsCountRecorder = impressionscount.NewRecorderSingle(impressionsCounter, splitAPI.ImpressionRecorder, metadata, logger, runtimeTelemetry)
+		splitTasks.ImpressionsCountSyncTask = tasks.NewRecordImpressionsCountTask(workers.ImpressionsCountRecorder, logger, 500) // TODO: update period
+		strategy := strategy.NewOptimizedImpl(impressionObserver, impressionsCounter, runtimeTelemetry, listenerEnabled)
+
+		return provisional.NewImpressionManager(strategy), nil
+	}
 }
