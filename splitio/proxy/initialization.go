@@ -165,9 +165,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 					SegmentSync:   int(cfg.Sync.SegmentRefreshRateMs / 1000),
 					TelemetrySync: int(cfg.Sync.Advanced.InternalMetricsRateMs / 1000),
 				},
-				ManagerConfig: conf.ManagerConfig{
-					ListenerEnabled: cfg.Integrations.ImpressionListener.Endpoint != "",
-				},
+				ListenerEnabled: cfg.Integrations.ImpressionListener.Endpoint != "",
 			},
 			time.Since(before).Milliseconds(),
 			map[string]int64{cfg.Apikey: 1},

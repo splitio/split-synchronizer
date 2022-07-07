@@ -12,8 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/splitio/go-split-commons/v4/conf"
 	"github.com/splitio/go-split-commons/v4/dtos"
+	"github.com/splitio/go-split-commons/v4/provisional"
+	"github.com/splitio/go-split-commons/v4/provisional/strategy"
 	"github.com/splitio/go-split-commons/v4/storage/inmemory"
 	"github.com/splitio/go-split-commons/v4/storage/mocks"
 	"github.com/splitio/go-toolkit/v5/logging"
@@ -125,19 +126,20 @@ func makeSerializedImpressions(metadatas int, features int, keys int) [][]byte {
 }
 
 func TestMemoryIsProperlyReturned(t *testing.T) {
-	rts := inmemory.TelemetryStorage{}
+	impressionsCounter := strategy.NewImpressionsCounter()
+	impressionObserver, _ := strategy.NewImpressionObserver(500)
+	strategy := strategy.NewOptimizedImpl(impressionObserver, impressionsCounter, &inmemory.TelemetryStorage{}, false)
 
 	poolWrapper := newTrackingAllocator()
 	w, err := NewImpressionWorker(&ImpressionWorkerConfig{
 		EvictionMonitor:     evcalc.New(1),
 		Logger:              logging.NewLogger(nil),
-		ImpressionsMode:     conf.ImpressionsModeOptimized,
 		ImpressionsListener: nil,
-		Telemetry:           &rts,
 		Storage:             mocks.MockImpressionStorage{},
 		URL:                 "http://test",
 		Apikey:              "someApikey",
 		FetchSize:           100,
+		ImpressionManager:   provisional.NewImpressionManager(strategy),
 	})
 	w.pool = poolWrapper
 	if err != nil {
@@ -189,7 +191,6 @@ func TestImpressionsIntegration(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rts := inmemory.TelemetryStorage{}
 	imps := makeSerializedImpressions(3, 4, 20)
 	var calls int64
 	st := &mocks.MockImpressionStorage{
@@ -210,9 +211,7 @@ func TestImpressionsIntegration(t *testing.T) {
 	w, err := NewImpressionWorker(&ImpressionWorkerConfig{
 		EvictionMonitor:     evcalc.New(1),
 		Logger:              logging.NewLogger(&logging.LoggerOptions{LogLevel: logging.LevelDebug}),
-		ImpressionsMode:     conf.ImpressionsModeOptimized,
 		ImpressionsListener: nil,
-		Telemetry:           &rts,
 		Storage:             st,
 		URL:                 server.URL,
 		Apikey:              "someApikey",
