@@ -207,6 +207,10 @@ func TestImpressionsIntegration(t *testing.T) {
 		},
 	}
 
+	impressionsCounter := strategy.NewImpressionsCounter()
+	impressionObserver, _ := strategy.NewImpressionObserver(500)
+	strategy := strategy.NewOptimizedImpl(impressionObserver, impressionsCounter, &inmemory.TelemetryStorage{}, false)
+
 	poolWrapper := newTrackingAllocator()
 	w, err := NewImpressionWorker(&ImpressionWorkerConfig{
 		EvictionMonitor:     evcalc.New(1),
@@ -216,6 +220,7 @@ func TestImpressionsIntegration(t *testing.T) {
 		URL:                 server.URL,
 		Apikey:              "someApikey",
 		FetchSize:           5000,
+		ImpressionManager:   provisional.NewImpressionManager(strategy),
 	})
 	if err != nil {
 		t.Error("worker instantiation should not fail: ", err)
