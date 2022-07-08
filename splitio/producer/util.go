@@ -6,16 +6,35 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
+	cconf "github.com/splitio/go-split-commons/v4/conf"
 	config "github.com/splitio/go-split-commons/v4/conf"
+	"github.com/splitio/go-split-commons/v4/dtos"
+	"github.com/splitio/go-split-commons/v4/provisional"
+	"github.com/splitio/go-split-commons/v4/provisional/strategy"
 	"github.com/splitio/go-split-commons/v4/service"
+	"github.com/splitio/go-split-commons/v4/service/api"
+	storageCommon "github.com/splitio/go-split-commons/v4/storage"
 	"github.com/splitio/go-split-commons/v4/storage/redis"
+	"github.com/splitio/go-split-commons/v4/synchronizer"
+	"github.com/splitio/go-split-commons/v4/synchronizer/worker/impressionscount"
+	"github.com/splitio/go-split-commons/v4/tasks"
 	"github.com/splitio/go-toolkit/v5/logging"
+	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
 	"github.com/splitio/split-synchronizer/v5/splitio/producer/conf"
+	hcAppCounter "github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/application/counter"
+	hcServicesCounter "github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/services/counter"
 	"github.com/splitio/split-synchronizer/v5/splitio/util"
+)
+
+const (
+	impressionsCountPeriodTaskInMemory = 1800 // 30 min
+	impressionObserverSize             = 500
 )
 
 func parseTLSConfig(opt *conf.Redis) (*tls.Config, error) {
@@ -129,4 +148,82 @@ func sanitizeRedis(cfg *conf.Main, miscStorage *redis.MiscStorage, logger loggin
 		miscStorage.ClearAll()
 	}
 	return nil
+}
+
+func getAppCounterConfigs(storage storageCommon.SplitStorage) (hcAppCounter.ThresholdConfig, hcAppCounter.ThresholdConfig, hcAppCounter.PeriodicConfig) {
+	splitsConfig := hcAppCounter.DefaultThresholdConfig("Splits")
+	segmentsConfig := hcAppCounter.DefaultThresholdConfig("Segments")
+	storageConfig := hcAppCounter.PeriodicConfig{
+		Name:                     "Storage",
+		MaxErrorsAllowedInPeriod: 5,
+		Period:                   3600,
+		Severity:                 hcAppCounter.Low,
+		ValidationFunc: func(c hcAppCounter.PeriodicCounterInterface) {
+			_, err := storage.ChangeNumber()
+			if err != nil {
+				c.NotifyError()
+			}
+		},
+		ValidationFuncPeriod: 10,
+	}
+
+	return splitsConfig, segmentsConfig, storageConfig
+}
+
+func getServicesCountersConfig(advanced *cconf.AdvancedConfig) []hcServicesCounter.Config {
+	var cfgs []hcServicesCounter.Config
+
+	apiConfig := hcServicesCounter.DefaultConfig("API", advanced.SdkURL, "/version")
+	eventsConfig := hcServicesCounter.DefaultConfig("Events", advanced.EventsURL, "/version")
+	authConfig := hcServicesCounter.DefaultConfig("Auth", advanced.AuthServiceURL, "/health")
+
+	telemetryURL, err := url.Parse(advanced.TelemetryServiceURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	telemetryConfig := hcServicesCounter.DefaultConfig("Telemetry", fmt.Sprintf("%s://%s", telemetryURL.Scheme, telemetryURL.Host), "/health")
+
+	streamingURL, err := url.Parse(advanced.StreamingServiceURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	streamingConfig := hcServicesCounter.DefaultConfig("Streaming", fmt.Sprintf("%s://%s", streamingURL.Scheme, streamingURL.Host), "/health")
+
+	return append(cfgs, telemetryConfig, authConfig, apiConfig, eventsConfig, streamingConfig)
+}
+
+func buildImpressionManager(
+	impressionsMode string,
+	impListener impressionlistener.ImpressionBulkListener,
+	runtimeTelemetry storageCommon.TelemetryRuntimeProducer,
+	splitTasks *synchronizer.SplitTasks,
+	workers *synchronizer.Workers,
+	splitAPI *api.SplitAPI,
+	metadata dtos.Metadata,
+	logger logging.LoggerInterface,
+) (provisional.ImpressionManager, error) {
+	listenerEnabled := impListener != nil
+	switch impressionsMode {
+	case config.ImpressionsModeDebug:
+		impressionObserver, err := strategy.NewImpressionObserver(impressionObserverSize)
+		if err != nil {
+			return nil, err
+		}
+
+		strategy := strategy.NewDebugImpl(impressionObserver, listenerEnabled)
+
+		return provisional.NewImpressionManager(strategy), nil
+	default:
+		impressionsCounter := strategy.NewImpressionsCounter()
+		impressionObserver, err := strategy.NewImpressionObserver(impressionObserverSize)
+		if err != nil {
+			return nil, err
+		}
+
+		workers.ImpressionsCountRecorder = impressionscount.NewRecorderSingle(impressionsCounter, splitAPI.ImpressionRecorder, metadata, logger, runtimeTelemetry)
+		splitTasks.ImpressionsCountSyncTask = tasks.NewRecordImpressionsCountTask(workers.ImpressionsCountRecorder, logger, impressionsCountPeriodTaskInMemory)
+		strategy := strategy.NewOptimizedImpl(impressionObserver, impressionsCounter, runtimeTelemetry, listenerEnabled)
+
+		return provisional.NewImpressionManager(strategy), nil
+	}
 }
