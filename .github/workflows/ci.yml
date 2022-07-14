@@ -71,3 +71,23 @@ jobs:
           context: .
           file: docker/Dockerfile.${{ matrix.mode }}
           push: false
+          tags: splitio-docker-dev.jfrog.io/${{ github.event.repository.name }}:latest
+
+      - name: Scan container using Lacework
+        uses: lacework/lw-scanner-action@v1.0.0
+        with:
+          LW_ACCOUNT_NAME: ${{ secrets.LW_ACCOUNT_NAME }}
+          LW_ACCESS_TOKEN: ${{ secrets.LW_ACCESS_TOKEN }}
+          IMAGE_NAME: splitio-docker-dev.jfrog.io/${{ github.event.repository.name }}
+          IMAGE_TAG: latest
+          SAVE_RESULTS_IN_LACEWORK: true
+          SAVE_BUILD_REPORT: true
+          BUILD_REPORT_FILE_NAME: ${{ github.event.repository.name }}.html
+
+      - name: Save vulnerability report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: vulnerability_report
+          path: ${{ github.event.repository.name }}.html
+          retention-days: 7
