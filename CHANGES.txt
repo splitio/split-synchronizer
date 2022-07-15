@@ -1,3 +1,6 @@
+5.0.10 (Jul 18, 2022)
+- Fixed auth healthcheck
+
 5.0.9 (Jul 13, 2022)
 - Updated docker image for vulnerabilities fixes
 
