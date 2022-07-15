@@ -7,7 +7,9 @@ import (
 
 	cconf "github.com/splitio/go-split-commons/v4/conf"
 	"github.com/splitio/go-split-commons/v4/dtos"
+	"github.com/splitio/go-split-commons/v4/provisional/strategy"
 	"github.com/splitio/go-split-commons/v4/service/api"
+	"github.com/splitio/go-split-commons/v4/storage/filter"
 	"github.com/splitio/go-split-commons/v4/storage/inmemory"
 	"github.com/splitio/go-split-commons/v4/storage/redis"
 	"github.com/splitio/go-split-commons/v4/synchronizer"
@@ -31,6 +33,12 @@ import (
 	hcServices "github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/services"
 	"github.com/splitio/split-synchronizer/v5/splitio/provisional/observability"
 	"github.com/splitio/split-synchronizer/v5/splitio/util"
+)
+
+const (
+	bfExpectedElemenets        = 10000000
+	bfFalsePositiveProbability = 0.01
+	bfCleaningPeriod           = 86400 // 6 hours
 )
 
 // Start initialize the producer mode
@@ -91,6 +99,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		LocalTelemetryStorage: syncTelemetryStorage,
 		ImpressionStorage:     redis.NewImpressionStorage(redisClient, dtos.Metadata{}, logger),
 		EventStorage:          redis.NewEventsStorage(redisClient, dtos.Metadata{}, logger),
+		UniqueKeysStorage:     redis.NewUniqueKeysMultiSdkConsumer(redisClient, logger),
 	}
 
 	// Healcheck Monitor
@@ -191,8 +200,36 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		return common.NewInitError(fmt.Errorf("error instantiating events pipelined task: %w", err), common.ExitTaskInitialization)
 	}
 
+	filter := filter.NewBloomFilter(bfExpectedElemenets, bfFalsePositiveProbability)
+	uniqueKeysTracker := strategy.NewUniqueKeysTracker(filter)
+	uniquesWorker := task.NewUniqueKeysWorker(&task.UniqueWorkerConfig{
+		Logger:            logger,
+		Storage:           storages.UniqueKeysStorage,
+		UniqueKeysTracker: uniqueKeysTracker,
+		URL:               "",
+		Apikey:            cfg.Apikey,
+		FetchSize:         int(cfg.Sync.Advanced.UniqueKeysFetchSize),
+		Metadata:          metadata,
+	})
+
+	uniquesTask, err := task.NewPipelinedTask(&task.Config{
+		Name:               "uniques",
+		Logger:             logger,
+		Worker:             uniquesWorker,
+		ProcessConcurrency: cfg.Sync.Advanced.UniqueKeysProcessConcurrency,
+		ProcessBatchSize:   cfg.Sync.Advanced.UniqueKeysProcessBatchSize,
+		PostConcurrency:    cfg.Sync.Advanced.UniqueKeysPostConcurrency,
+		MaxAccumWait:       time.Duration(cfg.Sync.Advanced.EventsAccumWaitMs) * time.Millisecond,
+		HTTPTimeout:        time.Millisecond * time.Duration(cfg.Sync.Advanced.HTTPTimeoutMs),
+	})
+	if err != nil {
+		return common.NewInitError(fmt.Errorf("error instantiating uniques pipelined task: %w", err), common.ExitTaskInitialization)
+	}
+
 	splitTasks.ImpressionSyncTask = impTask
 	splitTasks.EventSyncTask = evTask
+	splitTasks.UniqueKeysTask = uniquesTask
+	splitTasks.CleanFilterTask = tasks.NewCleanFilterTask(filter, logger, bfCleaningPeriod)
 	// @}
 
 	sdkTelemetryWorker := worker.NewTelemetryMultiWorker(logger, sdkTelemetryStorage, splitAPI.TelemetryRecorder)

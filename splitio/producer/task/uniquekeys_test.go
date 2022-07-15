@@ -1,47 +1,24 @@
 package task
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/splitio/go-split-commons/v4/dtos"
+	"github.com/splitio/go-split-commons/v4/provisional/strategy"
+	"github.com/splitio/go-split-commons/v4/storage/mocks"
+	"github.com/splitio/go-toolkit/v5/logging"
 )
 
-func TestFilter(t *testing.T) {
-	slice := getUniqueMocks()
-	filter := make(map[string]map[string]bool)
+func makeSerializedUniques(slice []dtos.Uniques) [][]byte {
+	result := func(r []byte, _ error) []byte { return r }
+	uqs := make([][]byte, 0)
 
-	for _, u := range slice {
-		addUniqueToFilter(u, filter)
+	for _, unique := range slice {
+		uqs = append(uqs, result(json.Marshal(unique)))
 	}
 
-	for _, u := range slice {
-		addUniqueToFilter(u, filter)
-	}
-
-	uniques := buildUniquesObj(filter)
-
-	if len(uniques.Keys) != 3 {
-		t.Error("Keys len should be 3")
-	}
-
-	for _, uk := range uniques.Keys {
-		switch uk.Feature {
-		case "feature-1":
-			if len(uk.Keys) != 3 {
-				t.Error("Len should be 3")
-			}
-		case "feature-2":
-			if len(uk.Keys) != 4 {
-				t.Error("Len should be 4")
-			}
-		case "feature-3":
-			if len(uk.Keys) != 5 {
-				t.Error("Len should be 5")
-			}
-		default:
-			t.Errorf("Incorrect feature name, %s", uk.Feature)
-		}
-	}
+	return uqs
 }
 
 func getUniqueMocks() []dtos.Uniques {
@@ -93,4 +70,61 @@ func getUniqueMocks() []dtos.Uniques {
 	}
 
 	return []dtos.Uniques{one, two, three}
+}
+
+func TestUniquesMemoryIsProperlyReturned(t *testing.T) {
+	filter := mocks.MockFilter{
+		ContainsCall: func(data string) bool { return false },
+		AddCall:      func(data string) {},
+		ClearCall:    func() {},
+	}
+	tracker := strategy.NewUniqueKeysTracker(filter)
+	worker := NewUniqueKeysWorker(&UniqueWorkerConfig{
+		Logger:            logging.NewLogger(nil),
+		Storage:           mocks.MockUniqueKeysStorage{},
+		UniqueKeysTracker: tracker,
+		URL:               "http://test",
+		Apikey:            "someApikey",
+		FetchSize:         100,
+		Metadata: dtos.Metadata{
+			SDKVersion:  "sdk-version-test",
+			MachineIP:   "ip-test",
+			MachineName: "name-test",
+		},
+	})
+
+	sinker := make(chan interface{}, 100)
+	slice := getUniqueMocks()
+	dataRaw := makeSerializedUniques(slice)
+	worker.Process(dataRaw, sinker)
+
+	if len(sinker) != 1 {
+		t.Error("there should be 1 bulk ready for submission")
+	}
+	data := <-sinker
+	req, _, err := worker.BuildRequest(data)
+
+	if req == nil || err != nil {
+		t.Error("there should be no error. Got: ", err)
+	}
+
+	uniques, _ := data.(dtos.Uniques)
+	for _, uk := range uniques.Keys {
+		switch uk.Feature {
+		case "feature-1":
+			if len(uk.Keys) != 3 {
+				t.Error("Len should be 3")
+			}
+		case "feature-2":
+			if len(uk.Keys) != 4 {
+				t.Error("Len should be 4")
+			}
+		case "feature-3":
+			if len(uk.Keys) != 5 {
+				t.Error("Len should be 5")
+			}
+		default:
+			t.Errorf("Incorrect feature name, %s", uk.Feature)
+		}
+	}
 }
