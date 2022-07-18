@@ -68,6 +68,11 @@ type AdvancedSync struct {
 	EventsPostConcurrency         int   `json:"eventsPostConcurrency" s-cli:"events-post-concurrency" s-def:"0" s-desc:"#concurrent imp post threads"`
 	EventsPostSize                int   `json:"eventsPostSize" s-cli:"events-post-size" s-def:"0" s-desc:"Max #impressions to send per POST"`
 	EventsAccumWaitMs             int64 `json:"eventsAccumWaitMs" s-cli:"events-accum-wait-ms" s-def:"0" s-desc:"Max ms to wait to close an events bulk"`
+	UniqueKeysFetchSize           int64 `json:"uniqueKeysFetchSize" s-cli:"unique-keys-fetch-size" s-def:"0" s-desc:"How many unique keys to pop from storage at once"`
+	UniqueKeysProcessConcurrency  int   `json:"uniqueKeysProcessConcurrency" s-cli:"unique-keys-process-concurrency" s-def:"0" s-desc:"#Threads for processing uniques"`
+	UniqueKeysProcessBatchSize    int   `json:"uniqueKeysProcessBatchSize" s-cli:"unique-keys-process-batch-size" s-def:"0" s-desc:"Size of uniques processing batchs"`
+	UniqueKeysPostConcurrency     int   `json:"uniqueKeysPostConcurrency" s-cli:"unique-keys-post-concurrency" s-def:"0" s-desc:"#concurrent uniques post threads"`
+	UniqueKeysAccumWaitMs         int64 `json:"uniqueKeysAccumWaitMs" s-cli:"unique-keys-accum-wait-ms" s-def:"0" s-desc:"Max ms to wait to close an uniques bulk"`
 }
 
 // Redis configuration options
