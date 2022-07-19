@@ -14,16 +14,11 @@ import (
 
 	cconf "github.com/splitio/go-split-commons/v4/conf"
 	config "github.com/splitio/go-split-commons/v4/conf"
-	"github.com/splitio/go-split-commons/v4/dtos"
 	"github.com/splitio/go-split-commons/v4/provisional"
 	"github.com/splitio/go-split-commons/v4/provisional/strategy"
 	"github.com/splitio/go-split-commons/v4/service"
-	"github.com/splitio/go-split-commons/v4/service/api"
 	storageCommon "github.com/splitio/go-split-commons/v4/storage"
 	"github.com/splitio/go-split-commons/v4/storage/redis"
-	"github.com/splitio/go-split-commons/v4/synchronizer"
-	"github.com/splitio/go-split-commons/v4/synchronizer/worker/impressionscount"
-	"github.com/splitio/go-split-commons/v4/tasks"
 	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
 	"github.com/splitio/split-synchronizer/v5/splitio/producer/conf"
@@ -196,34 +191,18 @@ func buildImpressionManager(
 	impressionsMode string,
 	impListener impressionlistener.ImpressionBulkListener,
 	runtimeTelemetry storageCommon.TelemetryRuntimeProducer,
-	splitTasks *synchronizer.SplitTasks,
-	workers *synchronizer.Workers,
-	splitAPI *api.SplitAPI,
-	metadata dtos.Metadata,
-	logger logging.LoggerInterface,
-) (provisional.ImpressionManager, error) {
+	impressionObserver strategy.ImpressionObserver,
+	impressionsCounter *strategy.ImpressionsCounter,
+) provisional.ImpressionManager {
 	listenerEnabled := impListener != nil
 	switch impressionsMode {
 	case config.ImpressionsModeDebug:
-		impressionObserver, err := strategy.NewImpressionObserver(impressionObserverSize)
-		if err != nil {
-			return nil, err
-		}
-
 		strategy := strategy.NewDebugImpl(impressionObserver, listenerEnabled)
 
-		return provisional.NewImpressionManager(strategy), nil
+		return provisional.NewImpressionManager(strategy)
 	default:
-		impressionsCounter := strategy.NewImpressionsCounter()
-		impressionObserver, err := strategy.NewImpressionObserver(impressionObserverSize)
-		if err != nil {
-			return nil, err
-		}
-
-		workers.ImpressionsCountRecorder = impressionscount.NewRecorderSingle(impressionsCounter, splitAPI.ImpressionRecorder, metadata, logger, runtimeTelemetry)
-		splitTasks.ImpressionsCountSyncTask = tasks.NewRecordImpressionsCountTask(workers.ImpressionsCountRecorder, logger, impressionsCountPeriodTaskInMemory)
 		strategy := strategy.NewOptimizedImpl(impressionObserver, impressionsCounter, runtimeTelemetry, listenerEnabled)
 
-		return provisional.NewImpressionManager(strategy), nil
+		return provisional.NewImpressionManager(strategy)
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/splitio/go-split-commons/v4/storage/inmemory"
 	"github.com/splitio/go-split-commons/v4/storage/redis"
 	"github.com/splitio/go-split-commons/v4/synchronizer"
+	"github.com/splitio/go-split-commons/v4/synchronizer/worker/impressionscount"
 	"github.com/splitio/go-split-commons/v4/synchronizer/worker/segment"
 	"github.com/splitio/go-split-commons/v4/synchronizer/worker/split"
 	"github.com/splitio/go-split-commons/v4/tasks"
@@ -107,6 +108,9 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	appMonitor := hcApplication.NewMonitorImp(splitsConfig, segmentsConfig, &storageConfig, logger)
 	servicesMonitor := hcServices.NewMonitorImp(getServicesCountersConfig(advanced), logger)
 
+	impressionsCounter := strategy.NewImpressionsCounter()
+	impressionObserver, err := strategy.NewImpressionObserver(impressionObserverSize)
+
 	// Creating Workers and Tasks
 	eventEvictionMonitor := evcalc.New(1)
 
@@ -114,6 +118,8 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		SplitFetcher: split.NewSplitFetcher(storages.SplitStorage, splitAPI.SplitFetcher, logger, syncTelemetryStorage, appMonitor),
 		SegmentFetcher: segment.NewSegmentFetcher(storages.SplitStorage, storages.SegmentStorage, splitAPI.SegmentFetcher,
 			logger, syncTelemetryStorage, appMonitor),
+		ImpressionsCountRecorder: impressionscount.NewRecorderSingle(impressionsCounter, splitAPI.ImpressionRecorder,
+			metadata, logger, syncTelemetryStorage),
 		// local telemetry
 		TelemetryRecorder: telemetry.NewTelemetrySynchronizer(syncTelemetryStorage, splitAPI.TelemetryRecorder,
 			storages.SplitStorage, storages.SegmentStorage, logger, metadata, syncTelemetryStorage),
@@ -122,6 +128,8 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		SplitSyncTask: tasks.NewFetchSplitsTask(workers.SplitFetcher, int(cfg.Sync.SplitRefreshRateMs)/1000, logger),
 		SegmentSyncTask: tasks.NewFetchSegmentsTask(workers.SegmentFetcher, int(cfg.Sync.SegmentRefreshRateMs)/1000,
 			advanced.SegmentWorkers, advanced.SegmentQueueSize, logger),
+		ImpressionsCountSyncTask: tasks.NewRecordImpressionsCountTask(workers.ImpressionsCountRecorder,
+			logger, impressionsCountPeriodTaskInMemory),
 		// local telemetry
 		TelemetrySyncTask: tasks.NewRecordTelemetryTask(workers.TelemetryRecorder, int(cfg.Sync.Advanced.InternalMetricsRateMs)/1000, logger),
 	}
@@ -140,10 +148,11 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		impListener.Start()
 	}
 
-	impManager, err := buildImpressionManager(cfg.Sync.ImpressionsMode, impListener, syncTelemetryStorage, &splitTasks, &workers, splitAPI, metadata, logger)
 	if err != nil {
-		return common.NewInitError(fmt.Errorf("error instantiating impression manager: %w", err), common.ExitTaskInitialization)
+		return common.NewInitError(fmt.Errorf("error instantiating impression observer: %w", err), common.ExitTaskInitialization)
 	}
+
+	impManager := buildImpressionManager(cfg.Sync.ImpressionsMode, impListener, syncTelemetryStorage, impressionObserver, impressionsCounter)
 
 	// Impression & events pipelined tasks @{
 	impWorker, err := task.NewImpressionWorker(&task.ImpressionWorkerConfig{
@@ -206,7 +215,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		Logger:            logger,
 		Storage:           storages.UniqueKeysStorage,
 		UniqueKeysTracker: uniqueKeysTracker,
-		URL:               "",
+		URL:               advanced.TelemetryServiceURL, // TODO: check the url.
 		Apikey:            cfg.Apikey,
 		FetchSize:         int(cfg.Sync.Advanced.UniqueKeysFetchSize),
 		Metadata:          metadata,
@@ -219,7 +228,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		ProcessConcurrency: cfg.Sync.Advanced.UniqueKeysProcessConcurrency,
 		ProcessBatchSize:   cfg.Sync.Advanced.UniqueKeysProcessBatchSize,
 		PostConcurrency:    cfg.Sync.Advanced.UniqueKeysPostConcurrency,
-		MaxAccumWait:       time.Duration(cfg.Sync.Advanced.EventsAccumWaitMs) * time.Millisecond,
+		MaxAccumWait:       time.Duration(cfg.Sync.Advanced.UniqueKeysAccumWaitMs) * time.Millisecond,
 		HTTPTimeout:        time.Millisecond * time.Duration(cfg.Sync.Advanced.HTTPTimeoutMs),
 	})
 	if err != nil {
@@ -230,11 +239,15 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	splitTasks.EventSyncTask = evTask
 	splitTasks.UniqueKeysTask = uniquesTask
 	splitTasks.CleanFilterTask = tasks.NewCleanFilterTask(filter, logger, bfCleaningPeriod)
+
 	// @}
 
 	sdkTelemetryWorker := worker.NewTelemetryMultiWorker(logger, sdkTelemetryStorage, splitAPI.TelemetryRecorder)
 	sdkTelemetryTask := task.NewTelemetrySyncTask(sdkTelemetryWorker, logger, int(cfg.Sync.Advanced.TelemetryPushRateMs/1000))
-	syncImpl := ssync.NewSynchronizer(*advanced, splitTasks, workers, logger, nil, []tasks.Task{sdkTelemetryTask}, appMonitor)
+	impcountStorageConsumer := redis.NewImpressionsCountStorage(redisClient, logger)
+	impcountsWorker := worker.NewImpressionsCounstWorker(*impressionsCounter, impcountStorageConsumer, logger)
+	impcountsTask := task.NewImpressionCountSyncTask(impcountsWorker, logger, 5000) // TODO: update period to config
+	syncImpl := ssync.NewSynchronizer(*advanced, splitTasks, workers, logger, nil, []tasks.Task{sdkTelemetryTask, impcountsTask}, appMonitor)
 	managerStatus := make(chan int, 1)
 	syncManager, err := synchronizer.NewSynchronizerManager(
 		syncImpl,
