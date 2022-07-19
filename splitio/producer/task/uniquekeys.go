@@ -40,7 +40,7 @@ func NewUniqueKeysWorker(cfg *UniqueWorkerConfig) Worker {
 		logger:            cfg.Logger,
 		storage:           cfg.Storage,
 		uniqueKeysTracker: cfg.UniqueKeysTracker,
-		url:               cfg.URL,
+		url:               cfg.URL + "/keys/ss",
 		apikey:            cfg.Apikey,
 		fetchSize:         int64(cfg.FetchSize),
 		metadata:          cfg.Metadata,
@@ -55,6 +55,7 @@ func (u *UniqueKeysPipelineWorker) Fetch() ([]string, error) {
 
 	return raw, nil
 }
+
 func (u *UniqueKeysPipelineWorker) Process(raws [][]byte, sink chan<- interface{}) error {
 	for _, raw := range raws {
 		var queueObj dtos.Uniques
