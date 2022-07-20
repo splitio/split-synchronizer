@@ -40,11 +40,11 @@ build: split-sync split-proxy
 
 ## Build the split-sync executable
 split-sync: $(sources) go.sum
-	$(GO) build -o $@ cmd/synchronizer/main.go
+	$(GO) build -ldflags '-linkmode external' -o $@ cmd/synchronizer/main.go
 
 ## Build the split-proxy executable
 split-proxy: $(sources) go.sum
-	$(GO) build -o $@ cmd/proxy/main.go
+	$(GO) build -ldflags '-linkmode external' -o $@ cmd/proxy/main.go
 
 ## Run the unit tests
 test: $(sources) go.sum
