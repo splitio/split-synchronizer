@@ -52,27 +52,28 @@ type Sync struct {
 
 // AdvancedSync configuration options
 type AdvancedSync struct {
-	StreamingEnabled              bool  `json:"streamingEnabled" s-cli:"streaming-enabled" s-def:"true" s-desc:"Enable/disable streaming functionality"`
-	HTTPTimeoutMs                 int64 `json:"httpTimeoutMs" s-cli:"http-timeout-ms" s-def:"30000" s-desc:"Total http request timeout"`
-	InternalMetricsRateMs         int64 `json:"internalTelemetryRateMs" s-cli:"internal-metrics-rate-ms" s-def:"3600000" s-desc:"How often to send internal metrics"`
-	TelemetryPushRateMs           int64 `json:"telemetryPushRateMs" s-cli:"telemetry-push-rate-ms" s-def:"60000" s-desc:"how often to flush sdk telemetry"`
-	ImpressionsFetchSize          int64 `json:"impressionsFetchSize" s-cli:"impressions-fetch-size" s-def:"0" s-desc:"Impression fetch bulk size"`
-	ImpressionsProcessConcurrency int   `json:"impressionsProcessConcurrency" s-cli:"impressions-process-concurrency" s-def:"0" s-desc:"#Threads for processing imps"`
-	ImpressionsProcessBatchSize   int   `json:"impressionsProcessBatchSize" s-cli:"impressions-process-batch-size" s-def:"0" s-desc:"Size of imp processing batchs"`
-	ImpressionsPostConcurrency    int   `json:"impressionsPostConcurrency" s-cli:"impressions-post-concurrency" s-def:"0" s-desc:"#concurrent imp post threads"`
-	ImpressionsPostSize           int   `json:"impressionsPostSize" s-cli:"impressions-post-size" s-def:"0" s-desc:"Max #impressions to send per POST"`
-	ImpressionsAccumWaitMs        int64 `json:"impressionsAccumWaitMs" s-cli:"impressions-accum-wait-ms" s-def:"0" s-desc:"Max ms to wait to close an impressions bulk"`
-	EventsFetchSize               int64 `json:"eventsFetchSize" s-cli:"events-fetch-size" s-def:"0" s-desc:"How many impressions to pop from storage at once"`
-	EventsProcessConcurrency      int   `json:"eventsProcessConcurrency" s-cli:"events-process-concurrency" s-def:"0" s-desc:"#Threads for processing imps"`
-	EventsProcessBatchSize        int   `json:"eventsProcessBatchSize" s-cli:"events-process-batch-size" s-def:"0" s-desc:"Size of imp processing batchs"`
-	EventsPostConcurrency         int   `json:"eventsPostConcurrency" s-cli:"events-post-concurrency" s-def:"0" s-desc:"#concurrent imp post threads"`
-	EventsPostSize                int   `json:"eventsPostSize" s-cli:"events-post-size" s-def:"0" s-desc:"Max #impressions to send per POST"`
-	EventsAccumWaitMs             int64 `json:"eventsAccumWaitMs" s-cli:"events-accum-wait-ms" s-def:"0" s-desc:"Max ms to wait to close an events bulk"`
-	UniqueKeysFetchSize           int64 `json:"uniqueKeysFetchSize" s-cli:"unique-keys-fetch-size" s-def:"0" s-desc:"How many unique keys to pop from storage at once"`
-	UniqueKeysProcessConcurrency  int   `json:"uniqueKeysProcessConcurrency" s-cli:"unique-keys-process-concurrency" s-def:"0" s-desc:"#Threads for processing uniques"`
-	UniqueKeysProcessBatchSize    int   `json:"uniqueKeysProcessBatchSize" s-cli:"unique-keys-process-batch-size" s-def:"0" s-desc:"Size of uniques processing batchs"`
-	UniqueKeysPostConcurrency     int   `json:"uniqueKeysPostConcurrency" s-cli:"unique-keys-post-concurrency" s-def:"0" s-desc:"#concurrent uniques post threads"`
-	UniqueKeysAccumWaitMs         int64 `json:"uniqueKeysAccumWaitMs" s-cli:"unique-keys-accum-wait-ms" s-def:"0" s-desc:"Max ms to wait to close an uniques bulk"`
+	StreamingEnabled                 bool  `json:"streamingEnabled" s-cli:"streaming-enabled" s-def:"true" s-desc:"Enable/disable streaming functionality"`
+	HTTPTimeoutMs                    int64 `json:"httpTimeoutMs" s-cli:"http-timeout-ms" s-def:"30000" s-desc:"Total http request timeout"`
+	InternalMetricsRateMs            int64 `json:"internalTelemetryRateMs" s-cli:"internal-metrics-rate-ms" s-def:"3600000" s-desc:"How often to send internal metrics"`
+	TelemetryPushRateMs              int64 `json:"telemetryPushRateMs" s-cli:"telemetry-push-rate-ms" s-def:"60000" s-desc:"how often to flush sdk telemetry"`
+	ImpressionsFetchSize             int64 `json:"impressionsFetchSize" s-cli:"impressions-fetch-size" s-def:"0" s-desc:"Impression fetch bulk size"`
+	ImpressionsProcessConcurrency    int   `json:"impressionsProcessConcurrency" s-cli:"impressions-process-concurrency" s-def:"0" s-desc:"#Threads for processing imps"`
+	ImpressionsProcessBatchSize      int   `json:"impressionsProcessBatchSize" s-cli:"impressions-process-batch-size" s-def:"0" s-desc:"Size of imp processing batchs"`
+	ImpressionsPostConcurrency       int   `json:"impressionsPostConcurrency" s-cli:"impressions-post-concurrency" s-def:"0" s-desc:"#concurrent imp post threads"`
+	ImpressionsPostSize              int   `json:"impressionsPostSize" s-cli:"impressions-post-size" s-def:"0" s-desc:"Max #impressions to send per POST"`
+	ImpressionsAccumWaitMs           int64 `json:"impressionsAccumWaitMs" s-cli:"impressions-accum-wait-ms" s-def:"0" s-desc:"Max ms to wait to close an impressions bulk"`
+	EventsFetchSize                  int64 `json:"eventsFetchSize" s-cli:"events-fetch-size" s-def:"0" s-desc:"How many impressions to pop from storage at once"`
+	EventsProcessConcurrency         int   `json:"eventsProcessConcurrency" s-cli:"events-process-concurrency" s-def:"0" s-desc:"#Threads for processing imps"`
+	EventsProcessBatchSize           int   `json:"eventsProcessBatchSize" s-cli:"events-process-batch-size" s-def:"0" s-desc:"Size of imp processing batchs"`
+	EventsPostConcurrency            int   `json:"eventsPostConcurrency" s-cli:"events-post-concurrency" s-def:"0" s-desc:"#concurrent imp post threads"`
+	EventsPostSize                   int   `json:"eventsPostSize" s-cli:"events-post-size" s-def:"0" s-desc:"Max #impressions to send per POST"`
+	EventsAccumWaitMs                int64 `json:"eventsAccumWaitMs" s-cli:"events-accum-wait-ms" s-def:"0" s-desc:"Max ms to wait to close an events bulk"`
+	UniqueKeysFetchSize              int64 `json:"uniqueKeysFetchSize" s-cli:"unique-keys-fetch-size" s-def:"0" s-desc:"How many unique keys to pop from storage at once"`
+	UniqueKeysProcessConcurrency     int   `json:"uniqueKeysProcessConcurrency" s-cli:"unique-keys-process-concurrency" s-def:"0" s-desc:"#Threads for processing uniques"`
+	UniqueKeysProcessBatchSize       int   `json:"uniqueKeysProcessBatchSize" s-cli:"unique-keys-process-batch-size" s-def:"0" s-desc:"Size of uniques processing batchs"`
+	UniqueKeysPostConcurrency        int   `json:"uniqueKeysPostConcurrency" s-cli:"unique-keys-post-concurrency" s-def:"0" s-desc:"#concurrent uniques post threads"`
+	UniqueKeysAccumWaitMs            int64 `json:"uniqueKeysAccumWaitMs" s-cli:"unique-keys-accum-wait-ms" s-def:"0" s-desc:"Max ms to wait to close an uniques bulk"`
+	ImpressionsCountWorkerReadRateMs int64 `json:"impressionsCountWorkerReadRateMs" s-cli:"impressions-count-worker-read-rate-ms" s-def:"60000" s-desc:"how often read in redis impression count comming from sdks"`
 }
 
 // Redis configuration options

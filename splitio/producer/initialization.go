@@ -110,6 +110,9 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 
 	impressionsCounter := strategy.NewImpressionsCounter()
 	impressionObserver, err := strategy.NewImpressionObserver(impressionObserverSize)
+	if err != nil {
+		return common.NewInitError(fmt.Errorf("error instantiating impression observer: %w", err), common.ExitTaskInitialization)
+	}
 
 	// Creating Workers and Tasks
 	eventEvictionMonitor := evcalc.New(1)
@@ -146,10 +149,6 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 			return common.NewInitError(fmt.Errorf("error instantiating impression listener: %w", err), common.ExitTaskInitialization)
 		}
 		impListener.Start()
-	}
-
-	if err != nil {
-		return common.NewInitError(fmt.Errorf("error instantiating impression observer: %w", err), common.ExitTaskInitialization)
 	}
 
 	impManager := buildImpressionManager(cfg.Sync.ImpressionsMode, impListener, syncTelemetryStorage, impressionObserver, impressionsCounter)
@@ -215,7 +214,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		Logger:            logger,
 		Storage:           storages.UniqueKeysStorage,
 		UniqueKeysTracker: uniqueKeysTracker,
-		URL:               advanced.TelemetryServiceURL, // TODO: check the url.
+		URL:               advanced.TelemetryServiceURL,
 		Apikey:            cfg.Apikey,
 		FetchSize:         int(cfg.Sync.Advanced.UniqueKeysFetchSize),
 		Metadata:          metadata,
@@ -246,7 +245,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	sdkTelemetryTask := task.NewTelemetrySyncTask(sdkTelemetryWorker, logger, int(cfg.Sync.Advanced.TelemetryPushRateMs/1000))
 	impcountStorageConsumer := redis.NewImpressionsCountStorage(redisClient, logger)
 	impcountsWorker := worker.NewImpressionsCounstWorker(*impressionsCounter, impcountStorageConsumer, logger)
-	impcountsTask := task.NewImpressionCountSyncTask(impcountsWorker, logger, 5000) // TODO: update period to config
+	impcountsTask := task.NewImpressionCountSyncTask(impcountsWorker, logger, int(cfg.Sync.Advanced.ImpressionsCountWorkerReadRateMs/1000))
 	syncImpl := ssync.NewSynchronizer(*advanced, splitTasks, workers, logger, nil, []tasks.Task{sdkTelemetryTask, impcountsTask}, appMonitor)
 	managerStatus := make(chan int, 1)
 	syncManager, err := synchronizer.NewSynchronizerManager(
