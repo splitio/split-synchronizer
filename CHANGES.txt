@@ -1,4 +1,4 @@
-5.1.0 (TBD)
+5.1.0 (Aug 04, 2022)
 - Update docker image & makefile to accept EXTRA_BUILD_ARGS argument. To be forwarded to the `go build` statement
 
 5.0.10 (Jul 18, 2022)
