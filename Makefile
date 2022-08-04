@@ -7,6 +7,9 @@ DOCKER ?= docker
 BUILD ?= build
 SHELL = /usr/bin/env bash -o pipefail
 
+# Extra arguments
+EXTRA_BUILD_ARGS ?= 
+
 # don't depend on commit version, to avoid rebuilding unnecessarily
 sources			:= $(shell find . -name *.go -not -name "commitversion.go")
 version			:= $(shell cat splitio/version.go | grep 'const Version' | sed 's/const Version = //' | tr -d '"')
@@ -40,11 +43,11 @@ build: split-sync split-proxy
 
 ## Build the split-sync executable
 split-sync: $(sources) go.sum
-	$(GO) build -o $@ cmd/synchronizer/main.go
+	$(GO) build $(EXTRA_BUILD_ARGS) -o $@ cmd/synchronizer/main.go
 
 ## Build the split-proxy executable
 split-proxy: $(sources) go.sum
-	$(GO) build -o $@ cmd/proxy/main.go
+	$(GO) build $(EXTRA_BUILD_ARGS) -o $@ cmd/proxy/main.go
 
 ## Run the unit tests
 test: $(sources) go.sum
