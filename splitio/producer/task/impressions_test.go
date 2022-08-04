@@ -2,7 +2,6 @@ package task
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -174,7 +173,6 @@ func TestImpressionsIntegration(t *testing.T) {
 
 		var ti []dtos.ImpressionsDTO
 		if err := json.Unmarshal(body, &ti); err != nil {
-			fmt.Println(string(body))
 			t.Error("error deserializing body: ", err)
 		}
 
