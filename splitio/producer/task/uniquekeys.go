@@ -58,14 +58,14 @@ func (u *UniqueKeysPipelineWorker) Fetch() ([]string, error) {
 
 func (u *UniqueKeysPipelineWorker) Process(raws [][]byte, sink chan<- interface{}) error {
 	for _, raw := range raws {
-		var queueObj dtos.Uniques
+		var queueObj []dtos.Key
 		err := json.Unmarshal(raw, &queueObj)
 		if err != nil {
 			u.logger.Error("error deserializing fetched uniqueKeys: ", err.Error())
 			continue
 		}
 
-		for _, unique := range queueObj.Keys {
+		for _, unique := range queueObj {
 			for _, key := range unique.Keys {
 				u.uniqueKeysTracker.Track(unique.Feature, key)
 			}
@@ -91,8 +91,6 @@ func (u *UniqueKeysPipelineWorker) BuildRequest(data interface{}) (*http.Request
 	if err != nil {
 		return nil, nil, fmt.Errorf("error building unique keys post request: %w", err)
 	}
-
-	fmt.Println(string(serialized))
 
 	req.Header = http.Header{}
 	req.Header.Add("Authorization", "Bearer "+u.apikey)
