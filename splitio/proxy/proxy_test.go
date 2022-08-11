@@ -322,7 +322,6 @@ func toMySegments(body []byte) []dtos.MySegmentDTO {
 	var c map[string][]dtos.MySegmentDTO
 	err := json.Unmarshal(body, &c)
 	if err != nil {
-		fmt.Println(string(body))
 		panic(err.Error())
 	}
 	return c["mySegments"]

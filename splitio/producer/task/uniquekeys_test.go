@@ -10,7 +10,7 @@ import (
 	"github.com/splitio/go-toolkit/v5/logging"
 )
 
-func makeSerializedUniques(slice []dtos.Uniques) [][]byte {
+func makeSerializedUniques(slice [][]dtos.Key) [][]byte {
 	result := func(r []byte, _ error) []byte { return r }
 	uqs := make([][]byte, 0)
 
@@ -21,55 +21,49 @@ func makeSerializedUniques(slice []dtos.Uniques) [][]byte {
 	return uqs
 }
 
-func getUniqueMocks() []dtos.Uniques {
-	one := dtos.Uniques{
-		Keys: []dtos.Key{
-			{
-				Feature: "feature-1",
-				Keys:    []string{"key-1", "key-2"},
-			},
-			{
-				Feature: "feature-2",
-				Keys:    []string{"key-10", "key-20"},
-			},
+func getUniqueMocks() [][]dtos.Key {
+	one := []dtos.Key{
+		{
+			Feature: "feature-1",
+			Keys:    []string{"key-1", "key-2"},
+		},
+		{
+			Feature: "feature-2",
+			Keys:    []string{"key-10", "key-20"},
 		},
 	}
 
-	two := dtos.Uniques{
-		Keys: []dtos.Key{
-			{
-				Feature: "feature-1",
-				Keys:    []string{"key-1", "key-2", "key-3"},
-			},
-			{
-				Feature: "feature-2",
-				Keys:    []string{"key-10", "key-20"},
-			},
-			{
-				Feature: "feature-3",
-				Keys:    []string{"key-10", "key-20"},
-			},
+	two := []dtos.Key{
+		{
+			Feature: "feature-1",
+			Keys:    []string{"key-1", "key-2", "key-3"},
+		},
+		{
+			Feature: "feature-2",
+			Keys:    []string{"key-10", "key-20"},
+		},
+		{
+			Feature: "feature-3",
+			Keys:    []string{"key-10", "key-20"},
 		},
 	}
 
-	three := dtos.Uniques{
-		Keys: []dtos.Key{
-			{
-				Feature: "feature-1",
-				Keys:    []string{"key-1", "key-2", "key-3"},
-			},
-			{
-				Feature: "feature-2",
-				Keys:    []string{"key-10", "key-20", "key-30", "key-55"},
-			},
-			{
-				Feature: "feature-3",
-				Keys:    []string{"key-10", "key-20", "key-40", "key-100", "key-300", "key-10", "key-20", "key-40", "key-100", "key-300"},
-			},
+	three := []dtos.Key{
+		{
+			Feature: "feature-1",
+			Keys:    []string{"key-1", "key-2", "key-3"},
+		},
+		{
+			Feature: "feature-2",
+			Keys:    []string{"key-10", "key-20", "key-30", "key-55"},
+		},
+		{
+			Feature: "feature-3",
+			Keys:    []string{"key-10", "key-20", "key-40", "key-100", "key-300", "key-10", "key-20", "key-40", "key-100", "key-300"},
 		},
 	}
 
-	return []dtos.Uniques{one, two, three}
+	return [][]dtos.Key{one, two, three}
 }
 
 func TestUniquesMemoryIsProperlyReturned(t *testing.T) {
