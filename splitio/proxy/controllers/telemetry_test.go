@@ -398,3 +398,62 @@ func TestPostBeaconKeysClientSide(t *testing.T) {
 		t.Error("Status code should be 200 and is ", resp.Code)
 	}
 }
+
+func TestPostUsageBeacon(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	resp := httptest.NewRecorder()
+	ctx, router := gin.CreateTestContext(resp)
+
+	logger := logging.NewLogger(nil)
+	apikeyValidator := middleware.NewAPIKeyValidator([]string{"someApiKey"})
+
+	group := router.Group("/api")
+	controller := NewTelemetryServerController(
+		logger,
+		&mocks.MockDeferredRecordingTask{},
+		&mocks.MockDeferredRecordingTask{
+			StageCall: func(raw interface{}) error {
+				data, ok := raw.(*internal.RawTelemetryUsage)
+				if !ok {
+					t.Error("failed type assertion")
+				}
+
+				expected := dtos.Metadata{SDKVersion: "go-1.1.1", MachineIP: "NA", MachineName: "NA"}
+				if expected != data.Metadata {
+					t.Error("wrong metadata")
+				}
+
+				var parsed dtos.Stats
+				err := json.Unmarshal(data.Payload, &parsed)
+				if err != nil {
+					t.Error("error parsing config")
+				}
+
+				if parsed.AuthRejections != 2 || parsed.TokenRefreshes != 1 {
+					t.Error("wrong payload")
+				}
+				return nil
+			},
+		},
+		&mocks.MockDeferredRecordingTask{},
+		&mocks.MockDeferredRecordingTask{},
+		apikeyValidator.IsValid,
+	)
+	controller.Register(group, group)
+
+	entries, err := json.Marshal(dtos.Stats{TokenRefreshes: 1, AuthRejections: 2})
+	if err != nil {
+		t.Error("should not have errors when serializing: ", err)
+	}
+
+	serialized, err := json.Marshal(beaconMessage{Entries: entries, Sdk: "go-1.1.1", Token: "someApiKey"})
+	if err != nil {
+		t.Error("should not have errors when serializing: ", err)
+	}
+
+	ctx.Request, _ = http.NewRequest(http.MethodPost, "/api/metrics/usage/beacon", bytes.NewBuffer(serialized))
+	router.ServeHTTP(resp, ctx.Request)
+	if resp.Code != 204 {
+		t.Error("Status code should be 200 and is ", resp.Code)
+	}
+}

@@ -45,12 +45,19 @@ func NewTelemetryServerController(
 // Register mounts telemetry-related endpoints onto the supplied router
 func (c *TelemetryServerController) Register(router gin.IRouter, beacon gin.IRouter) {
 	router.POST("/metrics/config", c.Config)
+	router.POST("/v1/metrics/config", c.Config)
 	router.POST("/metrics/usage", c.Usage)
+	router.POST("/v1/metrics/usage", c.Usage)
 	router.POST("/keys/cs", c.keysClientSide)
+	router.POST("/v1/keys/cs", c.keysClientSide)
 	router.POST("/keys/ss", c.keysServerSide)
+	router.POST("/v1/keys/ss", c.keysServerSide)
 
 	// beacon endpoints
+	beacon.POST("/metrics/usage/beacon", c.UsageBeacon)
+	beacon.POST("/v1/metrics/usage/beacon", c.UsageBeacon)
 	beacon.POST("/keys/cs/beacon", c.keysClientSideBeacon)
+	beacon.POST("/v1/keys/cs/beacon", c.keysClientSideBeacon)
 }
 
 // Config endpoint accepts telemtetry config objects
@@ -88,13 +95,53 @@ func (c *TelemetryServerController) Usage(ctx *gin.Context) {
 	err = c.usageSink.Stage(internal.NewRawTelemetryUsage(metadata, data))
 	if err != nil {
 		if err == tasks.ErrQueueFull {
-			ctx.AbortWithStatusJSON(500, "Usage telemetry queue queue is full, please retry later.")
+			ctx.AbortWithStatusJSON(500, "Usage telemetry queue is full, please retry later.")
 		} else {
 			ctx.AbortWithStatusJSON(500, "Unknown error when trying to push usage telemetry into the staging queue")
 		}
 		return
 	}
 	ctx.JSON(http.StatusOK, nil)
+}
+
+func (c *TelemetryServerController) UsageBeacon(ctx *gin.Context) {
+	if ctx.Request.Body == nil {
+		ctx.JSON(http.StatusBadRequest, nil)
+		return
+	}
+
+	data, err := ioutil.ReadAll(ctx.Request.Body)
+	if err != nil {
+		c.logger.Error(err)
+		ctx.JSON(http.StatusInternalServerError, nil)
+		return
+	}
+
+	var body beaconMessage
+	if err := json.Unmarshal([]byte(data), &body); err != nil {
+		c.logger.Error(err)
+		ctx.JSON(http.StatusBadRequest, nil)
+		return
+	}
+
+	if !c.apikeyValidator(body.Token) {
+		ctx.AbortWithStatus(401)
+		return
+	}
+
+	code := http.StatusNoContent
+
+	err = c.usageSink.Stage(internal.NewRawTelemetryUsage(dtos.Metadata{SDKVersion: body.Sdk, MachineIP: "NA", MachineName: "NA"}, body.Entries))
+	if err != nil {
+		if err == tasks.ErrQueueFull {
+			ctx.AbortWithStatusJSON(500, "Usage telemetry queue is full, please retry later.")
+		} else {
+			ctx.AbortWithStatusJSON(500, "Unknown error when trying to push usage telemetry into the staging queue")
+		}
+		return
+	}
+
+	ctx.JSON(code, nil)
 }
 
 func (c *TelemetryServerController) keysClientSide(ctx *gin.Context) {

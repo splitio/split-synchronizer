@@ -96,6 +96,8 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	telemetryRecorder := api.NewHTTPTelemetryRecorder(cfg.Apikey, *advanced, logger)
 	telemetryConfigTask := pTasks.NewTelemetryConfigFlushTask(telemetryRecorder, logger, 1, tbufferSize, tworkers)
 	telemetryUsageTask := pTasks.NewTelemetryUsageFlushTask(telemetryRecorder, logger, 1, tbufferSize, tworkers)
+	telemetryKeysClientSideTask := pTasks.NewTelemetryKeysClientSideFlushTask(telemetryRecorder, logger, 1, tbufferSize, tworkers)
+	telemetryKeysServerSideTask := pTasks.NewTelemetryKeysServerSideFlushTask(telemetryRecorder, logger, 1, tbufferSize, tworkers)
 
 	// impression bulks & counts - events
 	ibufferSize := int(cfg.Sync.Advanced.ImpressionsBuffer)
@@ -127,7 +129,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	}
 
 	// Creating Synchronizer for tasks
-	sync := ssync.NewSynchronizer(*advanced, stasks, workers, logger, nil, []tasks.Task{telemetryConfigTask, telemetryUsageTask}, appMonitor)
+	sync := ssync.NewSynchronizer(*advanced, stasks, workers, logger, nil, []tasks.Task{telemetryConfigTask, telemetryUsageTask, telemetryKeysClientSideTask, telemetryKeysServerSideTask}, appMonitor)
 
 	mstatus := make(chan int, 1)
 	syncManager, err := synchronizer.NewSynchronizerManager(
@@ -209,21 +211,23 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	go adminServer.ListenAndServe()
 
 	proxyOptions := &Options{
-		Host:                cfg.Server.Host,
-		Port:                int(cfg.Server.Port),
-		APIKeys:             cfg.Server.ClientApikeys,
-		DebugOn:             strings.ToLower(cfg.Logging.Level) == "debug" || strings.ToLower(cfg.Logging.Level) == "verbose",
-		Logger:              logger,
-		ProxySplitStorage:   splitStorage,
-		SplitFetcher:        splitAPI.SplitFetcher,
-		ProxySegmentStorage: segmentStorage,
-		Telemetry:           localTelemetryStorage,
-		ImpressionsSink:     impressionTask,
-		ImpressionCountSink: impressionCountTask,
-		EventsSink:          eventsTask,
-		TelemetryConfigSink: telemetryConfigTask,
-		TelemetryUsageSink:  telemetryUsageTask,
-		Cache:               httpCache,
+		Host:                        cfg.Server.Host,
+		Port:                        int(cfg.Server.Port),
+		APIKeys:                     cfg.Server.ClientApikeys,
+		DebugOn:                     strings.ToLower(cfg.Logging.Level) == "debug" || strings.ToLower(cfg.Logging.Level) == "verbose",
+		Logger:                      logger,
+		ProxySplitStorage:           splitStorage,
+		SplitFetcher:                splitAPI.SplitFetcher,
+		ProxySegmentStorage:         segmentStorage,
+		Telemetry:                   localTelemetryStorage,
+		ImpressionsSink:             impressionTask,
+		ImpressionCountSink:         impressionCountTask,
+		EventsSink:                  eventsTask,
+		TelemetryConfigSink:         telemetryConfigTask,
+		TelemetryUsageSink:          telemetryUsageTask,
+		TelemetryKeysClientSideSink: telemetryKeysClientSideTask,
+		TelemetryKeysServerSideSink: telemetryKeysServerSideTask,
+		Cache:                       httpCache,
 	}
 
 	if ilcfg := cfg.Integrations.ImpressionListener; ilcfg.Endpoint != "" {
