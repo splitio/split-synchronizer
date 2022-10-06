@@ -8,8 +8,6 @@ import (
 
 	"strings"
 
-	cfg "github.com/splitio/go-split-commons/v4/conf"
-
 	"github.com/splitio/go-split-commons/v4/conf"
 	"github.com/splitio/go-split-commons/v4/service/api"
 	"github.com/splitio/go-split-commons/v4/synchronizer"
@@ -252,7 +250,7 @@ func getAppCounterConfigs() (hcAppCounter.ThresholdConfig, hcAppCounter.Threshol
 	return splitsConfig, segmentsConfig
 }
 
-func getServicesCountersConfig(advanced cfg.AdvancedConfig) []hcServicesCounter.Config {
+func getServicesCountersConfig(advanced conf.AdvancedConfig) []hcServicesCounter.Config {
 	var cfgs []hcServicesCounter.Config
 
 	apiConfig := hcServicesCounter.DefaultConfig("API", advanced.SdkURL, "/version")
