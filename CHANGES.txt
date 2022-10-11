@@ -1,3 +1,6 @@
+5.1.1 (Sep 8, 2022)
+- Updated gin and docker images for vulnerabilities fixes .
+
 5.1.0 (Aug 04, 2022)
 - Update docker image & makefile to accept EXTRA_BUILD_ARGS argument. To be forwarded to the `go build` statement
 
