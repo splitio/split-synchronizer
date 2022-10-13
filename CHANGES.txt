@@ -1,6 +1,9 @@
 5.2.0 (Oct 13, 2022)
-- Added a new impressions mode for the SDK called NONE, to be used in factory when there is no desire to capture impressions on an SDK factory to feed Split's analytics engine. Running NONE mode, the SDK will only capture unique keys evaluated for a particular feature flag instead of full blown impressions.
-- Added user to redis config.
+- Split Sync:
+   - Added support for SDKs that use Redis and set impressions mode to NONE. Split Sync will capture unique keys evaluated from the different SDKs from Redis and send to Split Servers.
+   - Added user to redis config (ACL for Redis > 6).
+- Split Proxy:
+   - Added `/api/keys/ss`, `/api/v1/keys/cs` and beacon apis into telemetry for supporting SDKs running with impressions mode NONE.
 
 5.1.1 (Sep 8, 2022)
 - Updated gin and docker images for vulnerabilities fixes.
