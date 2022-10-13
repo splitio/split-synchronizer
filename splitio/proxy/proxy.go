@@ -10,9 +10,7 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers/middleware"
-	proxyMW "github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers/middleware"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
-	proxyStorage "github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks"
 
 	"github.com/gin-contrib/cors"
@@ -65,8 +63,14 @@ type Options struct {
 	// what to do with incoming telemetry.runtime payloads
 	TelemetryUsageSink tasks.DeferredRecordingTask
 
+	// what to do with incoming telemetry.keys/cs payloads
+	TelemetryKeysClientSideSink tasks.DeferredRecordingTask
+
+	// what to do with incoming telemetry.keys/ss payloads
+	TelemetryKeysServerSideSink tasks.DeferredRecordingTask
+
 	// used to record local metrics
-	Telemetry proxyStorage.ProxyEndpointTelemetry
+	Telemetry storage.ProxyEndpointTelemetry
 
 	Cache *gincache.Middleware
 }
@@ -90,17 +94,17 @@ func New(options *Options) *API {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	apikeyValidator := proxyMW.NewAPIKeyValidator(options.APIKeys)
+	apikeyValidator := middleware.NewAPIKeyValidator(options.APIKeys)
 	authController := controllers.NewAuthServerController()
 	sdkController := setupSdkController(options)
 	eventsController := setupEventsController(options, apikeyValidator)
-	telemetryController := setupTelemetryController(options)
+	telemetryController := setupTelemetryController(options, apikeyValidator)
 
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.Use(setupCorsMiddleware())
 	router.Use(middleware.SetEndpoint)
-	router.Use(proxyMW.NewProxyMetricsMiddleware(options.Telemetry).Track)
+	router.Use(middleware.NewProxyMetricsMiddleware(options.Telemetry).Track)
 
 	// split the main router into regular & beacon endpoints
 	regular := router.Group("/api")
@@ -122,7 +126,7 @@ func New(options *Options) *API {
 	authController.Register(cacheableRouter)
 	sdkController.Register(cacheableRouter)
 	eventsController.Register(regular, beacon)
-	telemetryController.Register(regular)
+	telemetryController.Register(regular, beacon)
 
 	return &API{
 		server:              &http.Server{Addr: fmt.Sprintf("0.0.0.0:%d", options.Port), Handler: router},
@@ -141,7 +145,7 @@ func setupSdkController(options *Options) *controllers.SdkServerController {
 	)
 }
 
-func setupEventsController(options *Options, apikeyValidator *proxyMW.APIKeyValidator) *controllers.EventsServerController {
+func setupEventsController(options *Options, apikeyValidator *middleware.APIKeyValidator) *controllers.EventsServerController {
 	return controllers.NewEventsServerController(
 		options.Logger,
 		options.ImpressionsSink,
@@ -152,11 +156,14 @@ func setupEventsController(options *Options, apikeyValidator *proxyMW.APIKeyVali
 	)
 }
 
-func setupTelemetryController(options *Options) *controllers.TelemetryServerController {
+func setupTelemetryController(options *Options, apikeyValidator *middleware.APIKeyValidator) *controllers.TelemetryServerController {
 	return controllers.NewTelemetryServerController(
 		options.Logger,
 		options.TelemetryConfigSink,
 		options.TelemetryUsageSink,
+		options.TelemetryKeysClientSideSink,
+		options.TelemetryKeysServerSideSink,
+		apikeyValidator.IsValid,
 	)
 }
 

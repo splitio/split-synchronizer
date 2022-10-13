@@ -36,6 +36,10 @@ func TestHistoricProxyTelemetry(t *testing.T) {
 		EventsBulkBeaconEndpoint,
 		TelemetryConfigEndpoint,
 		TelemetryRuntimeEndpoint,
+		TelemetryRuntimeBeaconEndpoint,
+		TelemetryKeysClientSideEndpoint,
+		TelemetryKeysClientSideBeaconEndpoint,
+		TelemetryKeysServerSideEndpoint,
 	}
 
 	oldestTs := keyForTimeSlice(clk.base, 60) // store the oldest timeslice, so we can see it's no longet present after eviction
@@ -82,18 +86,22 @@ func TestHistoricProxyTelemetry(t *testing.T) {
 		expectedData = append(expectedData, ForTimeSlice{
 			TimeSlice: ts,
 			Resources: map[string]ForResource{
-				"auth":                   ForResource{expectedLatencies, expectedStatusCodes, 2},
-				"splitChanges":           ForResource{expectedLatencies, expectedStatusCodes, 2},
-				"segmentChanges":         ForResource{expectedLatencies, expectedStatusCodes, 2},
-				"mySegments":             ForResource{expectedLatencies, expectedStatusCodes, 2},
-				"impressionsBulk":        ForResource{expectedLatencies, expectedStatusCodes, 2},
-				"impressionsBulkBeacon":  ForResource{expectedLatencies, expectedStatusCodes, 2},
-				"impressionsCount":       ForResource{expectedLatencies, expectedStatusCodes, 2},
-				"impressionsCountBeacon": ForResource{expectedLatencies, expectedStatusCodes, 2},
-				"eventsBulk":             ForResource{expectedLatencies, expectedStatusCodes, 2},
-				"eventsBulkBeacon":       ForResource{expectedLatencies, expectedStatusCodes, 2},
-				"telemetryConfig":        ForResource{expectedLatencies, expectedStatusCodes, 2},
-				"telemetryRuntime":       ForResource{expectedLatencies, expectedStatusCodes, 2},
+				"auth":                          {expectedLatencies, expectedStatusCodes, 2},
+				"splitChanges":                  {expectedLatencies, expectedStatusCodes, 2},
+				"segmentChanges":                {expectedLatencies, expectedStatusCodes, 2},
+				"mySegments":                    {expectedLatencies, expectedStatusCodes, 2},
+				"impressionsBulk":               {expectedLatencies, expectedStatusCodes, 2},
+				"impressionsBulkBeacon":         {expectedLatencies, expectedStatusCodes, 2},
+				"impressionsCount":              {expectedLatencies, expectedStatusCodes, 2},
+				"impressionsCountBeacon":        {expectedLatencies, expectedStatusCodes, 2},
+				"eventsBulk":                    {expectedLatencies, expectedStatusCodes, 2},
+				"eventsBulkBeacon":              {expectedLatencies, expectedStatusCodes, 2},
+				"telemetryConfig":               {expectedLatencies, expectedStatusCodes, 2},
+				"telemetryRuntime":              {expectedLatencies, expectedStatusCodes, 2},
+				"telemetryBeaconRuntime":        {expectedLatencies, expectedStatusCodes, 2},
+				"telemetryKeysClientSide":       {expectedLatencies, expectedStatusCodes, 2},
+				"telemetryKeysClientSideBeacon": {expectedLatencies, expectedStatusCodes, 2},
+				"telemetryKeysServerSide":       {expectedLatencies, expectedStatusCodes, 2},
 			},
 		})
 	}
@@ -116,18 +124,22 @@ func TestHistoricProxyTelemetry(t *testing.T) {
 	expectedStatusCodes = map[int]int64{200: 6, 500: 6}
 	expectedLatencies = []int64{6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6}
 	expectedTotalReport := map[string]ForResource{
-		"auth":                   ForResource{expectedLatencies, expectedStatusCodes, 12},
-		"splitChanges":           ForResource{expectedLatencies, expectedStatusCodes, 12},
-		"segmentChanges":         ForResource{expectedLatencies, expectedStatusCodes, 12},
-		"mySegments":             ForResource{expectedLatencies, expectedStatusCodes, 12},
-		"impressionsBulk":        ForResource{expectedLatencies, expectedStatusCodes, 12},
-		"impressionsBulkBeacon":  ForResource{expectedLatencies, expectedStatusCodes, 12},
-		"impressionsCount":       ForResource{expectedLatencies, expectedStatusCodes, 12},
-		"impressionsCountBeacon": ForResource{expectedLatencies, expectedStatusCodes, 12},
-		"eventsBulk":             ForResource{expectedLatencies, expectedStatusCodes, 12},
-		"eventsBulkBeacon":       ForResource{expectedLatencies, expectedStatusCodes, 12},
-		"telemetryConfig":        ForResource{expectedLatencies, expectedStatusCodes, 12},
-		"telemetryRuntime":       ForResource{expectedLatencies, expectedStatusCodes, 12},
+		"auth":                          {expectedLatencies, expectedStatusCodes, 12},
+		"splitChanges":                  {expectedLatencies, expectedStatusCodes, 12},
+		"segmentChanges":                {expectedLatencies, expectedStatusCodes, 12},
+		"mySegments":                    {expectedLatencies, expectedStatusCodes, 12},
+		"impressionsBulk":               {expectedLatencies, expectedStatusCodes, 12},
+		"impressionsBulkBeacon":         {expectedLatencies, expectedStatusCodes, 12},
+		"impressionsCount":              {expectedLatencies, expectedStatusCodes, 12},
+		"impressionsCountBeacon":        {expectedLatencies, expectedStatusCodes, 12},
+		"eventsBulk":                    {expectedLatencies, expectedStatusCodes, 12},
+		"eventsBulkBeacon":              {expectedLatencies, expectedStatusCodes, 12},
+		"telemetryConfig":               {expectedLatencies, expectedStatusCodes, 12},
+		"telemetryRuntime":              {expectedLatencies, expectedStatusCodes, 12},
+		"telemetryBeaconRuntime":        {expectedLatencies, expectedStatusCodes, 12},
+		"telemetryKeysClientSide":       {expectedLatencies, expectedStatusCodes, 12},
+		"telemetryKeysClientSideBeacon": {expectedLatencies, expectedStatusCodes, 12},
+		"telemetryKeysServerSide":       {expectedLatencies, expectedStatusCodes, 12},
 	}
 
 	if gen := timesliced.TotalMetricsReport(); !reflect.DeepEqual(expectedTotalReport, gen) {
