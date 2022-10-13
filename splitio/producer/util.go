@@ -89,6 +89,7 @@ func parseRedisOptions(cfg *conf.Redis) (*config.RedisConfig, error) {
 	}
 
 	redisCfg := &config.RedisConfig{
+		Username:     cfg.Username,
 		Password:     cfg.Pass,
 		Prefix:       cfg.Prefix,
 		Network:      cfg.Network,
