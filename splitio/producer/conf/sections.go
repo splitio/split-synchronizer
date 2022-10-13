@@ -81,6 +81,7 @@ type Redis struct {
 	Host                  string   `json:"host" s-cli:"redis-host" s-def:"localhost" s-desc:"Redis server hostname"`
 	Port                  int      `json:"port" s-cli:"redis-port" s-def:"6379" s-desc:"Redis Server port"`
 	Db                    int      `json:"db" s-cli:"redis-db" s-def:"0" s-desc:"Redis DB"`
+	Username              string   `json:"username" s-cli:"redis-user" s-def:"" s-desc:"Redis username"`
 	Pass                  string   `json:"password" s-cli:"redis-pass" s-def:"" s-desc:"Redis password"`
 	Prefix                string   `json:"prefix" s-cli:"redis-prefix" s-def:"" s-desc:"Redis key prefix"`
 	Network               string   `json:"network" s-cli:"redis-network" s-def:"tcp" s-desc:"Redis network protocol"`

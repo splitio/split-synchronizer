@@ -35,6 +35,12 @@ type RawTelemetryUsage = RawData
 // RawImpressionCount represents the raw data submitted by an sdk when posting impression counts
 type RawImpressionCount = RawData
 
+// RawKeysClientSide represents the raw data submitted by an sdk when posting mtks for client side
+type RawKeysClientSide = RawData
+
+// RawKeysServerSide represents the raw data submitted by an sdk when posting mtks for server side
+type RawKeysServerSide = RawData
+
 // NewRawImpressions constructs a RawImpressions wrapper object
 func NewRawImpressions(metadata dtos.Metadata, mode string, payload []byte) *RawImpressions {
 	return &RawImpressions{
@@ -63,5 +69,15 @@ func NewRawTelemetryConfig(metadata dtos.Metadata, payload []byte) *RawTelemetry
 
 // NewRawTelemetryUsage constructs a RawEvents wrapper object
 func NewRawTelemetryUsage(metadata dtos.Metadata, payload []byte) *RawTelemetryUsage {
+	return newRawData(metadata, payload)
+}
+
+// NewRawTelemetryKeysClientSide constructs a RawEvents wrapper object
+func NewRawTelemetryKeysClientSide(metadata dtos.Metadata, payload []byte) *RawKeysClientSide {
+	return newRawData(metadata, payload)
+}
+
+// NewRawTelemetryKeysServerSide constructs a RawEvents wrapper object
+func NewRawTelemetryKeysServerSide(metadata dtos.Metadata, payload []byte) *RawKeysServerSide {
 	return newRawData(metadata, payload)
 }
