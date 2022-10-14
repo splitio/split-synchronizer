@@ -2,7 +2,6 @@ package conf
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"testing"
 
@@ -115,8 +114,6 @@ func TestBuildArgumentMapFromStruct(t *testing.T) {
 	}
 
 	PopulateFromArguments(target, m)
-	fmt.Println(m)
-	fmt.Println(target)
 	if e := target.F1; e != 456 {
 		t.Error("expected F1 == 456. Got: ", e)
 	}

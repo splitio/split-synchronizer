@@ -1,7 +1,6 @@
 package persistent
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/splitio/go-split-commons/v4/dtos"
@@ -47,7 +46,6 @@ func TestSplitPersistentStorage(t *testing.T) {
 	}
 
 	if len(all) != 2 {
-		fmt.Printf("%+v", all)
 		t.Error("invalid number of items fetched.")
 		return
 	}
