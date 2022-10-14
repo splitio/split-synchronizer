@@ -9,4 +9,5 @@ type Storages struct {
 	LocalTelemetryStorage storage.TelemetryRuntimeConsumer
 	EventStorage          storage.EventMultiSdkConsumer
 	ImpressionStorage     storage.ImpressionMultiSdkConsumer
+	UniqueKeysStorage     storage.UniqueKeysMultiSdkConsumer
 }

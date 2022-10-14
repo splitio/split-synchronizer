@@ -1,7 +1,6 @@
 package worker
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/splitio/go-split-commons/v4/dtos"
@@ -60,7 +59,6 @@ func TestTelemetryMultiWorker(t *testing.T) {
 			return nil
 		},
 		RecordStatsCall: func(stats dtos.Stats, metadata dtos.Metadata) error {
-			fmt.Printf("%+v", stats)
 			statsCalls++
 			if metadata == metadata1 {
 				if l := stats.MethodLatencies.Treatment[1]; l != 1 {

@@ -1,5 +1,12 @@
+5.2.0 (Oct 14, 2022)
+- Split Sync:
+   - Added support for SDKs that use Redis and set impressions mode to NONE. Split Sync will capture unique keys evaluated from the different SDKs from Redis and send to Split Servers.
+   - Added user to redis config (ACL for Redis > 6).
+- Split Proxy:
+   - Added `/api/keys/ss`, `/api/v1/keys/cs` and beacon apis into telemetry for supporting SDKs running with impressions mode NONE.
+
 5.1.1 (Sep 8, 2022)
-- Updated gin and docker images for vulnerabilities fixes .
+- Updated gin and docker images for vulnerabilities fixes.
 
 5.1.0 (Aug 04, 2022)
 - Update docker image & makefile to accept EXTRA_BUILD_ARGS argument. To be forwarded to the `go build` statement
@@ -79,7 +86,10 @@
 
 4.0.0 (Oct 6, 2020)
 - BREAKING CHANGE (only when sync is used by source code, not binary or Docker versions): Migrated to go modules (dep & bare-bones go-dep no longer supported)
-- Added local impressions deduping (enabled by default).
+- Added impressions dedupe logic to avoid sending duplicated impressions:
+   - Added `OPTIMIZED` and `DEBUG` modes in order to enabling/disabling how impressions are going to be sent into Split servers,
+        - `OPTIMIZED`: will send unique impressions in a timeframe in order to reduce how many times impressions are posted to Split.
+        - `DEBUG`: will send every impression generated to Split.
 
 3.0.1 (Sep 10, 2020)
  - Upgraded split-commons to fix high cpu usage issue
