@@ -1,7 +1,6 @@
 package optimized
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/splitio/go-split-commons/v4/dtos"
@@ -215,7 +214,6 @@ func TestSizeBoundaries(t *testing.T) {
 		t.Error("no error should be returned. Got: ", err)
 	}
 
-	fmt.Println("aa", changes, cn, err)
 	if tt := changes.Updated["s1"]; tt != "tt5" {
 		t.Error("invalid tt: ", tt)
 	}

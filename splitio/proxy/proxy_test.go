@@ -48,7 +48,7 @@ func TestSplitChangesEndpoints(t *testing.T) {
 	}
 
 	// Make a proper request
-	status, body, headers := get("splitChanges?since=-1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
+	_, body, headers := get("splitChanges?since=-1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
 	changes := toSplitChanges(body)
 	if changes.Till != 1 {
 		t.Error("wrong till: ", changes.Till)
@@ -67,7 +67,7 @@ func TestSplitChangesEndpoints(t *testing.T) {
 	}
 
 	// Make another request, check we get the same response and the call count isn't incremented (cache is working)
-	status, body, headers = get("splitChanges?since=-1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
+	_, body, headers = get("splitChanges?since=-1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
 	changes = toSplitChanges(body)
 	if changes.Till != 1 {
 		t.Error("wrong till: ", changes.Till)
@@ -87,7 +87,7 @@ func TestSplitChangesEndpoints(t *testing.T) {
 
 	// Lets evict the key (simulating a change in splits and re-check)
 	opts.Cache.EvictBySurrogate(caching.SplitSurrogate)
-	status, body, headers = get("splitChanges?since=-1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
+	_, body, headers = get("splitChanges?since=-1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
 	changes = toSplitChanges(body)
 	if changes.Till != 2 {
 		t.Error("wrong till: ", changes.Till)
@@ -148,7 +148,7 @@ func TestSegmentChangesAndMySegmentsEndpoints(t *testing.T) {
 
 	// Set up a response and make a proper request for segmentChanges
 	changesToReturn.Store(&dtos.SegmentChangesDTO{Since: -1, Till: 1, Name: "segment1", Added: []string{"k1"}, Removed: nil})
-	status, body, headers := get("segmentChanges/segment1?since=-1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
+	_, body, headers := get("segmentChanges/segment1?since=-1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
 	changes := toSegmentChanges(body)
 	if changes.Till != 1 {
 		t.Error("wrong till: ", changes.Till)
@@ -168,7 +168,7 @@ func TestSegmentChangesAndMySegmentsEndpoints(t *testing.T) {
 
 	// Same for mysegments
 	segmentsForToReturn.Store([]string{"segment1"})
-	status, body, headers = get("mySegments/k1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
+	_, body, headers = get("mySegments/k1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
 	segments := toMySegments(body)
 	if segments[0].Name != "segment1" {
 		t.Error("wrong segment: ", segments[0])
@@ -184,7 +184,7 @@ func TestSegmentChangesAndMySegmentsEndpoints(t *testing.T) {
 
 	// Update the response, make another request and check we get the same response and the call count isn't incremented (cache is working)
 	changesToReturn.Store(&dtos.SegmentChangesDTO{Since: -1, Till: 2, Name: "segment1", Added: []string{"k2"}, Removed: nil})
-	status, body, headers = get("segmentChanges/segment1?since=-1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
+	_, body, headers = get("segmentChanges/segment1?since=-1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
 	changes = toSegmentChanges(body)
 	if changes.Till != 1 {
 		t.Error("wrong till: ", changes.Till)
@@ -204,7 +204,7 @@ func TestSegmentChangesAndMySegmentsEndpoints(t *testing.T) {
 
 	// Same for mysegments
 	segmentsForToReturn.Store([]string{})
-	status, body, headers = get("mySegments/k1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
+	_, body, headers = get("mySegments/k1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
 	segments = toMySegments(body)
 	if segments[0].Name != "segment1" {
 		t.Error("wrong segment: ", segments[0])
@@ -220,7 +220,7 @@ func TestSegmentChangesAndMySegmentsEndpoints(t *testing.T) {
 
 	// Lets evict the key (simulating a change in segment1 and re-check)
 	opts.Cache.EvictBySurrogate(caching.MakeSurrogateForSegmentChanges("segment1"))
-	status, body, headers = get("segmentChanges/segment1?since=-1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
+	_, body, headers = get("segmentChanges/segment1?since=-1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
 	changes = toSegmentChanges(body)
 	if changes.Till != 2 {
 		t.Error("wrong till: ", changes.Till)
@@ -240,7 +240,7 @@ func TestSegmentChangesAndMySegmentsEndpoints(t *testing.T) {
 
 	// Same for mysegments
 	opts.Cache.Evict(caching.MakeMySegmentsEntry("k1"))
-	status, body, headers = get("mySegments/k1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
+	_, body, headers = get("mySegments/k1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
 	segments = toMySegments(body)
 	if len(segments) != 0 {
 		t.Error("wrong segment: ", segments)
@@ -322,7 +322,6 @@ func toMySegments(body []byte) []dtos.MySegmentDTO {
 	var c map[string][]dtos.MySegmentDTO
 	err := json.Unmarshal(body, &c)
 	if err != nil {
-		fmt.Println(string(body))
 		panic(err.Error())
 	}
 	return c["mySegments"]

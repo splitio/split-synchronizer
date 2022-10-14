@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/splitio/go-split-commons/v4/conf"
 	"github.com/splitio/go-split-commons/v4/dtos"
 	"github.com/splitio/go-split-commons/v4/provisional"
 	"github.com/splitio/go-split-commons/v4/storage"
@@ -29,14 +28,12 @@ const (
 type ImpressionWorkerConfig struct {
 	Logger              logging.LoggerInterface
 	Storage             storage.ImpressionMultiSdkConsumer
-	ImpressionCounter   *provisional.ImpressionsCounter
 	ImpressionsListener impressionlistener.ImpressionBulkListener
-	Telemetry           storage.TelemetryRuntimeProducer
 	EvictionMonitor     evcalc.Monitor
 	URL                 string
 	Apikey              string
 	FetchSize           int
-	ImpressionsMode     string
+	ImpressionManager   provisional.ImpressionManager
 }
 
 func (c *ImpressionWorkerConfig) normalize() {
@@ -62,24 +59,12 @@ type ImpressionsPipelineWorker struct {
 // NewImpressionWorker builds a pipeline-suited impressions worker
 func NewImpressionWorker(cfg *ImpressionWorkerConfig) (*ImpressionsPipelineWorker, error) {
 	cfg.normalize()
-	impManager, err := provisional.NewImpressionManager(
-		conf.ManagerConfig{
-			OperationMode:   conf.Standalone,
-			ImpressionsMode: cfg.ImpressionsMode,
-			ListenerEnabled: cfg.ImpressionsListener != nil,
-		},
-		cfg.ImpressionCounter,
-		cfg.Telemetry,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to instantiate impressions manager: %w", err)
-	}
 
 	return &ImpressionsPipelineWorker{
 		logger:          cfg.Logger,
 		storage:         cfg.Storage,
 		impListener:     cfg.ImpressionsListener,
-		impManager:      impManager,
+		impManager:      cfg.ImpressionManager,
 		url:             cfg.URL + "/testImpressions/bulk",
 		apikey:          cfg.Apikey,
 		fetchSize:       int64(cfg.FetchSize),
@@ -118,7 +103,7 @@ func (i *ImpressionsPipelineWorker) Process(raws [][]byte, sink chan<- interface
 			continue
 		}
 
-		toLog, _ := i.impManager.ProcessSingle(&queueObj.Impression)
+		toLog := i.impManager.ProcessSingle(&queueObj.Impression)
 		if !toLog {
 			deduped++
 			continue

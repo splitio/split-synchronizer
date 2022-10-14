@@ -8,8 +8,6 @@ import (
 
 	"strings"
 
-	cfg "github.com/splitio/go-split-commons/v4/conf"
-
 	"github.com/splitio/go-split-commons/v4/conf"
 	"github.com/splitio/go-split-commons/v4/service/api"
 	"github.com/splitio/go-split-commons/v4/synchronizer"
@@ -98,6 +96,8 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	telemetryRecorder := api.NewHTTPTelemetryRecorder(cfg.Apikey, *advanced, logger)
 	telemetryConfigTask := pTasks.NewTelemetryConfigFlushTask(telemetryRecorder, logger, 1, tbufferSize, tworkers)
 	telemetryUsageTask := pTasks.NewTelemetryUsageFlushTask(telemetryRecorder, logger, 1, tbufferSize, tworkers)
+	telemetryKeysClientSideTask := pTasks.NewTelemetryKeysClientSideFlushTask(telemetryRecorder, logger, 1, tbufferSize, tworkers)
+	telemetryKeysServerSideTask := pTasks.NewTelemetryKeysServerSideFlushTask(telemetryRecorder, logger, 1, tbufferSize, tworkers)
 
 	// impression bulks & counts - events
 	ibufferSize := int(cfg.Sync.Advanced.ImpressionsBuffer)
@@ -129,7 +129,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	}
 
 	// Creating Synchronizer for tasks
-	sync := ssync.NewSynchronizer(*advanced, stasks, workers, logger, nil, []tasks.Task{telemetryConfigTask, telemetryUsageTask}, appMonitor)
+	sync := ssync.NewSynchronizer(*advanced, stasks, workers, logger, nil, []tasks.Task{telemetryConfigTask, telemetryUsageTask, telemetryKeysClientSideTask, telemetryKeysServerSideTask}, appMonitor)
 
 	mstatus := make(chan int, 1)
 	syncManager, err := synchronizer.NewSynchronizerManager(
@@ -165,9 +165,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 					SegmentSync:   int(cfg.Sync.SegmentRefreshRateMs / 1000),
 					TelemetrySync: int(cfg.Sync.Advanced.InternalMetricsRateMs / 1000),
 				},
-				ManagerConfig: conf.ManagerConfig{
-					ListenerEnabled: cfg.Integrations.ImpressionListener.Endpoint != "",
-				},
+				ListenerEnabled: cfg.Integrations.ImpressionListener.Endpoint != "",
 			},
 			time.Since(before).Milliseconds(),
 			map[string]int64{cfg.Apikey: 1},
@@ -213,21 +211,23 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	go adminServer.ListenAndServe()
 
 	proxyOptions := &Options{
-		Host:                cfg.Server.Host,
-		Port:                int(cfg.Server.Port),
-		APIKeys:             cfg.Server.ClientApikeys,
-		DebugOn:             strings.ToLower(cfg.Logging.Level) == "debug" || strings.ToLower(cfg.Logging.Level) == "verbose",
-		Logger:              logger,
-		ProxySplitStorage:   splitStorage,
-		SplitFetcher:        splitAPI.SplitFetcher,
-		ProxySegmentStorage: segmentStorage,
-		Telemetry:           localTelemetryStorage,
-		ImpressionsSink:     impressionTask,
-		ImpressionCountSink: impressionCountTask,
-		EventsSink:          eventsTask,
-		TelemetryConfigSink: telemetryConfigTask,
-		TelemetryUsageSink:  telemetryUsageTask,
-		Cache:               httpCache,
+		Host:                        cfg.Server.Host,
+		Port:                        int(cfg.Server.Port),
+		APIKeys:                     cfg.Server.ClientApikeys,
+		DebugOn:                     strings.ToLower(cfg.Logging.Level) == "debug" || strings.ToLower(cfg.Logging.Level) == "verbose",
+		Logger:                      logger,
+		ProxySplitStorage:           splitStorage,
+		SplitFetcher:                splitAPI.SplitFetcher,
+		ProxySegmentStorage:         segmentStorage,
+		Telemetry:                   localTelemetryStorage,
+		ImpressionsSink:             impressionTask,
+		ImpressionCountSink:         impressionCountTask,
+		EventsSink:                  eventsTask,
+		TelemetryConfigSink:         telemetryConfigTask,
+		TelemetryUsageSink:          telemetryUsageTask,
+		TelemetryKeysClientSideSink: telemetryKeysClientSideTask,
+		TelemetryKeysServerSideSink: telemetryKeysServerSideTask,
+		Cache:                       httpCache,
 	}
 
 	if ilcfg := cfg.Integrations.ImpressionListener; ilcfg.Endpoint != "" {
@@ -254,7 +254,7 @@ func getAppCounterConfigs() (hcAppCounter.ThresholdConfig, hcAppCounter.Threshol
 	return splitsConfig, segmentsConfig
 }
 
-func getServicesCountersConfig(advanced cfg.AdvancedConfig) []hcServicesCounter.Config {
+func getServicesCountersConfig(advanced conf.AdvancedConfig) []hcServicesCounter.Config {
 	var cfgs []hcServicesCounter.Config
 
 	apiConfig := hcServicesCounter.DefaultConfig("API", advanced.SdkURL, "/version")
