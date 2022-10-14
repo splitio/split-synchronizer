@@ -102,7 +102,7 @@ func (t *DeferredRecordingTaskImpl) Stop(blocking bool) error {
 
 // IsRunning returns whether the task is running
 func (t *DeferredRecordingTaskImpl) IsRunning() bool {
-	return t.IsRunning()
+	return t.task.IsRunning()
 }
 
 var _ DeferredRecordingTask = (*DeferredRecordingTaskImpl)(nil)
