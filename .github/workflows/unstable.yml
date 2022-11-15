@@ -20,7 +20,7 @@ jobs:
           password: ${{ secrets.ARTIFACTORY_DOCKER_PASS }}
 
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Get short hash
         run: echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
