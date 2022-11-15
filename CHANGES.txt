@@ -1,3 +1,7 @@
+5.2.1 (Nov 15, 2022)
+- Split Sync:
+   - Fixed issue when doing a fresh start on redis without a custom user prefix.
+
 5.2.0 (Oct 14, 2022)
 - Split Sync:
    - Added support for SDKs that use Redis and set impressions mode to NONE. Split Sync will capture unique keys evaluated from the different SDKs from Redis and send to Split Servers.
