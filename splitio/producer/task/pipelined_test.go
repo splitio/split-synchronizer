@@ -14,7 +14,7 @@ import (
 type mockWorker struct {
 	fetchCall        func() ([]string, error)
 	processCall      func(rawData [][]byte, sink chan<- interface{}) error
-	buildRequestCall func(data interface{}) (*http.Request, func(), error)
+	buildRequestCall func(data interface{}) (*http.Request, error)
 }
 
 func (m *mockWorker) Fetch() ([]string, error) {
@@ -25,7 +25,7 @@ func (m *mockWorker) Process(rawData [][]byte, sink chan<- interface{}) error {
 	return m.processCall(rawData, sink)
 }
 
-func (m *mockWorker) BuildRequest(data interface{}) (*http.Request, func(), error) {
+func (m *mockWorker) BuildRequest(data interface{}) (*http.Request, error) {
 	return m.buildRequestCall(data)
 }
 
@@ -112,7 +112,7 @@ func TestPipelineTask(t *testing.T) {
 			sink <- "message4"
 			return nil
 		},
-		buildRequestCall: func(data interface{}) (*http.Request, func(), error) {
+		buildRequestCall: func(data interface{}) (*http.Request, error) {
 			atomic.AddInt64(&postCalls, 1)
 			if atomic.LoadInt64(&postCalls) > 4 {
 				t.Error("build request should be called 4 times only")
@@ -132,7 +132,7 @@ func TestPipelineTask(t *testing.T) {
 				t.Error("invalid data ", data)
 			}
 
-			return r, nil, nil
+			return r, nil
 		},
 	}
 	poolWrapper := newTaskMemoryPoolWraper(1000)
