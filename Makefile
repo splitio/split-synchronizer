@@ -51,11 +51,11 @@ split-proxy: $(sources) go.sum
 
 ## Run the unit tests
 test: $(sources) go.sum
-	$(GO) test ./... -count=1 -race
+	$(GO) test ./... -count=1 -race $(ARGS)
 
 ### Run unit tests and generate coverage output
 test_coverage: $(sources) go.sum
-	$(GO) test -v -cover -coverprofile=coverage.out ./...
+	$(GO) test -v -cover -coverprofile=coverage.out $(ARGS) ./...
 
 ## Generate binaires for all architectures, ready to upload for distribution (with and without version)
 release_assets: \

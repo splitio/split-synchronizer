@@ -80,16 +80,16 @@ func (u *UniqueKeysPipelineWorker) Process(raws [][]byte, sink chan<- interface{
 	return nil
 }
 
-func (u *UniqueKeysPipelineWorker) BuildRequest(data interface{}) (*http.Request, func(), error) {
+func (u *UniqueKeysPipelineWorker) BuildRequest(data interface{}) (*http.Request, error) {
 	uniques, ok := data.(dtos.Uniques)
 	if !ok {
-		return nil, nil, fmt.Errorf("expected uniqueKeys. Got: %T", data)
+		return nil, fmt.Errorf("expected uniqueKeys. Got: %T", data)
 	}
 
 	serialized, err := json.Marshal(uniques)
 	req, err := http.NewRequest("POST", u.url, bytes.NewReader(serialized))
 	if err != nil {
-		return nil, nil, fmt.Errorf("error building unique keys post request: %w", err)
+		return nil, fmt.Errorf("error building unique keys post request: %w", err)
 	}
 
 	req.Header = http.Header{}
@@ -98,5 +98,5 @@ func (u *UniqueKeysPipelineWorker) BuildRequest(data interface{}) (*http.Request
 	req.Header.Add("SplitSDKVersion", u.metadata.SDKVersion)
 	req.Header.Add("SplitSDKMachineIp", u.metadata.MachineIP)
 	req.Header.Add("SplitSDKMachineName", u.metadata.MachineName)
-	return req, nil, nil
+	return req, nil
 }

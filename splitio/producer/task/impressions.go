@@ -126,16 +126,16 @@ func (i *ImpressionsPipelineWorker) Process(raws [][]byte, sink chan<- interface
 }
 
 // BuildRequest takes an intermediate object and generates an http request to post impressions
-func (i *ImpressionsPipelineWorker) BuildRequest(data interface{}) (*http.Request, func(), error) {
+func (i *ImpressionsPipelineWorker) BuildRequest(data interface{}) (*http.Request, error) {
 	iwm, ok := data.(impsWithMetadata)
 	if !ok {
-		return nil, nil, fmt.Errorf("expected `impsWithMeta`. Got: %T", data)
+		return nil, fmt.Errorf("expected `impsWithMeta`. Got: %T", data)
 	}
 
 	serialized, err := json.Marshal(iwm.imps)
 	req, err := http.NewRequest("POST", i.url, bytes.NewReader(serialized))
 	if err != nil {
-		return nil, iwm.recycle, fmt.Errorf("error building impressions post request: %w", err)
+		return nil, fmt.Errorf("error building impressions post request: %w", err)
 	}
 
 	req.Header = http.Header{}
@@ -145,7 +145,7 @@ func (i *ImpressionsPipelineWorker) BuildRequest(data interface{}) (*http.Reques
 	req.Header.Add("SplitSDKMachineIp", iwm.metadata.MachineIP)
 	req.Header.Add("SplitSDKMachineName", iwm.metadata.MachineName)
 	req.Header.Add("SplitSDKImpressionsMode", "optimized") // TODO(mredolatti): populate this correctly
-	return req, iwm.recycle, nil
+	return req, nil
 }
 
 func (i *ImpressionsPipelineWorker) sendImpressionsToListener(b *impBatches) {
@@ -237,7 +237,7 @@ func newImpsWithMetadata(pool impressionsMemoryPool, metadata *dtos.Metadata) im
 	return toRet
 }
 
-func (s *impsWithMetadata) recycle() {
+func (s impsWithMetadata) recycle() {
 	for idx := range s.imps {
 		s.pool.releaseKeyImpressions(s.imps[idx].KeyImpressions)
 	}
