@@ -1,3 +1,7 @@
+5.2.1 (TBD)
+- Split-Sync:
+   - Fixed error when retrying POST requests in pipelined tasks (impressions, events, mtks).
+
 5.2.0 (Oct 14, 2022)
 - Split Sync:
    - Added support for SDKs that use Redis and set impressions mode to NONE. Split Sync will capture unique keys evaluated from the different SDKs from Redis and send to Split Servers.

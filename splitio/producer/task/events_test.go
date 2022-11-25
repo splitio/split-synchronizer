@@ -119,7 +119,6 @@ func TestEventsMemoryIsProperlyReturned(t *testing.T) {
 		}
 		if req == nil || err != nil {
 			t.Error("there should be no error. Got: ", err)
-			panic("sarasa")
 		}
 	}
 	poolWrapper.validate(t)
