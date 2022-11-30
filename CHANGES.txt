@@ -1,8 +1,11 @@
-5.2.1 (TBD)
+5.2.2 (TBD)
 - Split-Sync:
    - Fixed error when retrying POST requests in pipelined tasks (impressions, events, mtks).
    - Fixed redis fresh startup when no prefix is supplied
    - Fixed warning when fetching new splits
+
+5.2.1 (Nov 28, 2022)
+- Replaced IAM Role used for uploading binaries.
 
 5.2.0 (Oct 14, 2022)
 - Split Sync:

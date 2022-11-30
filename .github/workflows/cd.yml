@@ -42,7 +42,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
-          role-to-assume: arn:aws:iam::825951051969:role/downloads-bucket
+          role-to-assume: arn:aws:iam::825951051969:role/gha-downloads-role
           aws-region: us-east-1
 
       - name: Deploy to S3

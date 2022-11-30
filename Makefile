@@ -8,7 +8,7 @@ BUILD ?= build
 SHELL = /usr/bin/env bash -o pipefail
 
 # Extra arguments
-EXTRA_BUILD_ARGS ?= 
+EXTRA_BUILD_ARGS ?=
 
 # don't depend on commit version, to avoid rebuilding unnecessarily
 sources			:= $(shell find . -name *.go -not -name "commitversion.go")
