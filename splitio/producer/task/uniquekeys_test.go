@@ -96,7 +96,7 @@ func TestUniquesMemoryIsProperlyReturned(t *testing.T) {
 		t.Error("there should be 1 bulk ready for submission")
 	}
 	data := <-sinker
-	req, _, err := worker.BuildRequest(data)
+	req, err := worker.BuildRequest(data)
 
 	if req == nil || err != nil {
 		t.Error("there should be no error. Got: ", err)
