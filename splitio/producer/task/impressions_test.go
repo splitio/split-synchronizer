@@ -152,8 +152,12 @@ func TestMemoryIsProperlyReturned(t *testing.T) {
 	}
 
 	for i := 0; i < 3; i++ {
-		req, cb, err := w.BuildRequest(<-sinker)
-		cb()
+		i := <- sinker
+		req, err := w.BuildRequest(i)
+		if asRecyclable, ok := i.(recyclable); ok {
+			asRecyclable.recycle()
+		}
+
 		if req == nil || err != nil {
 			t.Error("there should be no error. Got: ", err)
 		}
@@ -253,3 +257,4 @@ func TestImpressionsIntegration(t *testing.T) {
 		t.Errorf("machine0 should have %d impressions. Has %d", expectedImpressionsPerMeta, r)
 	}
 }
+
