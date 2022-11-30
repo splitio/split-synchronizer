@@ -1,6 +1,7 @@
 5.2.1 (TBD)
 - Split-Sync:
    - Fixed error when retrying POST requests in pipelined tasks (impressions, events, mtks).
+   - Fixed issue when doing a fresh start on redis without a custom user prefix.
 
 5.2.0 (Oct 14, 2022)
 - Split Sync:
