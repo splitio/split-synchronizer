@@ -16,7 +16,7 @@ Ideally, paste the output in `https://markdownlivepreview.com/` and check that i
 import argparse
 import re
 from typing import Optional, List, Tuple
- 
+
 
 _CLI_REGEX = 's-cli:"([^"]*)" '
 _JSON_REGEX = 'json:"([^"]*)" '
