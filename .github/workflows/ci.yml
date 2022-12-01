@@ -24,7 +24,7 @@ jobs:
           go-version: '^1.13.1'
 
       - name: Get version
-        run: echo "VERSION=$(tail -n 1 splitio/version.go | awk '{print $4}' | tr -d '"')" >> $GITHUB_ENV
+        run: echo "VERSION=$(awk '/^const Version/{gsub(/"/, "", $4); print $4}' splitio/version.go)" >> $GITHUB_ENV
 
       - name: Run test
         run: make test_coverage
