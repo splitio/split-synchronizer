@@ -1,4 +1,4 @@
-5.2.2 (TBD)
+5.2.2 (Dec 1, 2022)
 - Split-Sync:
    - Fixed error when retrying POST requests in pipelined tasks (impressions, events, mtks).
    - Fixed redis fresh startup when no prefix is supplied
