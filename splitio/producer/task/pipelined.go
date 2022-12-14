@@ -39,7 +39,7 @@ type Config struct {
 type Worker interface {
 	Fetch() ([]string, error)
 	Process(rawData [][]byte, sink chan<- interface{}) error
-	BuildRequest(data interface{}) (*http.Request, func(), error)
+	BuildRequest(data interface{}) (*http.Request, error)
 }
 
 func (c *Config) normalize() {
@@ -245,41 +245,43 @@ func (p *PipelinedSyncTask) sinker() {
 	p.logger.Debug(fmt.Sprintf("[pipelined/%s] - starting posting task", p.name))
 	defer p.waiter.Done()
 	for {
+
 		bulk, ok := <-p.preSubmitBuffer
 		if !ok { // no more processed data available, end this goroutine
 			return
 		}
 
-		p.logger.Debug(fmt.Sprintf("[pipelined/%s] - impressions post ready. making request", p.name))
-		req, cleanup, err := p.worker.BuildRequest(bulk)
-		if err != nil {
-			p.logger.Error(fmt.Sprintf("[pipelined/%s] error building request: %s", p.name, err))
-			if cleanup != nil {
-				cleanup()
-			}
-			continue
-		}
-		common.WithAttempts(3, func() error {
-			resp, err := p.httpClient.Do(req)
-			if err != nil {
-				p.logger.Error(fmt.Sprintf("[pipelined/%s] error posting: %s", p.name, err))
-				return err
+		func() {
+			if asRecyblable, ok := bulk.(recyclable); ok {
+				defer asRecyblable.recycle()
 			}
 
-			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-				p.logger.Error(fmt.Sprintf("[pipelined/%s] bad status code when sinking data: %d", p.name, resp.StatusCode))
-				return errHTTP
-			}
+			common.WithAttempts(3, func() error {
+				p.logger.Debug(fmt.Sprintf("[pipelined/%s] - impressions post ready. making request", p.name))
+				req, err := p.worker.BuildRequest(bulk)
+				if err != nil {
+					p.logger.Error(fmt.Sprintf("[pipelined/%s] error building request: %s", p.name, err))
+					return err
+				}
 
-			if resp.Body != nil {
-				resp.Body.Close()
-			}
-			p.logger.Debug(fmt.Sprintf("[pipelined/%s] - impressions posted successfully", p.name))
-			return nil
-		})
-		if cleanup != nil {
-			cleanup()
-		}
+				resp, err := p.httpClient.Do(req)
+				if err != nil {
+					p.logger.Error(fmt.Sprintf("[pipelined/%s] error posting: %s", p.name, err))
+					return err
+				}
+
+				if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+					p.logger.Error(fmt.Sprintf("[pipelined/%s] bad status code when sinking data: %d", p.name, resp.StatusCode))
+					return errHTTP
+				}
+
+				if resp.Body != nil {
+					resp.Body.Close()
+				}
+				p.logger.Debug(fmt.Sprintf("[pipelined/%s] - impressions posted successfully", p.name))
+				return nil
+			})
+		}()
 	}
 }
 
@@ -306,6 +308,10 @@ func (t *taskMemoryPoolImpl) getRawBuffer() rawBuffer {
 
 func (t *taskMemoryPoolImpl) releaseRawBuffer(b rawBuffer) {
 	t.processBatchSlicePool.Put(b)
+}
+
+type recyclable interface {
+	recycle()
 }
 
 var errHTTP = errors.New("http")

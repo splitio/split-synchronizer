@@ -110,8 +110,13 @@ func TestEventsMemoryIsProperlyReturned(t *testing.T) {
 	}
 
 	for i := 0; i < 3; i++ {
-		req, cb, err := w.BuildRequest(<-sinker)
-		cb()
+		i := <- sinker
+		req, err := w.BuildRequest(i)
+		if asRecyclable, ok := i.(recyclable); ok {
+			asRecyclable.recycle()
+		} else {
+			t.Errorf("item of type %T is not recyclable", i)
+		}
 		if req == nil || err != nil {
 			t.Error("there should be no error. Got: ", err)
 		}
@@ -120,6 +125,7 @@ func TestEventsMemoryIsProperlyReturned(t *testing.T) {
 }
 
 func TestEventsIntegration(t *testing.T) {
+
 	var mtx sync.Mutex
 	evsByMachineName := make(map[string]int, 3)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
