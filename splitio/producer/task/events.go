@@ -99,16 +99,16 @@ func (i *EventsPipelineWorker) Process(raws [][]byte, sink chan<- interface{}) e
 }
 
 // BuildRequest takes an intermediate object and generates an http request to post events
-func (i *EventsPipelineWorker) BuildRequest(data interface{}) (*http.Request, func(), error) {
+func (i *EventsPipelineWorker) BuildRequest(data interface{}) (*http.Request, error) {
 	ewm, ok := data.(eventsWithMetadata)
 	if !ok {
-		return nil, nil, fmt.Errorf("expected `eventsWithMeta`. Got: %T", data)
+		return nil, fmt.Errorf("expected `eventsWithMeta`. Got: %T", data)
 	}
 
 	serialized, err := json.Marshal(ewm.events)
 	req, err := http.NewRequest("POST", i.url, bytes.NewReader(serialized))
 	if err != nil {
-		return nil, ewm.recycle, fmt.Errorf("error building events post request: %w", err)
+		return nil, fmt.Errorf("error building events post request: %w", err)
 	}
 
 	req.Header = http.Header{}
@@ -117,7 +117,7 @@ func (i *EventsPipelineWorker) BuildRequest(data interface{}) (*http.Request, fu
 	req.Header.Add("SplitSDKVersion", ewm.metadata.SDKVersion)
 	req.Header.Add("SplitSDKMachineIp", ewm.metadata.MachineIP)
 	req.Header.Add("SplitSDKMachineName", ewm.metadata.MachineName)
-	return req, ewm.recycle, nil
+	return req, nil
 }
 
 type eventBatches struct {
@@ -169,7 +169,7 @@ func newEventsWithMetadata(pool eventsMemoryPool, metadata *dtos.Metadata) event
 	}
 }
 
-func (s *eventsWithMetadata) recycle() {
+func (s eventsWithMetadata) recycle() {
 	s.pool.releaseEvents(s.events)
 }
 
