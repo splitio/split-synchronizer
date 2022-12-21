@@ -210,16 +210,21 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	}
 	go adminServer.ListenAndServe()
 
+	tlsConfig, err := util.TLSConfigForServer(&cfg.Server.TLS)
+	if err != nil {
+		return common.NewInitError(fmt.Errorf("error setting up proxy TLS config: %w", err), common.ExitTLSError)
+	}
+
 	proxyOptions := &Options{
+		Logger:                      logger,
 		Host:                        cfg.Server.Host,
 		Port:                        int(cfg.Server.Port),
 		APIKeys:                     cfg.Server.ClientApikeys,
+		ImpressionListener:          nil,
 		DebugOn:                     strings.ToLower(cfg.Logging.Level) == "debug" || strings.ToLower(cfg.Logging.Level) == "verbose",
-		Logger:                      logger,
-		ProxySplitStorage:           splitStorage,
 		SplitFetcher:                splitAPI.SplitFetcher,
+		ProxySplitStorage:           splitStorage,
 		ProxySegmentStorage:         segmentStorage,
-		Telemetry:                   localTelemetryStorage,
 		ImpressionsSink:             impressionTask,
 		ImpressionCountSink:         impressionCountTask,
 		EventsSink:                  eventsTask,
@@ -227,7 +232,9 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		TelemetryUsageSink:          telemetryUsageTask,
 		TelemetryKeysClientSideSink: telemetryKeysClientSideTask,
 		TelemetryKeysServerSideSink: telemetryKeysServerSideTask,
+		Telemetry:                   localTelemetryStorage,
 		Cache:                       httpCache,
+		TLSConfig:                   tlsConfig,
 	}
 
 	if ilcfg := cfg.Integrations.ImpressionListener; ilcfg.Endpoint != "" {

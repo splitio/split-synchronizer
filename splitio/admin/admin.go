@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net/http"
 
@@ -36,6 +37,7 @@ type Options struct {
 	HcAppMonitor      application.MonitorIterface
 	HcServicesMonitor services.MonitorIterface
 	Snapshotter       cstorage.Snapshotter
+	TLS		  *tls.Config
 	FullConfig        interface{}
 }
 
@@ -93,5 +95,6 @@ func NewServer(options *Options) (*http.Server, error) {
 	return &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", options.Host, options.Port),
 		Handler: router,
+		TLSConfig: options.TLS,
 	}, nil
 }
