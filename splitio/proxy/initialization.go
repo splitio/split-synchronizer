@@ -190,6 +190,12 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	// --------------------------- ADMIN DASHBOARD ------------------------------
 	cfgForAdmin := *cfg
 	cfgForAdmin.Apikey = logging.ObfuscateAPIKey(cfgForAdmin.Apikey)
+
+	adminTLSConfig, err := util.TLSConfigForServer(&cfg.Admin.TLS)
+	if err != nil {
+		return common.NewInitError(fmt.Errorf("error setting up proxy TLS config: %w", err), common.ExitTLSError)
+	}
+
 	adminServer, err := admin.NewServer(&admin.Options{
 		Host:              cfg.Admin.Host,
 		Port:              int(cfg.Admin.Port),
@@ -204,11 +210,12 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		HcAppMonitor:      appMonitor,
 		HcServicesMonitor: servicesMonitor,
 		FullConfig:        cfgForAdmin,
+		TLS:               adminTLSConfig,
 	})
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error starting admin server: %w", err), common.ExitAdminError)
 	}
-	go adminServer.ListenAndServe()
+	go adminServer.Start()
 
 	tlsConfig, err := util.TLSConfigForServer(&cfg.Server.TLS)
 	if err != nil {

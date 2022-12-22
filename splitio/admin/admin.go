@@ -37,12 +37,16 @@ type Options struct {
 	HcAppMonitor      application.MonitorIterface
 	HcServicesMonitor services.MonitorIterface
 	Snapshotter       cstorage.Snapshotter
-	TLS		  *tls.Config
+	TLS               *tls.Config
 	FullConfig        interface{}
 }
 
+type AdminServer struct {
+	server *http.Server
+}
+
 // NewServer instantiates a new admin server
-func NewServer(options *Options) (*http.Server, error) {
+func NewServer(options *Options) (*AdminServer, error) {
 	router := gin.New()
 	admin := router.Group(baseAdminPath)
 	info := router.Group(baseInfoPath)
@@ -92,9 +96,18 @@ func NewServer(options *Options) (*http.Server, error) {
 		snapshotController.Register(admin)
 	}
 
-	return &http.Server{
-		Addr:    fmt.Sprintf("%s:%d", options.Host, options.Port),
-		Handler: router,
-		TLSConfig: options.TLS,
+	return &AdminServer{
+		server: &http.Server{
+			Addr:      fmt.Sprintf("%s:%d", options.Host, options.Port),
+			Handler:   router,
+			TLSConfig: options.TLS,
+		},
 	}, nil
+}
+
+func (a *AdminServer) Start() error {
+	if a.server.TLSConfig != nil {
+		return a.server.ListenAndServeTLS("", "") // cert & key set in TLSConfig option
+	}
+	return a.server.ListenAndServe()
 }

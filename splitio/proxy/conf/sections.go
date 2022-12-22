@@ -45,7 +45,7 @@ type Server struct {
 	Host          string   `json:"host" s-cli:"server-host" s-def:"0.0.0.0" s-desc:"Host/IP to start the proxy server on"`
 	Port          int64    `json:"port" s-cli:"server-port" s-def:"3000" s-desc:"Port to listten for incoming requests from SDKs"`
 	CacheSize     int64    `json:"httpCacheSize" s-cli:"http-cache-size" s-def:"1000000" s-desc:"How many responses to cache"`
-	TLS           conf.TLS `json:"tls" s-nested:"true"`
+	TLS           conf.TLS `json:"tls" s-nested:"true" s-cli-prefix:"server"`
 }
 
 // Storage configuration options
