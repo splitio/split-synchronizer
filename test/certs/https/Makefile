@@ -49,3 +49,22 @@ proxy.key proxy.crt:
 		-passin pass:some_passphrase \
 		-in proxy.csr \
 		-out proxy.crt
+
+# ADMIN
+admin.key admin.crt:
+	openssl genrsa \
+		-out admin.key 2048
+	openssl req \
+		-key admin.key \
+		-new \
+		-sha256 \
+		-addext 'subjectAltName=DNS:split-proxy-admin,email:admin@file-server' \
+		-subj '/C=AR/ST=Buenos Aires/L=Tandil/O=UNICEN/OU=IT/CN=split-proxy-admin/emailAddress=martin.redolatti@split.io' \
+		-out admin.csr
+	openssl ca -config openssl.conf \
+		-batch \
+		-days 365 \
+		-notext \
+		-passin pass:some_passphrase \
+		-in admin.csr \
+		-out admin.crt
