@@ -103,4 +103,28 @@ func TestTLSConfigForServer(t *testing.T) {
 	if res.ClientCAs == nil {
 		t.Error("a root certificate pool should be set for client validation")
 	}
+
+	res, err = TLSConfigForServer(&conf.TLS{
+		Enabled:                  true,
+		CertChainFN:              "../../test/certs/https/proxy.crt",
+		PrivateKeyFN:             "../../test/certs/https/proxy.key",
+		MinTLSVersion:            "1.3",
+		AllowedCipherSuites: "TLS_RSA_WITH_RC4_128_SHA",
+	})
+
+	if err == nil {
+		t.Error("should fail for using an insecure cipher suite 'TLS_RSA_WITH_RC4_128_SHA'")
+	}
+
+	res, err = TLSConfigForServer(&conf.TLS{
+		Enabled:                  true,
+		CertChainFN:              "../../test/certs/https/proxy.crt",
+		PrivateKeyFN:             "../../test/certs/https/proxy.key",
+		MinTLSVersion:            "1.3",
+		AllowedCipherSuites: "TLS_CHACHA20_POLY1305_SHA256",
+	})
+
+	if err != nil {
+		t.Error("should not fail with a secure cipher suite 'TLS_CHACHA20_POLY1305_SHA256'")
+	}
 }
