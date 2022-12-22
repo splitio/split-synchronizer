@@ -45,4 +45,5 @@ type TLS struct {
 	PrivateKeyFN             string `json:"privateKeyFn" s-cli:"tls-private-key-fn" s-def:"" s-desc:"PEM Private key file name"`
 	ClientValidationRootCert string `json:"clientValidationRootCertFn" s-cli:"tls-client-validation-root-cert" s-def:"" s-desc:"X509 root cert for client validation"`
 	MinTLSVersion            string `json:"minTlsVersion" s-cli:"tls-min-tls-version" s-def:"1.3" s-desc:"Minimum TLS version to allow X.Y"`
+	AllowedCipherSuites      string `json:"allowedCipherSuites" s-cli:"tls-allowed-cipher-suites" s-def:"" s-desc:"Comma-separated list of cipher suites to allow"`
 }

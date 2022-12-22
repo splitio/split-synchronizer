@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"strings"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/common/conf"
 )
@@ -16,7 +17,6 @@ var (
 )
 
 func TLSConfigForServer(cfg *conf.TLS) (*tls.Config, error) {
-
 	if !cfg.Enabled {
 		return nil, nil
 	}
@@ -39,6 +39,14 @@ func TLSConfigForServer(cfg *conf.TLS) (*tls.Config, error) {
 		ServerName:   cfg.ServerName,
 		MinVersion:   version,
 		Certificates: []tls.Certificate{cert},
+	}
+
+	if len(cfg.AllowedCipherSuites) > 0 {
+		suites, err := parseCipherSuites(strings.Split(cfg.AllowedCipherSuites, ","))
+		if err != nil {
+			return nil, fmt.Errorf("error parsing cipher suites: %w", err)
+		}
+		tlsConfig.CipherSuites = suites
 	}
 
 	if !cfg.ClientValidation {
@@ -72,4 +80,24 @@ func parseMinTLSVersion(version string) (uint16, error) {
 		return tls.VersionTLS13, nil
 	}
 	return 0, ErrTLSInvalidVersion
+}
+
+func parseCipherSuites(strSuites []string) ([]uint16, error) {
+	valid := tls.CipherSuites()
+	requested := make([]uint16, 0, len(strSuites))
+	for _, suite := range strSuites {
+		suite = strings.TrimSpace(suite)
+		found := false
+		for _, current := range valid {
+			if current.Name == suite {
+				requested = append(requested, current.ID)
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, fmt.Errorf("cipher suite '%s' not found in list of secure ones", suite)
+		}
+	}
+	return requested, nil
 }
