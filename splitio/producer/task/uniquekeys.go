@@ -59,12 +59,17 @@ func (u *UniqueKeysPipelineWorker) Fetch() ([]string, error) {
 func (u *UniqueKeysPipelineWorker) Process(raws [][]byte, sink chan<- interface{}) error {
 	for _, raw := range raws {
 		err, value := parseToObj(raw)
+		if err == nil {
+			u.logger.Debug("Unique Keys parsed to Dto.")
+		}
+
 		if err != nil {
 			err, value = parseToArray(raw)
 			if err != nil {
 				u.logger.Error("error deserializing fetched uniqueKeys: ", err.Error())
 				continue
 			}
+			u.logger.Debug("Unique Keys parsed to Array.")
 		}
 
 		for _, unique := range value {
