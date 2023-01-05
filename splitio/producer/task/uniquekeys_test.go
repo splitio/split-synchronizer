@@ -11,12 +11,8 @@ import (
 )
 
 func makeSerializedUniquesDto(key dtos.Key) [][]byte {
-	result := func(r []byte, _ error) []byte { return r }
-	uqs := make([][]byte, 0)
-
-	uqs = append(uqs, result(json.Marshal(key)))
-
-	return uqs
+	result, _ := json.Marshal(key)
+	return [][]byte{result}
 }
 
 func makeSerializedUniquesArray(slice [][]dtos.Key) [][]byte {
