@@ -276,6 +276,7 @@ func startBGSyng(m synchronizer.Manager, mstatus chan int, haveSnapshot bool, on
 		status := <-mstatus
 		switch status {
 		case synchronizer.Ready:
+			onReady()
 			return true
 		case synchronizer.Error:
 			return false
@@ -296,6 +297,7 @@ func startBGSyng(m synchronizer.Manager, mstatus chan int, haveSnapshot bool, on
 		for !attemptInit() {
 			time.Sleep(boff.Next())
 		}
+		onReady()
 	}()
 
 	return errRetrying
