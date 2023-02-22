@@ -166,7 +166,6 @@ func (p *ProxySplitStorageImpl) Count() int {
 }
 
 func snapshotFromDisk(dst *mutexmap.MMSplitStorage, src *persistent.SplitChangesCollection, logger logging.LoggerInterface) {
-	cn := src.ChangeNumber()
 	all, err := src.FetchAll()
 	if err != nil {
 		logger.Error("error parsing splits from snapshot. No data will be available!: ", err)
@@ -174,7 +173,11 @@ func snapshotFromDisk(dst *mutexmap.MMSplitStorage, src *persistent.SplitChanges
 	}
 
 	var filtered []dtos.SplitDTO
+	var cn int64
 	for idx := range all {
+		if thisCN := all[idx].ChangeNumber; thisCN > cn {
+			cn = thisCN
+		}
 		if all[idx].Status == "ACTIVE" {
 			filtered = append(filtered, all[idx])
 		}
