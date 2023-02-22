@@ -33,7 +33,7 @@ type ProxySplitStorage interface {
 // ProxySplitStorageImpl implements the ProxySplitStorage interface and the SplitProducer interface
 type ProxySplitStorageImpl struct {
 	snapshot mutexmap.MMSplitStorage
-	recipes  optimized.SplitChangesSummaries
+	recipes  *optimized.SplitChangesSummaries
 	db       *persistent.SplitChangesCollection
 	mtx      sync.Mutex
 }
@@ -44,12 +44,13 @@ type ProxySplitStorageImpl struct {
 func NewProxySplitStorage(db persistent.DBWrapper, logger logging.LoggerInterface, restoreBackup bool) *ProxySplitStorageImpl {
 	disk := persistent.NewSplitChangesCollection(db, logger)
 	snapshot := mutexmap.NewMMSplitStorage()
+	recipes := optimized.NewSplitChangesSummaries(maxRecipes)
 	if restoreBackup {
-		snapshotFromDisk(snapshot, disk, logger)
+		snapshotFromDisk(snapshot, recipes, disk, logger)
 	}
 	return &ProxySplitStorageImpl{
 		snapshot: *snapshot,
-		recipes:  *optimized.NewSplitChangesSummaries(maxRecipes),
+		recipes:  recipes,
 		db:       disk,
 	}
 }
@@ -165,7 +166,7 @@ func (p *ProxySplitStorageImpl) Count() int {
 	return len(p.SplitNames())
 }
 
-func snapshotFromDisk(dst *mutexmap.MMSplitStorage, src *persistent.SplitChangesCollection, logger logging.LoggerInterface) {
+func snapshotFromDisk(dst *mutexmap.MMSplitStorage, summary *optimized.SplitChangesSummaries, src *persistent.SplitChangesCollection, logger logging.LoggerInterface) {
 	all, err := src.FetchAll()
 	if err != nil {
 		logger.Error("error parsing splits from snapshot. No data will be available!: ", err)
@@ -173,8 +174,10 @@ func snapshotFromDisk(dst *mutexmap.MMSplitStorage, src *persistent.SplitChanges
 	}
 
 	var filtered []dtos.SplitDTO
-	var cn int64
+	var cn = src.ChangeNumber()
 	for idx := range all {
+
+		// Make sure the CN matches is at least large as the payloads' max.
 		if thisCN := all[idx].ChangeNumber; thisCN > cn {
 			cn = thisCN
 		}
@@ -184,6 +187,7 @@ func snapshotFromDisk(dst *mutexmap.MMSplitStorage, src *persistent.SplitChanges
 	}
 
 	dst.Update(filtered, nil, cn)
+	summary.AddChanges(filtered, nil, cn)
 }
 
 var _ ProxySplitStorage = (*ProxySplitStorageImpl)(nil)
