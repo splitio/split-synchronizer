@@ -15,6 +15,7 @@ type Admin struct {
 	Username string `json:"username" s-cli:"admin-username" s-def:"" s-desc:"HTTP basic auth username for admin endpoints"`
 	Password string `json:"password" s-cli:"admin-password" s-def:"" s-desc:"HTTP basic auth password for admin endpoints"`
 	SecureHC bool   `json:"secureChecks" s-cli:"admin-secure-hc" s-def:"false" s-desc:"Secure Healthcheck endpoints as well."`
+	TLS      TLS    `json:"tls" s-nested:"true" s-cli-prefix:"admin"`
 }
 
 // Integrations configuration options
@@ -33,4 +34,16 @@ type ImpressionListener struct {
 type Slack struct {
 	Webhook string `json:"webhook" s-cli:"slack-webhook" s-def:"" s-desc:"slack webhook to post log messages"`
 	Channel string `json:"channel" s-cli:"slack-channel" s-def:"" s-desc:"slack channel to post log messages"`
+}
+
+// TLS config options
+type TLS struct {
+	Enabled                  bool   `json:"enabled" s-cli:"tls-enabled" s-def:"false" s-desc:"Enable HTTPS on proxy endpoints"`
+	ClientValidation         bool   `json:"clientValidation" s-cli:"tls-client-validation" s-def:"false" s-desc:"Enable client cert validation"`
+	ServerName               string `json:"serverName" s-cli:"tls-server-name" s-def:"" s-desc:"Server name as it appears in provided server-cert"`
+	CertChainFN              string `json:"certChainFn" s-cli:"tls-cert-chain-fn" s-def:"" s-desc:"X509 Server certificate chain"`
+	PrivateKeyFN             string `json:"privateKeyFn" s-cli:"tls-private-key-fn" s-def:"" s-desc:"PEM Private key file name"`
+	ClientValidationRootCert string `json:"clientValidationRootCertFn" s-cli:"tls-client-validation-root-cert" s-def:"" s-desc:"X509 root cert for client validation"`
+	MinTLSVersion            string `json:"minTlsVersion" s-cli:"tls-min-tls-version" s-def:"1.3" s-desc:"Minimum TLS version to allow X.Y"`
+	AllowedCipherSuites      string `json:"allowedCipherSuites" s-cli:"tls-allowed-cipher-suites" s-def:"" s-desc:"Comma-separated list of cipher suites to allow"`
 }
