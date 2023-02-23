@@ -297,7 +297,6 @@ func startBGSyng(m synchronizer.Manager, mstatus chan int, haveSnapshot bool, on
 		for !attemptInit() {
 			time.Sleep(boff.Next())
 		}
-		onReady()
 	}()
 
 	return errRetrying
