@@ -69,4 +69,4 @@ Gopkg.lock
 build/*
 split-proxy
 split-sync
-clilist
+/clilist

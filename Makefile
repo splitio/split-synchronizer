@@ -68,7 +68,7 @@ release_assets: \
 	$(info )
 
 clilist: $(sources)
-	$(GO) build -o $@ docker/util/clilist/main.go
+	$(GO) build $(EXTRA_BUILD_ARGS) -o $@ docker/util/clilist/main.go
 
 ## Generate download pages for split-sync & split-proxy
 download_pages: $(BUILD)/downloads.proxy.html $(BUILD)/downloads.sync.html
@@ -137,8 +137,8 @@ $(addprefix $(BUILD)/,$(execs)): $(BUILD)/split_%: $(sources) go.sum
 entrypoint.%.sh: clilist
 	cat docker/entrypoint.sh.tpl \
 	    | sed 's/{{ARGS}}/$(shell ./clilist -target=$*)/' \
-	    | sed 's/{{PREFIX}}/SPLIT_$(call to_uppercase,$*)/' \
-	    | sed 's/{{EXECUTABLE}}/split-$*/' \
+	    | sed 's/{{PREFIX}}/SPLIT_$(call to_uppercase,$(if $(findstring synchronizer,$*),sync,proxy))/' \
+	    | sed 's/{{EXECUTABLE}}/split-$(if $(findstring synchronizer,$*),sync,proxy)/' \
 	    > $@
 	chmod +x $@
 
