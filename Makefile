@@ -66,6 +66,9 @@ release_assets: \
 	$(foreach f,$^,$(info - $(f)))
 	$(info )
 
+clilist: $(sources)
+	$(GO) build -o $@ docker/util/clilist/main.go
+
 ## Generate download pages for split-sync & split-proxy
 download_pages: $(BUILD)/downloads.proxy.html $(BUILD)/downloads.sync.html
 
@@ -81,10 +84,10 @@ sync_options_table: splitio/common/conf/sections.go splitio/producer/conf/sectio
 	@$(PYTHON) release/docgen.py -e SPLIT_SYNC -f $(subst $(space),$(comma),$^)
 
 ## Generate entrypoints for docker images
-entrypoints: entrypoint.sync.sh entrypoint.proxy.sh
+entrypoints: entrypoint.synchronizer.sh entrypoint.proxy.sh
 
 ## Build release-ready docker images with proper tags and output push commands in stdout
-images_release: entrypoint.sync.sh entrypoint.proxy.sh
+images_release: entrypoint.synchronizer.sh entrypoint.proxy.sh
 	$(DOCKER) build -t splitsoftware/split-synchronizer:latest -t splitsoftware/split-synchronizer:$(version) -f docker/Dockerfile.synchronizer .
 	$(DOCKER) build -t splitsoftware/split-proxy:latest -t splitsoftware/split-proxy:$(version) -f docker/Dockerfile.proxy .
 	@echo "Images created. Make sure everything works ok, and then run the following commands to push them."
@@ -130,15 +133,24 @@ execs := split_sync_linux split_sync_osx split_sync_windows.exe split_proxy_linu
 $(addprefix $(BUILD)/,$(execs)): $(BUILD)/split_%: $(sources) go.sum
 	GOARCH=$(ARCH) GOOS=$(call parse_os,$@) $(GO) build -o $@ cmd/$(call cmdfolder_from_bin,$@)/main.go
 
-sync_conf_files := splitio/common/conf/sections.go,splitio/producer/conf/sections.go
-proxy_conf_files := splitio/common/conf/sections.go,splitio/proxy/conf/sections.go
-entrypoint.%.sh: $(sources) go.sum
+entrypoint.%.sh: clilist
 	cat docker/entrypoint.sh.tpl \
-	    | sed 's/{{ARGS}}/$(shell $(PYTHON) docker/parse_opts.py -f $(if $(findstring sync,$*),$(sync_conf_files),$(proxy_conf_files)))/' \
+	    | sed 's/{{ARGS}}/$(shell ./clilist -target=$*)/' \
 	    | sed 's/{{PREFIX}}/SPLIT_$(call to_uppercase,$*)/' \
 	    | sed 's/{{EXECUTABLE}}/split-$*/' \
 	    > $@
 	chmod +x $@
+
+
+# sync_conf_files := splitio/common/conf/sections.go,splitio/producer/conf/sections.go
+# proxy_conf_files := splitio/common/conf/sections.go,splitio/proxy/conf/sections.go
+#entrypoint.%.sh: $(sources) go.sum
+#	cat docker/entrypoint.sh.tpl \
+#	    | sed 's/{{ARGS}}/$(shell $(PYTHON) docker/parse_opts.py -f $(if $(findstring sync,$*),$(sync_conf_files),$(proxy_conf_files)))/' \
+#	    | sed 's/{{PREFIX}}/SPLIT_$(call to_uppercase,$*)/' \
+#	    | sed 's/{{EXECUTABLE}}/split-$*/' \
+#	    > $@
+# 	chmod +x $@
 
 $(BUILD)/synchronizer: \
     $(BUILD)/downloads.sync.html \
