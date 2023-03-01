@@ -88,7 +88,7 @@ sync_options_table: splitio/common/conf/sections.go splitio/producer/conf/sectio
 entrypoints: entrypoint.synchronizer.sh entrypoint.proxy.sh
 
 ## Build release-ready docker images with proper tags and output push commands in stdout
-images_release: entrypoint.synchronizer.sh entrypoint.proxy.sh
+images_release: # entrypoints
 	$(DOCKER) build -t splitsoftware/split-synchronizer:latest -t splitsoftware/split-synchronizer:$(version) -f docker/Dockerfile.synchronizer .
 	$(DOCKER) build -t splitsoftware/split-proxy:latest -t splitsoftware/split-proxy:$(version) -f docker/Dockerfile.proxy .
 	@echo "Images created. Make sure everything works ok, and then run the following commands to push them."
