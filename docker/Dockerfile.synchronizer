@@ -33,10 +33,10 @@ RUN adduser \
 COPY docker/functions.sh .
 
 COPY --from=builder /go/src/github.com/splitio/split-synchronizer/split-sync /usr/bin/
-COPY --from=builder /go/src/github.com/splitio/split-synchronizer/entrypoint.sync.sh .
+COPY --from=builder /go/src/github.com/splitio/split-synchronizer/entrypoint.synchronizer.sh .
 
 EXPOSE 3010
 
 USER 'split-synchronizer'
 
-ENTRYPOINT ["bash", "entrypoint.sync.sh"]
+ENTRYPOINT ["bash", "entrypoint.synchronizer.sh"]
