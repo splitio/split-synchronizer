@@ -9,7 +9,7 @@ RUN apk add \
   python3 \
   git
 
-WORKDIR /go/src/github.com/splitio/split-synchronizer
+WORKDIR /code
 
 COPY . .
 
@@ -32,8 +32,10 @@ RUN adduser \
 
 COPY docker/functions.sh .
 
-COPY --from=builder /go/src/github.com/splitio/split-synchronizer/split-proxy /usr/bin/
-COPY --from=builder /go/src/github.com/splitio/split-synchronizer/entrypoint.proxy.sh .
+# COPY --from=builder /go/src/github.com/splitio/split-synchronizer/split-proxy /usr/bin/
+# COPY --from=builder /go/src/github.com/splitio/split-synchronizer/entrypoint.proxy.sh .
+COPY --from=builder /code/split-proxy /usr/bin/
+COPY --from=builder /code/entrypoint.proxy.sh .
 
 EXPOSE 3000 3010
 
