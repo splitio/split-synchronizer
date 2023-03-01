@@ -36,6 +36,7 @@ clean:
 	rm -f ./split-sync
 	rm -f ./split-proxy
 	rm -f ./entrypoint.*.sh
+	rm -f ./clilist
 	rm -Rf $(BUILD)/*
 
 ## Build split-sync and split-proxy
