@@ -141,17 +141,6 @@ entrypoint.%.sh: clilist
 	    > $@
 	chmod +x $@
 
-
-# sync_conf_files := splitio/common/conf/sections.go,splitio/producer/conf/sections.go
-# proxy_conf_files := splitio/common/conf/sections.go,splitio/proxy/conf/sections.go
-#entrypoint.%.sh: $(sources) go.sum
-#	cat docker/entrypoint.sh.tpl \
-#	    | sed 's/{{ARGS}}/$(shell $(PYTHON) docker/parse_opts.py -f $(if $(findstring sync,$*),$(sync_conf_files),$(proxy_conf_files)))/' \
-#	    | sed 's/{{PREFIX}}/SPLIT_$(call to_uppercase,$*)/' \
-#	    | sed 's/{{EXECUTABLE}}/split-$*/' \
-#	    > $@
-# 	chmod +x $@
-
 $(BUILD)/synchronizer: \
     $(BUILD)/downloads.sync.html \
     $(BUILD)/install_split_sync_linux.bin \
