@@ -58,14 +58,21 @@ func (u *UniqueKeysPipelineWorker) Fetch() ([]string, error) {
 
 func (u *UniqueKeysPipelineWorker) Process(raws [][]byte, sink chan<- interface{}) error {
 	for _, raw := range raws {
-		var queueObj []dtos.Key
-		err := json.Unmarshal(raw, &queueObj)
-		if err != nil {
-			u.logger.Error("error deserializing fetched uniqueKeys: ", err.Error())
-			continue
+		err, value := parseToObj(raw)
+		if err == nil {
+			u.logger.Debug("Unique Keys parsed to Dto.")
 		}
 
-		for _, unique := range queueObj {
+		if err != nil {
+			err, value = parseToArray(raw)
+			if err != nil {
+				u.logger.Error("error deserializing fetched uniqueKeys: ", err.Error())
+				continue
+			}
+			u.logger.Debug("Unique Keys parsed to Array.")
+		}
+
+		for _, unique := range value {
 			for _, key := range unique.Keys {
 				u.uniqueKeysTracker.Track(unique.Feature, key)
 			}
@@ -99,4 +106,24 @@ func (u *UniqueKeysPipelineWorker) BuildRequest(data interface{}) (*http.Request
 	req.Header.Add("SplitSDKMachineIp", u.metadata.MachineIP)
 	req.Header.Add("SplitSDKMachineName", u.metadata.MachineName)
 	return req, nil
+}
+
+func parseToArray(raw []byte) (error, []dtos.Key) {
+	var queueObj []dtos.Key
+	err := json.Unmarshal(raw, &queueObj)
+	if err != nil {
+		return err, nil
+	}
+
+	return nil, queueObj
+}
+
+func parseToObj(raw []byte) (error, []dtos.Key) {
+	var queueObj dtos.Key
+	err := json.Unmarshal(raw, &queueObj)
+	if err != nil {
+		return err, nil
+	}
+
+	return nil, []dtos.Key{queueObj}
 }
