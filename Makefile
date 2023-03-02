@@ -21,7 +21,7 @@ installer_tpl_lines	:= $(shell echo $$(( $$(wc -l $(installer_tpl) | awk '{print
 $(shell cat release/commitversion.go.template | sed -e "s/COMMIT_VERSION/${commit_version}/" > ./splitio/commitversion.go)
 
 .PHONY: help clean build test test_coverage release_assets images_release \
-    sync_options_table proxy_options_table download_pages
+    sync_options_table proxy_options_table download_pages table_header
 
 default: help
 
@@ -67,22 +67,20 @@ release_assets: \
 	$(foreach f,$^,$(info - $(f)))
 	$(info )
 
+# Build internal tool for parsing & extracting info from proxy & syncrhonizer config structs
 clilist: $(sources)
 	$(GO) build $(EXTRA_BUILD_ARGS) -o $@ docker/util/clilist/main.go
 
 ## Generate download pages for split-sync & split-proxy
 download_pages: $(BUILD)/downloads.proxy.html $(BUILD)/downloads.sync.html
 
+## Generate proxy config options table
+proxy_options_table: clilist $(sources) table_header
+	@./clilist -target=proxy -env-prefix=SPLIT_PROXY_ -output="| {cli} | {json} | {env} | {desc} |\n"
 
-## Generate cli/json/env-var options table Markdown for split-poxy
-proxy_options_table: splitio/common/conf/sections.go splitio/proxy/conf/sections.go
-	$(info )
-	@$(PYTHON) release/docgen.py -e SPLIT_PROXY -f $(subst $(space),$(comma),$^)
-
-## Generate cli/json/env-var options table Markdown for split-sync
-sync_options_table: splitio/common/conf/sections.go splitio/producer/conf/sections.go
-	$(info )
-	@$(PYTHON) release/docgen.py -e SPLIT_SYNC -f $(subst $(space),$(comma),$^)
+## Generate synchronizer config options table
+sync_options_table: clilist $(sources) table_header
+	@./clilist -target=synchronizer -env-prefix=SPLIT_SYNC_ -output="| {cli} | {json} | {env} | {desc} |\n"
 
 ## Generate entrypoints for docker images
 entrypoints: entrypoint.synchronizer.sh entrypoint.proxy.sh
@@ -162,6 +160,10 @@ $(BUILD)/proxy: \
 
 $(BUILD)/downloads.%.html:
 	$(PYTHON) release/dp_gen.py --app $* > $@
+
+table_header:
+	@echo "| **Command line option** | **JSON option** | **Environment variable** (container-only) | **Description** |"
+	@echo "| --- | --- | --- | --- |"
 
 # Help target borrowed from: https://docs.cloudposse.com/reference/best-practices/make-best-practices/
 ## This help screen
