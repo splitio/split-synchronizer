@@ -14,6 +14,7 @@ import (
 func main() {
 
 	target := flag.String("target", "", "synchronizer|proxy")
+	envPrefix := flag.String("env-prefix", "", "SPLIT_SYNC_ | SPLIT_PROXY_ | ...")
 	output := flag.String("output", "{cli}\n", "string containing one or more of `cli,env,json,desc,type,default` in braces")
 	flag.Parse()
 
@@ -31,19 +32,21 @@ func main() {
 		os.Exit(1)
 	}
 
+	parsedOutput := parseSpecialChars(*output)
+
 	var collector OptionCollector
 	VisitConfig(config, collector.Collect)
 
 	for _, collected := range collector.collected {
 		replacer := strings.NewReplacer(
 			"{cli}", collected.CliArg,
-			"{env}", collected.Env,
+			"{env}", *envPrefix + collected.Env,
 			"{json}", collected.JSON,
 			"{desc}", collected.Description,
 			"{type}", collected.Type,
 			"{default}", collected.Default,
 		)
-		fmt.Print(replacer.Replace(*output))
+		fmt.Print(replacer.Replace(parsedOutput))
 	}
 }
 
@@ -89,6 +92,10 @@ func (o *OptionCollector) Collect(stack Stack, current reflect.StructField, valu
 
 func cliToEnv(cli string) string {
 	return strings.ToUpper(strings.ReplaceAll(cli, "-", "_"))
+}
+
+func parseSpecialChars(s string) string {
+	return strings.NewReplacer("\\n", "\n", "\\t", "\t").Replace(s)
 }
 
 type ConfigVisitor func(stack Stack, current reflect.StructField, value interface{}) (keepGoing bool)
