@@ -1,5 +1,5 @@
 5.3.0 (March X, 2023)
-- Updated go-split-commons for vulnerability fixes.
+- Updated go-split-commons to v4.3.0 for vulnerability fixes.
 
 5.2.3 (Jan 6, 2023)
 - Split-Sync:
