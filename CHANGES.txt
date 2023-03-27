@@ -1,3 +1,8 @@
+5.2.4 (March 28, 2023)
+- Split-Proxy:
+   - Fixed retry logic when started from snapshot.
+- Updated go-split-commons to v4.3.0 for vulnerability fixes.
+
 5.2.3 (Jan 6, 2023)
 - Split-Sync:
    - Updated unique keys parser to support single and array of keys.
