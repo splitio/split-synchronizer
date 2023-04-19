@@ -7,7 +7,7 @@ By default, Split’s SDKs keep segment and split data synchronized as users nav
 [![Twitter Follow](https://img.shields.io/twitter/follow/splitsoftware.svg?style=social&label=Follow&maxAge=1529000)](https://twitter.com/intent/follow?screen_name=splitsoftware)
 
 ## Compatibility
-Split Synchronizer supports Go version 1.17 or higher.
+Split Synchronizer supports Go version 1.18 or higher.
 
 ## Getting started
 Below is a simple example that describes the instantiation of Split Synchronizer:
