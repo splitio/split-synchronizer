@@ -21,7 +21,7 @@ installer_tpl_lines	:= $(shell echo $$(( $$(wc -l $(installer_tpl) | awk '{print
 $(shell cat release/commitversion.go.template | sed -e "s/COMMIT_VERSION/${commit_version}/" > ./splitio/commitversion.go)
 
 .PHONY: help clean build test test_coverage release_assets images_release \
-    sync_options_table proxy_options_table download_pages
+    sync_options_table proxy_options_table download_pages table_header
 
 default: help
 
@@ -36,6 +36,7 @@ clean:
 	rm -f ./split-sync
 	rm -f ./split-proxy
 	rm -f ./entrypoint.*.sh
+	rm -f ./clilist
 	rm -Rf $(BUILD)/*
 
 ## Build split-sync and split-proxy
@@ -66,25 +67,26 @@ release_assets: \
 	$(foreach f,$^,$(info - $(f)))
 	$(info )
 
+# Build internal tool for parsing & extracting info from proxy & syncrhonizer config structs
+clilist: $(sources)
+	$(GO) build $(EXTRA_BUILD_ARGS) -o $@ docker/util/clilist/main.go
+
 ## Generate download pages for split-sync & split-proxy
 download_pages: $(BUILD)/downloads.proxy.html $(BUILD)/downloads.sync.html
 
+## Generate proxy config options table
+proxy_options_table: clilist $(sources) table_header
+	@./clilist -target=proxy -env-prefix=SPLIT_PROXY_ -output="| {cli} | {json} | {env} | {desc} |\n"
 
-## Generate cli/json/env-var options table Markdown for split-poxy
-proxy_options_table: splitio/common/conf/sections.go splitio/proxy/conf/sections.go
-	$(info )
-	@$(PYTHON) release/docgen.py -e SPLIT_PROXY -f $(subst $(space),$(comma),$^)
-
-## Generate cli/json/env-var options table Markdown for split-sync
-sync_options_table: splitio/common/conf/sections.go splitio/producer/conf/sections.go
-	$(info )
-	@$(PYTHON) release/docgen.py -e SPLIT_SYNC -f $(subst $(space),$(comma),$^)
+## Generate synchronizer config options table
+sync_options_table: clilist $(sources) table_header
+	@./clilist -target=synchronizer -env-prefix=SPLIT_SYNC_ -output="| {cli} | {json} | {env} | {desc} |\n"
 
 ## Generate entrypoints for docker images
-entrypoints: entrypoint.sync.sh entrypoint.proxy.sh
+entrypoints: entrypoint.synchronizer.sh entrypoint.proxy.sh
 
 ## Build release-ready docker images with proper tags and output push commands in stdout
-images_release: entrypoint.sync.sh entrypoint.proxy.sh
+images_release: # entrypoints
 	$(DOCKER) build -t splitsoftware/split-synchronizer:latest -t splitsoftware/split-synchronizer:$(version) -f docker/Dockerfile.synchronizer .
 	$(DOCKER) build -t splitsoftware/split-proxy:latest -t splitsoftware/split-proxy:$(version) -f docker/Dockerfile.proxy .
 	@echo "Images created. Make sure everything works ok, and then run the following commands to push them."
@@ -130,13 +132,11 @@ execs := split_sync_linux split_sync_osx split_sync_windows.exe split_proxy_linu
 $(addprefix $(BUILD)/,$(execs)): $(BUILD)/split_%: $(sources) go.sum
 	GOARCH=$(ARCH) GOOS=$(call parse_os,$@) $(GO) build -o $@ cmd/$(call cmdfolder_from_bin,$@)/main.go
 
-sync_conf_files := splitio/common/conf/sections.go,splitio/producer/conf/sections.go
-proxy_conf_files := splitio/common/conf/sections.go,splitio/proxy/conf/sections.go
-entrypoint.%.sh: $(sources) go.sum
+entrypoint.%.sh: clilist
 	cat docker/entrypoint.sh.tpl \
-	    | sed 's/{{ARGS}}/$(shell $(PYTHON) docker/parse_opts.py -f $(if $(findstring sync,$*),$(sync_conf_files),$(proxy_conf_files)))/' \
-	    | sed 's/{{PREFIX}}/SPLIT_$(call to_uppercase,$*)/' \
-	    | sed 's/{{EXECUTABLE}}/split-$*/' \
+	    | sed 's/{{ARGS}}/$(shell ./clilist -target=$*)/' \
+	    | sed 's/{{PREFIX}}/SPLIT_$(call to_uppercase,$(if $(findstring synchronizer,$*),sync,proxy))/' \
+	    | sed 's/{{EXECUTABLE}}/split-$(if $(findstring synchronizer,$*),sync,proxy)/' \
 	    > $@
 	chmod +x $@
 
@@ -160,6 +160,10 @@ $(BUILD)/proxy: \
 
 $(BUILD)/downloads.%.html:
 	$(PYTHON) release/dp_gen.py --app $* > $@
+
+table_header:
+	@echo "| **Command line option** | **JSON option** | **Environment variable** (container-only) | **Description** |"
+	@echo "| --- | --- | --- | --- |"
 
 # Help target borrowed from: https://docs.cloudposse.com/reference/best-practices/make-best-practices/
 ## This help screen
