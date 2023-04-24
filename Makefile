@@ -130,7 +130,7 @@ $(BUILD)/install_split_%.bin: $(BUILD)/split_%.zip
 execs := split_sync_linux split_sync_osx split_sync_windows.exe split_proxy_linux split_proxy_osx split_proxy_windows.exe
 .INTERMEDIATE: $(addprefix $(BUILD)/,$(execs))
 $(addprefix $(BUILD)/,$(execs)): $(BUILD)/split_%: $(sources) go.sum
-	GOARCH=$(ARCH) GOOS=$(call parse_os,$@) $(GO) build -o $@ cmd/$(call cmdfolder_from_bin,$@)/main.go
+	CGO_ENABLED=0 GOARCH=$(ARCH) GOOS=$(call parse_os,$@) $(GO) build -o $@ cmd/$(call cmdfolder_from_bin,$@)/main.go
 
 entrypoint.%.sh: clilist
 	cat docker/entrypoint.sh.tpl \
