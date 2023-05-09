@@ -246,9 +246,12 @@ const mainScript = `
   };
 
   function updateFeatureFlags(featureFlags) {
+    featureFlags.sort((a, b) => parseFloat(b.changeNumber) - parseFloat(a.changeNumber));
     const formatted = featureFlags.map(formatFeatureFlag).join('\n');
-    $('#feature_flag_rows tbody').empty();
-    $('#feature_flag_rows tbody').append(formatted);
+    if (document.getElementById('filterFeatureFlagNameInput').value.length == 0) {
+      $('#feature_flag_rows tbody').empty();
+      $('#feature_flag_rows tbody').append(formatted);
+    }
   };
 
   function formatSegment(segment) {
