@@ -56,7 +56,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	// Setup fetchers & recorders
 	splitAPI := api.NewSplitAPI(cfg.Apikey, *advanced, logger, metadata)
 
-	// Check if SDK key ey is valid
+	// Check if SDK key is valid
 	if !isValidApikey(splitAPI.SplitFetcher) {
 		return common.NewInitError(errors.New("invalid SDK key"), common.ExitInvalidApikey)
 	}
