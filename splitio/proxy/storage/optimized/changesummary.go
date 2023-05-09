@@ -126,6 +126,10 @@ func (s *SplitChangesSummaries) FetchSince(since int64) (*ChangeSummary, int64, 
 
 func (s *SplitChangesSummaries) removeOldestRecipe() {
 	// look for the oldest change and remove it
+
+	if len(s.changes) == 0 { // just in case
+		return // nothing to do
+	}
 	oldest := int64(math.MaxInt64)
 	for cn := range s.changes {
 		if cn != -1 && cn < oldest {

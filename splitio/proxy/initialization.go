@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/url"
@@ -13,6 +14,7 @@ import (
 	"github.com/splitio/go-split-commons/v4/synchronizer"
 	"github.com/splitio/go-split-commons/v4/tasks"
 	"github.com/splitio/go-split-commons/v4/telemetry"
+	"github.com/splitio/go-toolkit/v5/backoff"
 	"github.com/splitio/go-toolkit/v5/logging"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/admin"
@@ -148,12 +150,13 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		return common.NewInitError(fmt.Errorf("error instantiating sync manager: %w", err), common.ExitTaskInitialization)
 	}
 
-	// Run Sync Manager
+	// Try to start bg sync in BG with unlimited retries (when a snapshot is provided),
+	// the passed function is invoked upon initialization completion
+	// If no snapshot is provided and init fails, `errUnrecoverable` is returned and application execution is aborted
+	// health monitors are only started after successful init (otherwise they'll fail if the app doesn't sync correctly within the
+	/// specified refresh period)
 	before := time.Now()
-	go syncManager.Start()
-	status := <-mstatus
-	switch status {
-	case synchronizer.Ready:
+	err = startBGSyng(syncManager, mstatus, cfg.Initialization.Snapshot != "", func() {
 		logger.Info("Synchronizer tasks started")
 		appMonitor.Start()
 		servicesMonitor.Start()
@@ -171,13 +174,13 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 			map[string]int64{cfg.Apikey: 1},
 			nil,
 		)
-	case synchronizer.Error:
-		if cfg.Initialization.Snapshot == "" {
-			// If we started from a snapshot, failure to sinchronize should not bring the app down
-			logger.Error("Initial synchronization failed. Either split is unreachable or the APIKey is incorrect. Aborting execution.")
-			return common.NewInitError(fmt.Errorf("error instantiating sync manager: %w", err), common.ExitTaskInitialization)
-		}
+	})
+	switch err {
+	case errRetrying:
 		logger.Warning("Failed to perform initial sync with split servers but continuing from snapshot. Will keep retrying in BG")
+	case errUnrecoverable:
+		logger.Error("Initial synchronization failed. Either split is unreachable or the APIKey is incorrect. Aborting execution.")
+		return common.NewInitError(fmt.Errorf("error instantiating sync manager: %w", err), common.ExitTaskInitialization)
 	}
 
 	rtm := common.NewRuntime(false, syncManager, logger, "Split Proxy", nil, nil, appMonitor, servicesMonitor)
@@ -190,6 +193,12 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	// --------------------------- ADMIN DASHBOARD ------------------------------
 	cfgForAdmin := *cfg
 	cfgForAdmin.Apikey = logging.ObfuscateAPIKey(cfgForAdmin.Apikey)
+
+	adminTLSConfig, err := util.TLSConfigForServer(&cfg.Admin.TLS)
+	if err != nil {
+		return common.NewInitError(fmt.Errorf("error setting up proxy TLS config: %w", err), common.ExitTLSError)
+	}
+
 	adminServer, err := admin.NewServer(&admin.Options{
 		Host:              cfg.Admin.Host,
 		Port:              int(cfg.Admin.Port),
@@ -204,22 +213,28 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		HcAppMonitor:      appMonitor,
 		HcServicesMonitor: servicesMonitor,
 		FullConfig:        cfgForAdmin,
+		TLS:               adminTLSConfig,
 	})
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error starting admin server: %w", err), common.ExitAdminError)
 	}
-	go adminServer.ListenAndServe()
+	go adminServer.Start()
+
+	tlsConfig, err := util.TLSConfigForServer(&cfg.Server.TLS)
+	if err != nil {
+		return common.NewInitError(fmt.Errorf("error setting up proxy TLS config: %w", err), common.ExitTLSError)
+	}
 
 	proxyOptions := &Options{
+		Logger:                      logger,
 		Host:                        cfg.Server.Host,
 		Port:                        int(cfg.Server.Port),
 		APIKeys:                     cfg.Server.ClientApikeys,
+		ImpressionListener:          nil,
 		DebugOn:                     strings.ToLower(cfg.Logging.Level) == "debug" || strings.ToLower(cfg.Logging.Level) == "verbose",
-		Logger:                      logger,
-		ProxySplitStorage:           splitStorage,
 		SplitFetcher:                splitAPI.SplitFetcher,
+		ProxySplitStorage:           splitStorage,
 		ProxySegmentStorage:         segmentStorage,
-		Telemetry:                   localTelemetryStorage,
 		ImpressionsSink:             impressionTask,
 		ImpressionCountSink:         impressionCountTask,
 		EventsSink:                  eventsTask,
@@ -227,7 +242,9 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		TelemetryUsageSink:          telemetryUsageTask,
 		TelemetryKeysClientSideSink: telemetryKeysClientSideTask,
 		TelemetryKeysServerSideSink: telemetryKeysServerSideTask,
+		Telemetry:                   localTelemetryStorage,
 		Cache:                       httpCache,
+		TLSConfig:                   tlsConfig,
 	}
 
 	if ilcfg := cfg.Integrations.ImpressionListener; ilcfg.Endpoint != "" {
@@ -245,6 +262,45 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	rtm.RegisterShutdownHandler()
 	rtm.Block()
 	return nil
+}
+
+var (
+	errRetrying      = errors.New("error but snapshot available")
+	errUnrecoverable = errors.New("error and no snapshot available")
+)
+
+func startBGSyng(m synchronizer.Manager, mstatus chan int, haveSnapshot bool, onReady func()) error {
+
+	attemptInit := func() bool {
+		go m.Start()
+		status := <-mstatus
+		switch status {
+		case synchronizer.Ready:
+			onReady()
+			return true
+		case synchronizer.Error:
+			return false
+		}
+		return false // should not reach here TODO:LOG!
+	}
+
+	if attemptInit() { // succeeeded at first try
+		return nil
+	}
+
+	if !haveSnapshot {
+		return errUnrecoverable
+	}
+
+	go func() {
+		boff := backoff.New(2, 10*time.Minute)
+		for !attemptInit() {
+			time.Sleep(boff.Next())
+		}
+	}()
+
+	return errRetrying
+
 }
 
 func getAppCounterConfigs() (hcAppCounter.ThresholdConfig, hcAppCounter.ThresholdConfig) {

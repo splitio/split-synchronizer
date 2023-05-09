@@ -7,7 +7,7 @@ import (
 
 // Main configuration options
 type Main struct {
-	Apikey           string            `json:"apikey" s-cli:"apikey" s-def:"" s-desc:"Split Server-side SDK  api-key"`
+	Apikey           string            `json:"apikey" s-cli:"apikey" s-def:"" s-desc:"Split Server-side SDK api-key"`
 	IPAddressEnabled bool              `json:"ipAddressEnabled" s-cli:"ip-address-enabled" s-def:"true" s-desc:"Bundle host's ip address when sending data to split"`
 	Initialization   Initialization    `json:"initialization" s-nested:"true"`
 	Server           Server            `json:"server" s-nested:"true"`
@@ -45,6 +45,7 @@ type Server struct {
 	Host          string   `json:"host" s-cli:"server-host" s-def:"0.0.0.0" s-desc:"Host/IP to start the proxy server on"`
 	Port          int64    `json:"port" s-cli:"server-port" s-def:"3000" s-desc:"Port to listten for incoming requests from SDKs"`
 	CacheSize     int64    `json:"httpCacheSize" s-cli:"http-cache-size" s-def:"1000000" s-desc:"How many responses to cache"`
+	TLS           conf.TLS `json:"tls" s-nested:"true" s-cli-prefix:"server"`
 }
 
 // Storage configuration options

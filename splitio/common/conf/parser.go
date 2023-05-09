@@ -12,6 +12,7 @@ const (
 	tagNested      = "s-nested"
 	tagDefault     = "s-def"
 	tagCliArgName  = "s-cli"
+	tagCliPrefix   = "s-cli-prefix"
 	tagDescription = "s-desc"
 
 	typeString      = "string"
@@ -24,7 +25,7 @@ const (
 // MakeCliArgMapFor returns a list of cli parameter struct
 func MakeCliArgMapFor(source interface{}) ArgMap {
 	val := reflect.ValueOf(source).Elem()
-	return cliParametersRecursive(val)
+	return cliParametersRecursive(val, "")
 }
 
 // PopulateDefaults iterates the passed structure and populates the fields with the value defined in the `s-def` tag
@@ -36,7 +37,7 @@ func PopulateDefaults(target interface{}) error {
 
 // PopulateFromArguments examines target fields by reflection and populates them with the contents of argMap
 func PopulateFromArguments(target interface{}, argMap ArgMap) {
-	populateFromArgsRecursive(reflect.ValueOf(target).Elem(), argMap)
+	populateFromArgsRecursive(reflect.ValueOf(target).Elem(), argMap, "")
 }
 
 // ArgMap is a type alias used to hold values parsed from CLI arguments, used to populate a config structure
@@ -170,7 +171,7 @@ func loadDefaultValuesRecursive(val reflect.Value) {
 	}
 }
 
-func populateFromArgsRecursive(val reflect.Value, cliParametersMap ArgMap) {
+func populateFromArgsRecursive(val reflect.Value, cliParametersMap ArgMap, prefix string) {
 	for i := 0; i < val.NumField(); i++ {
 		valueField := val.Field(i)
 		typeField := val.Type().Field(i)
@@ -178,13 +179,18 @@ func populateFromArgsRecursive(val reflect.Value, cliParametersMap ArgMap) {
 
 		// load child
 		if len(tag.Get(tagNested)) > 0 {
-			populateFromArgsRecursive(valueField, cliParametersMap)
+			nextPrefix := buildPrefix(prefix, tag.Get(tagCliPrefix))
+			populateFromArgsRecursive(valueField, cliParametersMap, nextPrefix)
 		}
 
 		// If the current property does not have a CLI-mapping, ignore
 		cliArgName := tag.Get(tagCliArgName)
 		if len(cliArgName) <= 0 {
 			continue
+		}
+
+		if len(prefix) > 0 {
+			cliArgName = fmt.Sprintf("%s-%s", prefix, cliArgName)
 		}
 
 		attributeType := fmt.Sprintf("%s", typeField.Type)
@@ -220,7 +226,7 @@ func populateFromArgsRecursive(val reflect.Value, cliParametersMap ArgMap) {
 	}
 }
 
-func cliParametersRecursive(val reflect.Value) ArgMap {
+func cliParametersRecursive(val reflect.Value, prefix string) ArgMap {
 	var toReturn = make(ArgMap)
 
 	for i := 0; i < val.NumField(); i++ {
@@ -230,7 +236,8 @@ func cliParametersRecursive(val reflect.Value) ArgMap {
 
 		// If it's a nested structure, process the child members and then merge the results
 		if len(tag.Get(tagNested)) > 0 {
-			children := cliParametersRecursive(valueField)
+			nextPrefix := buildPrefix(prefix, tag.Get(tagCliPrefix))
+			children := cliParametersRecursive(valueField, nextPrefix)
 			for k, v := range children {
 				toReturn[k] = v
 			}
@@ -239,6 +246,10 @@ func cliParametersRecursive(val reflect.Value) ArgMap {
 		cliArgName := tag.Get(tagCliArgName)
 		if len(cliArgName) <= 0 {
 			continue
+		}
+
+		if len(prefix) > 0 {
+			cliArgName = fmt.Sprintf("%s-%s", prefix, cliArgName)
 		}
 
 		def := tag.Get(tagDefault)
@@ -254,6 +265,23 @@ func cliParametersRecursive(val reflect.Value) ArgMap {
 	}
 	return toReturn
 }
+
+func buildPrefix(current string, nested string) string {
+	if len(current) == 0 && len(nested) == 0 {
+		return ""
+	}
+
+	if len(nested) == 0 {
+		return current
+	}
+
+	if len(current) == 0 {
+		return nested
+	}
+
+	return fmt.Sprintf("%s-%s", current, nested)
+}
+
 
 func strSliceEquals(s1, s2 []string) bool {
 	if len(s1) != len(s2) {

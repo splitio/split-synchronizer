@@ -13,6 +13,7 @@ const (
 	ExitErrorDB
 	ExitTaskInitialization
 	ExitAdminError
+	ExitTLSError
 	ExitUndefined
 )
 
