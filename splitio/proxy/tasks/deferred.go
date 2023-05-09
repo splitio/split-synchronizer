@@ -35,7 +35,7 @@ type WorkerFactory = func() workerpool.Worker
 
 type genericQueue = chan interface{}
 
-// DeferredRecordingTaskImpl is in charge of fetching impressions from the queue and posting them to the split server BE
+// DeferredRecordingTaskImpl is in charge of fetching impressions from the queue and posting them to the Split server BE
 type DeferredRecordingTaskImpl struct {
 	logger          logging.LoggerInterface
 	task            *asynctask.AsyncTask

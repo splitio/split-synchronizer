@@ -52,7 +52,7 @@ func NewSplitChangesCollection(db DBWrapper, logger logging.LoggerInterface) *Sp
 	}
 }
 
-// Update processes a set of split changes items + a changeNumber bump atomically
+// Update processes a set of feature flag changes items + a changeNumber bump atomically
 func (c *SplitChangesCollection) Update(toAdd []dtos.SplitDTO, toRemove []dtos.SplitDTO, cn int64) {
 
 	items := make(SplitsChangesItems, 0, len(toAdd)+len(toRemove))
@@ -117,7 +117,7 @@ func (c *SplitChangesCollection) FetchAll() ([]dtos.SplitDTO, error) {
 		var parsed dtos.SplitDTO
 		err := json.Unmarshal([]byte(q.JSON), &parsed)
 		if err != nil {
-			c.collection.Logger().Error("error decoding split fetched from db: ", err, "|", q.JSON)
+			c.collection.Logger().Error("error decoding feature flag fetched from db: ", err, "|", q.JSON)
 			continue
 		}
 		toReturn = append(toReturn, parsed)

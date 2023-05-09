@@ -152,7 +152,7 @@ func keyForTimeSlice(t time.Time, intervalWidthInSeconds int64) int64 {
 	return curr - (curr % intervalWidthInSeconds)
 }
 
-// TimeSliceData splits the latest metrics in N entries of fixed x-seconds width timeslices
+// TimeSliceData feature flags the latest metrics in N entries of fixed x-seconds width timeslices
 type TimeSliceData []ForTimeSlice
 
 // ForTimeSlice stores all the data for a certain time-slice
