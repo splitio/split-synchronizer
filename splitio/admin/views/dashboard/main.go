@@ -114,6 +114,7 @@ type SplitSummary struct {
 	DefaultTreatment string   `json:"defaultTreatment"`
 	Treatments       []string `json:"treatments"`
 	LastModified     string   `json:"cn"`
+	ChangeNumber     int64    `json:"changeNumber"`
 }
 
 // SegmentSummary encapsulates a minimalistic view of segment properties to be presented in the dashboard
