@@ -268,6 +268,12 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	rtm := common.NewRuntime(false, syncManager, logger, "Split Synchronizer", nil, nil, appMonitor, servicesMonitor)
 
 	// --------------------------- ADMIN DASHBOARD ------------------------------
+
+	adminTLSConfig, err := util.TLSConfigForServer(&cfg.Admin.TLS)
+	if err != nil {
+		return common.NewInitError(fmt.Errorf("error setting up proxy TLS config: %w", err), common.ExitTLSError)
+	}
+
 	cfgForAdmin := *cfg
 	cfgForAdmin.Apikey = logging.ObfuscateAPIKey(cfgForAdmin.Apikey)
 	adminServer, err := admin.NewServer(&admin.Options{
@@ -285,11 +291,12 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		HcAppMonitor:      appMonitor,
 		HcServicesMonitor: servicesMonitor,
 		FullConfig:        cfgForAdmin,
+		TLS:               adminTLSConfig,
 	})
 	if err != nil {
 		panic(err.Error())
 	}
-	go adminServer.ListenAndServe()
+	go adminServer.Start()
 
 	// Run Sync Manager
 	before := time.Now()

@@ -19,6 +19,7 @@ type someConf struct {
 	F3 bool       `s-cli:"f3" s-def:"false"`
 	F4 []string   `s-cli:"f4" s-def:"e1,e2"`
 	F5 nestedConf `s-nested:"true"`
+	F6 nestedConf `s-nested:"true" s-cli-prefix:"nest"`
 }
 
 func TestArgMap(t *testing.T) {
@@ -68,6 +69,10 @@ func TestParsingDefaultValues(t *testing.T) {
 	if e := target.F5.F1; e != "CHAU" {
 		t.Error("expected F5 == CHAU. Got: ", e)
 	}
+
+	if e := target.F6.F1; e != "CHAU" {
+		t.Error("expected 65 == CHAU. Got: ", e)
+	}
 }
 
 func TestPopulateFromArgMap(t *testing.T) {
@@ -78,6 +83,7 @@ func TestPopulateFromArgMap(t *testing.T) {
 	argMap["f3"] = boolRef(true)
 	argMap["f4"] = common.StringRef("e3,e4")
 	argMap["ff1"] = common.StringRef("CHAU2")
+	argMap["nest-ff1"] = common.StringRef("CHAU3")
 
 	PopulateFromArguments(target, argMap)
 	if e := target.F1; e != 456 {
@@ -99,12 +105,16 @@ func TestPopulateFromArgMap(t *testing.T) {
 	if e := target.F5.F1; e != "CHAU2" {
 		t.Error("expected F5 == CHAU2. Got: ", e)
 	}
+
+	if e := target.F6.F1; e != "CHAU3" {
+		t.Error("expected F6 == CHAU2. Got: ", e)
+	}
 }
 
 func TestBuildArgumentMapFromStruct(t *testing.T) {
 	target := &someConf{}
 	m := MakeCliArgMapFor(target)
-	os.Args = []string{"programName", "-f1=456", "-f2=HOLA2", "-f3", "-f4=e3,e4", "-ff1=CHAU2"}
+	os.Args = []string{"programName", "-f1=456", "-f2=HOLA2", "-f3", "-f4=e3,e4", "-ff1=CHAU2", "-nest-ff1=CHAU3"}
 	flag.Parse()
 
 	for _, param := range []string{"f1", "f2", "f3", "f4", "ff1"} {
@@ -134,6 +144,9 @@ func TestBuildArgumentMapFromStruct(t *testing.T) {
 		t.Error("expected F5 == CHAU2. Got: ", e)
 	}
 
+	if e := target.F6.F1; e != "CHAU3" {
+		t.Error("expected F6 == CHAU3. Got: ", e)
+	}
 }
 
 func boolRef(b bool) *bool {

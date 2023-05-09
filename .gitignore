@@ -8,6 +8,7 @@ sync-opts.md
 coverage.out
 entrypoint.proxy.sh
 entrypoint.sync.sh
+entrypoint.synchronizer.sh
 run.sh
 bin/*
 *.yaml
@@ -68,3 +69,4 @@ Gopkg.lock
 build/*
 split-proxy
 split-sync
+/clilist

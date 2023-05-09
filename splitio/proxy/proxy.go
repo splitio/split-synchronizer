@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net/http"
 
@@ -72,7 +73,11 @@ type Options struct {
 	// used to record local metrics
 	Telemetry storage.ProxyEndpointTelemetry
 
+	// HTTP cache
 	Cache *gincache.Middleware
+
+	// Proxy TLS configuration
+	TLSConfig *tls.Config
 }
 
 // API bundles all components required to answer API calls from split sdks
@@ -85,6 +90,9 @@ type API struct {
 
 // Start the Proxy service endpoints
 func (s *API) Start() error {
+	if s.server.TLSConfig != nil {
+		return s.server.ListenAndServeTLS("", "") // cert & key set in TLSConfig option
+	}
 	return s.server.ListenAndServe()
 }
 
@@ -129,7 +137,11 @@ func New(options *Options) *API {
 	telemetryController.Register(regular, beacon)
 
 	return &API{
-		server:              &http.Server{Addr: fmt.Sprintf("0.0.0.0:%d", options.Port), Handler: router},
+		server: &http.Server{
+			Addr:      fmt.Sprintf("0.0.0.0:%d", options.Port),
+			Handler:   router,
+			TLSConfig: options.TLSConfig,
+		},
 		sdkConroller:        sdkController,
 		eventsConroller:     eventsController,
 		telemetryController: telemetryController,
