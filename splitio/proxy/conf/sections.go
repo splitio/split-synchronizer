@@ -7,8 +7,8 @@ import (
 
 // Main configuration options
 type Main struct {
-	Apikey           string            `json:"apikey" s-cli:"apikey" s-def:"" s-desc:"Split Server-side SDK api-key"`
-	IPAddressEnabled bool              `json:"ipAddressEnabled" s-cli:"ip-address-enabled" s-def:"true" s-desc:"Bundle host's ip address when sending data to split"`
+	Apikey           string            `json:"apikey" s-cli:"apikey" s-def:"" s-desc:"Split server side SDK key"`
+	IPAddressEnabled bool              `json:"ipAddressEnabled" s-cli:"ip-address-enabled" s-def:"true" s-desc:"Bundle host's ip address when sending data to Split"`
 	Initialization   Initialization    `json:"initialization" s-nested:"true"`
 	Server           Server            `json:"server" s-nested:"true"`
 	Admin            conf.Admin        `json:"admin" s-nested:"true"`
@@ -65,7 +65,7 @@ type Persistent struct {
 
 // Sync configuration options
 type Sync struct {
-	SplitRefreshRateMs   int64        `json:"splitRefreshRateMs" s-cli:"split-refresh-rate-ms" s-def:"60000" s-desc:"How often to refresh splits"`
+	SplitRefreshRateMs   int64        `json:"splitRefreshRateMs" s-cli:"split-refresh-rate-ms" s-def:"60000" s-desc:"How often to refresh feature flags"`
 	SegmentRefreshRateMs int64        `json:"segmentRefreshRateMs" s-cli:"segment-refresh-rate-ms" s-def:"60000" s-desc:"How often to refresh segments"`
 	Advanced             AdvancedSync `json:"advanced" s-nested:"true"`
 }
@@ -77,9 +77,9 @@ type AdvancedSync struct {
 	ImpressionsBuffer     int64 `json:"impressionsBufferSize" s-cli:"impressions-buffer-size" s-def:"500" s-dec:"How many impressions bulks to keep in memory"`
 	EventsBuffer          int64 `json:"eventsBufferSize" s-cli:"events-buffer-size" s-def:"500" s-dec:"How many events bulks to keep in memory"`
 	TelemetryBuffer       int64 `json:"telemetryBufferSize" s-cli:"telemetry-buffer-size" s-def:"500" s-dec:"How many telemetry bulks to keep in memory"`
-	ImpressionsWorkers    int64 `json:"impressionsWorkers" s-cli:"impressions-workers" s-def:"10" s-desc:"#workers to forward impressions to split servers"`
-	EventsWorkers         int64 `json:"eventsWorkers" s-cli:"events-workers" s-def:"10" s-desc:"#workers to forward events to split servers"`
-	TelemetryWorkers      int64 `json:"telemetryWorkers" s-cli:"telemetry-workers" s-def:"10" s-desc:"#workers to forward telemetry to split servers"`
+	ImpressionsWorkers    int64 `json:"impressionsWorkers" s-cli:"impressions-workers" s-def:"10" s-desc:"#workers to forward impressions to Split servers"`
+	EventsWorkers         int64 `json:"eventsWorkers" s-cli:"events-workers" s-def:"10" s-desc:"#workers to forward events to Split servers"`
+	TelemetryWorkers      int64 `json:"telemetryWorkers" s-cli:"telemetry-workers" s-def:"10" s-desc:"#workers to forward telemetry to Split servers"`
 	InternalMetricsRateMs int64 `json:"internalTelemetryRateMs" s-cli:"internal-metrics-rate-ms" s-def:"3600000" s-desc:"How often to send internal metrics"`
 }
 
