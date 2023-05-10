@@ -12,7 +12,7 @@
 - Split-Sync:
    - Fixed error when retrying POST requests in pipelined tasks (impressions, events, mtks).
    - Fixed redis fresh startup when no prefix is supplied
-   - Fixed warning when fetching new splits
+   - Fixed warning when fetching new feature flags
 
 5.2.1 (Nov 28, 2022)
 - Replaced IAM Role used for uploading binaries.
@@ -40,7 +40,7 @@
 - Updated the synchronization flow to be more reliable in the event of an edge case generating delay in cache purge propagation, keeping the SDK cache properly synced
 
 5.0.7 (Jun 06, 2022)
- - Updated segments and splits storage to return -1 as default changeNumber instead of zero
+ - Updated segments and feature flags storage to return -1 as default changeNumber instead of zero
 
 5.0.6 (May 27, 2022)
  - Fixed TLS Server config forwarding config for cluster and sentinel modes
@@ -67,7 +67,7 @@
  - Fixed CORS issues in proxy mode
  - Fixed healthcheck in polling mode (both)
  - Fixed app healthcheck endpoint status code when the monitor isn't healthy (both)
- - Fixed Splits & segments metrics in dashboard when running in redis-cluster mode (split-sync)
+ - Fixed feature flags & segments metrics in dashboard when running in redis-cluster mode (split-sync)
 
 5.0.0 (Nov 1, 2021)
  - BREAKING CHANGE: Split the project to produce two different binaries for syncrhonizer & proxy tools
@@ -75,7 +75,7 @@
  - BREAKING CHANGE: Docker images entrypoint update
  - Full refactor of components & general structure
  - Migrate to `BBolt` for persistent storage (an actively maintained fork of boltd by by etcd)
- - Add optimized storages for splits & mysegments
+ - Add optimized storages for feature flags & mysegments
  - Added an http cache with purgeable surrogate keys for split-proxy
  - Fixed issue that caused eviction calculations to be off
  - Fixed issue with erroneous logs when initializing on an empty redis
@@ -172,7 +172,7 @@
  - Added task to check Sync environment and added healthySince property to healtheck endpoint.
  - Added healthcheck into Sync Dashboard.
  - Added logic to refresh all the metrics in Dashboard without loading again it.
- - Fixed counter for trafficTypes when a particular split is updated.
+ - Fixed counter for trafficTypes when a particular feature flag is updated.
 
 2.3.0 (May 30, 2019)
  - Added support for track properties.
@@ -189,7 +189,7 @@
  - Fixed healthcheck status.
 
 2.1.1 (March 8, 2019)
- - Updated Splits refreshing rate.
+ - Updated Feature flags refreshing rate.
 
 2.1.0 (Jan 31, 2019)
  - Added endpoints for flushing and dropping Impressions/Events mannually.
@@ -227,7 +227,7 @@
  - Events storage/recorder to support .track method from SDKs.
 
 1.3.1 (Dec 15, 2017)
- - Adding metrics counter and latencies in split fetcher, segment fetcher and post impressions.
+ - Adding metrics counter and latencies in feature flag fetcher, segment fetcher and post impressions.
 
 1.3.0 (Oct 9, 2017)
  - Update entry-point for docker.
@@ -248,8 +248,8 @@
  - Log rotation.
 
 1.0.1 (Jun 29, 2017)
- - Removing fixed json schema and saving the raw split JSON into Redis.
+ - Removing fixed json schema and saving the raw feature flag JSON into Redis.
 
 1.0.0 (Jun 16, 2017)
- - Fetch Splits and Segments from server and saving it into Redis.
+ - Fetch Feature flags and Segments from server and saving it into Redis.
  - Redis spec supported by SDKs: PHP, Python, Ruby, Nodejs, .NET, .NET-CORE.
