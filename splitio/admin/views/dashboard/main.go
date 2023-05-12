@@ -27,7 +27,7 @@ const main = `
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <title>Split Sync - Dashboard</title>
-  
+
   {{template "ChartJS" .}}
   {{template "BootstrapMainStyle" .}}
   {{template "BootstrapThemeStyle" .}}
@@ -38,7 +38,7 @@ const main = `
 <body>
   <div class="container-fluid">
     <div class="row">
-      <div class="col-md-12" style="background-color: #182A3C;">
+      <div class="col-md-12" style="background-color: #2B045D">
         <div class="logosvg pull-left">
           <p class="navbar-brand pull-right split-nav-title" href="#"></p>
           <p class="navbar-brand pull-right split-nav-title" href="#">{{.DashboardTitle}}</p>
