@@ -42,7 +42,7 @@ func PopulateConfigFromFile(path string, target interface{}) error {
 	targetForValidation := reflect.Indirect(reflect.ValueOf(target)).Interface()
 	err = validator.ValidateConfiguration(targetForValidation, data)
 	if err != nil {
-		return fmt.Errorf("error validanting provided JSON file (%s): %w", path, err)
+		return fmt.Errorf("error validating provided JSON file (%s): %w", path, err)
 	}
 
 	return nil
