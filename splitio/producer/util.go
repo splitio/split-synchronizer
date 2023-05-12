@@ -140,7 +140,7 @@ func sanitizeRedis(cfg *conf.Main, miscStorage *redis.MiscStorage, logger loggin
 	}
 
 	if currentHashAsStr != previousHashStr {
-		logger.Warning("Previous apikey is missing/different from current one. Cleaning up redis before startup.")
+		logger.Warning("Previous SDK key is missing/different from current one. Cleaning up redis before startup.")
 		miscStorage.ClearAll()
 	}
 	return nil

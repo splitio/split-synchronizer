@@ -45,14 +45,14 @@ func (c *SdkServerController) Register(router gin.IRouter) {
 	router.GET("/mySegments/:key", c.MySegments)
 }
 
-// SplitChanges Returns a diff containing changes in splits from a certain point in time until now.
+// SplitChanges Returns a diff containing changes in feature flags from a certain point in time until now.
 func (c *SdkServerController) SplitChanges(ctx *gin.Context) {
 	c.logger.Debug(fmt.Sprintf("Headers: %v", ctx.Request.Header))
 	since, err := strconv.ParseInt(ctx.DefaultQuery("since", "-1"), 10, 64)
 	if err != nil {
 		since = -1
 	}
-	c.logger.Debug(fmt.Sprintf("SDK Fetches Splits Since: %d", since))
+	c.logger.Debug(fmt.Sprintf("SDK Fetches Feature Flags Since: %d", since))
 
 	splits, err := c.fetchSplitChangesSince(since)
 	if err != nil {
@@ -65,7 +65,7 @@ func (c *SdkServerController) SplitChanges(ctx *gin.Context) {
 	ctx.Set(caching.StickyContextKey, true)
 }
 
-// SegmentChanges Returns a diff containing changes in splits from a certain point in time until now.
+// SegmentChanges Returns a diff containing changes in feature flags from a certain point in time until now.
 func (c *SdkServerController) SegmentChanges(ctx *gin.Context) {
 	c.logger.Debug(fmt.Sprintf("Headers: %v", ctx.Request.Header))
 	since, err := strconv.ParseInt(ctx.DefaultQuery("since", "-1"), 10, 64)
@@ -93,7 +93,7 @@ func (c *SdkServerController) SegmentChanges(ctx *gin.Context) {
 	ctx.Set(caching.StickyContextKey, true)
 }
 
-// MySegments Returns a diff containing changes in splits from a certain point in time until now.
+// MySegments Returns a diff containing changes in feature flags from a certain point in time until now.
 func (c *SdkServerController) MySegments(ctx *gin.Context) {
 	c.logger.Debug(fmt.Sprintf("Headers: %v", ctx.Request.Header))
 	key := ctx.Param("key")
@@ -118,7 +118,7 @@ func (c *SdkServerController) fetchSplitChangesSince(since int64) (*dtos.SplitCh
 		return splits, nil
 	}
 	if !errors.Is(err, storage.ErrSummaryNotCached) {
-		return nil, fmt.Errorf("unexpected error fetching split changes from storage: %w", err)
+		return nil, fmt.Errorf("unexpected error fetching feature flag changes from storage: %w", err)
 	}
 
 	fetchOptions := service.NewFetchOptions(true, nil)
@@ -127,5 +127,5 @@ func (c *SdkServerController) fetchSplitChangesSince(since int64) (*dtos.SplitCh
 		c.proxySplitStorage.RegisterOlderCn(splits)
 		return splits, nil
 	}
-	return nil, fmt.Errorf("unexpected error fetching split changes from storage: %w", err)
+	return nil, fmt.Errorf("unexpected error fetching feature flag changes from storage: %w", err)
 }
