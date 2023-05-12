@@ -50,15 +50,15 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 
 	clientKey, err := util.GetClientKey(cfg.Apikey)
 	if err != nil {
-		return common.NewInitError(fmt.Errorf("error parsing client key from provided apikey: %w", err), common.ExitInvalidApikey)
+		return common.NewInitError(fmt.Errorf("error parsing client key from provided SDK key: %w", err), common.ExitInvalidApikey)
 	}
 
 	// Setup fetchers & recorders
 	splitAPI := api.NewSplitAPI(cfg.Apikey, *advanced, logger, metadata)
 
-	// Check if apikey is valid
+	// Check if SDK key is valid
 	if !isValidApikey(splitAPI.SplitFetcher) {
-		return common.NewInitError(errors.New("invalid apikey"), common.ExitInvalidApikey)
+		return common.NewInitError(errors.New("invalid SDK key"), common.ExitInvalidApikey)
 	}
 
 	// Redis Storages
@@ -87,7 +87,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	// These storages are forwarded to the dashboard, the sdk-telemetry is irrelevant there
 	splitStorage, err := observability.NewObservableSplitStorage(redis.NewSplitStorage(redisClient, logger), logger)
 	if err != nil {
-		return fmt.Errorf("error instantiating observable split storage: %w", err)
+		return fmt.Errorf("error instantiating observable feature flag storage: %w", err)
 	}
 
 	segmentStorage, err := observability.NewObservableSegmentStorage(logger, splitStorage, redis.NewSegmentStorage(redisClient, logger))
@@ -324,7 +324,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 				nil,
 			)
 		case synchronizer.Error:
-			logger.Error("Initial synchronization failed. Either split is unreachable or the APIKey is incorrect. Aborting execution.")
+			logger.Error("Initial synchronization failed. Either Split is unreachable or the SDK key is incorrect. Aborting execution.")
 			return common.NewInitError(fmt.Errorf("error instantiating sync manager: %w", err), common.ExitTaskInitialization)
 		}
 	}
