@@ -95,7 +95,7 @@ type GlobalStats struct {
 	SdksTotalRequests      int64            `json:"sdksTotalRequests"`
 	LoggedErrors           int64            `json:"loggedErrors"`
 	LoggedMessages         []string         `json:"loggedMessages"`
-	Splits                 []SplitSummary   `json:"splits"`
+	FeatureFlags           []SplitSummary   `json:"featureFlags"`
 	Segments               []SegmentSummary `json:"segments"`
 	Latencies              []ChartJSData    `json:"latencies"`
 	BackendLatencies       []ChartJSData    `json:"backendLatencies"`
@@ -106,7 +106,7 @@ type GlobalStats struct {
 	Uptime                 int64            `json:"uptime"`
 }
 
-// SplitSummary encapsulates a minimalistic view of split properties to be presented in the dashboard
+// SplitSummary encapsulates a minimalistic view of feature flag properties to be presented in the dashboard
 type SplitSummary struct {
 	Name             string   `json:"name"`
 	Active           bool     `json:"active"`
@@ -114,6 +114,7 @@ type SplitSummary struct {
 	DefaultTreatment string   `json:"defaultTreatment"`
 	Treatments       []string `json:"treatments"`
 	LastModified     string   `json:"cn"`
+	ChangeNumber     int64    `json:"changeNumber"`
 }
 
 // SegmentSummary encapsulates a minimalistic view of segment properties to be presented in the dashboard

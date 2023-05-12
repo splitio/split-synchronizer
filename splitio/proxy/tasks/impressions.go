@@ -42,7 +42,7 @@ func (w *ImpressionWorker) DoWork(message interface{}) error {
 	err := w.recorder.RecordRaw("/testImpressions/bulk", asImpressions.Payload, asImpressions.Metadata, extraHeaders)
 
 	if err != nil {
-		return fmt.Errorf("error posting impressions to split servers: %w", err)
+		return fmt.Errorf("error posting impressions to Split servers: %w", err)
 	}
 	return nil
 }
