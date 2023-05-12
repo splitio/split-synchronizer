@@ -11,16 +11,16 @@ import (
 )
 
 // ErrIncompatibleSplitStorage is returned when the supplied storage that not have the required methods
-var ErrIncompatibleSplitStorage = errors.New("supplied split storage doesn't report errors")
+var ErrIncompatibleSplitStorage = errors.New("supplied feature flag storage doesn't report errors")
 
-// ObservableSplitStorage is an interface extender that adds the method `Count` to the split storage
+// ObservableSplitStorage is an interface extender that adds the method `Count` to the feature flag storage
 type ObservableSplitStorage interface {
 	storage.SplitStorage
 	Count() int
 }
 
 // ObservableSplitStorageImpl is an implementaion of the ObservableSplitStorage inteface that wraps an existing storage
-// caches and caches splitnames in-memory (in case the underlying one is non-local, ie: redis)
+// caches and caches featureFlagNames in-memory (in case the underlying one is non-local, ie: redis)
 type ObservableSplitStorageImpl struct {
 	extendedSplitStorage
 	active *activeSplitTracker
@@ -67,7 +67,7 @@ func (s *ObservableSplitStorageImpl) Count() int {
 	return s.active.count()
 }
 
-// SplitNames returns a list of cached splits
+// SplitNames returns a list of cached feature flags
 func (s *ObservableSplitStorageImpl) SplitNames() []string {
 	return s.active.names()
 }

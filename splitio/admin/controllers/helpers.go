@@ -35,6 +35,7 @@ func bundleSplitInfo(splitStorage storage.SplitStorageConsumer) []dashboard.Spli
 			DefaultTreatment: split.DefaultTreatment,
 			Treatments:       treatmentsS,
 			LastModified:     time.Unix(0, split.ChangeNumber*int64(time.Millisecond)).UTC().Format(time.UnixDate),
+			ChangeNumber:     split.ChangeNumber,
 		})
 	}
 	return summaries

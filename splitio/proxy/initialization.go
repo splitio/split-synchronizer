@@ -110,7 +110,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	eventsRecorder := api.NewHTTPEventsRecorder(cfg.Apikey, *advanced, logger)
 	eventsTask := pTasks.NewEventsFlushTask(eventsRecorder, logger, 1, int(cfg.Sync.Advanced.EventsBuffer), int(cfg.Sync.Advanced.EventsWorkers))
 
-	// setup split, segments & local telemetry API interactions
+	// setup feature flags, segments & local telemetry API interactions
 	workers := synchronizer.Workers{
 		SplitFetcher: caching.NewCacheAwareSplitSync(splitStorage, splitAPI.SplitFetcher, logger, localTelemetryStorage, httpCache, appMonitor),
 		SegmentFetcher: caching.NewCacheAwareSegmentSync(splitStorage, segmentStorage, splitAPI.SegmentFetcher, logger, localTelemetryStorage, httpCache,
@@ -177,9 +177,9 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	})
 	switch err {
 	case errRetrying:
-		logger.Warning("Failed to perform initial sync with split servers but continuing from snapshot. Will keep retrying in BG")
+		logger.Warning("Failed to perform initial sync with Split servers but continuing from snapshot. Will keep retrying in BG")
 	case errUnrecoverable:
-		logger.Error("Initial synchronization failed. Either split is unreachable or the APIKey is incorrect. Aborting execution.")
+		logger.Error("Initial synchronization failed. Either Split is unreachable or the SDK key is incorrect. Aborting execution.")
 		return common.NewInitError(fmt.Errorf("error instantiating sync manager: %w", err), common.ExitTaskInitialization)
 	}
 
