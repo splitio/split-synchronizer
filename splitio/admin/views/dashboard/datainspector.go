@@ -13,7 +13,7 @@ const dataInspector = `
   	        <title>Icon/Segment-Dynamic</title>
   	        <g fill="none" fill-rule="evenodd">
   	          <path d="M0 0h24v24H0z"></path>
-  	    	  <g stroke="#FFF" stroke-linecap="round" stroke-linejoin="round">
+  	    	  <g stroke="#101828" stroke-linecap="round" stroke-linejoin="round">
   	    	    <path d="M6 16.5l-2-2 2-2M12.5 22.5v-20M18 8.5l2 2-2 2M10.5 4l2-2 2 2"></path>
   	    	    <path d="M12.5 21v-4.497c0-1.106-.887-2.003-1.998-2.003H4.5M12.5 18v-5.49c0-1.11.887-2.01 2.006-2.01H19.5"></path>
   	    	  </g>
@@ -30,8 +30,8 @@ const dataInspector = `
   	        <title>Icon/Segment-Static</title>
   		<g fill="none" fill-rule="evenodd">
   		  <path d="M0 0h24v24H0z"></path>
-  		  <path stroke="#FFF" stroke-linecap="round" stroke-linejoin="round" d="M2.5 2.5h19v19h-19z"></path>
-  		  <g transform="translate(7 7)" fill="#FFF">
+  		  <path stroke="#101828" stroke-linecap="round" stroke-linejoin="round" d="M2.5 2.5h19v19h-19z"></path>
+  		  <g transform="translate(7 7)" fill="#101828">
   		    <rect width="4" height="4" rx=".5"></rect>
   		    <rect x="6" width="4" height="4" rx=".5"></rect>
   		    <rect y="6" width="4" height="4" rx=".5"></rect>
@@ -46,9 +46,9 @@ const dataInspector = `
         </ul>
         </div>
       </div>
-  
+
       <div class="tab-content">
-  
+
         <!-- FEATURE FLAGS DATA -->
         <div role="tabpanel" class="tab-pane active" id="feature-flags-data">
           <div class="row">
@@ -91,7 +91,7 @@ const dataInspector = `
             </div>
           </div>
         </div>
-  
+
         <!-- SEGMENTS DATA -->
         <div role="tabpanel" class="tab-pane" id="segments-data">
           <div class="row">
