@@ -17,7 +17,7 @@ type ObservabilityController interface {
 	Register(gin.IRouter)
 }
 
-// SyncObservabilityController exposes an observability endpoint exposing cached splits & segments information
+// SyncObservabilityController exposes an observability endpoint exposing cached feature flags & segments information
 type SyncObservabilityController struct {
 	logger   logging.LoggerInterface
 	splits   observability.ObservableSplitStorage
@@ -36,7 +36,7 @@ func (c *SyncObservabilityController) observability(ctx *gin.Context) {
 	})
 }
 
-// ProxyObservabilityController exposes an observability endpoint exposing cached splits & segments information
+// ProxyObservabilityController exposes an observability endpoint exposing cached feature flags & segments information
 type ProxyObservabilityController struct {
 	logger    logging.LoggerInterface
 	telemetry pstorage.TimeslicedProxyEndpointTelemetry
@@ -63,7 +63,7 @@ func NewObservabilityController(proxy bool, logger logging.LoggerInterface, stor
 
 	splitStorage, ok := storagePack.SplitStorage.(observability.ObservableSplitStorage)
 	if !ok {
-		return nil, fmt.Errorf("invalid split storage supplied: %T", storagePack.SplitStorage)
+		return nil, fmt.Errorf("invalid feature flag storage supplied: %T", storagePack.SplitStorage)
 	}
 
 	segmentStorage, ok := storagePack.SegmentStorage.(observability.ObservableSegmentStorage)

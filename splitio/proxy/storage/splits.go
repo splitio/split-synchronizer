@@ -90,7 +90,7 @@ func (p *ProxySplitStorageImpl) ChangesSince(since int64) (*dtos.SplitChangesDTO
 	return &dtos.SplitChangesDTO{Since: since, Till: till, Splits: all}, nil
 }
 
-// KillLocally marks a split as killed in the current storage
+// KillLocally marks a feature flag as killed in the current storage
 func (p *ProxySplitStorageImpl) KillLocally(splitName string, defaultTreatment string, changeNumber int64) {
 	p.snapshot.KillLocally(splitName, defaultTreatment, changeNumber)
 }
@@ -161,7 +161,7 @@ func (p *ProxySplitStorageImpl) TrafficTypeExists(tt string) bool {
 	return p.snapshot.TrafficTypeExists(tt)
 }
 
-// Count returns the number of cached splits
+// Count returns the number of cached feature flags
 func (p *ProxySplitStorageImpl) Count() int {
 	return len(p.SplitNames())
 }
@@ -169,7 +169,7 @@ func (p *ProxySplitStorageImpl) Count() int {
 func snapshotFromDisk(dst *mutexmap.MMSplitStorage, summary *optimized.SplitChangesSummaries, src *persistent.SplitChangesCollection, logger logging.LoggerInterface) {
 	all, err := src.FetchAll()
 	if err != nil {
-		logger.Error("error parsing splits from snapshot. No data will be available!: ", err)
+		logger.Error("error parsing feature flags from snapshot. No data will be available!: ", err)
 		return
 	}
 
