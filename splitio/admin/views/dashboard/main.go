@@ -27,7 +27,7 @@ const main = `
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <title>Split Sync - Dashboard</title>
-  
+
   {{template "ChartJS" .}}
   {{template "BootstrapMainStyle" .}}
   {{template "BootstrapThemeStyle" .}}
@@ -38,7 +38,7 @@ const main = `
 <body>
   <div class="container-fluid">
     <div class="row">
-      <div class="col-md-12" style="background-color: #182A3C;">
+      <div class="col-md-12" style="background-color: #2B045D">
         <div class="logosvg pull-left">
           <p class="navbar-brand pull-right split-nav-title" href="#"></p>
           <p class="navbar-brand pull-right split-nav-title" href="#">{{.DashboardTitle}}</p>
@@ -95,7 +95,7 @@ type GlobalStats struct {
 	SdksTotalRequests      int64            `json:"sdksTotalRequests"`
 	LoggedErrors           int64            `json:"loggedErrors"`
 	LoggedMessages         []string         `json:"loggedMessages"`
-	Splits                 []SplitSummary   `json:"splits"`
+	FeatureFlags           []SplitSummary   `json:"featureFlags"`
 	Segments               []SegmentSummary `json:"segments"`
 	Latencies              []ChartJSData    `json:"latencies"`
 	BackendLatencies       []ChartJSData    `json:"backendLatencies"`
@@ -106,7 +106,7 @@ type GlobalStats struct {
 	Uptime                 int64            `json:"uptime"`
 }
 
-// SplitSummary encapsulates a minimalistic view of split properties to be presented in the dashboard
+// SplitSummary encapsulates a minimalistic view of feature flag properties to be presented in the dashboard
 type SplitSummary struct {
 	Name             string   `json:"name"`
 	Active           bool     `json:"active"`
@@ -114,6 +114,7 @@ type SplitSummary struct {
 	DefaultTreatment string   `json:"defaultTreatment"`
 	Treatments       []string `json:"treatments"`
 	LastModified     string   `json:"cn"`
+	ChangeNumber     int64    `json:"changeNumber"`
 }
 
 // SegmentSummary encapsulates a minimalistic view of segment properties to be presented in the dashboard

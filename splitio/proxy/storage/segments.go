@@ -52,7 +52,7 @@ func NewProxySegmentStorage(db persistent.DBWrapper, logger logging.LoggerInterf
 // ChangesSince returns the `segmentChanges` like payload to from a certain CN to the last snapshot
 // This method has one drawback. ALL the historically removed keys are always returned as part of the `removed` array,
 // regardless whether the `since` parameter is old enough to require such removal or not.
-// We should eventually see if it's worth taking an approach similar to the one in splits or not
+// We should eventually see if it's worth taking an approach similar to the one in feature flags or not
 func (s *ProxySegmentStorageImpl) ChangesSince(name string, since int64) (*dtos.SegmentChangesDTO, error) {
 	item, err := s.db.Fetch(name)
 	if err != nil {
