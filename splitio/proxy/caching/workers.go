@@ -34,7 +34,7 @@ func NewCacheAwareSplitSync(
 	}
 }
 
-// SynchronizeSplits synchronizes splits and if something changes, purges the cache appropriately
+// SynchronizeSplits synchronizes feature flags and if something changes, purges the cache appropriately
 func (c *CacheAwareSplitSynchronizer) SynchronizeSplits(till *int64) (*split.UpdateResult, error) {
 	previous, _ := c.splitStorage.ChangeNumber()
 	result, err := c.wrapped.SynchronizeSplits(till)
@@ -45,10 +45,10 @@ func (c *CacheAwareSplitSynchronizer) SynchronizeSplits(till *int64) (*split.Upd
 	return result, err
 }
 
-// LocalKill kills a split locally and purges splitChanges entries from the http cache
+// LocalKill kills a feature flag locally and purges splitChanges entries from the http cache
 func (c *CacheAwareSplitSynchronizer) LocalKill(splitName string, defaultTreatment string, changeNumber int64) {
 	c.wrapped.LocalKill(splitName, defaultTreatment, changeNumber)
-	// Since a split was killed, unconditionally flush all split changes
+	// Since a feature flag was killed, unconditionally flush all feature flag changes
 	c.cacheFlusher.EvictBySurrogate(SplitSurrogate)
 }
 

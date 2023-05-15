@@ -11,7 +11,7 @@ import (
 // ErrUnknownChangeNumber is returned when trying to fetch a recipe for a change number not present in cache
 var ErrUnknownChangeNumber = errors.New("Unknown change number")
 
-// SplitMinimalView is a subset of split properties needed by an sdk to remove a split from it's local cache
+// SplitMinimalView is a subset of feature flag properties needed by an sdk to remove a feature flag from it's local cache
 type SplitMinimalView struct {
 	Name        string
 	TrafficType string
@@ -19,8 +19,8 @@ type SplitMinimalView struct {
 
 // ChangeSummary represents a set of changes from/in a specific point in time
 type ChangeSummary struct {
-	Updated map[string]string // split name -> trafficType
-	Removed map[string]string // split name -> trafficType
+	Updated map[string]string // feature flag name -> trafficType
+	Removed map[string]string // featyre flag name -> trafficType
 }
 
 func newEmptyChangeSummary() ChangeSummary {
@@ -112,7 +112,7 @@ func (s *SplitChangesSummaries) AddOlderChange(added []dtos.SplitDTO, removed []
 }
 
 // FetchSince returns a recipe explaining how to build a /splitChanges payload to serve an sdk which
-// is currently on changeNumber `since`. It will contain the list of splits that need to be updated, and those that need
+// is currently on changeNumber `since`. It will contain the list of feature flags that need to be updated, and those that need
 // to be deleted
 func (s *SplitChangesSummaries) FetchSince(since int64) (*ChangeSummary, int64, error) {
 	s.mutex.RLock()
@@ -139,9 +139,9 @@ func (s *SplitChangesSummaries) removeOldestRecipe() {
 	delete(s.changes, oldest)
 }
 
-// BuildArchivedSplitsFor takes a mapping of split name -> traffic type name,
-// and build fake "ARCHIVED" splits to return to the sdk upon a splitChanges request
-// now that we no longer store the full body of archived splits
+// BuildArchivedSplitsFor takes a mapping of feature flag name -> traffic type name,
+// and build fake "ARCHIVED" feature flags to return to the sdk upon a splitChanges request
+// now that we no longer store the full body of archived feature flags
 func BuildArchivedSplitsFor(nameToTrafficType map[string]string) []dtos.SplitDTO {
 	archived := make([]dtos.SplitDTO, 0, len(nameToTrafficType))
 	for name, tt := range nameToTrafficType {

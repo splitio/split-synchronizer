@@ -40,7 +40,7 @@ type Options struct {
 	// Whether to do verbose logging in the gin framework
 	DebugOn bool
 
-	// used for on-demand splitchanges fetching when a requested summary is not cached
+	// used for on-demand feature flag changes fetching when a requested summary is not cached
 	SplitFetcher service.SplitFetcher
 
 	// used to resolve splitChanges requests
@@ -80,7 +80,7 @@ type Options struct {
 	TLSConfig *tls.Config
 }
 
-// API bundles all components required to answer API calls from split sdks
+// API bundles all components required to answer API calls from Split sdks
 type API struct {
 	server              *http.Server
 	sdkConroller        *controllers.SdkServerController

@@ -140,7 +140,7 @@ func (c *DashboardController) gatherStats() *dashboard.GlobalStats {
 	}
 
 	return &dashboard.GlobalStats{
-		Splits:                 bundleSplitInfo(c.storages.SplitStorage),
+		FeatureFlags:           bundleSplitInfo(c.storages.SplitStorage),
 		Segments:               bundleSegmentInfo(c.storages.SplitStorage, c.storages.SegmentStorage),
 		Latencies:              bundleProxyLatencies(c.storages.LocalTelemetryStorage),
 		BackendLatencies:       bundleLocalSyncLatencies(c.storages.LocalTelemetryStorage),

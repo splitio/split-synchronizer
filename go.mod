@@ -8,8 +8,8 @@ require (
 	github.com/gin-gonic/gin v1.9.0
 	github.com/google/uuid v1.3.0
 	github.com/splitio/gincache v0.0.1-rc7
-	github.com/splitio/go-split-commons/v4 v4.3.2
-	github.com/splitio/go-toolkit/v5 v5.3.0
+	github.com/splitio/go-split-commons/v4 v4.3.3-0.20230510150540-3ef2fd11d752
+	github.com/splitio/go-toolkit/v5 v5.2.3-0.20230510145423-72888e5c297c
 	go.etcd.io/bbolt v1.3.6
 )
 
@@ -33,7 +33,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421 // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.6 // indirect
-	github.com/redis/go-redis/v9 v9.0.2 // indirect
+	github.com/redis/go-redis/v9 v9.0.4 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.9 // indirect
 	golang.org/x/arch v0.0.0-20210923205945-b76863e36670 // indirect
