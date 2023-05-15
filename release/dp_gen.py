@@ -17,10 +17,12 @@ import re
 import sys
 from argparse import ArgumentParser
 from typing import List, Dict
+from os import path
 from distutils.version import StrictVersion
 
 # regex to filter rcs/betas/etc
-_VALID_TAG = re.compile(r'^v{0,1}\d{1,2}\.\d{1,2}\.\d{1,2}$')
+_VALID_TAG_REGEX = re.compile(r'^v{0,1}\d{1,2}\.\d{1,2}\.\d{1,2}$')
+_CURRENT_VERSION_REGEX = r'const Version = "(.*)"'
 
 # milestone versions
 _FIRST_MODULES_VERSION = StrictVersion('4.0.0')
@@ -45,9 +47,14 @@ _LOGGER = logging.getLogger(__file__)
 # ├── split_proxy_windows.zip
 # └── split_sync_windows.zip
 
+with open(path.join(path.dirname(__file__), '..', 'splitio', 'version.go'), 'r') as f:
+    _VERSION = next(res[1] for line in f
+                    if (res := re.search(_CURRENT_VERSION_REGEX, line)) is not None)
+
+
 _SYNC_PRE_VARS = {
     'title': 'Split Sync Download Page',
-    'description': 'Download latest version of split-sync. A background service to synchronize Split information with your SDK',
+    'description': f'Download latest version of split-sync ({_VERSION}). A background service to synchronize Split information with your SDK',
     'dockerhub_url': 'https://hub.docker.com/r/splitsoftware/split-synchronizer/',
     'latest_linux': 'install_split_sync_linux.bin',
     'latest_osx': 'install_split_sync_osx.bin',
@@ -56,7 +63,7 @@ _SYNC_PRE_VARS = {
 
 _PROXY_PRE_VARS = {
     'title': 'Split Proxy Download Page',
-    'description': ('Download latest version of split-proxy. A background service that mimics our BE to deploy in your own infra.\n'
+    'description': (f'Download latest version of split-proxy ({_VERSION}). A background service that mimics our BE to deploy in your own infra.\n'
                     'Prior to version 5.0.0, the split-synchronizer & proxy were a single app. Those versions can be found in the '
                     'Split-Synchronizer download page.'),
     'dockerhub_url': 'https://hub.docker.com/r/splitsoftware/split-proxy/',
@@ -88,7 +95,7 @@ def get_tags() -> List[str]:
     return sorted([
         tag.replace('v', '') for tag in
         subprocess.check_output(['git', 'tag', '-l']).decode('utf-8').split('\n')
-        if tag and re.match(_VALID_TAG, tag)
+        if tag and re.match(_VALID_TAG_REGEX, tag)
     ], reverse=True)
 
 
