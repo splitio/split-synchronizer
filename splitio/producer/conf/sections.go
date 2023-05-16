@@ -7,8 +7,8 @@ import (
 
 // Main configuration options
 type Main struct {
-	Apikey           string            `json:"apikey" s-cli:"apikey" s-def:"" s-desc:"Split Server-side SDK  api-key"`
-	IPAddressEnabled bool              `json:"ipAddressEnabled" s-cli:"ip-address-enabled" s-def:"true" s-desc:"Bundle host's ip address when sending data to split"`
+	Apikey           string            `json:"apikey" s-cli:"apikey" s-def:"" s-desc:"Split server side SDK key"`
+	IPAddressEnabled bool              `json:"ipAddressEnabled" s-cli:"ip-address-enabled" s-def:"true" s-desc:"Bundle host's ip address when sending data to Split"`
 	Initialization   Initialization    `json:"initialization" s-nested:"true"`
 	Storage          Storage           `json:"storage" s-nested:"true"`
 	Sync             Sync              `json:"sync" s-nested:"true"`
@@ -38,13 +38,13 @@ type Initialization struct {
 
 // Storage configuration options
 type Storage struct {
-	Type  string `json:"type" s-cli:"storage-type" s-def:"redis" s-desc:"Storage driver to use for caching splits/segments and user-generated data"`
+	Type  string `json:"type" s-cli:"storage-type" s-def:"redis" s-desc:"Storage driver to use for caching feature flags/segments and user-generated data"`
 	Redis Redis  `json:"redis" s-nested:"true"`
 }
 
 // Sync configuration options
 type Sync struct {
-	SplitRefreshRateMs   int64        `json:"splitRefreshRateMs" s-cli:"split-refresh-rate-ms" s-def:"60000" s-desc:"How often to refresh splits"`
+	SplitRefreshRateMs   int64        `json:"splitRefreshRateMs" s-cli:"split-refresh-rate-ms" s-def:"60000" s-desc:"How often to refresh feature flags"`
 	SegmentRefreshRateMs int64        `json:"segmentRefreshRateMs" s-cli:"segment-refresh-rate-ms" s-def:"60000" s-desc:"How often to refresh segments"`
 	ImpressionsMode      string       `json:"impressionsMode" s-cli:"impressions-mode" s-def:"optimized" s-desc:"whether to send all impressions for debugging"`
 	Advanced             AdvancedSync `json:"advanced" s-nested:"true"`
