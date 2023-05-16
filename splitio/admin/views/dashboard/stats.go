@@ -45,8 +45,8 @@ const cards = `
       {{if .ProxyMode}} 
         <div class="col-md-6">
           <div class="gray2Box metricBox">
-            <h4>Cached Splits</h4>
-            <h1 id="splits_number" class="centerText"></h1>
+            <h4>Cached Feature Flags</h4>
+            <h1 id="feature_flags_number" class="centerText"></h1>
           </div>
         </div>
         <div class="col-md-6">
@@ -70,8 +70,8 @@ const cards = `
         </div>
         <div class="col-md-4">
           <div class="gray2Box metricBox">
-            <h4>Cached Splits</h4>
-            <h1 id="splits_number" class="centerText"></h1>
+            <h4>Cached Feature Flags</h4>
+            <h1 id="feature_flags_number" class="centerText"></h1>
           </div>
         </div>
         <div class="col-md-4">

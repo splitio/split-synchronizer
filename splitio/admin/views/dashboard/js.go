@@ -70,18 +70,18 @@ const mainScript = `
       $(".filterSegmentKeyInput").val("");
     }
   
-    function resetFilterSplits(){
-      $("tr.splitItem").removeClass("filterDisplayNone");
-      $("#filterSplitNameInput").val("");
+    function resetFilterFeatureFlags(){
+      $("tr.featureFlagItem").removeClass("filterDisplayNone");
+      $("#filterFeatureFlagNameInput").val("");
     }
   
-    function filterSplits(){
-      $("tr.splitItem").removeClass("filterDisplayNone");
-      var filter = $("#filterSplitNameInput").val();
-      $("tr.splitItem").each(function() {
+    function filterFeatureFlags(){
+      $("tr.featureFlagItem").removeClass("filterDisplayNone");
+      var filter = $("#filterFeatureFlagNameInput").val();
+      $("tr.featureFlagItem").each(function() {
         $this = $(this);
-        var splitName = $this.find("span.splitItemName").html();
-        if (splitName.indexOf(filter.trim()) == -1) {
+        var featureFlagName = $this.find("span.featureFlagItemName").html();
+        if (featureFlagName.indexOf(filter.trim()) == -1) {
           $this.addClass("filterDisplayNone");
         }
       });
@@ -228,27 +228,30 @@ const mainScript = `
     });
   }
   
-  function formatTreatments(split) {
-    return split.treatments
-      .map(t => (t == split.defaultTreatment) ?  ('<strong>' + t + '</strong>') : t)
+  function formatTreatments(featureFlag) {
+    return featureFlag.treatments
+      .map(t => (t == featureFlag.defaultTreatment) ?  ('<strong>' + t + '</strong>') : t)
       .join('\n');
   };
 
-  function formatSplit(split) {
+  function formatFeatureFlag(featureFlag) {
     return (
-      '<tr class="splitItem">' +
-      '  <td><span class="splitItemName">' + split.name + '</span></td>' +
-         (!split.active ? '<td class="danger">ARCHIVED</td>' : '<td class="">ACTIVE</td>') +
-         (split.killed ? '<td class="danger">true</td>' : '<td class="">false</td>') +
-      '  <td>' + formatTreatments(split) + '</td>' +
-      '  <td>' + split.cn + '</td>' +
+      '<tr class="featureFlagItem">' +
+      '  <td><span class="featureFlagItemName">' + featureFlag.name + '</span></td>' +
+         (!featureFlag.active ? '<td class="danger">ARCHIVED</td>' : '<td class="">ACTIVE</td>') +
+         (featureFlag.killed ? '<td class="danger">true</td>' : '<td class="">false</td>') +
+      '  <td>' + formatTreatments(featureFlag) + '</td>' +
+      '  <td>' + featureFlag.cn + '</td>' +
       '</tr>\n');
   };
 
-  function updateSplits(splits) {
-    const formatted = splits.map(formatSplit).join('\n');
-    $('#split_rows tbody').empty();
-    $('#split_rows tbody').append(formatted);
+  function updateFeatureFlags(featureFlags) {
+    featureFlags.sort((a, b) => parseFloat(b.changeNumber) - parseFloat(a.changeNumber));
+    const formatted = featureFlags.map(formatFeatureFlag).join('\n');
+    if (document.getElementById('filterFeatureFlagNameInput').value.length == 0) {
+      $('#feature_flag_rows tbody').empty();
+      $('#feature_flag_rows tbody').append(formatted);
+    }
   };
 
   function formatSegment(segment) {
@@ -312,11 +315,11 @@ const mainScript = `
     $('#logged_errors').html(stats.loggedErrors);
     $('#sdks_total_requests').html(stats.sdksTotalRequests);
     $('#backend_total_requests').html(stats.backendTotalRequests);
-    $('#splits_number').html(stats.splits.length);
+    $('#feature_flags_number').html(stats.featureFlags.length);
     $('#segments_number').html(stats.segments.length);
     $('#impressions_queue_value').html(stats.impressionsQueueSize);
     $('#events_queue_value').html(stats.eventsQueueSize);
-    $('#splits_number').html();
+    $('#feature_flags_number').html();
     $('#segments_number').html();
     $('#impressions_lambda').html(stats.impressionsLambda);
     $('#events_lambda').html(stats.eventsLambda);
@@ -402,7 +405,7 @@ const mainScript = `
 
   function processStats(stats) {
     updateMetricCards(stats)
-    updateSplits(stats.splits);
+    updateFeatureFlags(stats.featureFlags);
     updateSegments(stats.segments);
     updateLogEntries(stats.loggedMessages);
 
