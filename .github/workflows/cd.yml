@@ -23,7 +23,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v3
+      - name: Setup Go
+        uses: actions/setup-go@v4
         with:
           go-version: '^1.13.1'
 
@@ -40,7 +41,7 @@ jobs:
         run: make release_assets
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume: arn:aws:iam::825951051969:role/gha-downloads-role
           aws-region: us-east-1
@@ -52,21 +53,14 @@ jobs:
           SOURCE_DIR: ./build
 
       - name: SonarQube Scan (Push)
-        uses: SonarSource/sonarcloud-github-action@v1.5
+        uses: SonarSource/sonarcloud-github-action@v1.9
         env:
           SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
         with:
           projectBaseDir: .
           args: >
             -Dsonar.host.url=${{ secrets.SONARQUBE_HOST }}
-            -Dsonar.projectName=${{ github.event.repository.name }}
-            -Dsonar.projectKey=${{ github.event.repository.name }}
             -Dsonar.projectVersion=${{ env.VERSION }}
-            -Dsonar.exclusions=**/*_test.go,**/vendor/**,**/testdata/*,test/*
-            -Dsonar.test.inclusions=**/*_test.go,**/vendor/**,**/testdata/*,test/*
-            -Dsonar.go.coverage.reportPaths=coverage.out
-            -Dsonar.links.ci="https://github.com/splitio/${{ github.event.repository.name }}/actions"
-            -Dsonar.links.scm="https://github.com/splitio/${{ github.event.repository.name }}"
 
   push-docker-image:
     name: Build and Push Docker Image
@@ -76,7 +70,7 @@ jobs:
         mode: [synchronizer, proxy]
     steps:
       - name: Login to Artifactory
-        uses: docker/login-action@v1
+        uses: docker/login-action@v2
         with:
           registry: splitio-docker.jfrog.io
           username: ${{ secrets.ARTIFACTORY_DOCKER_USER }}
@@ -89,7 +83,7 @@ jobs:
         run: echo "VERSION=$(awk '/^const Version/{gsub(/"/, "", $4); print $4}' splitio/version.go)" >> $GITHUB_ENV
 
       - name: Docker Build and Push
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v4
         with:
           context: .
           file: docker/Dockerfile.${{ matrix.mode }}
