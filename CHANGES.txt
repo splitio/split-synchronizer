@@ -1,4 +1,5 @@
 5.3.1 (May 15, 2023)
+- Fixed issue that caused newer redis versions & dragonfly authentication to fail in some scenarios
 - Updated terminology on the Sync codebase to be more aligned with current standard without causing a breaking change. The core change is the term `split` for `feature flag` on things like logs and godoc comments.
 - Updated dashboard logo and styles.
 
