@@ -19,7 +19,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v3
+      - name: Setup Go
+        uses: actions/setup-go@v4
         with:
           go-version: '^1.13.1'
 
@@ -29,28 +30,21 @@ jobs:
       - name: Run test
         run: make test_coverage
 
-      - name: Create build folder 
+      - name: Create build folder
         run: mkdir -p build
 
       - name: Build assets
         run: make release_assets
 
       - name: SonarQube Scan (Pull Request)
-        uses: SonarSource/sonarcloud-github-action@v1.5
+        uses: SonarSource/sonarcloud-github-action@v1.9
         env:
           SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
         with:
           projectBaseDir: .
           args: >
             -Dsonar.host.url=${{ secrets.SONARQUBE_HOST }}
-            -Dsonar.projectName=${{ github.event.repository.name }}
-            -Dsonar.projectKey=${{ github.event.repository.name }}
             -Dsonar.projectVersion=${{ env.VERSION }}
-            -Dsonar.exclusions=**/*_test.go,**/vendor/**,**/testdata/*,test/*
-            -Dsonar.test.inclusions=**/*_test.go,**/vendor/**,**/testdata/*,test/*
-            -Dsonar.go.coverage.reportPaths=coverage.out
-            -Dsonar.links.ci="https://github.com/splitio/${{ github.event.repository.name }}/actions"
-            -Dsonar.links.scm="https://github.com/splitio/${{ github.event.repository.name }}"
             -Dsonar.pullrequest.key=${{ github.event.pull_request.number }}
             -Dsonar.pullrequest.branch=${{ github.event.pull_request.head.ref }}
             -Dsonar.pullrequest.base=${{ github.event.pull_request.base.ref }}
@@ -66,7 +60,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Docker Build and Push
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v4
         with:
           context: .
           file: docker/Dockerfile.${{ matrix.mode }}
@@ -74,7 +68,7 @@ jobs:
           tags: splitio-docker.jfrog.io/split-${{ matrix.mode }}:latest
 
       - name: Scan container using Lacework
-        uses: lacework/lw-scanner-action@v1.0.0
+        uses: lacework/lw-scanner-action@v1.3.2
         with:
           LW_ACCOUNT_NAME: ${{ secrets.LW_ACCOUNT_NAME }}
           LW_ACCESS_TOKEN: ${{ secrets.LW_ACCESS_TOKEN }}
