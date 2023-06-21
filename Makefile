@@ -6,6 +6,7 @@ PYTHON ?= python3
 DOCKER ?= docker
 BUILD ?= build
 SHELL = /usr/bin/env bash -o pipefail
+PLATFORM ?=
 
 # Extra arguments
 EXTRA_BUILD_ARGS ?=
@@ -87,8 +88,8 @@ entrypoints: entrypoint.synchronizer.sh entrypoint.proxy.sh
 
 ## Build release-ready docker images with proper tags and output push commands in stdout
 images_release: # entrypoints
-	$(DOCKER) build -t splitsoftware/split-synchronizer:latest -t splitsoftware/split-synchronizer:$(version) -f docker/Dockerfile.synchronizer .
-	$(DOCKER) build -t splitsoftware/split-proxy:latest -t splitsoftware/split-proxy:$(version) -f docker/Dockerfile.proxy .
+	$(DOCKER) build $(platform_str) -t splitsoftware/split-synchronizer:latest -t splitsoftware/split-synchronizer:$(version) -f docker/Dockerfile.synchronizer .
+	$(DOCKER) build $(platform_str) -t splitsoftware/split-proxy:latest -t splitsoftware/split-proxy:$(version) -f docker/Dockerfile.proxy .
 	@echo "Images created. Make sure everything works ok, and then run the following commands to push them."
 	@echo "$(DOCKER) push splitsoftware/split-synchronizer:$(version)"
 	@echo "$(DOCKER) push splitsoftware/split-synchronizer:latest"
@@ -195,6 +196,7 @@ make_exec		= $(if $(findstring windows,$1),$1.exe,$1)
 installed_from_zip 	= $(if $(findstring split_sync,$1),split-sync,split-proxy)
 apptitle_from_zip	= $(if $(findstring split_sync,$1),Synchronizer,Proxy)
 cmdfolder_from_bin	= $(if $(findstring split_sync,$1),synchronizer,proxy)
+platform_str = $(if $(PLATFORM),--platform=$(PLATFORM),)
 
 # "constants"
 null  :=
