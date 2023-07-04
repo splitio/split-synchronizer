@@ -4,7 +4,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/splitio/go-split-commons/v4/tasks"
+	"github.com/splitio/go-split-commons/v5/tasks"
 	"github.com/splitio/go-toolkit/v5/asynctask"
 	"github.com/splitio/go-toolkit/v5/logging"
 	gtSync "github.com/splitio/go-toolkit/v5/sync"
