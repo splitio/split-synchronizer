@@ -8,7 +8,7 @@ require (
 	github.com/gin-gonic/gin v1.9.1
 	github.com/google/uuid v1.3.0
 	github.com/splitio/gincache v0.0.1-rc7
-	github.com/splitio/go-split-commons/v5 v5.0.0-20230705170902-6683e3140e89
+	github.com/splitio/go-split-commons/v5 v5.0.0-20230707134259-5fd92f99c82b
 	github.com/splitio/go-toolkit/v5 v5.3.1
 	go.etcd.io/bbolt v1.3.6
 )
@@ -40,6 +40,7 @@ require (
 	golang.org/x/arch v0.3.0 // indirect
 	golang.org/x/crypto v0.9.0 // indirect
 	golang.org/x/net v0.10.0 // indirect
+	golang.org/x/sync v0.3.0 // indirect
 	golang.org/x/sys v0.8.0 // indirect
 	golang.org/x/text v0.9.0 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
