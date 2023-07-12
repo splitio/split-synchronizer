@@ -7,7 +7,7 @@ require (
 	github.com/gin-contrib/gzip v0.0.6
 	github.com/gin-gonic/gin v1.9.1
 	github.com/google/uuid v1.3.0
-	github.com/splitio/gincache v0.0.1-rc7
+	github.com/splitio/gincache v0.0.1-rc7.0.20230712210108-6f694f8888b9
 	github.com/splitio/go-split-commons/v5 v5.0.0-20230708033637-6447978b2344
 	github.com/splitio/go-toolkit/v5 v5.3.1
 	go.etcd.io/bbolt v1.3.6
