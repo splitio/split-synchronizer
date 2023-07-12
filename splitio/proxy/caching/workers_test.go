@@ -172,7 +172,7 @@ func TestCacheAwareSegmentSync(t *testing.T) {
 		evictBySurrogateCalls++
 	}
 	cacheFlusherMock.EvictCall = func(key string) {
-		if key != "/api/mySegments/k1" {
+		if key != "/api/mySegments/k1" && key != "gzip::/api/mySegments/k1" {
 			t.Error("incorrect mysegments entry purged: ", key)
 		}
 	}
