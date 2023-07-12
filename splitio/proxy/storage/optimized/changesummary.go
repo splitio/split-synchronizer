@@ -21,15 +21,14 @@ type SplitMinimalView struct {
 type ChangeSummary struct {
 	Updated map[string]string // feature flag name -> trafficType
 	Removed map[string]string // feature flag name -> trafficType
-	Current splitSet          // list of splits originally available at this point in time
+	Current *splitSet         // list of splits originally available at this point in time
 }
 
 func newEmptyChangeSummary(ss *splitSet) ChangeSummary {
-    ns := newSplitSet()
-    if ss != nil {
-        ns = *ss
-    }
-	return ChangeSummary{Updated: map[string]string{}, Removed: map[string]string{}, Current: ns}
+	if ss == nil {
+		ss = newSplitSet()
+	}
+	return ChangeSummary{Updated: map[string]string{}, Removed: map[string]string{}, Current: ss}
 }
 
 func (c *ChangeSummary) applyChange(toAdd []SplitMinimalView, toRemove []SplitMinimalView) {
@@ -94,7 +93,7 @@ func (s *SplitChangesSummaries) AddChanges(added []dtos.SplitDTO, removed []dtos
 	}
 
 	var lastCheckpoint int64 = -1
-	var lastSplitSet splitSet
+	lastSplitSet := newSplitSet()
 	for key, summary := range s.changes {
 		if key > lastCheckpoint {
 			lastCheckpoint = key
@@ -109,7 +108,7 @@ func (s *SplitChangesSummaries) AddChanges(added []dtos.SplitDTO, removed []dtos
 
 	newSS := lastSplitSet.clone()
 	newSS.update(addedViews, removedViews)
-	s.changes[cn] = newEmptyChangeSummary(&newSS)
+	s.changes[cn] = newEmptyChangeSummary(newSS)
 }
 
 // AddOlderChange is used to add a change older than the oldest one currently stored (when the sync started)
@@ -127,7 +126,7 @@ func (s *SplitChangesSummaries) AddOlderChange(added []dtos.SplitDTO, removed []
 		s.removeOldestRecipe()
 	}
 
-    summary := newEmptyChangeSummary(nil) // TODO(mredolatti): see if we can do better than this
+	summary := newEmptyChangeSummary(nil) // TODO(mredolatti): see if we can do better than this
 	for _, split := range added {
 		summary.Updated[split.Name] = split.TrafficTypeName
 	}
@@ -202,11 +201,11 @@ type splitSet struct {
 	data map[string]struct{}
 }
 
-func newSplitSet() splitSet {
-	return splitSet{data: make(map[string]struct{})}
+func newSplitSet() *splitSet {
+	return &splitSet{data: make(map[string]struct{})}
 }
 
-func (s *splitSet) clone() splitSet {
+func (s *splitSet) clone() *splitSet {
 	x := newSplitSet()
 	for key := range s.data {
 		x.data[key] = struct{}{}
