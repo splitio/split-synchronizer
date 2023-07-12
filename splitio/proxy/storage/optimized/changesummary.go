@@ -219,7 +219,7 @@ func (s *splitSet) update(toAdd []SplitMinimalView, toRemove []SplitMinimalView)
 	}
 
 	for idx := range toRemove {
-		delete(s.data, toAdd[idx].Name)
+		delete(s.data, toRemove[idx].Name)
 	}
 }
 
