@@ -100,7 +100,9 @@ func (c *CacheAwareSegmentSynchronizer) SynchronizeSegment(name string, till *in
 
 	// remove individual entries for each affected key
 	for idx := range result.UpdatedKeys {
-		c.cacheFlusher.Evict(MakeMySegmentsEntry(result.UpdatedKeys[idx]))
+		for _, key := range MakeMySegmentsEntries(result.UpdatedKeys[idx]) {
+			c.cacheFlusher.Evict(key)
+		}
 	}
 
 	return result, err
@@ -128,7 +130,9 @@ func (c *CacheAwareSegmentSynchronizer) SynchronizeSegments() (map[string]segmen
 		}
 
 		for idx := range result.UpdatedKeys {
-			c.cacheFlusher.Evict(MakeMySegmentsEntry(result.UpdatedKeys[idx]))
+			for _, key := range MakeMySegmentsEntries(result.UpdatedKeys[idx]) {
+				c.cacheFlusher.Evict(key)
+			}
 		}
 
 	}

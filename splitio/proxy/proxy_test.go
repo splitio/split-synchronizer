@@ -239,7 +239,9 @@ func TestSegmentChangesAndMySegmentsEndpoints(t *testing.T) {
 	}
 
 	// Same for mysegments
-	opts.Cache.Evict(caching.MakeMySegmentsEntry("k1"))
+	entries := caching.MakeMySegmentsEntries("k1")
+	opts.Cache.Evict(entries[0])
+	opts.Cache.Evict(entries[1])
 	_, body, headers = get("mySegments/k1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
 	segments = toMySegments(body)
 	if len(segments) != 0 {
