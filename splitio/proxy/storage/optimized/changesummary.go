@@ -20,11 +20,15 @@ type SplitMinimalView struct {
 // ChangeSummary represents a set of changes from/in a specific point in time
 type ChangeSummary struct {
 	Updated map[string]string // feature flag name -> trafficType
-	Removed map[string]string // featyre flag name -> trafficType
+	Removed map[string]string // feature flag name -> trafficType
+	Current *splitSet         // list of splits originally available at this point in time
 }
 
-func newEmptyChangeSummary() ChangeSummary {
-	return ChangeSummary{Updated: map[string]string{}, Removed: map[string]string{}}
+func newEmptyChangeSummary(ss *splitSet) ChangeSummary {
+	if ss == nil {
+		ss = newSplitSet()
+	}
+	return ChangeSummary{Updated: map[string]string{}, Removed: map[string]string{}, Current: ss}
 }
 
 func (c *ChangeSummary) applyChange(toAdd []SplitMinimalView, toRemove []SplitMinimalView) {
@@ -36,7 +40,9 @@ func (c *ChangeSummary) applyChange(toAdd []SplitMinimalView, toRemove []SplitMi
 	for _, split := range toRemove {
 		if _, ok := c.Updated[split.Name]; ok {
 			delete(c.Updated, split.Name)
-		} else {
+		}
+
+		if c.Current.contains(split.Name) {
 			c.Removed[split.Name] = split.TrafficType
 		}
 	}
@@ -56,7 +62,7 @@ func NewSplitChangesSummaries(maxRecipes int) *SplitChangesSummaries {
 	return &SplitChangesSummaries{
 		maxRecipes: maxRecipes + 1, // we keep an extra slot for -1 which is fixed
 		currentCN:  -1,
-		changes:    map[int64]ChangeSummary{-1: newEmptyChangeSummary()},
+		changes:    map[int64]ChangeSummary{-1: newEmptyChangeSummary(nil)},
 	}
 }
 
@@ -67,6 +73,17 @@ func (s *SplitChangesSummaries) AddChanges(added []dtos.SplitDTO, removed []dtos
 
 	addedViews := toSplitMinimalViews(added)
 	removedViews := toSplitMinimalViews(removed)
+
+	if cn == -1 {
+		// During the first hit (cn=-1) we want to capture ALL split names, to form an initial snapshot of what the user will get
+		// and nothing else.
+		ss := newSplitSet()
+		ss.update(addedViews, nil)
+		cs := s.changes[0]
+		cs.Current = ss
+		s.changes[0] = cs
+	}
+
 	if cn <= s.currentCN {
 		return
 	}
@@ -75,13 +92,23 @@ func (s *SplitChangesSummaries) AddChanges(added []dtos.SplitDTO, removed []dtos
 		s.removeOldestRecipe()
 	}
 
+	var lastCheckpoint int64 = -1
+	lastSplitSet := newSplitSet()
 	for key, summary := range s.changes {
+		if key > lastCheckpoint {
+			lastCheckpoint = key
+			lastSplitSet = summary.Current
+		}
+
 		summary.applyChange(addedViews, removedViews)
 		s.changes[key] = summary
 	}
 
 	s.currentCN = cn
-	s.changes[cn] = newEmptyChangeSummary()
+
+	newSS := lastSplitSet.clone()
+	newSS.update(addedViews, removedViews)
+	s.changes[cn] = newEmptyChangeSummary(newSS)
 }
 
 // AddOlderChange is used to add a change older than the oldest one currently stored (when the sync started)
@@ -99,7 +126,7 @@ func (s *SplitChangesSummaries) AddOlderChange(added []dtos.SplitDTO, removed []
 		s.removeOldestRecipe()
 	}
 
-	summary := newEmptyChangeSummary()
+	summary := newEmptyChangeSummary(nil) // TODO(mredolatti): see if we can do better than this
 	for _, split := range added {
 		summary.Updated[split.Name] = split.TrafficTypeName
 	}
@@ -168,4 +195,35 @@ func toSplitMinimalViews(items []dtos.SplitDTO) []SplitMinimalView {
 		views = append(views, SplitMinimalView{Name: dto.Name, TrafficType: dto.TrafficTypeName})
 	}
 	return views
+}
+
+type splitSet struct {
+	data map[string]struct{}
+}
+
+func newSplitSet() *splitSet {
+	return &splitSet{data: make(map[string]struct{})}
+}
+
+func (s *splitSet) clone() *splitSet {
+	x := newSplitSet()
+	for key := range s.data {
+		x.data[key] = struct{}{}
+	}
+	return x
+}
+
+func (s *splitSet) update(toAdd []SplitMinimalView, toRemove []SplitMinimalView) {
+	for idx := range toAdd {
+		s.data[toAdd[idx].Name] = struct{}{}
+	}
+
+	for idx := range toRemove {
+		delete(s.data, toAdd[idx].Name)
+	}
+}
+
+func (s *splitSet) contains(name string) bool {
+	_, ok := s.data[name]
+	return ok
 }
