@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.20.3-alpine3.17 AS builder
+FROM golang:1.20.5-alpine3.18 AS builder
 
 ARG EXTRA_BUILD_ARGS
 
@@ -16,7 +16,7 @@ COPY . .
 RUN make clean split-sync entrypoints EXTRA_BUILD_ARGS="${EXTRA_BUILD_ARGS}"
 
 # Runner stage
-FROM alpine:3.17 AS runner
+FROM alpine:3.18.2 AS runner
 
 RUN apk add bash
 
