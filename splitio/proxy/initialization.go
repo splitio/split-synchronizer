@@ -9,11 +9,11 @@ import (
 
 	"strings"
 
-	"github.com/splitio/go-split-commons/v4/conf"
-	"github.com/splitio/go-split-commons/v4/service/api"
-	"github.com/splitio/go-split-commons/v4/synchronizer"
-	"github.com/splitio/go-split-commons/v4/tasks"
-	"github.com/splitio/go-split-commons/v4/telemetry"
+	"github.com/splitio/go-split-commons/v5/conf"
+	"github.com/splitio/go-split-commons/v5/service/api"
+	"github.com/splitio/go-split-commons/v5/synchronizer"
+	"github.com/splitio/go-split-commons/v5/tasks"
+	"github.com/splitio/go-split-commons/v5/telemetry"
 	"github.com/splitio/go-toolkit/v5/backoff"
 	"github.com/splitio/go-toolkit/v5/logging"
 
@@ -112,8 +112,8 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 
 	// setup feature flags, segments & local telemetry API interactions
 	workers := synchronizer.Workers{
-		SplitFetcher: caching.NewCacheAwareSplitSync(splitStorage, splitAPI.SplitFetcher, logger, localTelemetryStorage, httpCache, appMonitor),
-		SegmentFetcher: caching.NewCacheAwareSegmentSync(splitStorage, segmentStorage, splitAPI.SegmentFetcher, logger, localTelemetryStorage, httpCache,
+		SplitUpdater: caching.NewCacheAwareSplitSync(splitStorage, splitAPI.SplitFetcher, logger, localTelemetryStorage, httpCache, appMonitor),
+		SegmentUpdater: caching.NewCacheAwareSegmentSync(splitStorage, segmentStorage, splitAPI.SegmentFetcher, logger, localTelemetryStorage, httpCache,
 			appMonitor),
 		TelemetryRecorder: telemetry.NewTelemetrySynchronizer(localTelemetryStorage, telemetryRecorder, splitStorage, segmentStorage, logger,
 			metadata, localTelemetryStorage),
@@ -121,8 +121,8 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 
 	// setup periodic tasks in case streaming is disabled or we need to fall back to polling
 	stasks := synchronizer.SplitTasks{
-		SplitSyncTask: tasks.NewFetchSplitsTask(workers.SplitFetcher, int(cfg.Sync.SplitRefreshRateMs/1000), logger),
-		SegmentSyncTask: tasks.NewFetchSegmentsTask(workers.SegmentFetcher, int(cfg.Sync.SegmentRefreshRateMs/1000), advanced.SegmentWorkers,
+		SplitSyncTask: tasks.NewFetchSplitsTask(workers.SplitUpdater, int(cfg.Sync.SplitRefreshRateMs/1000), logger),
+		SegmentSyncTask: tasks.NewFetchSegmentsTask(workers.SegmentUpdater, int(cfg.Sync.SegmentRefreshRateMs/1000), advanced.SegmentWorkers,
 			advanced.SegmentQueueSize, logger),
 		TelemetrySyncTask:        tasks.NewRecordTelemetryTask(workers.TelemetryRecorder, int(cfg.Sync.Advanced.InternalMetricsRateMs), logger),
 		ImpressionSyncTask:       impressionTask,
@@ -131,7 +131,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	}
 
 	// Creating Synchronizer for tasks
-	sync := ssync.NewSynchronizer(*advanced, stasks, workers, logger, nil, []tasks.Task{telemetryConfigTask, telemetryUsageTask, telemetryKeysClientSideTask, telemetryKeysServerSideTask}, appMonitor)
+	sync := ssync.NewSynchronizer(*advanced, stasks, workers, logger, nil, []tasks.Task{telemetryConfigTask, telemetryUsageTask, telemetryKeysClientSideTask, telemetryKeysServerSideTask})
 
 	mstatus := make(chan int, 1)
 	syncManager, err := synchronizer.NewSynchronizerManager(
