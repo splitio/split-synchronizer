@@ -165,6 +165,10 @@ func (p *PipelinedSyncTask) filler() {
 	for p.running.IsSet() {
 		timer.Reset(1 * time.Second)
 		raw, err := p.worker.Fetch()
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("[pipelined/%s] fetch function returned error: %s", p.name, err))
+		}
+
 		if len(raw) == 0 {
 			select {
 			case <-timer.C:
@@ -174,11 +178,6 @@ func (p *PipelinedSyncTask) filler() {
 				return
 			}
 		}
-		if err != nil {
-			p.logger.Error(fmt.Sprintf("[pipelined/%s] fetch function returned error: %s", p.name, err))
-			continue
-		}
-
 		howMany := len(raw)
 		select {
 		case p.inputBuffer <- raw:
