@@ -3,9 +3,10 @@ package caching
 import (
 	"testing"
 
-	storageMocks "github.com/splitio/go-split-commons/v4/storage/mocks"
-	"github.com/splitio/go-split-commons/v4/synchronizer/worker/segment"
-	"github.com/splitio/go-split-commons/v4/synchronizer/worker/split"
+	"github.com/splitio/go-split-commons/v5/dtos"
+	storageMocks "github.com/splitio/go-split-commons/v5/storage/mocks"
+	"github.com/splitio/go-split-commons/v5/synchronizer/worker/segment"
+	"github.com/splitio/go-split-commons/v5/synchronizer/worker/split"
 	"github.com/splitio/go-toolkit/v5/datastructures/set"
 
 	cacheMocks "github.com/splitio/gincache/mocks"
@@ -15,8 +16,9 @@ func TestCacheAwareSplitSync(t *testing.T) {
 	var cn int64 = -1
 
 	splitSyncMock := &splitUpdaterMock{
-		SynchronizeSplitsCall: func(*int64) (*split.UpdateResult, error) { return nil, nil },
-		LocalKillCall:         func(string, string, int64) {},
+		SynchronizeFeatureFlagsCall: func(ffChange *dtos.SplitChangeUpdate) (*split.UpdateResult, error) { return nil, nil },
+		SynchronizeSplitsCall:       func(*int64) (*split.UpdateResult, error) { return nil, nil },
+		LocalKillCall:               func(string, string, int64) {},
 	}
 	cacheFlusherMock := &cacheMocks.CacheFlusherMock{
 		EvictBySurrogateCall: func(string) { t.Error("nothing should be evicted") },
@@ -62,6 +64,63 @@ func TestCacheAwareSplitSync(t *testing.T) {
 		return nil, nil
 	}
 	css.SynchronizeSplits(nil)
+	if calls != 3 {
+		t.Error("should have flushed splits once", calls)
+	}
+}
+
+func TestCacheAwareSplitSyncFF(t *testing.T) {
+	var cn int64 = -1
+
+	splitSyncMock := &splitUpdaterMock{
+		SynchronizeFeatureFlagsCall: func(ffChange *dtos.SplitChangeUpdate) (*split.UpdateResult, error) { return nil, nil },
+		SynchronizeSplitsCall:       func(*int64) (*split.UpdateResult, error) { return nil, nil },
+		LocalKillCall:               func(string, string, int64) {},
+	}
+	cacheFlusherMock := &cacheMocks.CacheFlusherMock{
+		EvictBySurrogateCall: func(string) { t.Error("nothing should be evicted") },
+	}
+
+	css := CacheAwareSplitSynchronizer{
+		splitStorage: &storageMocks.MockSplitStorage{
+			ChangeNumberCall: func() (int64, error) { return cn, nil },
+		},
+		wrapped:      splitSyncMock,
+		cacheFlusher: cacheFlusherMock,
+	}
+
+	css.SynchronizeFeatureFlags(nil)
+
+	splitSyncMock.SynchronizeFeatureFlagsCall = func(*dtos.SplitChangeUpdate) (*split.UpdateResult, error) {
+		cn++
+		return nil, nil
+	}
+
+	calls := 0
+	cacheFlusherMock.EvictBySurrogateCall = func(key string) {
+		if key != SplitSurrogate {
+			t.Error("wrong surrogate")
+		}
+		calls++
+	}
+
+	css.SynchronizeFeatureFlags(nil)
+	if calls != 1 {
+		t.Error("should have flushed splits once")
+	}
+
+	css.LocalKill("someSplit", "off", 123)
+	if calls != 2 {
+		t.Error("should have flushed again after a local kill")
+	}
+
+	// Test that going from cn > -1 to cn == -1 purges
+	cn = 123
+	splitSyncMock.SynchronizeFeatureFlagsCall = func(*dtos.SplitChangeUpdate) (*split.UpdateResult, error) {
+		cn = -1
+		return nil, nil
+	}
+	css.SynchronizeFeatureFlags(nil)
 	if calls != 3 {
 		t.Error("should have flushed splits once", calls)
 	}
@@ -208,8 +267,9 @@ func TestCacheAwareSegmentSync(t *testing.T) {
 }
 
 type splitUpdaterMock struct {
-	SynchronizeSplitsCall func(till *int64) (*split.UpdateResult, error)
-	LocalKillCall         func(splitName string, defaultTreatment string, changeNumber int64)
+	SynchronizeFeatureFlagsCall func(ffChange *dtos.SplitChangeUpdate) (*split.UpdateResult, error)
+	SynchronizeSplitsCall       func(till *int64) (*split.UpdateResult, error)
+	LocalKillCall               func(splitName string, defaultTreatment string, changeNumber int64)
 }
 
 func (s *splitUpdaterMock) SynchronizeSplits(till *int64) (*split.UpdateResult, error) {
@@ -218,6 +278,10 @@ func (s *splitUpdaterMock) SynchronizeSplits(till *int64) (*split.UpdateResult, 
 
 func (s *splitUpdaterMock) LocalKill(splitName string, defaultTreatment string, changeNumber int64) {
 	s.LocalKillCall(splitName, defaultTreatment, changeNumber)
+}
+
+func (s *splitUpdaterMock) SynchronizeFeatureFlags(ffChange *dtos.SplitChangeUpdate) (*split.UpdateResult, error) {
+	return s.SynchronizeFeatureFlagsCall(ffChange)
 }
 
 type segmentUpdaterMock struct {

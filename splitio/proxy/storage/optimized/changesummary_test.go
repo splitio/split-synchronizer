@@ -3,7 +3,7 @@ package optimized
 import (
 	"testing"
 
-	"github.com/splitio/go-split-commons/v4/dtos"
+	"github.com/splitio/go-split-commons/v5/dtos"
 )
 
 func stringSlicesEqual(a []string, b []string) bool {

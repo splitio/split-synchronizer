@@ -5,7 +5,7 @@ import (
 	"math"
 	"sync"
 
-	"github.com/splitio/go-split-commons/v4/dtos"
+	"github.com/splitio/go-split-commons/v5/dtos"
 )
 
 // ErrUnknownChangeNumber is returned when trying to fetch a recipe for a change number not present in cache
