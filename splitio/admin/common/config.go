@@ -1,6 +1,6 @@
 package common
 
-import "github.com/splitio/go-split-commons/v4/storage"
+import "github.com/splitio/go-split-commons/v5/storage"
 
 // Storages wraps storages in one struct
 type Storages struct {

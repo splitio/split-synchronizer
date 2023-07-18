@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/splitio/go-split-commons/v4/service"
+	"github.com/splitio/go-split-commons/v5/service"
 	"github.com/splitio/go-toolkit/v5/logging"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"

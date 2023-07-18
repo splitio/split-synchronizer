@@ -3,7 +3,7 @@ package caching
 import (
 	"testing"
 
-	"github.com/splitio/go-split-commons/v4/dtos"
+	"github.com/splitio/go-split-commons/v5/dtos"
 	"github.com/splitio/go-toolkit/v5/testhelpers"
 )
 
@@ -15,7 +15,11 @@ func TestSegment(t *testing.T) {
 }
 
 func TestMySegmentKeyGeneration(t *testing.T) {
-	if MakeMySegmentsEntry("k1") != "/api/mySegments/k1" {
+	entries := MakeMySegmentsEntries("k1")
+	if entries[0] != "/api/mySegments/k1" {
+		t.Error("invalid mySegments cache entry")
+	}
+	if entries[1] != "gzip::/api/mySegments/k1" {
 		t.Error("invalid mySegments cache entry")
 	}
 }

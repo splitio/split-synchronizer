@@ -1,10 +1,10 @@
 package internal
 
 import (
-	"github.com/splitio/go-split-commons/v4/dtos"
+	"github.com/splitio/go-split-commons/v5/dtos"
 )
 
-//RawData represents the raw data submitted by an sdk when posting data with associated metadata
+// RawData represents the raw data submitted by an sdk when posting data with associated metadata
 type RawData struct {
 	Metadata dtos.Metadata
 	Payload  []byte

@@ -3,7 +3,7 @@ package optimized
 import (
 	"testing"
 
-	"github.com/splitio/go-split-commons/v4/dtos"
+	"github.com/splitio/go-split-commons/v5/dtos"
 )
 
 func stringSlicesEqual(a []string, b []string) bool {
@@ -227,7 +227,24 @@ func TestSizeBoundaries(t *testing.T) {
 	if err != ErrUnknownChangeNumber {
 		t.Error("should have gotten unknown CN error. Got: ", err)
 	}
+}
 
+func TestSplitSet(t *testing.T) {
+	ss := newSplitSet()
+	ss.update([]SplitMinimalView{{Name: "s1"}, {Name: "s2"}}, nil)
+    if !ss.contains("s1") || !ss.contains("s2") {
+        t.Error("splitSet should contain s1 & s2")
+    }
+
+    clone := ss.clone()
+    if !clone.contains("s1") || !clone.contains("s2") {
+        t.Error("splitSet should contain s1 & s2")
+    }
+
+	ss.update(nil, []SplitMinimalView{{Name: "s2"}})
+    if !clone.contains("s1") {
+        t.Error("splitSet should contain s1")
+    }
 }
 
 /*  TEST PLAN!

@@ -3,7 +3,7 @@ package conf
 import (
 	"os"
 
-	"github.com/splitio/go-split-commons/v4/conf"
+	"github.com/splitio/go-split-commons/v5/conf"
 )
 
 // InitAdvancedOptions initializes an advanced config with default values + overriden urls.

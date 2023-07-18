@@ -3,11 +3,10 @@ package sync
 import (
 	"github.com/splitio/go-toolkit/v5/logging"
 
-	"github.com/splitio/go-split-commons/v4/conf"
+	"github.com/splitio/go-split-commons/v5/conf"
 
-	"github.com/splitio/go-split-commons/v4/healthcheck/application"
-	"github.com/splitio/go-split-commons/v4/synchronizer"
-	"github.com/splitio/go-split-commons/v4/tasks"
+	"github.com/splitio/go-split-commons/v5/synchronizer"
+	"github.com/splitio/go-split-commons/v5/tasks"
 )
 
 // WSync is a wrapper for the Regular synchronizer that handles both local telemetry
@@ -26,10 +25,9 @@ func NewSynchronizer(
 	logger logging.LoggerInterface,
 	inMememoryFullQueue chan string,
 	userTelemetryTasks []tasks.Task,
-	appMonitor application.MonitorProducerInterface,
 ) *WSync {
 	return &WSync{
-		Synchronizer:       synchronizer.NewSynchronizer(confAdvanced, splitTasks, workers, logger, inMememoryFullQueue, appMonitor),
+		Synchronizer:       synchronizer.NewSynchronizer(confAdvanced, splitTasks, workers, logger, inMememoryFullQueue),
 		logger:             logger,
 		userTelemetryTasks: userTelemetryTasks,
 	}
