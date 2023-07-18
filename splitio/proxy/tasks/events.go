@@ -3,7 +3,7 @@ package tasks
 import (
 	"fmt"
 
-	"github.com/splitio/go-split-commons/v4/service/api"
+	"github.com/splitio/go-split-commons/v5/service/api"
 	"github.com/splitio/go-toolkit/v5/common"
 	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/go-toolkit/v5/workerpool"

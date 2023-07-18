@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/gincache"
-	"github.com/splitio/go-split-commons/v4/dtos"
+	"github.com/splitio/go-split-commons/v5/dtos"
 )
 
 const (
@@ -51,8 +51,11 @@ func MakeSurrogateForMySegments(mysegments []dtos.MySegmentDTO) []string {
 }
 
 // MakeMySegmentsEntry create a cache entry key for mysegments
-func MakeMySegmentsEntry(key string) string {
-	return "/api/mySegments/" + key
+func MakeMySegmentsEntries(key string) []string {
+	return []string{
+		"/api/mySegments/" + key,
+		"gzip::/api/mySegments/" + key,
+	}
 }
 
 // MakeProxyCache creates and configures a split-proxy-ready cache
@@ -61,12 +64,18 @@ func MakeProxyCache() *gincache.Middleware {
 		SuccessfulOnly: true, // we're not interested in caching non-200 responses
 		Size:           cacheSize,
 		KeyFactory: func(ctx *gin.Context) string {
+
+			var encodingPrefix string
+			if strings.Contains(ctx.Request.Header.Get("Accept-Encoding"), "gzip") {
+				encodingPrefix = "gzip::"
+			}
+
 			if strings.HasPrefix(ctx.Request.URL.Path, "/api/auth") || strings.HasPrefix(ctx.Request.URL.Path, "/api/v2/auth") {
 				// For auth requests, since we don't support streaming yet, we only need a single entry in the table,
 				// so we strip the query-string which contains the user-list
-				return ctx.Request.URL.Path
+				return encodingPrefix + ctx.Request.URL.Path
 			}
-			return ctx.Request.URL.Path + ctx.Request.URL.RawQuery
+			return encodingPrefix + ctx.Request.URL.Path + ctx.Request.URL.RawQuery
 		},
 		// we make each request handler responsible for generating the surrogates.
 		// this way we can use segment names as surrogates for mysegments & segment changes

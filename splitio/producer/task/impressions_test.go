@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/splitio/go-split-commons/v4/dtos"
-	"github.com/splitio/go-split-commons/v4/provisional"
-	"github.com/splitio/go-split-commons/v4/provisional/strategy"
-	"github.com/splitio/go-split-commons/v4/storage/inmemory"
-	"github.com/splitio/go-split-commons/v4/storage/mocks"
+	"github.com/splitio/go-split-commons/v5/dtos"
+	"github.com/splitio/go-split-commons/v5/provisional"
+	"github.com/splitio/go-split-commons/v5/provisional/strategy"
+	"github.com/splitio/go-split-commons/v5/storage/inmemory"
+	"github.com/splitio/go-split-commons/v5/storage/mocks"
 	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v5/splitio/producer/evcalc"
 )
@@ -152,7 +152,7 @@ func TestMemoryIsProperlyReturned(t *testing.T) {
 	}
 
 	for i := 0; i < 3; i++ {
-		i := <- sinker
+		i := <-sinker
 		req, err := w.BuildRequest(i)
 		if asRecyclable, ok := i.(recyclable); ok {
 			asRecyclable.recycle()
@@ -257,4 +257,3 @@ func TestImpressionsIntegration(t *testing.T) {
 		t.Errorf("machine0 should have %d impressions. Has %d", expectedImpressionsPerMeta, r)
 	}
 }
-

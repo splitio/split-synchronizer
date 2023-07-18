@@ -5,19 +5,19 @@ import (
 	"fmt"
 	"time"
 
-	cconf "github.com/splitio/go-split-commons/v4/conf"
-	"github.com/splitio/go-split-commons/v4/dtos"
-	"github.com/splitio/go-split-commons/v4/provisional/strategy"
-	"github.com/splitio/go-split-commons/v4/service/api"
-	"github.com/splitio/go-split-commons/v4/storage/filter"
-	"github.com/splitio/go-split-commons/v4/storage/inmemory"
-	"github.com/splitio/go-split-commons/v4/storage/redis"
-	"github.com/splitio/go-split-commons/v4/synchronizer"
-	"github.com/splitio/go-split-commons/v4/synchronizer/worker/impressionscount"
-	"github.com/splitio/go-split-commons/v4/synchronizer/worker/segment"
-	"github.com/splitio/go-split-commons/v4/synchronizer/worker/split"
-	"github.com/splitio/go-split-commons/v4/tasks"
-	"github.com/splitio/go-split-commons/v4/telemetry"
+	cconf "github.com/splitio/go-split-commons/v5/conf"
+	"github.com/splitio/go-split-commons/v5/dtos"
+	"github.com/splitio/go-split-commons/v5/provisional/strategy"
+	"github.com/splitio/go-split-commons/v5/service/api"
+	"github.com/splitio/go-split-commons/v5/storage/filter"
+	"github.com/splitio/go-split-commons/v5/storage/inmemory"
+	"github.com/splitio/go-split-commons/v5/storage/redis"
+	"github.com/splitio/go-split-commons/v5/synchronizer"
+	"github.com/splitio/go-split-commons/v5/synchronizer/worker/impressionscount"
+	"github.com/splitio/go-split-commons/v5/synchronizer/worker/segment"
+	"github.com/splitio/go-split-commons/v5/synchronizer/worker/split"
+	"github.com/splitio/go-split-commons/v5/tasks"
+	"github.com/splitio/go-split-commons/v5/telemetry"
 	"github.com/splitio/go-toolkit/v5/logging"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/admin"
@@ -118,8 +118,8 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	eventEvictionMonitor := evcalc.New(1)
 
 	workers := synchronizer.Workers{
-		SplitFetcher: split.NewSplitFetcher(storages.SplitStorage, splitAPI.SplitFetcher, logger, syncTelemetryStorage, appMonitor),
-		SegmentFetcher: segment.NewSegmentFetcher(storages.SplitStorage, storages.SegmentStorage, splitAPI.SegmentFetcher,
+		SplitUpdater: split.NewSplitUpdater(storages.SplitStorage, splitAPI.SplitFetcher, logger, syncTelemetryStorage, appMonitor),
+		SegmentUpdater: segment.NewSegmentUpdater(storages.SplitStorage, storages.SegmentStorage, splitAPI.SegmentFetcher,
 			logger, syncTelemetryStorage, appMonitor),
 		ImpressionsCountRecorder: impressionscount.NewRecorderSingle(impressionsCounter, splitAPI.ImpressionRecorder,
 			metadata, logger, syncTelemetryStorage),
@@ -128,8 +128,8 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 			storages.SplitStorage, storages.SegmentStorage, logger, metadata, syncTelemetryStorage),
 	}
 	splitTasks := synchronizer.SplitTasks{
-		SplitSyncTask: tasks.NewFetchSplitsTask(workers.SplitFetcher, int(cfg.Sync.SplitRefreshRateMs)/1000, logger),
-		SegmentSyncTask: tasks.NewFetchSegmentsTask(workers.SegmentFetcher, int(cfg.Sync.SegmentRefreshRateMs)/1000,
+		SplitSyncTask: tasks.NewFetchSplitsTask(workers.SplitUpdater, int(cfg.Sync.SplitRefreshRateMs)/1000, logger),
+		SegmentSyncTask: tasks.NewFetchSegmentsTask(workers.SegmentUpdater, int(cfg.Sync.SegmentRefreshRateMs)/1000,
 			advanced.SegmentWorkers, advanced.SegmentQueueSize, logger),
 		ImpressionsCountSyncTask: tasks.NewRecordImpressionsCountTask(workers.ImpressionsCountRecorder,
 			logger, impressionsCountPeriodTaskInMemory),
@@ -246,7 +246,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 
 	sdkTelemetryWorker := worker.NewTelemetryMultiWorker(logger, sdkTelemetryStorage, splitAPI.TelemetryRecorder)
 	sdkTelemetryTask := task.NewTelemetrySyncTask(sdkTelemetryWorker, logger, int(cfg.Sync.Advanced.TelemetryPushRateMs/1000))
-	syncImpl := ssync.NewSynchronizer(*advanced, splitTasks, workers, logger, nil, []tasks.Task{sdkTelemetryTask}, appMonitor)
+	syncImpl := ssync.NewSynchronizer(*advanced, splitTasks, workers, logger, nil, []tasks.Task{sdkTelemetryTask})
 	managerStatus := make(chan int, 1)
 	syncManager, err := synchronizer.NewSynchronizerManager(
 		syncImpl,

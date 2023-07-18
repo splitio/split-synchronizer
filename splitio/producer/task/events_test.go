@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/splitio/go-split-commons/v4/dtos"
-	"github.com/splitio/go-split-commons/v4/storage/mocks"
+	"github.com/splitio/go-split-commons/v5/dtos"
+	"github.com/splitio/go-split-commons/v5/storage/mocks"
 	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v5/splitio/producer/evcalc"
 )
@@ -110,7 +110,7 @@ func TestEventsMemoryIsProperlyReturned(t *testing.T) {
 	}
 
 	for i := 0; i < 3; i++ {
-		i := <- sinker
+		i := <-sinker
 		req, err := w.BuildRequest(i)
 		if asRecyclable, ok := i.(recyclable); ok {
 			asRecyclable.recycle()
