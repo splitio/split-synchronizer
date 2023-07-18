@@ -5,7 +5,7 @@ import (
 
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/persistent"
 
-	"github.com/splitio/go-split-commons/v4/dtos"
+	"github.com/splitio/go-split-commons/v5/dtos"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
 
@@ -23,7 +23,6 @@ func TestSplitStorage(t *testing.T) {
 		{Name: "s2", ChangeNumber: 2, Status: "ACTIVE"},
 	}, nil, 1)
 
-	
 	pss := NewProxySplitStorage(dbw, logger, true)
 
 	sinceMinus1, currentCN, err := pss.recipes.FetchSince(-1)
@@ -61,4 +60,3 @@ func TestSplitStorage(t *testing.T) {
 	}
 
 }
-
