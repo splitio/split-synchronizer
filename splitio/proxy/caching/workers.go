@@ -1,11 +1,12 @@
 package caching
 
 import (
-	"github.com/splitio/go-split-commons/v4/healthcheck/application"
-	"github.com/splitio/go-split-commons/v4/service"
-	"github.com/splitio/go-split-commons/v4/storage"
-	"github.com/splitio/go-split-commons/v4/synchronizer/worker/segment"
-	"github.com/splitio/go-split-commons/v4/synchronizer/worker/split"
+	"github.com/splitio/go-split-commons/v5/dtos"
+	"github.com/splitio/go-split-commons/v5/healthcheck/application"
+	"github.com/splitio/go-split-commons/v5/service"
+	"github.com/splitio/go-split-commons/v5/storage"
+	"github.com/splitio/go-split-commons/v5/synchronizer/worker/segment"
+	"github.com/splitio/go-split-commons/v5/synchronizer/worker/split"
 	"github.com/splitio/go-toolkit/v5/logging"
 
 	"github.com/splitio/gincache"
@@ -28,7 +29,7 @@ func NewCacheAwareSplitSync(
 	appMonitor application.MonitorProducerInterface,
 ) *CacheAwareSplitSynchronizer {
 	return &CacheAwareSplitSynchronizer{
-		wrapped:      split.NewSplitFetcher(splitStorage, splitFetcher, logger, runtimeTelemetry, appMonitor),
+		wrapped:      split.NewSplitUpdater(splitStorage, splitFetcher, logger, runtimeTelemetry, appMonitor),
 		splitStorage: splitStorage,
 		cacheFlusher: cacheFlusher,
 	}
@@ -52,6 +53,17 @@ func (c *CacheAwareSplitSynchronizer) LocalKill(splitName string, defaultTreatme
 	c.cacheFlusher.EvictBySurrogate(SplitSurrogate)
 }
 
+// SynchronizeFeatureFlags synchronizes feature flags and if something changes, purges the cache appropriately
+func (c *CacheAwareSplitSynchronizer) SynchronizeFeatureFlags(ffChange *dtos.SplitChangeUpdate) (*split.UpdateResult, error) {
+	previous, _ := c.splitStorage.ChangeNumber()
+	result, err := c.wrapped.SynchronizeFeatureFlags(ffChange)
+	if current, _ := c.splitStorage.ChangeNumber(); current > previous || (previous != -1 && current == -1) {
+		// if the changenumber was updated, evict splitChanges responses from cache
+		c.cacheFlusher.EvictBySurrogate(SplitSurrogate)
+	}
+	return result, err
+}
+
 // CacheAwareSegmentSynchronizer wraps a segment-sync with cache-friendly logic
 type CacheAwareSegmentSynchronizer struct {
 	wrapped        segment.Updater
@@ -71,7 +83,7 @@ func NewCacheAwareSegmentSync(
 	appMonitor application.MonitorProducerInterface,
 ) *CacheAwareSegmentSynchronizer {
 	return &CacheAwareSegmentSynchronizer{
-		wrapped:        segment.NewSegmentFetcher(splitStorage, segmentStorage, segmentFetcher, logger, runtimeTelemetry, appMonitor),
+		wrapped:        segment.NewSegmentUpdater(splitStorage, segmentStorage, segmentFetcher, logger, runtimeTelemetry, appMonitor),
 		cacheFlusher:   cacheFlusher,
 		splitStorage:   splitStorage,
 		segmentStorage: segmentStorage,
@@ -88,7 +100,9 @@ func (c *CacheAwareSegmentSynchronizer) SynchronizeSegment(name string, till *in
 
 	// remove individual entries for each affected key
 	for idx := range result.UpdatedKeys {
-		c.cacheFlusher.Evict(MakeMySegmentsEntry(result.UpdatedKeys[idx]))
+		for _, key := range MakeMySegmentsEntries(result.UpdatedKeys[idx]) {
+			c.cacheFlusher.Evict(key)
+		}
 	}
 
 	return result, err
@@ -116,7 +130,9 @@ func (c *CacheAwareSegmentSynchronizer) SynchronizeSegments() (map[string]segmen
 		}
 
 		for idx := range result.UpdatedKeys {
-			c.cacheFlusher.Evict(MakeMySegmentsEntry(result.UpdatedKeys[idx]))
+			for _, key := range MakeMySegmentsEntries(result.UpdatedKeys[idx]) {
+				c.cacheFlusher.Evict(key)
+			}
 		}
 
 	}

@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/splitio/go-split-commons/v4/dtos"
-	serviceMocks "github.com/splitio/go-split-commons/v4/service/mocks"
+	"github.com/splitio/go-split-commons/v5/dtos"
+	serviceMocks "github.com/splitio/go-split-commons/v5/service/mocks"
 	"github.com/splitio/go-toolkit/v5/logging"
 	ilmock "github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener/mocks"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/caching"
@@ -239,7 +239,9 @@ func TestSegmentChangesAndMySegmentsEndpoints(t *testing.T) {
 	}
 
 	// Same for mysegments
-	opts.Cache.Evict(caching.MakeMySegmentsEntry("k1"))
+	entries := caching.MakeMySegmentsEntries("k1")
+	opts.Cache.Evict(entries[0])
+	opts.Cache.Evict(entries[1])
 	_, body, headers = get("mySegments/k1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
 	segments = toMySegments(body)
 	if len(segments) != 0 {
