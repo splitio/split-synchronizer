@@ -27,7 +27,7 @@ func NewCacheAwareSplitSync(
 	runtimeTelemetry storage.TelemetryRuntimeProducer,
 	cacheFlusher gincache.CacheFlusher,
 	appMonitor application.MonitorProducerInterface,
-) split.Updater {
+) *CacheAwareSplitSynchronizer {
 	return &CacheAwareSplitSynchronizer{
 		wrapped:      split.NewSplitUpdater(splitStorage, splitFetcher, logger, runtimeTelemetry, appMonitor),
 		splitStorage: splitStorage,
