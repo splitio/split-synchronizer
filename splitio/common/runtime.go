@@ -2,8 +2,10 @@ package common
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -79,6 +81,8 @@ func (r *RuntimeImpl) RegisterShutdownHandler() error {
 	signal.Notify(r.osSignals, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	go func() {
 		s := <-r.osSignals
+
+        r.logger.Info(fmt.Sprintf("received signal %+v", s))
 		if s == syscall.SIGKILL {
 			os.Exit(0)
 		}
@@ -97,6 +101,7 @@ func (r *RuntimeImpl) Uptime() time.Duration {
 func (r *RuntimeImpl) Shutdown() {
 	r.logger.Info("\n\n * Starting graceful shutdown")
 	r.logger.Info(" * Waiting goroutines stop")
+    r.logger.Debug("%s", string(debug.Stack()))
 	if r.slackWriter != nil {
 		message, attachments := buildSlackShutdownMessage(r.dashboardTitle, false)
 		r.slackWriter.PostNow(message, attachments)
@@ -137,7 +142,7 @@ func buildSlackShutdownMessage(title string, kill bool) ([]byte, []log.SlackMess
 	if title != "" {
 		fields := make([]log.SlackMessageAttachmentFields, 0)
 		fields = append(fields)
-		attach = []log.SlackMessageAttachment{log.SlackMessageAttachment{
+		attach = []log.SlackMessageAttachment{{
 			Fallback: "Shutting Split-Sync down",
 			Color:    color,
 			Fields: []log.SlackMessageAttachmentFields{{
