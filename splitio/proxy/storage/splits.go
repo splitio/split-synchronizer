@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/splitio/go-split-commons/v5/dtos"
+	"github.com/splitio/go-split-commons/v5/flagsets"
 	"github.com/splitio/go-split-commons/v5/storage"
 	"github.com/splitio/go-split-commons/v5/storage/inmemory/mutexmap"
 	"github.com/splitio/go-toolkit/v5/datastructures/set"
@@ -43,7 +44,7 @@ type ProxySplitStorageImpl struct {
 // for snapshot purposes
 func NewProxySplitStorage(db persistent.DBWrapper, logger logging.LoggerInterface, restoreBackup bool) *ProxySplitStorageImpl {
 	disk := persistent.NewSplitChangesCollection(db, logger)
-	snapshot := mutexmap.NewMMSplitStorage()
+	snapshot := mutexmap.NewMMSplitStorage(flagsets.NewFlagSetFilter(nil)) // TODO(mredolatti): fix this
 	recipes := optimized.NewSplitChangesSummaries(maxRecipes)
 	if restoreBackup {
 		snapshotFromDisk(snapshot, recipes, disk, logger)
