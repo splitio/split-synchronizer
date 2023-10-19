@@ -15,6 +15,7 @@ type HistoricChanges struct {
 }
 
 func (h *HistoricChanges) GetUpdatedSince(since int64, flagSets []string) []FeatureView {
+	slices.Sort(flagSets)
 	h.mutex.RLock()
 	views := h.findNewerThan(since)
 	toRet := copyAndFilter(views, flagSets, since)
@@ -29,6 +30,8 @@ func (h *HistoricChanges) Update(toAdd []dtos.SplitDTO, toRemove []dtos.SplitDTO
 	sort.Slice(h.data, func(i, j int) bool { return h.data[i].LastUpdated < h.data[j].LastUpdated })
 	h.mutex.Unlock()
 }
+
+// public interface ends here
 
 func (h *HistoricChanges) updateFrom(source []dtos.SplitDTO) {
 	for idx := range source {
@@ -138,41 +141,54 @@ func copyAndFilter(views []FeatureView, sets []string, since int64) []FeatureVie
 	// precondition: f.Flagsets is sorted by name
 	// precondition: sets is sorted
 	toRet := make([]FeatureView, 0, len(views))
-	if len(sets) == 0 {
-		for idx := range views {
-			toRet = append(toRet, views[idx].clone())
-		}
-		return toRet
-	}
 
-	// this code computes the intersection in o(views * (len(views.sets) + len(sets)))
+	// this code computes the intersection in o(views * )
 	for idx := range views {
-		viewFlagSetIndex, requestedSetIndex := 0, 0
-		for viewFlagSetIndex < len(views[idx].FlagSets) {
-			switch strings.Compare(views[idx].FlagSets[viewFlagSetIndex].Name, sets[requestedSetIndex]) {
-			case 0: // we got a match
-				fsinfo := views[idx].FlagSets[viewFlagSetIndex]
-				// if an association is active, it's considered and the Feature is added to the result set.
-				// if an association is inactive and we're fetching from scratch (since=-1), it's not considered.
-				// if an association was already inactive at the time of the provided `since`, it's not considered.
-				// if an association was active on the provided `since` and now isn't, the feature IS added to the returned payload.
-				//  - the consumer is responsible for filtering flagsets where active = false when mapping the outcome of
-				//    this function to a []dtos.SplitChanges response.
-				if fsinfo.Active || (since > -1 && fsinfo.LastUpdated > since) {
-					toRet = append(toRet, views[idx].clone())
-				}
-				viewFlagSetIndex++
-				incrUpTo(&requestedSetIndex, len(sets))
-			case -1:
-				viewFlagSetIndex++
-			case 1:
-				if incrUpTo(&requestedSetIndex, len(sets)) {
-					viewFlagSetIndex++
-				}
-			}
+		if featureShouldBeReturned(&views[idx], since, sets) {
+			toRet = append(toRet, views[idx].clone())
 		}
 	}
 	return toRet
+}
+
+func featureShouldBeReturned(view *FeatureView, since int64, sets []string) bool {
+
+	// if fetching from sratch & the feature is not active,
+	// or it hasn't been updated since `since`, it shouldn't even be considered for being returned
+	if since == -1 && !view.Active || view.LastUpdated < since {
+		return false
+	}
+
+	// all updated features should be returned if no set filter is being used
+	if len(sets) == 0 {
+		return true
+	}
+
+	// compare the sets for intersection of user supplied sets with currently active ones.
+	// takes linear o(len(feature.sets) + len(sets)) time since both the incoming sets are sorted
+	viewFlagSetIndex, requestedSetIndex := 0, 0
+	for viewFlagSetIndex < len(view.FlagSets) {
+		switch strings.Compare(view.FlagSets[viewFlagSetIndex].Name, sets[requestedSetIndex]) {
+		case 0: // we got a match
+			fsinfo := view.FlagSets[viewFlagSetIndex]
+			// if an association is active, it's considered and the Feature is added to the result set.
+			// if an association is inactive and we're fetching from scratch (since=-1), it's not considered.
+			// if an association was already inactive at the time of the provided `since`, it's not considered.
+			// if an association was active on the provided `since` and now isn't, the feature IS added to the returned payload.
+			if fsinfo.Active || (since > -1 && since < fsinfo.LastUpdated) {
+				return true
+			}
+			viewFlagSetIndex++
+			incrUpTo(&requestedSetIndex, len(sets))
+		case -1:
+			viewFlagSetIndex++
+		case 1:
+			if incrUpTo(&requestedSetIndex, len(sets)); requestedSetIndex+1 == len(sets) {
+				viewFlagSetIndex++
+			}
+		}
+	}
+	return false
 }
 
 type FlagSetView struct {
@@ -181,12 +197,9 @@ type FlagSetView struct {
 	LastUpdated int64
 }
 
-// increment `toIncr` by 1 as long as the result is less than `limit`.
-// return wether the limit was reached
-func incrUpTo(toIncr *int, limit int) bool {
+func incrUpTo(toIncr *int, limit int) {
 	if *toIncr+1 >= limit {
-		return true
+		return
 	}
 	*toIncr++
-	return false
 }

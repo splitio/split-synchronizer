@@ -187,6 +187,45 @@ func TestHistoricSplitStorage(t *testing.T) {
 		historic.GetUpdatedSince(3, []string{"s1"}))
 	assert.Equal(t, []FeatureView{}, historic.GetUpdatedSince(4, []string{"s1"}))
 
+	// process an update that removes f2 (archives the feature)
+	// fetching from -1 should not return f2
+	// fetching from any intermediate CN should return f2 as archived
+	// fetching from cn=5 should return empty
+	historic.Update([]dtos.SplitDTO{
+		{Name: "f2", Sets: []string{"s2", "s3"}, Status: "ARCHIVED", ChangeNumber: 5, TrafficTypeName: "tt1"},
+	}, []dtos.SplitDTO{}, 1)
+
+	// without filter
+	assert.Equal(t,
+		[]FeatureView{
+			{Name: "f1", TrafficTypeName: "tt1", FlagSets: []FlagSetView{{"s1", false, 4}, {"s2", true, 1}}, Active: true, LastUpdated: 4},
+		},
+		historic.GetUpdatedSince(-1, nil))
+	assert.Equal(t,
+		[]FeatureView{
+			{Name: "f1", TrafficTypeName: "tt1", FlagSets: []FlagSetView{{"s1", false, 4}, {"s2", true, 1}}, Active: true, LastUpdated: 4},
+			{Name: "f2", TrafficTypeName: "tt1", FlagSets: []FlagSetView{{"s2", true, 3}, {"s3", true, 3}}, Active: false, LastUpdated: 5},
+		},
+		historic.GetUpdatedSince(1, nil))
+	assert.Equal(t,
+		[]FeatureView{
+			{Name: "f1", TrafficTypeName: "tt1", FlagSets: []FlagSetView{{"s1", false, 4}, {"s2", true, 1}}, Active: true, LastUpdated: 4},
+			{Name: "f2", TrafficTypeName: "tt1", FlagSets: []FlagSetView{{"s2", true, 3}, {"s3", true, 3}}, Active: false, LastUpdated: 5},
+		},
+		historic.GetUpdatedSince(2, nil))
+	assert.Equal(t,
+		[]FeatureView{
+			{Name: "f1", TrafficTypeName: "tt1", FlagSets: []FlagSetView{{"s1", false, 4}, {"s2", true, 1}}, Active: true, LastUpdated: 4},
+			{Name: "f2", TrafficTypeName: "tt1", FlagSets: []FlagSetView{{"s2", true, 3}, {"s3", true, 3}}, Active: false, LastUpdated: 5},
+		},
+		historic.GetUpdatedSince(3, nil))
+	assert.Equal(t,
+		[]FeatureView{
+			{Name: "f2", TrafficTypeName: "tt1", FlagSets: []FlagSetView{{"s2", true, 3}, {"s3", true, 3}}, Active: false, LastUpdated: 5},
+		},
+		historic.GetUpdatedSince(4, nil))
+	assert.Equal(t, []FeatureView{}, historic.GetUpdatedSince(5, nil))
+
 }
 
 // -- code below is for benchmarking random access using hashsets (map[string]struct{}) vs sorted slices + binary search
