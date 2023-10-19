@@ -2,6 +2,7 @@ package caching
 
 import (
 	"github.com/splitio/go-split-commons/v5/dtos"
+	"github.com/splitio/go-split-commons/v5/flagsets"
 	"github.com/splitio/go-split-commons/v5/healthcheck/application"
 	"github.com/splitio/go-split-commons/v5/service"
 	"github.com/splitio/go-split-commons/v5/storage"
@@ -29,7 +30,7 @@ func NewCacheAwareSplitSync(
 	appMonitor application.MonitorProducerInterface,
 ) *CacheAwareSplitSynchronizer {
 	return &CacheAwareSplitSynchronizer{
-		wrapped:      split.NewSplitUpdater(splitStorage, splitFetcher, logger, runtimeTelemetry, appMonitor),
+		wrapped:      split.NewSplitUpdater(splitStorage, splitFetcher, logger, runtimeTelemetry, appMonitor, flagsets.NewFlagSetFilter(nil)), // TODO(mredolatti): fix this
 		splitStorage: splitStorage,
 		cacheFlusher: cacheFlusher,
 	}
