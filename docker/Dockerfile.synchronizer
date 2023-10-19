@@ -16,7 +16,7 @@ COPY . .
 RUN make clean split-sync entrypoints EXTRA_BUILD_ARGS="${EXTRA_BUILD_ARGS}"
 
 # Runner stage
-FROM alpine:3.18.2 AS runner
+FROM alpine:3.18.4 AS runner
 
 RUN apk add bash
 
