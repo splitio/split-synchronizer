@@ -44,7 +44,7 @@ type ProxySplitStorageImpl struct {
 // for snapshot purposes
 func NewProxySplitStorage(db persistent.DBWrapper, logger logging.LoggerInterface, restoreBackup bool, flagSetsFilter flagsets.FlagSetFilter) *ProxySplitStorageImpl {
 	disk := persistent.NewSplitChangesCollection(db, logger)
-	snapshot := mutexmap.NewMMSplitStorage(flagSetsFilter)
+	snapshot := mutexmap.NewMMSplitStorage(flagsets.NewFlagSetFilter(nil)) // TODO(mredolatti): fix this
 	recipes := optimized.NewSplitChangesSummaries(maxRecipes)
 	if restoreBackup {
 		snapshotFromDisk(snapshot, recipes, disk, logger)

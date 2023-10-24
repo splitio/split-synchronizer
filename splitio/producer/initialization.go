@@ -123,7 +123,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	eventEvictionMonitor := evcalc.New(1)
 
 	workers := synchronizer.Workers{
-		SplitUpdater: split.NewSplitUpdater(storages.SplitStorage, splitAPI.SplitFetcher, logger, syncTelemetryStorage, appMonitor, flagSetsFilter),
+		SplitUpdater: split.NewSplitUpdater(storages.SplitStorage, splitAPI.SplitFetcher, logger, syncTelemetryStorage, appMonitor, flagsets.NewFlagSetFilter(nil)), // TODO(mredolatti)
 		SegmentUpdater: segment.NewSegmentUpdater(storages.SplitStorage, storages.SegmentStorage, splitAPI.SegmentFetcher,
 			logger, syncTelemetryStorage, appMonitor),
 		ImpressionsCountRecorder: impressionscount.NewRecorderSingle(impressionsCounter, splitAPI.ImpressionRecorder,
