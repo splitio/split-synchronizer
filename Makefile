@@ -59,6 +59,10 @@ test: $(sources) go.sum
 test_coverage: $(sources) go.sum
 	$(GO) test -v -cover -coverprofile=coverage.out $(ARGS) ./...
 
+## display unit test coverage derived from last test run (use `make test display-coverage` for up-to-date results)
+display-coverage: coverage.out
+	go tool cover -html=coverage.out
+
 ## Generate binaires for all architectures, ready to upload for distribution (with and without version)
 release_assets: \
     $(BUILD)/synchronizer \
@@ -165,6 +169,10 @@ $(BUILD)/downloads.%.html:
 table_header:
 	@echo "| **Command line option** | **JSON option** | **Environment variable** (container-only) | **Description** |"
 	@echo "| --- | --- | --- | --- |"
+
+coverage.out: test_coverage
+
+
 
 # Help target borrowed from: https://docs.cloudposse.com/reference/best-practices/make-best-practices/
 ## This help screen

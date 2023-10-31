@@ -1,3 +1,6 @@
+5.4.1 (Oct 31, 2023)
+- Fix issue in split proxy where removed segment keys would be returned as active at startup
+
 5.4.0 (July 18, 2023)
 - Improved streaming architecture implementation to apply feature flag updates from the notification received which is now enhanced, improving efficiency and reliability of the whole update system.
 - Fixed possible edge case issue where deleting a feature flag doesn’t propagate immediately.
