@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/splitio/go-split-commons/v5/conf"
+	"github.com/splitio/go-split-commons/v5/flagsets"
 	"github.com/splitio/go-split-commons/v5/service/api"
 	"github.com/splitio/go-split-commons/v5/synchronizer"
 	"github.com/splitio/go-split-commons/v5/tasks"
@@ -76,7 +77,8 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	splitAPI := api.NewSplitAPI(cfg.Apikey, *advanced, logger, metadata)
 
 	// Proxy storages already implement the observable interface, so no need to wrap them
-	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, cfg.Initialization.Snapshot != "")
+	// TODO(mredolatti): add a config for flagsets and build it properly here
+	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, flagsets.NewFlagSetFilter(nil), cfg.Initialization.Snapshot != "")
 	segmentStorage := storage.NewProxySegmentStorage(dbInstance, logger, cfg.Initialization.Snapshot != "")
 
 	// Local telemetry

@@ -24,7 +24,7 @@ func TestSplitChangesEndpoints(t *testing.T) {
 	opts := makeOpts()
 	var changesSinceCalls int64 = 0
 	opts.ProxySplitStorage = &pstorageMocks.ProxySplitStorageMock{
-		ChangesSinceCall: func(since int64) (*dtos.SplitChangesDTO, error) {
+		ChangesSinceCall: func(since int64, sets []string) (*dtos.SplitChangesDTO, error) {
 			atomic.AddInt64(&changesSinceCalls, 1)
 			return &dtos.SplitChangesDTO{
 				Since:  since,

@@ -137,6 +137,14 @@ func (f *FeatureView) clone() FeatureView {
 
 }
 
+func (f *FeatureView) FlagSetNames() []string {
+	toRet := make([]string, len(f.FlagSets))
+	for idx := range f.FlagSets {
+		toRet[idx] = f.FlagSets[idx].Name
+	}
+	return toRet
+}
+
 func copyAndFilter(views []FeatureView, sets []string, since int64) []FeatureView {
 	// precondition: f.Flagsets is sorted by name
 	// precondition: sets is sorted

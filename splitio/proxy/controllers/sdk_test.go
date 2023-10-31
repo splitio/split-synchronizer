@@ -35,7 +35,7 @@ func TestSplitChangesCachedRecipe(t *testing.T) {
 			},
 		},
 		&psmocks.ProxySplitStorageMock{
-			ChangesSinceCall: func(since int64) (*dtos.SplitChangesDTO, error) {
+			ChangesSinceCall: func(since int64, sets []string) (*dtos.SplitChangesDTO, error) {
 				if since != -1 {
 					t.Error("since should be -1")
 				}
@@ -103,7 +103,7 @@ func TestSplitChangesNonCachedRecipe(t *testing.T) {
 			},
 		},
 		&psmocks.ProxySplitStorageMock{
-			ChangesSinceCall: func(since int64) (*dtos.SplitChangesDTO, error) {
+			ChangesSinceCall: func(since int64, sets []string) (*dtos.SplitChangesDTO, error) {
 				if since != -1 {
 					t.Error("since should be -1")
 				}
@@ -157,7 +157,7 @@ func TestSplitChangesNonCachedRecipeAndFetchFails(t *testing.T) {
 			},
 		},
 		&psmocks.ProxySplitStorageMock{
-			ChangesSinceCall: func(since int64) (*dtos.SplitChangesDTO, error) {
+			ChangesSinceCall: func(since int64, sets []string) (*dtos.SplitChangesDTO, error) {
 				if since != -1 {
 					t.Error("since should be -1")
 				}

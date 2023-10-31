@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/go-split-commons/v5/dtos"
@@ -52,9 +54,16 @@ func (c *SdkServerController) SplitChanges(ctx *gin.Context) {
 	if err != nil {
 		since = -1
 	}
+
+	sets := strings.Split(ctx.Query("sets"), ",")
+	if !slices.IsSorted(sets) {
+		c.logger.Warning(fmt.Sprintf("SDK [%s] is sending flagsets unordered.", ctx.Request.Header.Get("SplitSDKVersion"))) // TODO(mredolatti): get this header properly
+		slices.Sort(sets)
+	}
+
 	c.logger.Debug(fmt.Sprintf("SDK Fetches Feature Flags Since: %d", since))
 
-	splits, err := c.fetchSplitChangesSince(since)
+	splits, err := c.fetchSplitChangesSince(since, sets)
 	if err != nil {
 		c.logger.Error("error fetching splitChanges payload from storage: ", err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -112,8 +121,8 @@ func (c *SdkServerController) MySegments(ctx *gin.Context) {
 	ctx.Set(caching.SurrogateContextKey, caching.MakeSurrogateForMySegments(mySegments))
 }
 
-func (c *SdkServerController) fetchSplitChangesSince(since int64) (*dtos.SplitChangesDTO, error) {
-	splits, err := c.proxySplitStorage.ChangesSince(since)
+func (c *SdkServerController) fetchSplitChangesSince(since int64, sets []string) (*dtos.SplitChangesDTO, error) {
+	splits, err := c.proxySplitStorage.ChangesSince(since, sets)
 	if err == nil {
 		return splits, nil
 	}
