@@ -5,12 +5,12 @@ import (
 )
 
 type ProxySplitStorageMock struct {
-	ChangesSinceCall    func(since int64) (*dtos.SplitChangesDTO, error)
+	ChangesSinceCall    func(since int64, sets []string) (*dtos.SplitChangesDTO, error)
 	RegisterOlderCnCall func(payload *dtos.SplitChangesDTO)
 }
 
-func (p *ProxySplitStorageMock) ChangesSince(since int64) (*dtos.SplitChangesDTO, error) {
-	return p.ChangesSinceCall(since)
+func (p *ProxySplitStorageMock) ChangesSince(since int64, sets []string) (*dtos.SplitChangesDTO, error) {
+	return p.ChangesSinceCall(since, sets)
 }
 
 func (p *ProxySplitStorageMock) RegisterOlderCn(payload *dtos.SplitChangesDTO) {
