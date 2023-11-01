@@ -29,7 +29,7 @@ type ProxySegmentStorage interface {
 type ProxySegmentStorageImpl struct {
 	logger         logging.LoggerInterface
 	nameCountCache *observability.ActiveSegmentTracker
-	db             *persistent.SegmentChangesCollection
+	db             persistent.SegmentChangesCollection
 	mysegments     optimized.MySegmentsCache
 }
 
@@ -68,21 +68,25 @@ func (s *ProxySegmentStorageImpl) ChangesSince(name string, since int64) (*dtos.
 
 	// Horrible loop borrowed from sdk-api
 	for _, skey := range item.Keys {
+
 		if skey.ChangeNumber <= since { // if the key was updated in a previous/current CN, we don't need to return it
 			continue
 		}
 
+		if skey.Removed && since < 0 {
+			// removed keys should not be returned on initialization payloads
+			continue
+		}
+
 		// Add the key to the corresponding list
-		if skey.Removed && since > 0 {
+		if skey.Removed {
 			removed = append(removed, skey.Name)
 		} else {
 			added = append(added, skey.Name)
 		}
 
 		// Update the till to be returned if necessary
-		if since > 0 && skey.ChangeNumber > till {
-			till = skey.ChangeNumber
-		} else if !skey.Removed && skey.ChangeNumber > till {
+		if skey.ChangeNumber > till {
 			till = skey.ChangeNumber
 		}
 	}
@@ -177,7 +181,7 @@ func (s *ProxySegmentStorageImpl) NamesAndCount() map[string]int {
 func populateCachesFromDisk(
 	dst optimized.MySegmentsCache,
 	names *observability.ActiveSegmentTracker,
-	src *persistent.SegmentChangesCollection,
+	src *persistent.SegmentChangesCollectionImpl,
 	logger logging.LoggerInterface,
 ) {
 	all, err := src.FetchAll()

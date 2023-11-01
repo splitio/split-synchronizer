@@ -25,8 +25,15 @@ type SegmentChangesItem struct {
 	Keys map[string]SegmentKey
 }
 
-// SegmentChangesCollection represents a collection of SplitChangesItem
-type SegmentChangesCollection struct {
+type SegmentChangesCollection interface {
+	Update(name string, toAdd *set.ThreadUnsafeSet, toRemove *set.ThreadUnsafeSet, cn int64) error
+	Fetch(name string) (*SegmentChangesItem, error)
+	ChangeNumber(segment string) int64
+	SetChangeNumber(segment string, cn int64)
+}
+
+// SegmentChangesCollectionImpl represents a collection of SplitChangesItem
+type SegmentChangesCollectionImpl struct {
 	collection   CollectionWrapper
 	segmentsTill map[string]int64
 	logger       logging.LoggerInterface
@@ -34,8 +41,8 @@ type SegmentChangesCollection struct {
 }
 
 // NewSegmentChangesCollection returns an instance of SegmentChangesCollection
-func NewSegmentChangesCollection(db DBWrapper, logger logging.LoggerInterface) *SegmentChangesCollection {
-	return &SegmentChangesCollection{
+func NewSegmentChangesCollection(db DBWrapper, logger logging.LoggerInterface) *SegmentChangesCollectionImpl {
+	return &SegmentChangesCollectionImpl{
 		collection:   &BoltDBCollectionWrapper{db: db, name: segmentChangesCollectionName, logger: logger},
 		segmentsTill: make(map[string]int64, 0),
 		logger:       logger,
@@ -43,7 +50,7 @@ func NewSegmentChangesCollection(db DBWrapper, logger logging.LoggerInterface) *
 }
 
 // Update persists a segmentChanges update
-func (c *SegmentChangesCollection) Update(name string, toAdd *set.ThreadUnsafeSet, toRemove *set.ThreadUnsafeSet, cn int64) error {
+func (c *SegmentChangesCollectionImpl) Update(name string, toAdd *set.ThreadUnsafeSet, toRemove *set.ThreadUnsafeSet, cn int64) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -63,17 +70,10 @@ func (c *SegmentChangesCollection) Update(name string, toAdd *set.ThreadUnsafeSe
 			continue
 		}
 		c.logger.Debug("Removing", strKey, "from", name)
-		if _, exists := segmentItem.Keys[strKey]; exists {
-			itemAux := segmentItem.Keys[strKey]
-			itemAux.Removed = true
-			itemAux.ChangeNumber = cn
-			segmentItem.Keys[strKey] = itemAux
-		} else {
-			segmentItem.Keys[strKey] = SegmentKey{
-				Name:         strKey,
-				Removed:      true,
-				ChangeNumber: cn,
-			}
+		segmentItem.Keys[strKey] = SegmentKey{
+			Name:         strKey,
+			Removed:      true,
+			ChangeNumber: cn,
 		}
 
 	}
@@ -85,17 +85,10 @@ func (c *SegmentChangesCollection) Update(name string, toAdd *set.ThreadUnsafeSe
 			continue
 		}
 		c.logger.Debug("Adding", strKey, "in", name)
-		if _, exists := segmentItem.Keys[strKey]; exists {
-			itemAux := segmentItem.Keys[strKey]
-			itemAux.Removed = false
-			itemAux.ChangeNumber = cn
-			segmentItem.Keys[strKey] = itemAux
-		} else {
-			segmentItem.Keys[strKey] = SegmentKey{
-				Name:         strKey,
-				Removed:      false,
-				ChangeNumber: cn,
-			}
+		segmentItem.Keys[strKey] = SegmentKey{
+			Name:         strKey,
+			Removed:      false,
+			ChangeNumber: cn,
 		}
 	}
 
@@ -108,13 +101,13 @@ func (c *SegmentChangesCollection) Update(name string, toAdd *set.ThreadUnsafeSe
 }
 
 // Fetch return a SegmentChangesItem
-func (c *SegmentChangesCollection) Fetch(name string) (*SegmentChangesItem, error) {
+func (c *SegmentChangesCollectionImpl) Fetch(name string) (*SegmentChangesItem, error) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 	return c.fetch(name)
 }
 
-func (c *SegmentChangesCollection) fetch(name string) (*SegmentChangesItem, error) {
+func (c *SegmentChangesCollectionImpl) fetch(name string) (*SegmentChangesItem, error) {
 	item, err := c.collection.FetchBy([]byte(name))
 	if err != nil {
 		return nil, err
@@ -133,7 +126,7 @@ func (c *SegmentChangesCollection) fetch(name string) (*SegmentChangesItem, erro
 }
 
 // FetchAll return a list of SegmentChangesItem
-func (c *SegmentChangesCollection) FetchAll() ([]SegmentChangesItem, error) {
+func (c *SegmentChangesCollectionImpl) FetchAll() ([]SegmentChangesItem, error) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 	items, err := c.collection.FetchAll()
@@ -163,7 +156,7 @@ func (c *SegmentChangesCollection) FetchAll() ([]SegmentChangesItem, error) {
 }
 
 // ChangeNumber returns changeNumber
-func (c *SegmentChangesCollection) ChangeNumber(segment string) int64 {
+func (c *SegmentChangesCollectionImpl) ChangeNumber(segment string) int64 {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 	value, exists := c.segmentsTill[segment]
@@ -174,8 +167,10 @@ func (c *SegmentChangesCollection) ChangeNumber(segment string) int64 {
 }
 
 // SetChangeNumber returns changeNumber
-func (c *SegmentChangesCollection) SetChangeNumber(segment string, cn int64) {
+func (c *SegmentChangesCollectionImpl) SetChangeNumber(segment string, cn int64) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	c.segmentsTill[segment] = cn
 }
+
+var _ SegmentChangesCollection = (*SegmentChangesCollectionImpl)(nil)
