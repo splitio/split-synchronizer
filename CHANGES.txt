@@ -1,3 +1,7 @@
+5.4.2 (Nov 7, 2023)
+- Updated docker images for vulnerability fixes.
+- Updated dependencies for vulnerability fixes.
+
 5.4.1 (Oct 31, 2023)
 - Fix issue in split proxy where removed segment keys would be returned as active at startup
 
