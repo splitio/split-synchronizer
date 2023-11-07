@@ -42,7 +42,7 @@ type ProxySplitStorageImpl struct {
 // NewProxySplitStorage instantiates a new proxy storage that wraps an in-memory snapshot of the last known,
 // flag configuration, a changes summaries containing recipes to update SDKs with different CNs, and a persistent storage
 // for snapshot purposes
-func NewProxySplitStorage(db persistent.DBWrapper, logger logging.LoggerInterface, restoreBackup bool) *ProxySplitStorageImpl {
+func NewProxySplitStorage(db persistent.DBWrapper, logger logging.LoggerInterface, restoreBackup bool, flagSetsFilter flagsets.FlagSetFilter) *ProxySplitStorageImpl {
 	disk := persistent.NewSplitChangesCollection(db, logger)
 	snapshot := mutexmap.NewMMSplitStorage(flagsets.NewFlagSetFilter(nil)) // TODO(mredolatti): fix this
 	recipes := optimized.NewSplitChangesSummaries(maxRecipes)

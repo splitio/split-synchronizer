@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/splitio/go-split-commons/v5/conf"
+	"github.com/splitio/go-split-commons/v5/flagsets"
 	"github.com/splitio/go-split-commons/v5/service/api"
 	"github.com/splitio/go-split-commons/v5/synchronizer"
 	"github.com/splitio/go-split-commons/v5/tasks"
@@ -70,13 +71,18 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 
 	// Getting initial config data
 	advanced := cfg.BuildAdvancedConfig()
+	// advanced.FlagSetsFilter = cfg.FlagSetsFilter
+	advanced.FlagSetsFilter = make([]string, 0)
 	metadata := util.GetMetadata(cfg.IPAddressEnabled, true)
+
+	// FlagSetsFilter
+	flagSetsFilter := flagsets.NewFlagSetFilter(cfg.FlagSetsFilter)
 
 	// Setup fetchers & recorders
 	splitAPI := api.NewSplitAPI(cfg.Apikey, *advanced, logger, metadata)
 
 	// Proxy storages already implement the observable interface, so no need to wrap them
-	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, cfg.Initialization.Snapshot != "")
+	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, cfg.Initialization.Snapshot != "", flagsets.NewFlagSetFilter(nil))
 	segmentStorage := storage.NewProxySegmentStorage(dbInstance, logger, cfg.Initialization.Snapshot != "")
 
 	// Local telemetry
@@ -112,7 +118,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 
 	// setup feature flags, segments & local telemetry API interactions
 	workers := synchronizer.Workers{
-		SplitUpdater: caching.NewCacheAwareSplitSync(splitStorage, splitAPI.SplitFetcher, logger, localTelemetryStorage, httpCache, appMonitor),
+		SplitUpdater: caching.NewCacheAwareSplitSync(splitStorage, splitAPI.SplitFetcher, logger, localTelemetryStorage, httpCache, appMonitor, flagSetsFilter),
 		SegmentUpdater: caching.NewCacheAwareSegmentSync(splitStorage, segmentStorage, splitAPI.SegmentFetcher, logger, localTelemetryStorage, httpCache,
 			appMonitor),
 		TelemetryRecorder: telemetry.NewTelemetrySynchronizer(localTelemetryStorage, telemetryRecorder, splitStorage, segmentStorage, logger,
