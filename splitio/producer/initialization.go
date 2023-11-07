@@ -47,6 +47,7 @@ const (
 func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	// Getting initial config data
 	advanced := cfg.BuildAdvancedConfig()
+	advanced.FlagSetsFilter = cfg.FlagSetsFilter
 	metadata := util.GetMetadata(false, cfg.IPAddressEnabled)
 
 	clientKey, err := util.GetClientKey(cfg.Apikey)
@@ -85,8 +86,11 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	syncTelemetryStorage, _ := inmemory.NewTelemetryStorage()
 	sdkTelemetryStorage := storage.NewRedisTelemetryCosumerclient(redisClient, logger)
 
+	// FlagSetsFilter
+	flagSetsFilter := flagsets.NewFlagSetFilter(cfg.FlagSetsFilter)
+
 	// These storages are forwarded to the dashboard, the sdk-telemetry is irrelevant there
-	splitStorage, err := observability.NewObservableSplitStorage(redis.NewSplitStorage(redisClient, logger), logger)
+	splitStorage, err := observability.NewObservableSplitStorage(redis.NewSplitStorage(redisClient, logger, flagSetsFilter), logger)
 	if err != nil {
 		return fmt.Errorf("error instantiating observable feature flag storage: %w", err)
 	}

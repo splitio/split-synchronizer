@@ -9,6 +9,7 @@ import (
 type Main struct {
 	Apikey           string            `json:"apikey" s-cli:"apikey" s-def:"" s-desc:"Split server side SDK key"`
 	IPAddressEnabled bool              `json:"ipAddressEnabled" s-cli:"ip-address-enabled" s-def:"true" s-desc:"Bundle host's ip address when sending data to Split"`
+	FlagSetsFilter   []string          `json:"flagSetsFilter" s-cli:"flag-sets-filter" s-def:"" s-desc:"Flag Sets Filter provided"`
 	Initialization   Initialization    `json:"initialization" s-nested:"true"`
 	Storage          Storage           `json:"storage" s-nested:"true"`
 	Sync             Sync              `json:"sync" s-nested:"true"`
