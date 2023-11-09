@@ -59,6 +59,20 @@ func TestRedisTelemetryExceptions(t *testing.T) {
 	producer1.RecordException(telemetry.Treatment)
 	producer1.RecordException(telemetry.Treatments)
 	producer1.RecordException(telemetry.Treatments)
+	producer1.RecordException(telemetry.TreatmentsByFlagSet)
+	producer1.RecordException(telemetry.TreatmentsByFlagSet)
+	producer1.RecordException(telemetry.TreatmentsByFlagSet)
+	producer1.RecordException(telemetry.TreatmentsByFlagSet)
+	producer1.RecordException(telemetry.TreatmentsByFlagSets)
+	producer1.RecordException(telemetry.TreatmentsByFlagSets)
+	producer1.RecordException(telemetry.TreatmentsWithConfigByFlagSet)
+	producer1.RecordException(telemetry.TreatmentsWithConfigByFlagSet)
+	producer1.RecordException(telemetry.TreatmentsWithConfigByFlagSet)
+	producer1.RecordException(telemetry.TreatmentsWithConfigByFlagSets)
+	producer1.RecordException(telemetry.TreatmentsWithConfigByFlagSets)
+	producer1.RecordException(telemetry.TreatmentsWithConfigByFlagSets)
+	producer1.RecordException(telemetry.TreatmentsWithConfigByFlagSets)
+	producer1.RecordException(telemetry.TreatmentsWithConfigByFlagSets)
 	producer1.RecordException(telemetry.TreatmentWithConfig)
 	producer1.RecordException(telemetry.TreatmentWithConfig)
 	producer1.RecordException(telemetry.TreatmentWithConfig)
@@ -81,6 +95,16 @@ func TestRedisTelemetryExceptions(t *testing.T) {
 	producer2.RecordException(telemetry.Treatments)
 	producer2.RecordException(telemetry.Treatments)
 	producer2.RecordException(telemetry.Treatments)
+	producer2.RecordException(telemetry.TreatmentsByFlagSet)
+	producer2.RecordException(telemetry.TreatmentsByFlagSet)
+	producer2.RecordException(telemetry.TreatmentsByFlagSet)
+	producer2.RecordException(telemetry.TreatmentsByFlagSets)
+	producer2.RecordException(telemetry.TreatmentsWithConfigByFlagSet)
+	producer2.RecordException(telemetry.TreatmentsWithConfigByFlagSet)
+	producer2.RecordException(telemetry.TreatmentsWithConfigByFlagSets)
+	producer2.RecordException(telemetry.TreatmentsWithConfigByFlagSets)
+	producer2.RecordException(telemetry.TreatmentsWithConfigByFlagSets)
+
 	producer2.RecordException(telemetry.TreatmentWithConfig)
 	producer2.RecordException(telemetry.TreatmentWithConfig)
 	producer2.RecordException(telemetry.TreatmentWithConfig)
@@ -120,6 +144,22 @@ func TestRedisTelemetryExceptions(t *testing.T) {
 		t.Error("exception count for track in metadata1 should be 5. Was: ", excsForM1.Track)
 	}
 
+	if excsForM1.TreatmentsByFlagSet != 4 {
+		t.Error("exception count for treatmentsByFlagSet in metadata1 should be 4. Was: ", excsForM1.TreatmentsByFlagSet)
+	}
+
+	if excsForM1.TreatmentsByFlagSets != 2 {
+		t.Error("exception count for treatmentsByFlagSets in metadata1 should be 2. Was: ", excsForM1.TreatmentsByFlagSets)
+	}
+
+	if excsForM1.TreatmentsWithConfigByFlagSet != 3 {
+		t.Error("exception count for treatmentsWithConfigByFlagSet in metadata1 should be 3. Was: ", excsForM1.TreatmentsWithConfigByFlagSet)
+	}
+
+	if excsForM1.TreatmentsWithConfigByFlagSets != 5 {
+		t.Error("exception count for treatmentsWithConfigByFlagSets in metadata1 should be 5. Was: ", excsForM1.TreatmentsWithConfigByFlagSets)
+	}
+
 	excsForM2, ok := exceptions[metadata2]
 	if !ok {
 		t.Error("exceptions for metadata2 should be present")
@@ -143,6 +183,22 @@ func TestRedisTelemetryExceptions(t *testing.T) {
 
 	if excsForM2.Track != 1 {
 		t.Error("exception count for track in metadata1 should be 1. Was: ", excsForM2.Track)
+	}
+
+	if excsForM2.TreatmentsByFlagSet != 3 {
+		t.Error("exception count for treatmentsByFlagSet in metadata2 should be 3. Was: ", excsForM2.TreatmentsByFlagSet)
+	}
+
+	if excsForM2.TreatmentsByFlagSets != 1 {
+		t.Error("exception count for treatmentsByFlagSets in metadata2 should be 1. Was: ", excsForM2.TreatmentsByFlagSets)
+	}
+
+	if excsForM2.TreatmentsWithConfigByFlagSet != 2 {
+		t.Error("exception count for treatmentsWithConfigByFlagSet in metadata2 should be 2. Was: ", excsForM2.TreatmentsWithConfigByFlagSet)
+	}
+
+	if excsForM2.TreatmentsWithConfigByFlagSets != 3 {
+		t.Error("exception count for treatmentsWithConfigByFlagSets in metadata2 should be 3. Was: ", excsForM2.TreatmentsWithConfigByFlagSets)
 	}
 
 	exceptions = consumer.PopExceptions()
@@ -172,12 +228,24 @@ func TestRedisTelemetryLatencies(t *testing.T) {
 	producer1.RecordLatency(telemetry.Treatments, 2*time.Second)
 	producer1.RecordLatency(telemetry.TreatmentWithConfig, 3*time.Second)
 	producer1.RecordLatency(telemetry.TreatmentsWithConfig, 4*time.Second)
+	producer1.RecordLatency(telemetry.TreatmentsByFlagSet, 2*time.Second)
+	producer1.RecordLatency(telemetry.TreatmentsByFlagSets, 4*time.Second)
+	producer1.RecordLatency(telemetry.TreatmentsWithConfigByFlagSet, 3*time.Second)
+	producer1.RecordLatency(telemetry.TreatmentsWithConfigByFlagSet, 6*time.Second)
+	producer1.RecordLatency(telemetry.TreatmentsWithConfigByFlagSets, 5*time.Second)
 	producer1.RecordLatency(telemetry.Track, 5*time.Second)
 
 	producer2.RecordLatency(telemetry.Treatment, 5*time.Second)
 	producer2.RecordLatency(telemetry.Treatments, 4*time.Second)
 	producer2.RecordLatency(telemetry.TreatmentWithConfig, 3*time.Second)
 	producer2.RecordLatency(telemetry.TreatmentsWithConfig, 2*time.Second)
+	producer2.RecordLatency(telemetry.TreatmentsByFlagSet, 4*time.Second)
+	producer2.RecordLatency(telemetry.TreatmentsByFlagSet, 1*time.Second)
+	producer2.RecordLatency(telemetry.TreatmentsByFlagSets, 2*time.Second)
+	producer2.RecordLatency(telemetry.TreatmentsWithConfigByFlagSet, 5*time.Second)
+	producer2.RecordLatency(telemetry.TreatmentsWithConfigByFlagSets, 1*time.Second)
+	producer2.RecordLatency(telemetry.TreatmentsWithConfigByFlagSets, 2*time.Second)
+	producer2.RecordLatency(telemetry.TreatmentsWithConfigByFlagSets, 3*time.Second)
 	producer2.RecordLatency(telemetry.Track, 1*time.Second)
 
 	consumer := NewRedisTelemetryCosumerclient(client, logger)
@@ -224,6 +292,38 @@ func TestRedisTelemetryLatencies(t *testing.T) {
 		t.Error("latency count for .TreatmentsWithConfig should be 1. Is: ", l1TreatmentsWithConfig)
 	}
 
+	l1TreatmentsByFlagSet := int64(0)
+	for _, count := range latsForM1.TreatmentsByFlagSet {
+		l1TreatmentsByFlagSet += count
+	}
+	if l1TreatmentsByFlagSet != int64(1) {
+		t.Error("latency count for .TreatmentsByFlagSet should be 1. Is: ", l1TreatmentsByFlagSet)
+	}
+
+	l1TreatmentsByFlagSets := int64(0)
+	for _, count := range latsForM1.TreatmentsByFlagSets {
+		l1TreatmentsByFlagSets += count
+	}
+	if l1TreatmentsByFlagSets != int64(1) {
+		t.Error("latency count for .TreatmentsByFlagSet should be 1. Is: ", l1TreatmentsByFlagSets)
+	}
+
+	l1TreatmentsWithConfigByFlagSet := int64(0)
+	for _, count := range latsForM1.TreatmentsWithConfigByFlagSet {
+		l1TreatmentsWithConfigByFlagSet += count
+	}
+	if l1TreatmentsWithConfigByFlagSet != int64(2) {
+		t.Error("latency count for .TreatmentsWithConfigByFlagSet should be 2. Is: ", l1TreatmentsWithConfigByFlagSet)
+	}
+
+	l1TreatmentsWithConfigByFlagSets := int64(0)
+	for _, count := range latsForM1.TreatmentsWithConfigByFlagSets {
+		l1TreatmentsWithConfigByFlagSets += count
+	}
+	if l1TreatmentsWithConfigByFlagSets != int64(1) {
+		t.Error("latency count for .TreatmentsWithConfigByFlagSets should be 1. Is: ", l1TreatmentsWithConfigByFlagSets)
+	}
+
 	l1Track := int64(0)
 	for _, count := range latsForM1.Track {
 		l1Track += count
@@ -267,6 +367,38 @@ func TestRedisTelemetryLatencies(t *testing.T) {
 	}
 	if l2TreatmentsWithConfig != 1 {
 		t.Error("latency count for .TreatmentsWithConfig should be 1. Is: ", l2TreatmentsWithConfig)
+	}
+
+	l2TreatmentsByFlagSet := int64(0)
+	for _, count := range latsForM2.TreatmentsByFlagSet {
+		l2TreatmentsByFlagSet += count
+	}
+	if l2TreatmentsByFlagSet != int64(2) {
+		t.Error("latency count for .TreatmentsByFlagSet should be 1. Is: ", l2TreatmentsByFlagSet)
+	}
+
+	l2TreatmentsByFlagSets := int64(0)
+	for _, count := range latsForM2.TreatmentsByFlagSets {
+		l2TreatmentsByFlagSets += count
+	}
+	if l2TreatmentsByFlagSets != int64(1) {
+		t.Error("latency count for .TreatmentsByFlagSet should be 1. Is: ", l2TreatmentsByFlagSets)
+	}
+
+	l2TreatmentsWithConfigByFlagSet := int64(0)
+	for _, count := range latsForM2.TreatmentsWithConfigByFlagSet {
+		l2TreatmentsWithConfigByFlagSet += count
+	}
+	if l2TreatmentsWithConfigByFlagSet != int64(1) {
+		t.Error("latency count for .TreatmentsWithConfigByFlagSet should be 1. Is: ", l2TreatmentsWithConfigByFlagSet)
+	}
+
+	l2TreatmentsWithConfigByFlagSets := int64(0)
+	for _, count := range latsForM2.TreatmentsWithConfigByFlagSets {
+		l2TreatmentsWithConfigByFlagSets += count
+	}
+	if l2TreatmentsWithConfigByFlagSets != int64(3) {
+		t.Error("latency count for .TreatmentsWithConfigByFlagSets should be 3. Is: ", l2TreatmentsWithConfigByFlagSets)
 	}
 
 	l2Track := int64(0)
