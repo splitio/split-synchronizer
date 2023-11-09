@@ -167,6 +167,12 @@ func (p *ProxySplitStorageImpl) Count() int {
 	return len(p.SplitNames())
 }
 
+// GetNamesByFlagSets grabs all the feature flags linked to the passed sets
+func (p *ProxySplitStorageImpl) GetNamesByFlagSets(sets []string) map[string][]string {
+	//TODO implementation if that is the case
+	return make(map[string][]string)
+}
+
 func snapshotFromDisk(dst *mutexmap.MMSplitStorage, summary *optimized.SplitChangesSummaries, src *persistent.SplitChangesCollection, logger logging.LoggerInterface) {
 	all, err := src.FetchAll()
 	if err != nil {
