@@ -14,6 +14,7 @@ import (
 	"github.com/splitio/go-toolkit/v5/logging"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/caching"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/flagsets"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 )
 
@@ -23,6 +24,7 @@ type SdkServerController struct {
 	fetcher             service.SplitFetcher
 	proxySplitStorage   storage.ProxySplitStorage
 	proxySegmentStorage storage.ProxySegmentStorage
+	fsmatcher           flagsets.FlagSetMatcher
 }
 
 // NewSdkServerController instantiates a new sdk server controller
@@ -31,12 +33,15 @@ func NewSdkServerController(
 	fetcher service.SplitFetcher,
 	proxySplitStorage storage.ProxySplitStorage,
 	proxySegmentStorage storage.ProxySegmentStorage,
+	fsmatcher flagsets.FlagSetMatcher,
+
 ) *SdkServerController {
 	return &SdkServerController{
 		logger:              logger,
 		fetcher:             fetcher,
 		proxySplitStorage:   proxySplitStorage,
 		proxySegmentStorage: proxySegmentStorage,
+		fsmatcher:           fsmatcher,
 	}
 }
 
@@ -60,6 +65,8 @@ func (c *SdkServerController) SplitChanges(ctx *gin.Context) {
 		c.logger.Warning(fmt.Sprintf("SDK [%s] is sending flagsets unordered.", ctx.Request.Header.Get("SplitSDKVersion"))) // TODO(mredolatti): get this header properly
 		slices.Sort(sets)
 	}
+
+	sets = c.fsmatcher.Sanitize(sets)
 
 	c.logger.Debug(fmt.Sprintf("SDK Fetches Feature Flags Since: %d", since))
 

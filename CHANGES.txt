@@ -1,3 +1,6 @@
+5.5.0 (Month XX, 2023)
+- FlagSet
+
 5.4.0 (July 18, 2023)
 - Improved streaming architecture implementation to apply feature flag updates from the notification received which is now enhanced, improving efficiency and reliability of the whole update system.
 - Fixed possible edge case issue where deleting a feature flag doesn’t propagate immediately.
