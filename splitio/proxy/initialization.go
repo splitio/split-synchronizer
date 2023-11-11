@@ -82,7 +82,6 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	splitAPI := api.NewSplitAPI(cfg.Apikey, *advanced, logger, metadata)
 
 	// Proxy storages already implement the observable interface, so no need to wrap them
-	// TODO(mredolatti): add a config for flagsets and build it properly here
 	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, flagsets.NewFlagSetFilter(cfg.FlagSetsFilter), cfg.Initialization.Snapshot != "")
 	segmentStorage := storage.NewProxySegmentStorage(dbInstance, logger, cfg.Initialization.Snapshot != "")
 
