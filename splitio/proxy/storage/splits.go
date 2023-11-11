@@ -40,6 +40,13 @@ type ProxySplitStorageImpl struct {
 	mtx      sync.Mutex
 }
 
+// GetNamesByFlagSets implements storage.SplitStorage
+func (*ProxySplitStorageImpl) GetNamesByFlagSets(sets []string) map[string][]string {
+	// NOTE: This method is NOT used by the proxy.
+	// we need to revisit our interfaces so that we're not obliged to do this smeely empty impls.
+	return nil
+}
+
 // NewProxySplitStorage instantiates a new proxy storage that wraps an in-memory snapshot of the last known,
 // flag configuration, a changes summaries containing recipes to update SDKs with different CNs, and a persistent storage
 // for snapshot purposes
