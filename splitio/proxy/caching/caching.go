@@ -34,18 +34,6 @@ func MakeSurrogateForSegmentChanges(segmentName string) string {
 
 // MakeSurrogateForMySegments creates a list surrogate keys for all the segments involved
 func MakeSurrogateForMySegments(mysegments []dtos.MySegmentDTO) []string {
-	if len(mysegments) == 0 {
-		return nil
-	}
-
-	/*
-		surrogates := make([]string, 0, len(mysegments))
-		for idx := range mysegments {
-			surrogates = append(surrogates, segmentPrefix+mysegments[idx].Name)
-		}
-		return surrogates
-	*/
-
 	// Since we are now evicting individually for every updated key, we don't need surrogates for mySegments
 	return nil
 }

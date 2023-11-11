@@ -3,6 +3,8 @@ package storage
 import (
 	"testing"
 
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/optimized"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/optimized/mocks"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/persistent"
 
 	"github.com/splitio/go-split-commons/v5/dtos"
@@ -14,53 +16,56 @@ import (
 
 func TestSplitStorage(t *testing.T) {
 	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
-	if err != nil {
-		t.Error("error creating bolt wrapper: ", err)
-	}
+	assert.Nil(t, err)
 
 	logger := logging.NewLogger(nil)
-	splitC := persistent.NewSplitChangesCollection(dbw, logger)
 
-	splitC.Update([]dtos.SplitDTO{
+	toAdd := []dtos.SplitDTO{
 		{Name: "f1", ChangeNumber: 1, Status: "ACTIVE"},
 		{Name: "f2", ChangeNumber: 2, Status: "ACTIVE"},
-	}, nil, 1)
+	}
+	toAdd2 := []dtos.SplitDTO{{Name: "f3", ChangeNumber: 3, Status: "ACTIVE", TrafficTypeName: "ttt"}}
+
+	splitC := persistent.NewSplitChangesCollection(dbw, logger)
+	splitC.Update(toAdd, nil, 2)
+
+	var historicMock mocks.HistoricStorageMock
+	historicMock.On("Update", toAdd2, []dtos.SplitDTO(nil), int64(3)).Once()
+	historicMock.On("GetUpdatedSince", int64(2), []string(nil)).
+		Once().
+		Return([]optimized.FeatureView{{Name: "f3", LastUpdated: 3, Active: true, TrafficTypeName: "ttt"}})
 
 	pss := NewProxySplitStorage(dbw, logger, flagsets.NewFlagSetFilter(nil), true)
 
-	sinceMinus1, currentCN, err := pss.recipes.FetchSince(-1)
-	if err != nil {
-		t.Error("unexpected error: ", err)
-	}
+	// validate initial state of the historic cache & replace it with a mock for the next validations
+	assert.ElementsMatch(t,
+		[]optimized.FeatureView{
+			{Name: "f1", Active: true, LastUpdated: 1, FlagSets: []optimized.FlagSetView{}},
+			{Name: "f2", Active: true, LastUpdated: 2, FlagSets: []optimized.FlagSetView{}},
+		}, pss.historic.GetUpdatedSince(-1, nil))
+	pss.historic = &historicMock
+	// ----
 
-	if currentCN != 2 {
-		t.Error("current cn should be 2. Is: ", currentCN)
-	}
+	changes, err := pss.ChangesSince(-1, nil)
+	assert.Nil(t, err)
+	assert.Equal(t, int64(-1), changes.Since)
+	assert.Equal(t, int64(2), changes.Till)
+	assert.ElementsMatch(t, changes.Splits, toAdd)
 
-	if _, ok := sinceMinus1.Updated["f1"]; !ok {
-		t.Error("s1 should be added")
-	}
+	pss.Update(toAdd2, nil, 3)
+	changes, err = pss.ChangesSince(-1, nil)
+	assert.Nil(t, err)
+	assert.Equal(t, int64(-1), changes.Since)
+	assert.Equal(t, int64(3), changes.Till)
+	assert.ElementsMatch(t, changes.Splits, append(append([]dtos.SplitDTO(nil), toAdd...), toAdd2...))
 
-	if _, ok := sinceMinus1.Updated["f2"]; !ok {
-		t.Error("s2 should be added")
-	}
+	changes, err = pss.ChangesSince(2, nil)
+	assert.Nil(t, err)
+	assert.Equal(t, int64(2), changes.Since)
+	assert.Equal(t, int64(3), changes.Till)
+	assert.ElementsMatch(t, changes.Splits, toAdd2)
 
-	since2, currentCN, err := pss.recipes.FetchSince(2)
-	if err != nil {
-		t.Error("unexpected error: ", err)
-	}
-
-	if currentCN != 2 {
-		t.Error("current cn should be 2. Is: ", currentCN)
-	}
-
-	if len(since2.Updated) != 0 {
-		t.Error("nothing should have been added")
-	}
-
-	if len(since2.Removed) != 0 {
-		t.Error("nothing should have been removed")
-	}
+	historicMock.AssertExpectations(t)
 }
 
 func TestSplitStorageWithFlagsets(t *testing.T) {
@@ -139,5 +144,4 @@ func TestSplitStorageWithFlagsets(t *testing.T) {
 	assert.ElementsMatch(t, []dtos.SplitDTO{
 		{Name: "f2", ChangeNumber: 2, Status: "ACTIVE", Sets: []string{"s2", "s3"}},
 	}, res.Splits)
-
 }

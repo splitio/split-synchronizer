@@ -71,14 +71,19 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 
 	// Getting initial config data
 	advanced := cfg.BuildAdvancedConfig()
+	// advanced.FlagSetsFilter = cfg.FlagSetsFilter
+	advanced.FlagSetsFilter = make([]string, 0)
 	metadata := util.GetMetadata(cfg.IPAddressEnabled, true)
+
+	// FlagSetsFilter
+	flagSetsFilter := flagsets.NewFlagSetFilter(cfg.FlagSetsFilter)
 
 	// Setup fetchers & recorders
 	splitAPI := api.NewSplitAPI(cfg.Apikey, *advanced, logger, metadata)
 
 	// Proxy storages already implement the observable interface, so no need to wrap them
 	// TODO(mredolatti): add a config for flagsets and build it properly here
-	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, flagsets.NewFlagSetFilter(nil), cfg.Initialization.Snapshot != "")
+	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, flagsets.NewFlagSetFilter(cfg.FlagSetsFilter), cfg.Initialization.Snapshot != "")
 	segmentStorage := storage.NewProxySegmentStorage(dbInstance, logger, cfg.Initialization.Snapshot != "")
 
 	// Local telemetry
@@ -114,7 +119,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 
 	// setup feature flags, segments & local telemetry API interactions
 	workers := synchronizer.Workers{
-		SplitUpdater: caching.NewCacheAwareSplitSync(splitStorage, splitAPI.SplitFetcher, logger, localTelemetryStorage, httpCache, appMonitor),
+		SplitUpdater: caching.NewCacheAwareSplitSync(splitStorage, splitAPI.SplitFetcher, logger, localTelemetryStorage, httpCache, appMonitor, flagSetsFilter),
 		SegmentUpdater: caching.NewCacheAwareSegmentSync(splitStorage, segmentStorage, splitAPI.SegmentFetcher, logger, localTelemetryStorage, httpCache,
 			appMonitor),
 		TelemetryRecorder: telemetry.NewTelemetrySynchronizer(localTelemetryStorage, telemetryRecorder, splitStorage, segmentStorage, logger,

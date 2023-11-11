@@ -34,7 +34,6 @@ type ProxySplitStorage interface {
 // ProxySplitStorageImpl implements the ProxySplitStorage interface and the SplitProducer interface
 type ProxySplitStorageImpl struct {
 	snapshot mutexmap.MMSplitStorage
-	recipes  *optimized.SplitChangesSummaries
 	db       *persistent.SplitChangesCollection
 	flagSets flagsets.FlagSetFilter
 	historic optimized.HistoricChanges
@@ -46,16 +45,16 @@ type ProxySplitStorageImpl struct {
 // for snapshot purposes
 func NewProxySplitStorage(db persistent.DBWrapper, logger logging.LoggerInterface, flagSets flagsets.FlagSetFilter, restoreBackup bool) *ProxySplitStorageImpl {
 	disk := persistent.NewSplitChangesCollection(db, logger)
-	snapshot := mutexmap.NewMMSplitStorage(flagSets) // TODO(mredolatti): fix this
-	recipes := optimized.NewSplitChangesSummaries(maxRecipes)
+	snapshot := mutexmap.NewMMSplitStorage(flagSets)
+	historic := optimized.NewHistoricSplitChanges(1000)
 	if restoreBackup {
-		snapshotFromDisk(snapshot, recipes, disk, logger)
+		snapshotFromDisk(snapshot, historic, disk, logger)
 	}
 	return &ProxySplitStorageImpl{
 		snapshot: *snapshot,
-		recipes:  recipes,
 		db:       disk,
 		flagSets: flagSets,
+		historic: historic,
 	}
 }
 
@@ -110,7 +109,6 @@ func (p *ProxySplitStorageImpl) Update(toAdd []dtos.SplitDTO, toRemove []dtos.Sp
 	p.mtx.Lock()
 	p.snapshot.Update(toAdd, toRemove, changeNumber)
 	p.historic.Update(toAdd, toRemove, changeNumber)
-	p.recipes.AddChanges(toAdd, toRemove, changeNumber)
 	p.db.Update(toAdd, toRemove, changeNumber)
 	p.mtx.Unlock()
 }
@@ -127,7 +125,6 @@ func (p *ProxySplitStorageImpl) RegisterOlderCn(payload *dtos.SplitChangesDTO) {
 			toDel = append(toDel, split)
 		}
 	}
-	p.recipes.AddOlderChange(toAdd, toDel, payload.Till)
 }
 
 // ChangeNumber returns the current change number
@@ -172,7 +169,7 @@ func (p *ProxySplitStorageImpl) Count() int {
 	return len(p.SplitNames())
 }
 
-func snapshotFromDisk(dst *mutexmap.MMSplitStorage, summary *optimized.SplitChangesSummaries, src *persistent.SplitChangesCollection, logger logging.LoggerInterface) {
+func snapshotFromDisk(dst *mutexmap.MMSplitStorage, historic optimized.HistoricChanges, src *persistent.SplitChangesCollection, logger logging.LoggerInterface) {
 	all, err := src.FetchAll()
 	if err != nil {
 		logger.Error("error parsing feature flags from snapshot. No data will be available!: ", err)
@@ -193,7 +190,7 @@ func snapshotFromDisk(dst *mutexmap.MMSplitStorage, summary *optimized.SplitChan
 	}
 
 	dst.Update(filtered, nil, cn)
-	summary.AddChanges(filtered, nil, cn)
+	historic.Update(filtered, nil, cn)
 }
 
 func archivedDTOForView(view *optimized.FeatureView) dtos.SplitDTO {

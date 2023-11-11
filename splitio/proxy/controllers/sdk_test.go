@@ -14,6 +14,7 @@ import (
 	"github.com/splitio/go-split-commons/v5/service/mocks"
 	"github.com/splitio/go-toolkit/v5/logging"
 
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/flagsets"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 	psmocks "github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/mocks"
 )
@@ -54,6 +55,7 @@ func TestSplitChangesCachedRecipe(t *testing.T) {
 			},
 		},
 		nil,
+		flagsets.NewMatcher(false, nil),
 	)
 	controller.Register(group)
 
@@ -116,6 +118,7 @@ func TestSplitChangesNonCachedRecipe(t *testing.T) {
 			},
 		},
 		nil,
+		flagsets.NewMatcher(false, nil),
 	)
 	controller.Register(group)
 
@@ -170,6 +173,7 @@ func TestSplitChangesNonCachedRecipeAndFetchFails(t *testing.T) {
 			},
 		},
 		nil,
+		flagsets.NewMatcher(false, nil),
 	)
 	controller.Register(group)
 
@@ -211,6 +215,7 @@ func TestSegmentChanges(t *testing.T) {
 				}, nil
 			},
 		},
+		flagsets.NewMatcher(false, nil),
 	)
 	controller.Register(group)
 
@@ -253,6 +258,7 @@ func TestSegmentChangesNotFound(t *testing.T) {
 				return nil, storage.ErrSegmentNotFound
 			},
 		},
+		flagsets.NewMatcher(false, nil),
 	)
 	controller.Register(group)
 
@@ -289,6 +295,7 @@ func TestMySegments(t *testing.T) {
 				return []string{"segment1", "segment2"}, nil
 			},
 		},
+		flagsets.NewMatcher(false, nil),
 	)
 	controller.Register(group)
 
@@ -337,6 +344,7 @@ func TestMySegmentsError(t *testing.T) {
 				return nil, errors.New("something")
 			},
 		},
+		flagsets.NewMatcher(false, nil),
 	)
 	controller.Register(group)
 
@@ -350,4 +358,7 @@ func TestMySegmentsError(t *testing.T) {
 	if resp.Code != 500 {
 		t.Error("Status code should be 500 and is ", resp.Code)
 	}
+}
+
+func TestSplitChangesWithFlagSetsNonStrict(t *testing.T) {
 }

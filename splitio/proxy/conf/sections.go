@@ -7,17 +7,19 @@ import (
 
 // Main configuration options
 type Main struct {
-	Apikey           string            `json:"apikey" s-cli:"apikey" s-def:"" s-desc:"Split server side SDK key"`
-	IPAddressEnabled bool              `json:"ipAddressEnabled" s-cli:"ip-address-enabled" s-def:"true" s-desc:"Bundle host's ip address when sending data to Split"`
-	Initialization   Initialization    `json:"initialization" s-nested:"true"`
-	Server           Server            `json:"server" s-nested:"true"`
-	Admin            conf.Admin        `json:"admin" s-nested:"true"`
-	Storage          Storage           `json:"storage" s-nested:"true"`
-	Sync             Sync              `json:"sync" s-nested:"true"`
-	Integrations     conf.Integrations `json:"integrations" s-nested:"true"`
-	Logging          conf.Logging      `json:"logging" s-nested:"true"`
-	Healthcheck      Healthcheck       `json:"healthcheck" s-nested:"true"`
-	Observability    Observability     `json:"observability" s-nested:"true"`
+	Apikey                string            `json:"apikey" s-cli:"apikey" s-def:"" s-desc:"Split server side SDK key"`
+	IPAddressEnabled      bool              `json:"ipAddressEnabled" s-cli:"ip-address-enabled" s-def:"true" s-desc:"Bundle host's ip address when sending data to Split"`
+	FlagSetsFilter        []string          `json:"flagSetsFilter" s-cli:"flag-sets-filter" s-def:"" s-desc:"Flag Sets Filter provided"`
+	FlagSetStrictMatching bool              `json:"flagSetStrictMatching" s-cli:"flag-sets-strict-matching" s-def:"false" s-desc:"filter sets not present in cache when building splitChanges responses"`
+	Initialization        Initialization    `json:"initialization" s-nested:"true"`
+	Server                Server            `json:"server" s-nested:"true"`
+	Admin                 conf.Admin        `json:"admin" s-nested:"true"`
+	Storage               Storage           `json:"storage" s-nested:"true"`
+	Sync                  Sync              `json:"sync" s-nested:"true"`
+	Integrations          conf.Integrations `json:"integrations" s-nested:"true"`
+	Logging               conf.Logging      `json:"logging" s-nested:"true"`
+	Healthcheck           Healthcheck       `json:"healthcheck" s-nested:"true"`
+	Observability         Observability     `json:"observability" s-nested:"true"`
 }
 
 // BuildAdvancedConfig generates a commons-compatible advancedconfig with default + overriden parameters

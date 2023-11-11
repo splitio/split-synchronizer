@@ -9,12 +9,23 @@ import (
 	"github.com/splitio/go-split-commons/v5/dtos"
 )
 
-type HistoricChanges struct {
+type HistoricChanges interface {
+	GetUpdatedSince(since int64, flagSets []string) []FeatureView
+	Update(toAdd []dtos.SplitDTO, toRemove []dtos.SplitDTO, newCN int64)
+}
+
+type HistoricChangesImpl struct {
 	data  []FeatureView
 	mutex sync.RWMutex
 }
 
-func (h *HistoricChanges) GetUpdatedSince(since int64, flagSets []string) []FeatureView {
+func NewHistoricSplitChanges(capacity int) *HistoricChangesImpl {
+	return &HistoricChangesImpl{
+		data: make([]FeatureView, 0, capacity),
+	}
+}
+
+func (h *HistoricChangesImpl) GetUpdatedSince(since int64, flagSets []string) []FeatureView {
 	slices.Sort(flagSets)
 	h.mutex.RLock()
 	views := h.findNewerThan(since)
@@ -23,7 +34,7 @@ func (h *HistoricChanges) GetUpdatedSince(since int64, flagSets []string) []Feat
 	return toRet
 }
 
-func (h *HistoricChanges) Update(toAdd []dtos.SplitDTO, toRemove []dtos.SplitDTO, newCN int64) {
+func (h *HistoricChangesImpl) Update(toAdd []dtos.SplitDTO, toRemove []dtos.SplitDTO, newCN int64) {
 	h.mutex.Lock()
 	h.updateFrom(toAdd)
 	h.updateFrom(toRemove)
@@ -33,7 +44,7 @@ func (h *HistoricChanges) Update(toAdd []dtos.SplitDTO, toRemove []dtos.SplitDTO
 
 // public interface ends here
 
-func (h *HistoricChanges) updateFrom(source []dtos.SplitDTO) {
+func (h *HistoricChangesImpl) updateFrom(source []dtos.SplitDTO) {
 	for idx := range source {
 		if current := h.findByName(source[idx].Name); current != nil {
 			current.updateFrom(&source[idx])
@@ -46,7 +57,7 @@ func (h *HistoricChanges) updateFrom(source []dtos.SplitDTO) {
 
 }
 
-func (h *HistoricChanges) findByName(name string) *FeatureView {
+func (h *HistoricChangesImpl) findByName(name string) *FeatureView {
 	for idx := range h.data {
 		if h.data[idx].Name == name { // TODO(mredolatti): optimize!
 			return &h.data[idx]
@@ -55,7 +66,7 @@ func (h *HistoricChanges) findByName(name string) *FeatureView {
 	return nil
 }
 
-func (h *HistoricChanges) findNewerThan(since int64) []FeatureView {
+func (h *HistoricChangesImpl) findNewerThan(since int64) []FeatureView {
 	// precondition: h.data is sorted by CN
 	start := sort.Search(len(h.data), func(i int) bool { return h.data[i].LastUpdated > since })
 	if start == len(h.data) {
@@ -211,3 +222,5 @@ func incrUpTo(toIncr *int, limit int) {
 	}
 	*toIncr++
 }
+
+var _ HistoricChanges = (*HistoricChangesImpl)(nil)
