@@ -13,6 +13,7 @@ import (
 	"github.com/splitio/go-split-commons/v5/service"
 	"github.com/splitio/go-split-commons/v5/service/mocks"
 	"github.com/splitio/go-toolkit/v5/logging"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/flagsets"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
@@ -139,6 +140,118 @@ func TestSplitChangesNonCachedRecipe(t *testing.T) {
 	if len(s.Splits) != 2 || s.Since != -1 || s.Till != 1 {
 		t.Error("wrong payload returned")
 	}
+}
+
+func TestSplitChangesWithFlagSets(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	resp := httptest.NewRecorder()
+	ctx, router := gin.CreateTestContext(resp)
+
+	logger := logging.NewLogger(nil)
+
+	group := router.Group("/api")
+	controller := NewSdkServerController(
+		logger,
+		&mocks.MockSplitFetcher{
+			FetchCall: func(changeNumber int64, fetchOptions *service.FetchOptions) (*dtos.SplitChangesDTO, error) {
+				t.Error("should not be called")
+				return nil, nil
+			},
+		},
+		&psmocks.ProxySplitStorageMock{
+			ChangesSinceCall: func(since int64, sets []string) (*dtos.SplitChangesDTO, error) {
+				assert.Equal(t, []string{"a", "b", "c"}, sets) // sets should be passed already sorted
+				return &dtos.SplitChangesDTO{
+					Since: -1,
+					Till:  1,
+					Splits: []dtos.SplitDTO{
+						{Name: "s1"},
+						{Name: "s2"},
+					},
+				}, nil
+			},
+			RegisterOlderCnCall: func(payload *dtos.SplitChangesDTO) {
+				t.Error("should not be called")
+			},
+		},
+		nil,
+		flagsets.NewMatcher(false, nil),
+	)
+	controller.Register(group)
+
+	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/splitChanges?since=-1&sets=c,b,b,a", nil)
+	ctx.Request.Header.Set("Authorization", "Bearer someApiKey")
+	ctx.Request.Header.Set("SplitSDKVersion", "go-1.1.1")
+	ctx.Request.Header.Set("SplitSDKMachineIp", "1.2.3.4")
+	ctx.Request.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
+	router.ServeHTTP(resp, ctx.Request)
+
+	assert.Equal(t, 200, resp.Code)
+
+	body, err := ioutil.ReadAll(resp.Body)
+	assert.Nil(t, err)
+
+	var s dtos.SplitChangesDTO
+	assert.Nil(t, json.Unmarshal(body, &s))
+	assert.Equal(t, 2, len(s.Splits))
+	assert.Equal(t, int64(-1), s.Since)
+	assert.Equal(t, int64(1), s.Till)
+}
+
+func TestSplitChangesWithFlagSetsStrict(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	resp := httptest.NewRecorder()
+	ctx, router := gin.CreateTestContext(resp)
+
+	logger := logging.NewLogger(nil)
+
+	group := router.Group("/api")
+	controller := NewSdkServerController(
+		logger,
+		&mocks.MockSplitFetcher{
+			FetchCall: func(changeNumber int64, fetchOptions *service.FetchOptions) (*dtos.SplitChangesDTO, error) {
+				t.Error("should not be called")
+				return nil, nil
+			},
+		},
+		&psmocks.ProxySplitStorageMock{
+			ChangesSinceCall: func(since int64, sets []string) (*dtos.SplitChangesDTO, error) {
+				assert.Equal(t, []string{"a", "c"}, sets) // sets should be passed already sorted
+				return &dtos.SplitChangesDTO{
+					Since: -1,
+					Till:  1,
+					Splits: []dtos.SplitDTO{
+						{Name: "s1"},
+						{Name: "s2"},
+					},
+				}, nil
+			},
+			RegisterOlderCnCall: func(payload *dtos.SplitChangesDTO) {
+				t.Error("should not be called")
+			},
+		},
+		nil,
+		flagsets.NewMatcher(true, []string{"a", "c"}),
+	)
+	controller.Register(group)
+
+	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/splitChanges?since=-1&sets=c,b,b,a", nil)
+	ctx.Request.Header.Set("Authorization", "Bearer someApiKey")
+	ctx.Request.Header.Set("SplitSDKVersion", "go-1.1.1")
+	ctx.Request.Header.Set("SplitSDKMachineIp", "1.2.3.4")
+	ctx.Request.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
+	router.ServeHTTP(resp, ctx.Request)
+
+	assert.Equal(t, 200, resp.Code)
+
+	body, err := ioutil.ReadAll(resp.Body)
+	assert.Nil(t, err)
+
+	var s dtos.SplitChangesDTO
+	assert.Nil(t, json.Unmarshal(body, &s))
+	assert.Equal(t, 2, len(s.Splits))
+	assert.Equal(t, int64(-1), s.Since)
+	assert.Equal(t, int64(1), s.Till)
 }
 
 func TestSplitChangesNonCachedRecipeAndFetchFails(t *testing.T) {

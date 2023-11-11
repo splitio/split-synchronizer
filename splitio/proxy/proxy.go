@@ -82,7 +82,7 @@ type Options struct {
 
 	FlagSets []string
 
-	FlagSetsStrictMatchibg bool
+	FlagSetsStrictMatching bool
 }
 
 // API bundles all components required to answer API calls from Split sdks
@@ -159,7 +159,7 @@ func setupSdkController(options *Options) *controllers.SdkServerController {
 		options.SplitFetcher,
 		options.ProxySplitStorage,
 		options.ProxySegmentStorage,
-		flagsets.NewMatcher(options.FlagSetsStrictMatchibg, options.FlagSets),
+		flagsets.NewMatcher(options.FlagSetsStrictMatching, options.FlagSets),
 	)
 }
 

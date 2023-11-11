@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/splitio/go-split-commons/v5/dtos"
 	"github.com/splitio/go-split-commons/v5/service"
 	"github.com/splitio/go-toolkit/v5/logging"
+	"golang.org/x/exp/slices"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/caching"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/flagsets"
@@ -60,13 +60,11 @@ func (c *SdkServerController) SplitChanges(ctx *gin.Context) {
 		since = -1
 	}
 
-	sets := strings.Split(ctx.Query("sets"), ",")
-	if !slices.IsSorted(sets) {
-		c.logger.Warning(fmt.Sprintf("SDK [%s] is sending flagsets unordered.", ctx.Request.Header.Get("SplitSDKVersion"))) // TODO(mredolatti): get this header properly
-		slices.Sort(sets)
+	rawSets := strings.Split(ctx.Query("sets"), ",")
+	sets := c.fsmatcher.Sanitize(rawSets)
+	if !slices.Equal(sets, rawSets) {
+		c.logger.Warning(fmt.Sprintf("SDK [%s] is sending flagsets unordered or with duplicates.", ctx.Request.Header.Get("SplitSDKVersion")))
 	}
-
-	sets = c.fsmatcher.Sanitize(sets)
 
 	c.logger.Debug(fmt.Sprintf("SDK Fetches Feature Flags Since: %d", since))
 

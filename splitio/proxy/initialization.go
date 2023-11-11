@@ -252,6 +252,8 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		Telemetry:                   localTelemetryStorage,
 		Cache:                       httpCache,
 		TLSConfig:                   tlsConfig,
+		FlagSets:                    cfg.FlagSetsFilter,
+		FlagSetsStrictMatching:      cfg.FlagSetStrictMatching,
 	}
 
 	if ilcfg := cfg.Integrations.ImpressionListener; ilcfg.Endpoint != "" {
