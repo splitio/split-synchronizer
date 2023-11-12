@@ -60,7 +60,10 @@ func (c *SdkServerController) SplitChanges(ctx *gin.Context) {
 		since = -1
 	}
 
-	rawSets := strings.Split(ctx.Query("sets"), ",")
+	var rawSets []string
+	if fq, ok := ctx.GetQuery("sets"); ok {
+		rawSets = strings.Split(fq, ",")
+	}
 	sets := c.fsmatcher.Sanitize(rawSets)
 	if !slices.Equal(sets, rawSets) {
 		c.logger.Warning(fmt.Sprintf("SDK [%s] is sending flagsets unordered or with duplicates.", ctx.Request.Header.Get("SplitSDKVersion")))
