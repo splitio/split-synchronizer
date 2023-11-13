@@ -124,7 +124,7 @@ func sanitizeRedis(cfg *conf.Main, miscStorage *redis.MiscStorage, logger loggin
 	if miscStorage == nil {
 		return errors.New("Could not sanitize redis")
 	}
-	currentHash := util.HashAPIKey(cfg.Apikey)
+	currentHash := util.HashAPIKey(cfg.Apikey + strings.Join(cfg.FlagSetsFilter, "::"))
 	currentHashAsStr := strconv.Itoa(int(currentHash))
 	defer miscStorage.SetApikeyHash(currentHashAsStr)
 
