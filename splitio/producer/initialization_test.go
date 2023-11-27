@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
+	"strings"
 	"testing"
 
 	config "github.com/splitio/go-split-commons/v5/conf"
@@ -195,6 +197,58 @@ func TestSanitizeRedisWithRedisDifferentApiKey(t *testing.T) {
 		t.Error("Incorrect apikey hash set in redis after sanitization operation.")
 	}
 
+	redisClient.Del("SPLITIO.test1")
+}
+
+func TestSanitizeRedisWithForcedCleanupByFlagSets(t *testing.T) {
+	cfg := getDefaultConf()
+	cfg.Apikey = "983564etyrudhijfgknf9i08euh"
+	cfg.Initialization.ForceFreshStartup = true
+	cfg.FlagSetsFilter = []string{"flagset1", "flagset2"}
+
+	hash := util.HashAPIKey(cfg.Apikey + strings.Join(cfg.FlagSetsFilter, "::"))
+
+	logger := logging.NewLogger(nil)
+
+	redisClient, err := predis.NewRedisClient(&config.RedisConfig{
+		Host:     "localhost",
+		Port:     6379,
+		Prefix:   "some_prefix",
+		Database: 1,
+	}, logger)
+	if err != nil {
+		t.Error("It should be nil")
+	}
+
+	err = redisClient.Set("SPLITIO.test1", "123", 0)
+	redisClient.Set("SPLITIO.hash", hash, 0)
+	if err != nil {
+		t.Error("It should be nil")
+	}
+	value, err := redisClient.Get("SPLITIO.test1")
+	if value != "123" {
+		t.Error("Value should have been set properly")
+	}
+
+	cfg.FlagSetsFilter = []string{"flagset7"}
+	miscStorage := predis.NewMiscStorage(redisClient, logger)
+	value, err = redisClient.Get("SPLITIO.test1")
+	err = sanitizeRedis(cfg, miscStorage, logger)
+	if err != nil {
+		t.Error("It should be nil", err)
+	}
+
+	value, _ = redisClient.Get("SPLITIO.test1")
+	if value != "" {
+		t.Error("Value should have been removed.")
+	}
+
+	val, _ := redisClient.Get("SPLITIO.hash")
+	parsedHash, _ := strconv.ParseUint(val, 10, 64)
+	if uint32(parsedHash) == hash {
+		t.Error("ApiHash should have been updated.")
+	}
+	redisClient.Del("SPLITIO.hash")
 	redisClient.Del("SPLITIO.test1")
 }
 
