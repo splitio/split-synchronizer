@@ -54,7 +54,6 @@ func (h *HistoricChangesImpl) updateFrom(source []dtos.SplitDTO) {
 			h.data = append(h.data, toAdd)
 		}
 	}
-
 }
 
 func (h *HistoricChangesImpl) findByName(name string) *FeatureView {

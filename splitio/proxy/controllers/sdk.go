@@ -134,15 +134,17 @@ func (c *SdkServerController) fetchSplitChangesSince(since int64, sets []string)
 	if err == nil {
 		return splits, nil
 	}
-	if !errors.Is(err, storage.ErrSummaryNotCached) {
+	if !errors.Is(err, storage.ErrSinceParamTooOld) {
 		return nil, fmt.Errorf("unexpected error fetching feature flag changes from storage: %w", err)
 	}
 
-	fetchOptions := service.NewFetchOptions(true, nil)
+	// perform a fetch to the BE using the supplied `since`, have the storage process it's response &, retry
+	// TODO(mredolatti): implement basic collapsing here to avoid flooding the BE with requests
+	fetchOptions := service.NewFetchOptions(true, nil) // TODO: pass the configured sets if any
 	splits, err = c.fetcher.Fetch(since, &fetchOptions)
-	if err == nil {
-		c.proxySplitStorage.RegisterOlderCn(splits)
-		return splits, nil
+	if err != nil {
+		return nil, fmt.Errorf("error fetching splitChanges for an older since: %w", err)
 	}
-	return nil, fmt.Errorf("unexpected error fetching feature flag changes from storage: %w", err)
+	c.proxySplitStorage.RegisterOlderCn(splits)
+	return c.proxySplitStorage.ChangesSince(since, sets)
 }

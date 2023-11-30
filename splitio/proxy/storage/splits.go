@@ -21,8 +21,8 @@ const (
 	maxRecipes = 1000
 )
 
-// ErrSummaryNotCached is returned when a summary is not cached for a requested change number
-var ErrSummaryNotCached = errors.New("summary for requested change number not cached")
+// ErrSinceParamTooOld is returned when a summary is not cached for a requested change number
+var ErrSinceParamTooOld = errors.New("summary for requested change number not cached")
 
 // ProxySplitStorage defines the interface of a storage that can be used for serving splitChanges payloads
 // for different requested `since` parameters
@@ -33,11 +33,13 @@ type ProxySplitStorage interface {
 
 // ProxySplitStorageImpl implements the ProxySplitStorage interface and the SplitProducer interface
 type ProxySplitStorageImpl struct {
-	snapshot mutexmap.MMSplitStorage
-	db       *persistent.SplitChangesCollection
-	flagSets flagsets.FlagSetFilter
-	historic optimized.HistoricChanges
-	mtx      sync.Mutex
+	snapshot      mutexmap.MMSplitStorage
+	db            *persistent.SplitChangesCollection
+	flagSets      flagsets.FlagSetFilter
+	historic      optimized.HistoricChanges
+	logger        logging.LoggerInterface
+	oldestKnownCN int64
+	mtx           sync.Mutex
 }
 
 // GetNamesByFlagSets implements storage.SplitStorage
@@ -58,10 +60,12 @@ func NewProxySplitStorage(db persistent.DBWrapper, logger logging.LoggerInterfac
 		snapshotFromDisk(snapshot, historic, disk, logger)
 	}
 	return &ProxySplitStorageImpl{
-		snapshot: *snapshot,
-		db:       disk,
-		flagSets: flagSets,
-		historic: historic,
+		snapshot:      *snapshot,
+		db:            disk,
+		flagSets:      flagSets,
+		historic:      historic,
+		logger:        logger,
+		oldestKnownCN: -1,
 	}
 }
 
@@ -78,11 +82,14 @@ func (p *ProxySplitStorageImpl) ChangesSince(since int64, flagSets []string) (*d
 		return &dtos.SplitChangesDTO{Since: since, Till: cn, Splits: all}, nil
 	}
 
+	if since < p.getStartingPoint() {
+		// update before replying
+	}
+
 	views := p.historic.GetUpdatedSince(since, flagSets)
 	namesToFetch := make([]string, 0, len(views))
 	all := make([]dtos.SplitDTO, 0, len(views))
-	//splitsToArchive := make([]optimized.FeatureView, 0, len(views))
-	var till int64
+	var till int64 = since
 	for idx := range views {
 		if t := views[idx].LastUpdated; t > till {
 			till = t
@@ -94,7 +101,14 @@ func (p *ProxySplitStorageImpl) ChangesSince(since int64, flagSets []string) (*d
 		}
 	}
 
-	for _, split := range p.snapshot.FetchMany(namesToFetch) {
+	for name, split := range p.snapshot.FetchMany(namesToFetch) {
+		if split == nil {
+			p.logger.Warning(fmt.Sprintf(
+				"possible inconsistency between historic & snapshot storages. Feature `%s` is missing in the latter",
+				name,
+			))
+			continue
+		}
 		all = append(all, *split)
 	}
 
@@ -108,6 +122,8 @@ func (p *ProxySplitStorageImpl) KillLocally(splitName string, defaultTreatment s
 
 // Update the storage atomically
 func (p *ProxySplitStorageImpl) Update(toAdd []dtos.SplitDTO, toRemove []dtos.SplitDTO, changeNumber int64) {
+
+	p.setStartingPoint(changeNumber) // will be executed only the first time this method is called
 
 	if len(toAdd) == 0 && len(toRemove) == 0 {
 		return
@@ -132,6 +148,8 @@ func (p *ProxySplitStorageImpl) RegisterOlderCn(payload *dtos.SplitChangesDTO) {
 			toDel = append(toDel, split)
 		}
 	}
+
+	p.Update(toAdd, toDel, payload.Till)
 }
 
 // ChangeNumber returns the current change number
@@ -174,6 +192,22 @@ func (p *ProxySplitStorageImpl) TrafficTypeExists(tt string) bool {
 // Count returns the number of cached feature flags
 func (p *ProxySplitStorageImpl) Count() int {
 	return len(p.SplitNames())
+}
+
+func (p *ProxySplitStorageImpl) setStartingPoint(cn int64) {
+	p.mtx.Lock()
+	// will be executed only the first time this method is called or when
+	// an older change is registered
+	if p.oldestKnownCN == -1 || cn < p.oldestKnownCN {
+		p.oldestKnownCN = cn
+	}
+	p.mtx.Unlock()
+}
+
+func (p *ProxySplitStorageImpl) getStartingPoint() int64 {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+	return p.oldestKnownCN
 }
 
 func snapshotFromDisk(dst *mutexmap.MMSplitStorage, historic optimized.HistoricChanges, src *persistent.SplitChangesCollection, logger logging.LoggerInterface) {

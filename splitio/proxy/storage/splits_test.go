@@ -31,9 +31,7 @@ func TestSplitStorage(t *testing.T) {
 
 	var historicMock mocks.HistoricStorageMock
 	historicMock.On("Update", toAdd2, []dtos.SplitDTO(nil), int64(3)).Once()
-	historicMock.On("GetUpdatedSince", int64(2), []string(nil)).
-		Once().
-		Return([]optimized.FeatureView{{Name: "f3", LastUpdated: 3, Active: true, TrafficTypeName: "ttt"}})
+	historicMock.On("GetUpdatedSince", int64(2), []string(nil)).Once().Return([]optimized.FeatureView{})
 
 	pss := NewProxySplitStorage(dbw, logger, flagsets.NewFlagSetFilter(nil), true)
 
@@ -52,7 +50,17 @@ func TestSplitStorage(t *testing.T) {
 	assert.Equal(t, int64(2), changes.Till)
 	assert.ElementsMatch(t, changes.Splits, toAdd)
 
+	changes, err = pss.ChangesSince(2, nil)
+	assert.Nil(t, err)
+	assert.Equal(t, int64(2), changes.Since)
+	assert.Equal(t, int64(2), changes.Till)
+	assert.Empty(t, changes.Splits)
+
 	pss.Update(toAdd2, nil, 3)
+	historicMock.On("GetUpdatedSince", int64(2), []string(nil)).
+		Once().
+		Return([]optimized.FeatureView{{Name: "f3", LastUpdated: 3, Active: true, TrafficTypeName: "ttt"}})
+
 	changes, err = pss.ChangesSince(-1, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(-1), changes.Since)

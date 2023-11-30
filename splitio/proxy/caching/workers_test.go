@@ -3,287 +3,349 @@ package caching
 import (
 	"testing"
 
+	"github.com/splitio/gincache"
 	"github.com/splitio/go-split-commons/v5/dtos"
-	storageMocks "github.com/splitio/go-split-commons/v5/storage/mocks"
+	"github.com/splitio/go-split-commons/v5/storage"
 	"github.com/splitio/go-split-commons/v5/synchronizer/worker/segment"
 	"github.com/splitio/go-split-commons/v5/synchronizer/worker/split"
 	"github.com/splitio/go-toolkit/v5/datastructures/set"
-
-	cacheMocks "github.com/splitio/gincache/mocks"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
-func TestCacheAwareSplitSync(t *testing.T) {
-	var cn int64 = -1
-
-	splitSyncMock := &splitUpdaterMock{
-		SynchronizeFeatureFlagsCall: func(ffChange *dtos.SplitChangeUpdate) (*split.UpdateResult, error) { return nil, nil },
-		SynchronizeSplitsCall:       func(*int64) (*split.UpdateResult, error) { return nil, nil },
-		LocalKillCall:               func(string, string, int64) {},
-	}
-	cacheFlusherMock := &cacheMocks.CacheFlusherMock{
-		EvictBySurrogateCall: func(string) { t.Error("nothing should be evicted") },
-	}
+func TestCacheAwareSplitSyncNoChanges(t *testing.T) {
+	var splitSyncMock splitUpdaterMock
+	splitSyncMock.On("SynchronizeSplits", (*int64)(nil)).Return((*split.UpdateResult)(nil), error(nil))
+	var cacheFlusherMock cacheFlusherMock
+	var storageMock splitStorageMock
+	storageMock.On("ChangeNumber").Return(int64(-1), error(nil))
 
 	css := CacheAwareSplitSynchronizer{
-		splitStorage: &storageMocks.MockSplitStorage{
-			ChangeNumberCall: func() (int64, error) { return cn, nil },
-		},
-		wrapped:      splitSyncMock,
-		cacheFlusher: cacheFlusherMock,
+		splitStorage: &storageMock,
+		wrapped:      &splitSyncMock,
+		cacheFlusher: &cacheFlusherMock,
 	}
 
-	css.SynchronizeSplits(nil)
+	res, err := css.SynchronizeSplits(nil)
+	assert.Nil(t, err)
+	assert.Nil(t, res)
 
-	splitSyncMock.SynchronizeSplitsCall = func(*int64) (*split.UpdateResult, error) {
-		cn++
-		return nil, nil
-	}
-
-	calls := 0
-	cacheFlusherMock.EvictBySurrogateCall = func(key string) {
-		if key != SplitSurrogate {
-			t.Error("wrong surrogate")
-		}
-		calls++
-	}
-
-	css.SynchronizeSplits(nil)
-	if calls != 1 {
-		t.Error("should have flushed splits once")
-	}
-
-	css.LocalKill("someSplit", "off", 123)
-	if calls != 2 {
-		t.Error("should have flushed again after a local kill")
-	}
-
-	// Test that going from cn > -1 to cn == -1 purges
-	cn = 123
-	splitSyncMock.SynchronizeSplitsCall = func(*int64) (*split.UpdateResult, error) {
-		cn = -1
-		return nil, nil
-	}
-	css.SynchronizeSplits(nil)
-	if calls != 3 {
-		t.Error("should have flushed splits once", calls)
-	}
+	splitSyncMock.AssertExpectations(t)
+	cacheFlusherMock.AssertExpectations(t)
+	storageMock.AssertExpectations(t)
 }
 
-func TestCacheAwareSplitSyncFF(t *testing.T) {
-	var cn int64 = -1
+func TestCacheAwareSplitSyncChanges(t *testing.T) {
+	var splitSyncMock splitUpdaterMock
+	splitSyncMock.On("SynchronizeSplits", (*int64)(nil)).Return((*split.UpdateResult)(nil), error(nil)).Times(2)
 
-	splitSyncMock := &splitUpdaterMock{
-		SynchronizeFeatureFlagsCall: func(ffChange *dtos.SplitChangeUpdate) (*split.UpdateResult, error) { return nil, nil },
-		SynchronizeSplitsCall:       func(*int64) (*split.UpdateResult, error) { return nil, nil },
-		LocalKillCall:               func(string, string, int64) {},
-	}
-	cacheFlusherMock := &cacheMocks.CacheFlusherMock{
-		EvictBySurrogateCall: func(string) { t.Error("nothing should be evicted") },
-	}
+	var cacheFlusherMock cacheFlusherMock
+	cacheFlusherMock.On("EvictBySurrogate", SplitSurrogate).Times(3)
+
+	var storageMock splitStorageMock
+	storageMock.On("ChangeNumber").Return(int64(-1), error(nil)).Once()
+	storageMock.On("ChangeNumber").Return(int64(1), error(nil)).Once()
 
 	css := CacheAwareSplitSynchronizer{
-		splitStorage: &storageMocks.MockSplitStorage{
-			ChangeNumberCall: func() (int64, error) { return cn, nil },
-		},
-		wrapped:      splitSyncMock,
-		cacheFlusher: cacheFlusherMock,
+		splitStorage: &storageMock,
+		wrapped:      &splitSyncMock,
+		cacheFlusher: &cacheFlusherMock,
 	}
 
-	css.SynchronizeFeatureFlags(nil)
+	res, err := css.SynchronizeSplits(nil)
+	assert.Nil(t, err)
+	assert.Nil(t, res)
 
-	splitSyncMock.SynchronizeFeatureFlagsCall = func(*dtos.SplitChangeUpdate) (*split.UpdateResult, error) {
-		cn++
-		return nil, nil
-	}
-
-	calls := 0
-	cacheFlusherMock.EvictBySurrogateCall = func(key string) {
-		if key != SplitSurrogate {
-			t.Error("wrong surrogate")
-		}
-		calls++
-	}
-
-	css.SynchronizeFeatureFlags(nil)
-	if calls != 1 {
-		t.Error("should have flushed splits once")
-	}
-
+	splitSyncMock.On("LocalKill", "someSplit", "off", int64(123)).Return(nil).Once()
 	css.LocalKill("someSplit", "off", 123)
-	if calls != 2 {
-		t.Error("should have flushed again after a local kill")
-	}
 
-	// Test that going from cn > -1 to cn == -1 purges
-	cn = 123
-	splitSyncMock.SynchronizeFeatureFlagsCall = func(*dtos.SplitChangeUpdate) (*split.UpdateResult, error) {
-		cn = -1
-		return nil, nil
-	}
-	css.SynchronizeFeatureFlags(nil)
-	if calls != 3 {
-		t.Error("should have flushed splits once", calls)
-	}
+	// Test that going from cn > -1 to cn == -1 purges (can happen if the environment if wiped of splits)
+	storageMock.On("ChangeNumber").Return(int64(123), error(nil)).Once()
+	storageMock.On("ChangeNumber").Return(int64(-1), error(nil)).Once()
+	res, err = css.SynchronizeSplits(nil)
+	assert.Nil(t, err)
+	assert.Nil(t, res)
+
+	splitSyncMock.AssertExpectations(t)
+	cacheFlusherMock.AssertExpectations(t)
+	storageMock.AssertExpectations(t)
 }
 
-func TestCacheAwareSegmentSync(t *testing.T) {
-	cns := map[string]int64{"segment1": 0}
+func TestCacheAwareSplitSyncChangesNewMethod(t *testing.T) {
 
-	segmentSyncMock := &segmentUpdaterMock{
-		SynchronizeSegmentCall:  func(string, *int64) (*segment.UpdateResult, error) { return &segment.UpdateResult{}, nil },
-		SynchronizeSegmentsCall: func() (map[string]segment.UpdateResult, error) { return nil, nil },
+	// This test is used to test the new method. Eventually commons should be cleaned in order to have a single method for split-synchronization.
+	// when that happens, either this or the previous test shold be removed
+	var splitSyncMock splitUpdaterMock
+	splitSyncMock.On("SynchronizeFeatureFlags", (*dtos.SplitChangeUpdate)(nil)).Return((*split.UpdateResult)(nil), error(nil)).Times(2)
+
+	var cacheFlusherMock cacheFlusherMock
+	cacheFlusherMock.On("EvictBySurrogate", SplitSurrogate).Times(2)
+
+	var storageMock splitStorageMock
+	storageMock.On("ChangeNumber").Return(int64(-1), error(nil)).Once()
+	storageMock.On("ChangeNumber").Return(int64(1), error(nil)).Once()
+
+	css := CacheAwareSplitSynchronizer{
+		splitStorage: &storageMock,
+		wrapped:      &splitSyncMock,
+		cacheFlusher: &cacheFlusherMock,
 	}
-	cacheFlusherMock := &cacheMocks.CacheFlusherMock{
-		EvictBySurrogateCall: func(string) { t.Error("nothing should be evicted") },
-		EvictCall:            func(string) { t.Errorf("nothing should be evicted") },
-	}
+
+	res, err := css.SynchronizeFeatureFlags(nil)
+	assert.Nil(t, err)
+	assert.Nil(t, res)
+
+	// Test that going from cn > -1 to cn == -1 purges (can happen if the environment if wiped of splits)
+	storageMock.On("ChangeNumber").Return(int64(123), error(nil)).Once()
+	storageMock.On("ChangeNumber").Return(int64(-1), error(nil)).Once()
+	res, err = css.SynchronizeFeatureFlags(nil)
+	assert.Nil(t, err)
+	assert.Nil(t, res)
+
+	splitSyncMock.AssertExpectations(t)
+	cacheFlusherMock.AssertExpectations(t)
+	storageMock.AssertExpectations(t)
+}
+
+func TestCacheAwareSegmentSyncNoChanges(t *testing.T) {
+	var segmentUpdater segmentUpdaterMock
+	segmentUpdater.On("SynchronizeSegment", "segment1", (*int64)(nil)).Return(&segment.UpdateResult{}, nil).Once()
+
+	var splitStorage splitStorageMock
+
+	var cacheFlusher cacheFlusherMock
+
+	var segmentStorage segmentStorageMock
+	segmentStorage.On("ChangeNumber", "segment1").Return(int64(0), nil).Once()
 
 	css := CacheAwareSegmentSynchronizer{
-		splitStorage: &storageMocks.MockSplitStorage{
-			SegmentNamesCall: func() *set.ThreadUnsafeSet {
-				s := set.NewSet()
-				for k := range cns {
-					s.Add(k)
-				}
-				return s
-			},
-		},
-		segmentStorage: &storageMocks.MockSegmentStorage{
-			ChangeNumberCall: func(s string) (int64, error) {
-				cn, _ := cns[s]
-				return cn, nil
-			},
-		},
-		wrapped:      segmentSyncMock,
-		cacheFlusher: cacheFlusherMock,
+		splitStorage:   &splitStorage,
+		segmentStorage: &segmentStorage,
+		wrapped:        &segmentUpdater,
+		cacheFlusher:   &cacheFlusher,
 	}
 
-	css.SynchronizeSegment("segment1", nil)
+	res, err := css.SynchronizeSegment("segment1", nil)
+	assert.Nil(t, err)
+	assert.Equal(t, &segment.UpdateResult{}, res)
 
-	segmentSyncMock.SynchronizeSegmentCall = func(name string, c *int64) (*segment.UpdateResult, error) {
-		return &segment.UpdateResult{UpdatedKeys: []string{"k1"}, NewChangeNumber: 2}, nil
+	segmentUpdater.AssertExpectations(t)
+	segmentStorage.AssertExpectations(t)
+	splitStorage.AssertExpectations(t)
+	cacheFlusher.AssertExpectations(t)
+}
+
+func TestCacheAwareSegmentSyncSingle(t *testing.T) {
+	var segmentUpdater segmentUpdaterMock
+	segmentUpdater.On("SynchronizeSegment", "segment1", (*int64)(nil)).Return(&segment.UpdateResult{
+		UpdatedKeys:     []string{"k1"},
+		NewChangeNumber: 2,
+	}, nil).Once()
+
+	var splitStorage splitStorageMock
+
+	var cacheFlusher cacheFlusherMock
+	cacheFlusher.On("EvictBySurrogate", MakeSurrogateForSegmentChanges("segment1")).Times(2)
+	cacheFlusher.On("Evict", "/api/mySegments/k1").Times(2)
+	cacheFlusher.On("Evict", "gzip::/api/mySegments/k1").Times(2)
+
+	var segmentStorage segmentStorageMock
+	segmentStorage.On("ChangeNumber", "segment1").Return(int64(0), nil).Once()
+
+	css := CacheAwareSegmentSynchronizer{
+		splitStorage:   &splitStorage,
+		segmentStorage: &segmentStorage,
+		wrapped:        &segmentUpdater,
+		cacheFlusher:   &cacheFlusher,
 	}
 
-	evictBySurrogateCalls := 0
-	cacheFlusherMock.EvictBySurrogateCall = func(key string) {
-		if key != MakeSurrogateForSegmentChanges("segment1") {
-			t.Error("wrong surrogate")
-		}
-		evictBySurrogateCalls++
-	}
-	cacheFlusherMock.EvictCall = func(key string) {
-		if key != "/api/mySegments/k1" && key != "gzip::/api/mySegments/k1" {
-			t.Error("incorrect mysegments entry purged: ", key)
-		}
-	}
+	res, err := css.SynchronizeSegment("segment1", nil)
+	assert.Nil(t, err)
+	assert.Equal(t, &segment.UpdateResult{UpdatedKeys: []string{"k1"}, NewChangeNumber: 2}, res)
 
-	// SynchronizeSegment
+	//	// Test that going from cn > -1 to cn == -1 purges
+	segmentStorage.On("ChangeNumber", "segment1").Return(int64(123), nil).Once()
+	segmentUpdater.On("SynchronizeSegment", "segment1", (*int64)(nil)).Return(&segment.UpdateResult{
+		UpdatedKeys:     []string{"k1"},
+		NewChangeNumber: -1,
+	}, nil).Once()
+	res, err = css.SynchronizeSegment("segment1", nil)
+	assert.Nil(t, err)
+	assert.Equal(t, &segment.UpdateResult{UpdatedKeys: []string{"k1"}, NewChangeNumber: -1}, res)
 
-	css.SynchronizeSegment("segment1", nil)
-	if evictBySurrogateCalls != 1 {
-		t.Error("should have flushed splits once. Got", evictBySurrogateCalls)
-	}
+	segmentUpdater.AssertExpectations(t)
+	segmentStorage.AssertExpectations(t)
+	splitStorage.AssertExpectations(t)
+	cacheFlusher.AssertExpectations(t)
+}
 
-	// Test that going from cn > -1 to cn == -1 purges
-	cns["segment1"] = 123
-	segmentSyncMock.SynchronizeSegmentCall = func(name string, s *int64) (*segment.UpdateResult, error) {
-		return &segment.UpdateResult{UpdatedKeys: []string{"k1"}, NewChangeNumber: -1}, nil
-	}
-	css.SynchronizeSegment("segment1", nil)
-	if evictBySurrogateCalls != 2 {
-		t.Error("should have flushed splits once", evictBySurrogateCalls)
-	}
+func TestCacheAwareSegmentSyncAllSegments(t *testing.T) {
+	var segmentUpdater segmentUpdaterMock
+	segmentUpdater.On("SynchronizeSegments").Return(map[string]segment.UpdateResult{"segment2": {
+		UpdatedKeys:     []string{"k1"},
+		NewChangeNumber: 1,
+	}}, nil).Once()
 
-	// SynchronizeSegments
+	var splitStorage splitStorageMock
+	splitStorage.On("SegmentNames").Return(set.NewSet("segment2")).Once()
+
+	var cacheFlusher cacheFlusherMock
+	cacheFlusher.On("EvictBySurrogate", MakeSurrogateForSegmentChanges("segment2")).Times(1)
+	cacheFlusher.On("Evict", "/api/mySegments/k1").Times(3)
+	cacheFlusher.On("Evict", "gzip::/api/mySegments/k1").Times(3)
+
+	var segmentStorage segmentStorageMock
+	segmentStorage.On("ChangeNumber", "segment2").Return(int64(0), nil).Once()
+
+	css := CacheAwareSegmentSynchronizer{
+		splitStorage:   &splitStorage,
+		segmentStorage: &segmentStorage,
+		wrapped:        &segmentUpdater,
+		cacheFlusher:   &cacheFlusher,
+	}
 
 	// Case 1: updated CN
-	cns["segment2"] = 0
-	segmentSyncMock.SynchronizeSegmentsCall = func() (map[string]segment.UpdateResult, error) {
-		return map[string]segment.UpdateResult{"segment2": {UpdatedKeys: []string{"k1"}, NewChangeNumber: 1}}, nil
-	}
-
-	cacheFlusherMock.EvictBySurrogateCall = func(key string) {
-		if key != MakeSurrogateForSegmentChanges("segment2") {
-			t.Error("wrong surrogate")
-		}
-		evictBySurrogateCalls++
-	}
-
-	css.SynchronizeSegments()
-	if evictBySurrogateCalls != 3 {
-		t.Error("should have flushed segments twice")
-	}
+	res, err := css.SynchronizeSegments()
+	assert.Nil(t, err)
+	assert.Equal(t, map[string]segment.UpdateResult{"segment2": {UpdatedKeys: []string{"k1"}, NewChangeNumber: 1}}, res)
 
 	// Case 2: added segment
-	cns["segment3"] = 2
-	segmentSyncMock.SynchronizeSegmentsCall = func() (map[string]segment.UpdateResult, error) {
-		return map[string]segment.UpdateResult{"segment3": {UpdatedKeys: []string{"k1"}, NewChangeNumber: 3}}, nil
-	}
+	segmentStorage.On("ChangeNumber", "segment3").Return(int64(2), nil).Times(2) // for next test as well
+	segmentUpdater.On("SynchronizeSegments").Return(map[string]segment.UpdateResult{"segment3": {
+		UpdatedKeys:     []string{"k1"},
+		NewChangeNumber: 3,
+	}}, nil).Once()
+	cacheFlusher.On("EvictBySurrogate", MakeSurrogateForSegmentChanges("segment3")).Times(2) // for next test as well
+	splitStorage.On("SegmentNames").Return(set.NewSet("segment3")).Times(2)                  // for next test as well
 
-	cacheFlusherMock.EvictBySurrogateCall = func(key string) {
-		if key != MakeSurrogateForSegmentChanges("segment3") {
-			t.Error("wrong surrogate")
-		}
-		evictBySurrogateCalls++
-	}
+	res, err = css.SynchronizeSegments()
+	assert.Nil(t, err)
+	assert.Equal(t, map[string]segment.UpdateResult{"segment3": {UpdatedKeys: []string{"k1"}, NewChangeNumber: 3}}, res)
 
-	css.SynchronizeSegments()
-	if evictBySurrogateCalls != 4 {
-		t.Error("should have flushed segments twice")
-	}
+	//	// Case 3: deleted segment
+	segmentUpdater.On("SynchronizeSegments").Return(map[string]segment.UpdateResult{"segment3": {
+		UpdatedKeys:     []string{"k1"},
+		NewChangeNumber: -1,
+	}}, nil).Once()
 
-	// Case 3: deleted segment
-	segmentSyncMock.SynchronizeSegmentsCall = func() (map[string]segment.UpdateResult, error) {
-		return map[string]segment.UpdateResult{"segment3": {UpdatedKeys: []string{"k1"}, NewChangeNumber: -1}}, nil
-	}
+	res, err = css.SynchronizeSegments()
+	assert.Nil(t, err)
+	assert.Equal(t, map[string]segment.UpdateResult{"segment3": {UpdatedKeys: []string{"k1"}, NewChangeNumber: -1}}, res)
 
-	cacheFlusherMock.EvictBySurrogateCall = func(key string) {
-		if key != MakeSurrogateForSegmentChanges("segment3") {
-			t.Error("wrong surrogate", key)
-		}
-		evictBySurrogateCalls++
-	}
-
-	css.SynchronizeSegments()
-	if evictBySurrogateCalls != 5 {
-		t.Error("should have flushed segments 5 times: ", evictBySurrogateCalls)
-	}
-
-	// all keys deleted & segment till is now -1
-	cacheFlusherMock.EvictBySurrogateCall = func(key string) {
-		if key != MakeSurrogateForSegmentChanges("segment2") {
-			t.Error("wrong surrogate", key)
-		}
-		evictBySurrogateCalls++
-	}
-	cns["segment2"] = 123
-	segmentSyncMock.SynchronizeSegmentsCall = func() (map[string]segment.UpdateResult, error) {
-		return map[string]segment.UpdateResult{"segment2": {UpdatedKeys: []string{"k1"}, NewChangeNumber: -1}}, nil
-	}
-	css.SynchronizeSegments()
-	if evictBySurrogateCalls != 6 {
-		t.Error("should have flushed segments twice")
-	}
+	segmentUpdater.AssertExpectations(t)
+	segmentStorage.AssertExpectations(t)
+	splitStorage.AssertExpectations(t)
+	cacheFlusher.AssertExpectations(t)
 }
+
+// Borrowed mocks: These sohuld be in go-split-commons. but we need to wait until testify is adopted there
 
 type splitUpdaterMock struct {
-	SynchronizeFeatureFlagsCall func(ffChange *dtos.SplitChangeUpdate) (*split.UpdateResult, error)
-	SynchronizeSplitsCall       func(till *int64) (*split.UpdateResult, error)
-	LocalKillCall               func(splitName string, defaultTreatment string, changeNumber int64)
+	mock.Mock
 }
 
-func (s *splitUpdaterMock) SynchronizeSplits(till *int64) (*split.UpdateResult, error) {
-	return s.SynchronizeSplitsCall(till)
-}
-
+// LocalKill implements split.Updater
 func (s *splitUpdaterMock) LocalKill(splitName string, defaultTreatment string, changeNumber int64) {
-	s.LocalKillCall(splitName, defaultTreatment, changeNumber)
+	s.Called(splitName, defaultTreatment, changeNumber)
 }
 
+// SynchronizeFeatureFlags implements split.Updater
 func (s *splitUpdaterMock) SynchronizeFeatureFlags(ffChange *dtos.SplitChangeUpdate) (*split.UpdateResult, error) {
-	return s.SynchronizeFeatureFlagsCall(ffChange)
+	args := s.Called(ffChange)
+	return args.Get(0).(*split.UpdateResult), args.Error(1)
 }
 
+// SynchronizeSplits implements split.Updater
+func (s *splitUpdaterMock) SynchronizeSplits(till *int64) (*split.UpdateResult, error) {
+	args := s.Called(till)
+	return args.Get(0).(*split.UpdateResult), args.Error(1)
+}
+
+// ----
+
+type cacheFlusherMock struct {
+	mock.Mock
+}
+
+func (c *cacheFlusherMock) Evict(key string)                  { c.Called(key) }
+func (c *cacheFlusherMock) EvictAll()                         { c.Called() }
+func (c *cacheFlusherMock) EvictBySurrogate(surrogate string) { c.Called(surrogate) }
+
+// ---
+
+type splitStorageMock struct {
+	mock.Mock
+}
+
+func (s *splitStorageMock) All() []dtos.SplitDTO { panic("unimplemented") }
+func (s *splitStorageMock) ChangeNumber() (int64, error) {
+	args := s.Called()
+	return args.Get(0).(int64), args.Error(1)
+}
+
+func (*splitStorageMock) FetchMany(splitNames []string) map[string]*dtos.SplitDTO {
+	panic("unimplemented")
+}
+func (*splitStorageMock) GetNamesByFlagSets(sets []string) map[string][]string {
+	panic("unimplemented")
+}
+func (*splitStorageMock) KillLocally(splitName string, defaultTreatment string, changeNumber int64) {
+	panic("unimplemented")
+}
+func (s *splitStorageMock) SegmentNames() *set.ThreadUnsafeSet {
+	return s.Called().Get(0).(*set.ThreadUnsafeSet)
+}
+func (s *splitStorageMock) SetChangeNumber(changeNumber int64) error {
+	return s.Called(changeNumber).Error(0)
+}
+func (*splitStorageMock) Split(splitName string) *dtos.SplitDTO     { panic("unimplemented") }
+func (*splitStorageMock) SplitNames() []string                      { panic("unimplemented") }
+func (*splitStorageMock) TrafficTypeExists(trafficType string) bool { panic("unimplemented") }
+func (*splitStorageMock) Update(toAdd []dtos.SplitDTO, toRemove []dtos.SplitDTO, changeNumber int64) {
+	panic("unimplemented")
+}
+
+type segmentUpdaterMock struct {
+	mock.Mock
+}
+
+func (s *segmentUpdaterMock) IsSegmentCached(segmentName string) bool { panic("unimplemented") }
+func (s *segmentUpdaterMock) SegmentNames() []interface{}             { panic("unimplemented") }
+
+func (s *segmentUpdaterMock) SynchronizeSegment(name string, till *int64) (*segment.UpdateResult, error) {
+	args := s.Called(name, till)
+	return args.Get(0).(*segment.UpdateResult), args.Error(1)
+}
+
+func (s *segmentUpdaterMock) SynchronizeSegments() (map[string]segment.UpdateResult, error) {
+	args := s.Called()
+	return args.Get(0).(map[string]segment.UpdateResult), args.Error(1)
+}
+
+type segmentStorageMock struct {
+	mock.Mock
+}
+
+func (*segmentStorageMock) SetChangeNumber(segmentName string, till int64) error {
+	panic("unimplemented")
+}
+func (s *segmentStorageMock) Update(name string, toAdd *set.ThreadUnsafeSet, toRemove *set.ThreadUnsafeSet, changeNumber int64) error {
+	return s.Called(name, toAdd, toRemove, changeNumber).Error(0)
+}
+
+// ChangeNumber implements storage.SegmentStorage
+func (s *segmentStorageMock) ChangeNumber(segmentName string) (int64, error) {
+	args := s.Called(segmentName)
+	return args.Get(0).(int64), args.Error(1)
+}
+
+func (*segmentStorageMock) Keys(segmentName string) *set.ThreadUnsafeSet { panic("unimplemented") }
+func (*segmentStorageMock) SegmentContainsKey(segmentName string, key string) (bool, error) {
+	panic("unimplemented")
+}
+func (*segmentStorageMock) SegmentKeysCount() int64 { panic("unimplemented") }
+
+/*
 type segmentUpdaterMock struct {
 	SynchronizeSegmentCall  func(name string, till *int64) (*segment.UpdateResult, error)
 	SynchronizeSegmentsCall func() (map[string]segment.UpdateResult, error)
@@ -306,3 +368,9 @@ func (s *segmentUpdaterMock) SegmentNames() []interface{} {
 func (s *segmentUpdaterMock) IsSegmentCached(segmentName string) bool {
 	return s.IsSegmentCachedCall(segmentName)
 }
+*/
+var _ split.Updater = (*splitUpdaterMock)(nil)
+var _ storage.SplitStorage = (*splitStorageMock)(nil)
+var _ gincache.CacheFlusher = (*cacheFlusherMock)(nil)
+var _ segment.Updater = (*segmentUpdaterMock)(nil)
+var _ storage.SegmentStorage = (*segmentStorageMock)(nil)
