@@ -236,7 +236,7 @@ func snapshotFromDisk(dst *mutexmap.MMSplitStorage, historic optimized.HistoricC
 
 func archivedDTOForView(view *optimized.FeatureView) dtos.SplitDTO {
 	return dtos.SplitDTO{
-		ChangeNumber:          1,
+		ChangeNumber:          view.LastUpdated,
 		TrafficTypeName:       view.TrafficTypeName,
 		Name:                  view.Name,
 		TrafficAllocation:     100,
@@ -248,25 +248,6 @@ func archivedDTOForView(view *optimized.FeatureView) dtos.SplitDTO {
 		Algo:                  1,
 		Conditions:            make([]dtos.ConditionDTO, 0),
 		Sets:                  view.FlagSetNames(),
-	}
-}
-
-func appendArchivedSplitsForViews(views []optimized.FeatureView, dst *[]dtos.SplitDTO) {
-	for idx := range views {
-		*dst = append(*dst, dtos.SplitDTO{
-			ChangeNumber:          1,
-			TrafficTypeName:       views[idx].TrafficTypeName,
-			Name:                  views[idx].Name,
-			TrafficAllocation:     100,
-			TrafficAllocationSeed: 0,
-			Seed:                  0,
-			Status:                "ARCHIVED",
-			Killed:                false,
-			DefaultTreatment:      "off",
-			Algo:                  1,
-			Conditions:            make([]dtos.ConditionDTO, 0),
-			Sets:                  views[idx].FlagSetNames(),
-		})
 	}
 }
 
