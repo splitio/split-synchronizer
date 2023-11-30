@@ -11,50 +11,33 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/go-split-commons/v5/dtos"
 	"github.com/splitio/go-split-commons/v5/service"
-	"github.com/splitio/go-split-commons/v5/service/mocks"
 	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/flagsets"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 	psmocks "github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/mocks"
 )
 
-func TestSplitChangesCachedRecipe(t *testing.T) {
+func TestSplitChangesRecentSince(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+
+	var splitStorage psmocks.ProxySplitStorageMock
+	splitStorage.On("ChangesSince", int64(-1), []string(nil)).
+		Return(&dtos.SplitChangesDTO{Since: -1, Till: 1, Splits: []dtos.SplitDTO{{Name: "s1", Status: "ACTIVE"}, {Name: "s2", Status: "ACTIVE"}}}, nil).
+		Once()
+
+	var splitFetcher splitFetcherMock
+
 	resp := httptest.NewRecorder()
 	ctx, router := gin.CreateTestContext(resp)
-
 	logger := logging.NewLogger(nil)
-
 	group := router.Group("/api")
 	controller := NewSdkServerController(
 		logger,
-		&mocks.MockSplitFetcher{
-			FetchCall: func(changeNumber int64, fetchOptions *service.FetchOptions) (*dtos.SplitChangesDTO, error) {
-				t.Error("should not be called")
-				return nil, nil
-			},
-		},
-		&psmocks.ProxySplitStorageMock{
-			ChangesSinceCall: func(since int64, sets []string) (*dtos.SplitChangesDTO, error) {
-				if since != -1 {
-					t.Error("since should be -1")
-				}
-
-				return &dtos.SplitChangesDTO{
-					Since: -1,
-					Till:  1,
-					Splits: []dtos.SplitDTO{
-						{Name: "s1"},
-						{Name: "s2"},
-					},
-				}, nil
-			},
-			RegisterOlderCnCall: func(payload *dtos.SplitChangesDTO) {
-				t.Error("should not be called")
-			},
-		},
+		&splitFetcher,
+		&splitStorage,
 		nil,
 		flagsets.NewMatcher(false, nil),
 	)
@@ -67,20 +50,37 @@ func TestSplitChangesCachedRecipe(t *testing.T) {
 	ctx.Request.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
 	router.ServeHTTP(resp, ctx.Request)
 
-	if resp.Code != 200 {
-		t.Error("Status code should be 200 and is ", resp.Code)
-	}
+	assert.Equal(t, 200, resp.Code)
 
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, err := ioutil.ReadAll(resp.Body)
+	assert.Nil(t, err)
+
 	var s dtos.SplitChangesDTO
-	json.Unmarshal(body, &s)
-	if len(s.Splits) != 2 || s.Since != -1 || s.Till != 1 {
-		t.Error("wrong payload returned")
-	}
+	err = json.Unmarshal(body, &s)
+	assert.Nil(t, err)
+	assert.Equal(t, 2, len(s.Splits))
+	assert.Equal(t, int64(-1), s.Since)
+	assert.Equal(t, int64(1), s.Till)
 }
 
-func TestSplitChangesNonCachedRecipe(t *testing.T) {
+func TestSplitChangesOlderSince(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+
+	var splitStorage psmocks.ProxySplitStorageMock
+	splitStorage.On("ChangesSince", int64(-1), []string(nil)).
+		Return((*dtos.SplitChangesDTO)(nil), storage.ErrSinceParamTooOld).
+		Once()
+	splitStorage.On("ChangesSince", int64(-1), []string(nil)).
+		Return(&dtos.SplitChangesDTO{Since: -1, Till: 1, Splits: []dtos.SplitDTO{{Name: "s1", Status: "ACTIVE"}, {Name: "s2", Status: "ACTIVE"}}}, nil).
+		Once()
+	splitStorage.On("RegisterOlderCn", &dtos.SplitChangesDTO{Since: -1, Till: 1, Splits: []dtos.SplitDTO{{Name: "s1", Status: "ACTIVE"}, {Name: "s2", Status: "ACTIVE"}}}).
+		Once()
+
+	var splitFetcher splitFetcherMock
+	splitFetcher.On("Fetch", int64(-1), ref(service.NewFetchOptions(true, nil))).
+		Return(&dtos.SplitChangesDTO{Since: -1, Till: 1, Splits: []dtos.SplitDTO{{Name: "s1", Status: "ACTIVE"}, {Name: "s2", Status: "ACTIVE"}}}, nil).
+		Once()
+
 	resp := httptest.NewRecorder()
 	ctx, router := gin.CreateTestContext(resp)
 
@@ -89,35 +89,8 @@ func TestSplitChangesNonCachedRecipe(t *testing.T) {
 	group := router.Group("/api")
 	controller := NewSdkServerController(
 		logger,
-		&mocks.MockSplitFetcher{
-			FetchCall: func(changeNumber int64, fetchOptions *service.FetchOptions) (*dtos.SplitChangesDTO, error) {
-				if changeNumber != -1 {
-					t.Error("changeNumber should be -1")
-				}
-
-				return &dtos.SplitChangesDTO{
-					Since: -1,
-					Till:  1,
-					Splits: []dtos.SplitDTO{
-						{Name: "s1"},
-						{Name: "s2"},
-					},
-				}, nil
-			},
-		},
-		&psmocks.ProxySplitStorageMock{
-			ChangesSinceCall: func(since int64, sets []string) (*dtos.SplitChangesDTO, error) {
-				if since != -1 {
-					t.Error("since should be -1")
-				}
-				return nil, storage.ErrSummaryNotCached
-			},
-			RegisterOlderCnCall: func(payload *dtos.SplitChangesDTO) {
-				if payload.Since != -1 || len(payload.Splits) != 2 {
-					t.Error("invalid payload passed")
-				}
-			},
-		},
+		&splitFetcher,
+		&splitStorage,
 		nil,
 		flagsets.NewMatcher(false, nil),
 	)
@@ -130,20 +103,67 @@ func TestSplitChangesNonCachedRecipe(t *testing.T) {
 	ctx.Request.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
 	router.ServeHTTP(resp, ctx.Request)
 
-	if resp.Code != 200 {
-		t.Error("Status code should be 200 and is ", resp.Code)
-	}
+	assert.Equal(t, 200, resp.Code)
 
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, err := ioutil.ReadAll(resp.Body)
+	assert.Nil(t, err)
+
 	var s dtos.SplitChangesDTO
-	json.Unmarshal(body, &s)
-	if len(s.Splits) != 2 || s.Since != -1 || s.Till != 1 {
-		t.Error("wrong payload returned")
-	}
+	err = json.Unmarshal(body, &s)
+	assert.Nil(t, err)
+	assert.Equal(t, 2, len(s.Splits))
+	assert.Equal(t, int64(-1), s.Since)
+	assert.Equal(t, int64(1), s.Till)
+}
+
+func TestSplitChangesOlderSinceFetchFails(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	var splitStorage psmocks.ProxySplitStorageMock
+	splitStorage.On("ChangesSince", int64(-1), []string(nil)).
+		Return((*dtos.SplitChangesDTO)(nil), storage.ErrSinceParamTooOld).
+		Once()
+
+	var splitFetcher splitFetcherMock
+	splitFetcher.On("Fetch", int64(-1), ref(service.NewFetchOptions(true, nil))).
+		Return((*dtos.SplitChangesDTO)(nil), errors.New("something")).
+		Once()
+
+	resp := httptest.NewRecorder()
+	ctx, router := gin.CreateTestContext(resp)
+
+	logger := logging.NewLogger(nil)
+
+	group := router.Group("/api")
+	controller := NewSdkServerController(
+		logger,
+		&splitFetcher,
+		&splitStorage,
+		nil,
+		flagsets.NewMatcher(false, nil),
+	)
+	controller.Register(group)
+
+	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/splitChanges?since=-1", nil)
+	ctx.Request.Header.Set("Authorization", "Bearer someApiKey")
+	ctx.Request.Header.Set("SplitSDKVersion", "go-1.1.1")
+	ctx.Request.Header.Set("SplitSDKMachineIp", "1.2.3.4")
+	ctx.Request.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
+	router.ServeHTTP(resp, ctx.Request)
+
+	assert.Equal(t, 500, resp.Code)
 }
 
 func TestSplitChangesWithFlagSets(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+
+	var splitStorage psmocks.ProxySplitStorageMock
+	splitStorage.On("ChangesSince", int64(-1), []string{"a", "b", "c"}).
+		Return(&dtos.SplitChangesDTO{Since: -1, Till: 1, Splits: []dtos.SplitDTO{{Name: "s1", Status: "ACTIVE"}, {Name: "s2", Status: "ACTIVE"}}}, nil).
+		Once()
+
+	var splitFetcher splitFetcherMock
+
 	resp := httptest.NewRecorder()
 	ctx, router := gin.CreateTestContext(resp)
 
@@ -152,28 +172,8 @@ func TestSplitChangesWithFlagSets(t *testing.T) {
 	group := router.Group("/api")
 	controller := NewSdkServerController(
 		logger,
-		&mocks.MockSplitFetcher{
-			FetchCall: func(changeNumber int64, fetchOptions *service.FetchOptions) (*dtos.SplitChangesDTO, error) {
-				t.Error("should not be called")
-				return nil, nil
-			},
-		},
-		&psmocks.ProxySplitStorageMock{
-			ChangesSinceCall: func(since int64, sets []string) (*dtos.SplitChangesDTO, error) {
-				assert.Equal(t, []string{"a", "b", "c"}, sets) // sets should be passed already sorted
-				return &dtos.SplitChangesDTO{
-					Since: -1,
-					Till:  1,
-					Splits: []dtos.SplitDTO{
-						{Name: "s1"},
-						{Name: "s2"},
-					},
-				}, nil
-			},
-			RegisterOlderCnCall: func(payload *dtos.SplitChangesDTO) {
-				t.Error("should not be called")
-			},
-		},
+		&splitFetcher,
+		&splitStorage,
 		nil,
 		flagsets.NewMatcher(false, nil),
 	)
@@ -200,6 +200,14 @@ func TestSplitChangesWithFlagSets(t *testing.T) {
 
 func TestSplitChangesWithFlagSetsStrict(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+
+	var splitStorage psmocks.ProxySplitStorageMock
+	splitStorage.On("ChangesSince", int64(-1), []string{"a", "c"}).
+		Return(&dtos.SplitChangesDTO{Since: -1, Till: 1, Splits: []dtos.SplitDTO{{Name: "s1", Status: "ACTIVE"}, {Name: "s2", Status: "ACTIVE"}}}, nil).
+		Once()
+
+	var splitFetcher splitFetcherMock
+
 	resp := httptest.NewRecorder()
 	ctx, router := gin.CreateTestContext(resp)
 
@@ -208,28 +216,8 @@ func TestSplitChangesWithFlagSetsStrict(t *testing.T) {
 	group := router.Group("/api")
 	controller := NewSdkServerController(
 		logger,
-		&mocks.MockSplitFetcher{
-			FetchCall: func(changeNumber int64, fetchOptions *service.FetchOptions) (*dtos.SplitChangesDTO, error) {
-				t.Error("should not be called")
-				return nil, nil
-			},
-		},
-		&psmocks.ProxySplitStorageMock{
-			ChangesSinceCall: func(since int64, sets []string) (*dtos.SplitChangesDTO, error) {
-				assert.Equal(t, []string{"a", "c"}, sets) // sets should be passed already sorted
-				return &dtos.SplitChangesDTO{
-					Since: -1,
-					Till:  1,
-					Splits: []dtos.SplitDTO{
-						{Name: "s1"},
-						{Name: "s2"},
-					},
-				}, nil
-			},
-			RegisterOlderCnCall: func(payload *dtos.SplitChangesDTO) {
-				t.Error("should not be called")
-			},
-		},
+		&splitFetcher,
+		&splitStorage,
 		nil,
 		flagsets.NewMatcher(true, []string{"a", "c"}),
 	)
@@ -254,82 +242,23 @@ func TestSplitChangesWithFlagSetsStrict(t *testing.T) {
 	assert.Equal(t, int64(1), s.Till)
 }
 
-func TestSplitChangesNonCachedRecipeAndFetchFails(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	resp := httptest.NewRecorder()
-	ctx, router := gin.CreateTestContext(resp)
-
-	logger := logging.NewLogger(nil)
-
-	group := router.Group("/api")
-	controller := NewSdkServerController(
-		logger,
-		&mocks.MockSplitFetcher{
-			FetchCall: func(changeNumber int64, fetchOptions *service.FetchOptions) (*dtos.SplitChangesDTO, error) {
-				if changeNumber != -1 {
-					t.Error("changeNumber should be -1")
-				}
-				return nil, errors.New("something")
-			},
-		},
-		&psmocks.ProxySplitStorageMock{
-			ChangesSinceCall: func(since int64, sets []string) (*dtos.SplitChangesDTO, error) {
-				if since != -1 {
-					t.Error("since should be -1")
-				}
-				return nil, storage.ErrSummaryNotCached
-			},
-			RegisterOlderCnCall: func(payload *dtos.SplitChangesDTO) {
-				if payload.Since != -1 || len(payload.Splits) != 2 {
-					t.Error("invalid payload passed")
-				}
-			},
-		},
-		nil,
-		flagsets.NewMatcher(false, nil),
-	)
-	controller.Register(group)
-
-	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/splitChanges?since=-1", nil)
-	ctx.Request.Header.Set("Authorization", "Bearer someApiKey")
-	ctx.Request.Header.Set("SplitSDKVersion", "go-1.1.1")
-	ctx.Request.Header.Set("SplitSDKMachineIp", "1.2.3.4")
-	ctx.Request.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
-	router.ServeHTTP(resp, ctx.Request)
-
-	if resp.Code != 500 {
-		t.Error("Status code should be 500 and is ", resp.Code)
-	}
-}
-
 func TestSegmentChanges(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+
+	var splitFetcher splitFetcherMock
+	var splitStorage psmocks.ProxySplitStorageMock
+	var segmentStorage psmocks.ProxySegmentStorageMock
+	segmentStorage.On("ChangesSince", "someSegment", int64(-1)).
+		Return(&dtos.SegmentChangesDTO{Name: "someSegment", Added: []string{"k1", "k2"}, Removed: []string{}, Since: -1, Till: 1}, nil).
+		Once()
+
 	resp := httptest.NewRecorder()
 	ctx, router := gin.CreateTestContext(resp)
 
 	logger := logging.NewLogger(nil)
 
 	group := router.Group("/api")
-	controller := NewSdkServerController(
-		logger,
-		&mocks.MockSplitFetcher{},
-		&psmocks.ProxySplitStorageMock{},
-		&psmocks.ProxySegmentStorageMock{
-			ChangesSinceCall: func(name string, since int64) (*dtos.SegmentChangesDTO, error) {
-				if name != "someSegment" || since != -1 {
-					t.Error("wrong params")
-				}
-				return &dtos.SegmentChangesDTO{
-					Name:    "someSegment",
-					Added:   []string{"k1", "k2"},
-					Removed: []string{},
-					Since:   -1,
-					Till:    1,
-				}, nil
-			},
-		},
-		flagsets.NewMatcher(false, nil),
-	)
+	controller := NewSdkServerController(logger, &splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil))
 	controller.Register(group)
 
 	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/segmentChanges/someSegment?since=-1", nil)
@@ -339,40 +268,35 @@ func TestSegmentChanges(t *testing.T) {
 	ctx.Request.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
 	router.ServeHTTP(resp, ctx.Request)
 
-	if resp.Code != 200 {
-		t.Error("Status code should be 200 and is ", resp.Code)
-	}
+	assert.Equal(t, 200, resp.Code)
 
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, err := ioutil.ReadAll(resp.Body)
+	assert.Nil(t, err)
+
 	var s dtos.SegmentChangesDTO
-	json.Unmarshal(body, &s)
-	if s.Name != "someSegment" || len(s.Added) != 2 || len(s.Removed) != 0 || s.Since != -1 || s.Till != 1 {
-		t.Error("wrong payload returned")
-	}
+	err = json.Unmarshal(body, &s)
+	assert.Nil(t, err)
+
+	assert.Equal(t, dtos.SegmentChangesDTO{Name: "someSegment", Added: []string{"k1", "k2"}, Removed: []string{}, Since: -1, Till: 1}, s)
 }
 
 func TestSegmentChangesNotFound(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+
+	var splitFetcher splitFetcherMock
+	var splitStorage psmocks.ProxySplitStorageMock
+	var segmentStorage psmocks.ProxySegmentStorageMock
+	segmentStorage.On("ChangesSince", "someSegment", int64(-1)).
+		Return((*dtos.SegmentChangesDTO)(nil), storage.ErrSegmentNotFound).
+		Once()
+
 	resp := httptest.NewRecorder()
 	ctx, router := gin.CreateTestContext(resp)
 
 	logger := logging.NewLogger(nil)
 
 	group := router.Group("/api")
-	controller := NewSdkServerController(
-		logger,
-		&mocks.MockSplitFetcher{},
-		&psmocks.ProxySplitStorageMock{},
-		&psmocks.ProxySegmentStorageMock{
-			ChangesSinceCall: func(name string, since int64) (*dtos.SegmentChangesDTO, error) {
-				if name != "someSegment" || since != -1 {
-					t.Error("wrong params")
-				}
-				return nil, storage.ErrSegmentNotFound
-			},
-		},
-		flagsets.NewMatcher(false, nil),
-	)
+	controller := NewSdkServerController(logger, &splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil))
 	controller.Register(group)
 
 	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/segmentChanges/someSegment?since=-1", nil)
@@ -381,35 +305,26 @@ func TestSegmentChangesNotFound(t *testing.T) {
 	ctx.Request.Header.Set("SplitSDKMachineIp", "1.2.3.4")
 	ctx.Request.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
 	router.ServeHTTP(resp, ctx.Request)
-
-	if resp.Code != 404 {
-		t.Error("Status code should be 404 and is ", resp.Code)
-	}
+	assert.Equal(t, 404, resp.Code)
 }
 
 func TestMySegments(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+
+	var splitFetcher splitFetcherMock
+	var splitStorage psmocks.ProxySplitStorageMock
+	var segmentStorage psmocks.ProxySegmentStorageMock
+	segmentStorage.On("SegmentsFor", "someKey").
+		Return([]string{"segment1", "segment2"}, nil).
+		Once()
+
 	resp := httptest.NewRecorder()
 	ctx, router := gin.CreateTestContext(resp)
 
 	logger := logging.NewLogger(nil)
 
 	group := router.Group("/api")
-	controller := NewSdkServerController(
-		logger,
-		&mocks.MockSplitFetcher{},
-		&psmocks.ProxySplitStorageMock{},
-		&psmocks.ProxySegmentStorageMock{
-			SegmentsForCall: func(key string) ([]string, error) {
-				if key != "someKey" {
-					t.Error("wrong key")
-				}
-
-				return []string{"segment1", "segment2"}, nil
-			},
-		},
-		flagsets.NewMatcher(false, nil),
-	)
+	controller := NewSdkServerController(logger, &splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil))
 	controller.Register(group)
 
 	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/mySegments/someKey", nil)
@@ -418,47 +333,35 @@ func TestMySegments(t *testing.T) {
 	ctx.Request.Header.Set("SplitSDKMachineIp", "1.2.3.4")
 	ctx.Request.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
 	router.ServeHTTP(resp, ctx.Request)
+	assert.Equal(t, 200, resp.Code)
 
-	if resp.Code != 200 {
-		t.Error("Status code should be 200 and is ", resp.Code)
-	}
+	body, err := ioutil.ReadAll(resp.Body)
+	assert.Nil(t, err)
 
-	type MSC struct {
-		MySegments []dtos.MySegmentDTO `json:"mySegments"`
-	}
-
-	body, _ := ioutil.ReadAll(resp.Body)
 	var ms MSC
-	json.Unmarshal(body, &ms)
-	s := ms.MySegments
-	if len(s) != 2 || s[0].Name != "segment1" || s[1].Name != "segment2" {
-		t.Error("invalid payload", s)
-	}
+	err = json.Unmarshal(body, &ms)
+	assert.Nil(t, err)
+
+	assert.Equal(t, MSC{MySegments: []dtos.MySegmentDTO{{Name: "segment1"}, {Name: "segment2"}}}, ms)
 }
 
 func TestMySegmentsError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+
+	var splitFetcher splitFetcherMock
+	var splitStorage psmocks.ProxySplitStorageMock
+	var segmentStorage psmocks.ProxySegmentStorageMock
+	segmentStorage.On("SegmentsFor", "someKey").
+		Return([]string(nil), errors.New("something")).
+		Once()
+
 	resp := httptest.NewRecorder()
 	ctx, router := gin.CreateTestContext(resp)
 
 	logger := logging.NewLogger(nil)
 
 	group := router.Group("/api")
-	controller := NewSdkServerController(
-		logger,
-		&mocks.MockSplitFetcher{},
-		&psmocks.ProxySplitStorageMock{},
-		&psmocks.ProxySegmentStorageMock{
-			SegmentsForCall: func(key string) ([]string, error) {
-				if key != "someKey" {
-					t.Error("wrong key")
-				}
-
-				return nil, errors.New("something")
-			},
-		},
-		flagsets.NewMatcher(false, nil),
-	)
+	controller := NewSdkServerController(logger, &splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil))
 	controller.Register(group)
 
 	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/mySegments/someKey", nil)
@@ -467,11 +370,25 @@ func TestMySegmentsError(t *testing.T) {
 	ctx.Request.Header.Set("SplitSDKMachineIp", "1.2.3.4")
 	ctx.Request.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
 	router.ServeHTTP(resp, ctx.Request)
-
-	if resp.Code != 500 {
-		t.Error("Status code should be 500 and is ", resp.Code)
-	}
+	assert.Equal(t, 500, resp.Code)
 }
 
-func TestSplitChangesWithFlagSetsNonStrict(t *testing.T) {
+type splitFetcherMock struct {
+	mock.Mock
 }
+
+// Fetch implements service.SplitFetcher
+func (s *splitFetcherMock) Fetch(changeNumber int64, fetchOptions *service.FetchOptions) (*dtos.SplitChangesDTO, error) {
+	args := s.Called(changeNumber, fetchOptions)
+	return args.Get(0).(*dtos.SplitChangesDTO), args.Error(1)
+}
+
+func ref[T any](t T) *T {
+	return &t
+}
+
+type MSC struct {
+	MySegments []dtos.MySegmentDTO `json:"mySegments"`
+}
+
+var _ service.SplitFetcher = (*splitFetcherMock)(nil)

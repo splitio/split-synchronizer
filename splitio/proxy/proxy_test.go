@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"net/http"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -18,110 +17,142 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 	pstorageMocks "github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/mocks"
 	taskMocks "github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks/mocks"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSplitChangesEndpoints(t *testing.T) {
 	opts := makeOpts()
-	var changesSinceCalls int64 = 0
-	opts.ProxySplitStorage = &pstorageMocks.ProxySplitStorageMock{
-		ChangesSinceCall: func(since int64, sets []string) (*dtos.SplitChangesDTO, error) {
-			atomic.AddInt64(&changesSinceCalls, 1)
-			return &dtos.SplitChangesDTO{
-				Since:  since,
-				Till:   changesSinceCalls,
-				Splits: []dtos.SplitDTO{{Name: fmt.Sprintf("split%d", changesSinceCalls)}},
-			}, nil
-		},
-	}
+	var splitStorage pstorageMocks.ProxySplitStorageMock
+	opts.ProxySplitStorage = &splitStorage
 	proxy := New(opts)
 	go proxy.Start()
 	time.Sleep(1 * time.Second) // Let the scheduler switch the current thread/gr and start the server
 
 	// Test that a request without auth fails and is not cached
 	status, _, _ := get("splitChanges?since=-1", opts.Port, nil)
-	if status != 401 {
-		t.Error("status should be 401. Is", status)
-	}
+	assert.Equal(t, 401, status)
 
-	if c := atomic.LoadInt64(&changesSinceCalls); c != 0 {
-		t.Error("auth middleware should have filtered this. expected 0 calls to handler. got: ", c)
-	}
+	splitStorage.On("ChangesSince", int64(-1), []string(nil)).
+		Return(&dtos.SplitChangesDTO{Since: -1, Till: 1, Splits: []dtos.SplitDTO{{Name: "split1"}}}, nil).
+		Once()
 
 	// Make a proper request
-	_, body, headers := get("splitChanges?since=-1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
+	status, body, headers := get("splitChanges?since=-1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
+	assert.Equal(t, 200, status)
+
 	changes := toSplitChanges(body)
-	if changes.Till != 1 {
-		t.Error("wrong till: ", changes.Till)
-	}
-
-	if changes.Splits[0].Name != "split1" {
-		t.Error("wrong split name")
-	}
-
-	if ce := headers.Get("Content-Type"); ce != "application/json; charset=utf-8" {
-		t.Error("wrong content type: ", ce)
-	}
-
-	if c := atomic.LoadInt64(&changesSinceCalls); c != 1 {
-		t.Error("endpoint handler should have 1 call. has ", c)
-	}
+	assert.Equal(t, int64(-1), changes.Since)
+	assert.Equal(t, int64(1), changes.Till)
+	assert.Equal(t, "split1", changes.Splits[0].Name)
+	assert.Equal(t, "application/json; charset=utf-8", headers.Get("Content-Type"))
 
 	// Make another request, check we get the same response and the call count isn't incremented (cache is working)
-	_, body, headers = get("splitChanges?since=-1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
+	// Make a proper request
+	status, body, headers = get("splitChanges?since=-1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
+	assert.Equal(t, 200, status)
+
 	changes = toSplitChanges(body)
-	if changes.Till != 1 {
-		t.Error("wrong till: ", changes.Till)
-	}
-
-	if changes.Splits[0].Name != "split1" {
-		t.Error("wrong split name")
-	}
-
-	if ce := headers.Get("Content-Type"); ce != "application/json; charset=utf-8" {
-		t.Error("wrong content type: ", ce)
-	}
-
-	if c := atomic.LoadInt64(&changesSinceCalls); c != 1 {
-		t.Error("endpoint handler should have 1 call. has ", c)
-	}
+	assert.Equal(t, int64(-1), changes.Since)
+	assert.Equal(t, int64(1), changes.Till)
+	assert.Equal(t, "split1", changes.Splits[0].Name)
+	assert.Equal(t, "application/json; charset=utf-8", headers.Get("Content-Type"))
 
 	// Lets evict the key (simulating a change in splits and re-check)
+	splitStorage.On("ChangesSince", int64(-1), []string(nil)).
+		Return(&dtos.SplitChangesDTO{Since: -1, Till: 2, Splits: []dtos.SplitDTO{{Name: "split2"}}}, nil).
+		Once()
+
 	opts.Cache.EvictBySurrogate(caching.SplitSurrogate)
+
 	_, body, headers = get("splitChanges?since=-1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
 	changes = toSplitChanges(body)
-	if changes.Till != 2 {
-		t.Error("wrong till: ", changes.Till)
-	}
+	assert.Equal(t, int64(-1), changes.Since)
+	assert.Equal(t, int64(2), changes.Till)
+	assert.Equal(t, "split2", changes.Splits[0].Name)
+	assert.Equal(t, "application/json; charset=utf-8", headers.Get("Content-Type"))
 
-	if changes.Splits[0].Name != "split2" {
-		t.Error("wrong split name")
-	}
+}
 
-	if ce := headers.Get("Content-Type"); ce != "application/json; charset=utf-8" {
-		t.Error("wrong content type: ", ce)
-	}
+func TestSplitChangesWithFlagsetsCaching(t *testing.T) {
+	opts := makeOpts()
+	var splitStorage pstorageMocks.ProxySplitStorageMock
+	opts.ProxySplitStorage = &splitStorage
+	proxy := New(opts)
+	go proxy.Start()
+	time.Sleep(1 * time.Second) // Let the scheduler switch the current thread/gr and start the server
 
-	if c := atomic.LoadInt64(&changesSinceCalls); c != 2 {
-		t.Error("endpoint handler should have 2 call. has ", c)
-	}
+	splitStorage.On("ChangesSince", int64(-1), []string{"set1", "set2"}).
+		Return(&dtos.SplitChangesDTO{Since: -1, Till: 1, Splits: []dtos.SplitDTO{{Name: "split1"}}}, nil).
+		Once()
+
+	// Make a proper request
+	status, body, headers := get("splitChanges?since=-1&sets=set2,set1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
+	assert.Equal(t, 200, status)
+
+	changes := toSplitChanges(body)
+	assert.Equal(t, int64(-1), changes.Since)
+	assert.Equal(t, int64(1), changes.Till)
+	assert.Equal(t, "split1", changes.Splits[0].Name)
+	assert.Equal(t, "application/json; charset=utf-8", headers.Get("Content-Type"))
+
+	// Make another request, check we get the same response and the call count isn't incremented (cache is working)
+	status, body, headers = get("splitChanges?since=-1&sets=set2,set1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
+	assert.Equal(t, 200, status)
+
+	changes = toSplitChanges(body)
+	assert.Equal(t, int64(-1), changes.Since)
+	assert.Equal(t, int64(1), changes.Till)
+	assert.Equal(t, "split1", changes.Splits[0].Name)
+	assert.Equal(t, "application/json; charset=utf-8", headers.Get("Content-Type"))
+
+	// Make another request, with different flagsets. storage should be hit again
+	splitStorage.On("ChangesSince", int64(-1), []string{"set1", "set2", "set3"}).
+		Return(&dtos.SplitChangesDTO{Since: -1, Till: 1, Splits: []dtos.SplitDTO{{Name: "split1"}}}, nil).
+		Once()
+
+	status, body, headers = get("splitChanges?since=-1&sets=set2,set1,set3", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
+	assert.Equal(t, 200, status)
+
+	changes = toSplitChanges(body)
+	assert.Equal(t, int64(-1), changes.Since)
+	assert.Equal(t, int64(1), changes.Till)
+	assert.Equal(t, "split1", changes.Splits[0].Name)
+	assert.Equal(t, "application/json; charset=utf-8", headers.Get("Content-Type"))
+
+	// Flush the cache, reset expectations, and retry the requests to make sure mocks are called again
+	opts.Cache.EvictBySurrogate(caching.SplitSurrogate)
+
+	splitStorage.On("ChangesSince", int64(-1), []string{"set1", "set2"}).
+		Return(&dtos.SplitChangesDTO{Since: -1, Till: 1, Splits: []dtos.SplitDTO{{Name: "split1"}}}, nil).
+		Once()
+
+	splitStorage.On("ChangesSince", int64(-1), []string{"set1", "set2", "set3"}).
+		Return(&dtos.SplitChangesDTO{Since: -1, Till: 1, Splits: []dtos.SplitDTO{{Name: "split1"}}}, nil).
+		Once()
+
+	status, body, headers = get("splitChanges?since=-1&sets=set2,set1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
+	assert.Equal(t, 200, status)
+	changes = toSplitChanges(body)
+	assert.Equal(t, int64(-1), changes.Since)
+	assert.Equal(t, int64(1), changes.Till)
+	assert.Equal(t, "split1", changes.Splits[0].Name)
+	assert.Equal(t, "application/json; charset=utf-8", headers.Get("Content-Type"))
+
+	status, body, headers = get("splitChanges?since=-1&sets=set2,set1,set3", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
+	assert.Equal(t, 200, status)
+	changes = toSplitChanges(body)
+	assert.Equal(t, int64(-1), changes.Since)
+	assert.Equal(t, int64(1), changes.Till)
+	assert.Equal(t, "split1", changes.Splits[0].Name)
+	assert.Equal(t, "application/json; charset=utf-8", headers.Get("Content-Type"))
 }
 
 func TestSegmentChangesAndMySegmentsEndpoints(t *testing.T) {
+
+	var segmentStorage pstorageMocks.ProxySegmentStorageMock
+
 	opts := makeOpts()
-	var changesSinceCalls int64 = 0
-	var mySegmentsCalls int64 = 0
-	var changesToReturn atomic.Value
-	var segmentsForToReturn atomic.Value
-	opts.ProxySegmentStorage = &pstorageMocks.ProxySegmentStorageMock{
-		ChangesSinceCall: func(name string, since int64) (*dtos.SegmentChangesDTO, error) {
-			atomic.AddInt64(&changesSinceCalls, 1)
-			return changesToReturn.Load().(*dtos.SegmentChangesDTO), nil
-		},
-		SegmentsForCall: func(key string) ([]string, error) {
-			atomic.AddInt64(&mySegmentsCalls, 1)
-			return segmentsForToReturn.Load().([]string), nil
-		},
-	}
+	opts.ProxySegmentStorage = &segmentStorage
 	proxy := New(opts)
 	go proxy.Start()
 	time.Sleep(1 * time.Second) // Let the scheduler switch the current thread/gr and start the server
@@ -132,129 +163,77 @@ func TestSegmentChangesAndMySegmentsEndpoints(t *testing.T) {
 		t.Error("status should be 401. Is", status)
 	}
 
-	if c := atomic.LoadInt64(&changesSinceCalls); c != 0 {
-		t.Error("auth middleware should have filtered this. expected 0 calls to handler. got: ", c)
-	}
-
 	// Same for mySegments
 	status, _, _ = get("mySegments/k1", opts.Port, nil)
 	if status != 401 {
 		t.Error("status should be 401. Is", status)
 	}
 
-	if c := atomic.LoadInt64(&mySegmentsCalls); c != 0 {
-		t.Error("auth middleware should have filtered this. expected 0 calls to handler. got: ", c)
-	}
-
 	// Set up a response and make a proper request for segmentChanges
-	changesToReturn.Store(&dtos.SegmentChangesDTO{Since: -1, Till: 1, Name: "segment1", Added: []string{"k1"}, Removed: nil})
-	_, body, headers := get("segmentChanges/segment1?since=-1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
+	segmentStorage.On("ChangesSince", "segment1", int64(-1)).
+		Return(&dtos.SegmentChangesDTO{Since: -1, Till: 1, Name: "segment1", Added: []string{"k1"}, Removed: nil}, nil).
+		Once()
+
+	status, body, headers := get("segmentChanges/segment1?since=-1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
 	changes := toSegmentChanges(body)
-	if changes.Till != 1 {
-		t.Error("wrong till: ", changes.Till)
-	}
-
-	if changes.Name != "segment1" {
-		t.Error("wrong segment name")
-	}
-
-	if ce := headers.Get("Content-Type"); ce != "application/json; charset=utf-8" {
-		t.Error("wrong content type: ", ce)
-	}
-
-	if c := atomic.LoadInt64(&changesSinceCalls); c != 1 {
-		t.Error("endpoint handler should have 1 call. has ", c)
-	}
+	assert.Equal(t, 200, status)
+	assert.Equal(t, int64(-1), changes.Since)
+	assert.Equal(t, int64(1), changes.Till)
+	assert.Equal(t, "segment1", changes.Name)
+	assert.Equal(t, []string{"k1"}, changes.Added)
+	assert.Equal(t, "application/json; charset=utf-8", headers.Get("Content-Type"))
 
 	// Same for mysegments
-	segmentsForToReturn.Store([]string{"segment1"})
-	_, body, headers = get("mySegments/k1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
+	segmentStorage.On("SegmentsFor", "k1").Return([]string{"segment1"}, nil).Once()
+	status, body, headers = get("mySegments/k1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
 	segments := toMySegments(body)
-	if segments[0].Name != "segment1" {
-		t.Error("wrong segment: ", segments[0])
-	}
-
-	if ce := headers.Get("Content-Type"); ce != "application/json; charset=utf-8" {
-		t.Error("wrong content type: ", ce)
-	}
-
-	if c := atomic.LoadInt64(&mySegmentsCalls); c != 1 {
-		t.Error("endpoint handler should have 1 call. has ", c)
-	}
+	assert.Equal(t, 200, status)
+	assert.Equal(t, []dtos.MySegmentDTO{{Name: "segment1"}}, segments)
+	assert.Equal(t, "application/json; charset=utf-8", headers.Get("Content-Type"))
 
 	// Update the response, make another request and check we get the same response and the call count isn't incremented (cache is working)
-	changesToReturn.Store(&dtos.SegmentChangesDTO{Since: -1, Till: 2, Name: "segment1", Added: []string{"k2"}, Removed: nil})
-	_, body, headers = get("segmentChanges/segment1?since=-1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
+	segmentStorage.On("ChangesSince", "segment1", int64(-1)).
+		Return(&dtos.SegmentChangesDTO{Since: -1, Till: 2, Name: "segment1", Added: []string{"k2"}, Removed: nil}, nil).
+		Once()
+
+	status, body, headers = get("segmentChanges/segment1?since=-1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
 	changes = toSegmentChanges(body)
-	if changes.Till != 1 {
-		t.Error("wrong till: ", changes.Till)
-	}
-
-	if changes.Name != "segment1" {
-		t.Error("wrong segment name")
-	}
-
-	if ce := headers.Get("Content-Type"); ce != "application/json; charset=utf-8" {
-		t.Error("wrong content type: ", ce)
-	}
-
-	if c := atomic.LoadInt64(&changesSinceCalls); c != 1 {
-		t.Error("endpoint handler should have 1 call. has ", c)
-	}
+	assert.Equal(t, 200, status)
+	assert.Equal(t, int64(-1), changes.Since)
+	assert.Equal(t, int64(1), changes.Till)
+	assert.Equal(t, "segment1", changes.Name)
+	assert.Equal(t, []string{"k1"}, changes.Added)
+	assert.Equal(t, "application/json; charset=utf-8", headers.Get("Content-Type"))
 
 	// Same for mysegments
-	segmentsForToReturn.Store([]string{})
-	_, body, headers = get("mySegments/k1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
+	segmentStorage.On("SegmentsFor", "k1").Return([]string{}, nil).Once()
+	status, body, headers = get("mySegments/k1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
 	segments = toMySegments(body)
-	if segments[0].Name != "segment1" {
-		t.Error("wrong segment: ", segments[0])
-	}
-
-	if ce := headers.Get("Content-Type"); ce != "application/json; charset=utf-8" {
-		t.Error("wrong content type: ", ce)
-	}
-
-	if c := atomic.LoadInt64(&mySegmentsCalls); c != 1 {
-		t.Error("endpoint handler should have 1 call. has ", c)
-	}
+	assert.Equal(t, 200, status)
+	assert.Equal(t, []dtos.MySegmentDTO{{Name: "segment1"}}, segments)
+	assert.Equal(t, "application/json; charset=utf-8", headers.Get("Content-Type"))
 
 	// Lets evict the key (simulating a change in segment1 and re-check)
 	opts.Cache.EvictBySurrogate(caching.MakeSurrogateForSegmentChanges("segment1"))
-	_, body, headers = get("segmentChanges/segment1?since=-1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
+	status, body, headers = get("segmentChanges/segment1?since=-1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
 	changes = toSegmentChanges(body)
-	if changes.Till != 2 {
-		t.Error("wrong till: ", changes.Till)
-	}
-
-	if changes.Name != "segment1" {
-		t.Error("wrong segment name")
-	}
-
-	if ce := headers.Get("Content-Type"); ce != "application/json; charset=utf-8" {
-		t.Error("wrong content type: ", ce)
-	}
-
-	if c := atomic.LoadInt64(&changesSinceCalls); c != 2 {
-		t.Error("endpoint handler should have 2 call. has ", c)
-	}
+	assert.Equal(t, 200, status)
+	assert.Equal(t, int64(-1), changes.Since)
+	assert.Equal(t, int64(2), changes.Till)
+	assert.Equal(t, "segment1", changes.Name)
+	assert.Equal(t, []string{"k2"}, changes.Added)
+	assert.Equal(t, "application/json; charset=utf-8", headers.Get("Content-Type"))
 
 	// Same for mysegments
 	entries := caching.MakeMySegmentsEntries("k1")
 	opts.Cache.Evict(entries[0])
 	opts.Cache.Evict(entries[1])
-	_, body, headers = get("mySegments/k1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
+	segmentStorage.On("SegmentsFor", "k1").Return([]string{}, nil).Once()
+	status, body, headers = get("mySegments/k1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
 	segments = toMySegments(body)
-	if len(segments) != 0 {
-		t.Error("wrong segment: ", segments)
-	}
-
-	if ce := headers.Get("Content-Type"); ce != "application/json; charset=utf-8" {
-		t.Error("wrong content type: ", ce)
-	}
-
-	if c := atomic.LoadInt64(&mySegmentsCalls); c != 2 {
-		t.Error("endpoint handler should have 2 call. has ", c)
-	}
+	assert.Equal(t, 200, status)
+	assert.Equal(t, []dtos.MySegmentDTO{}, segments)
+	assert.Equal(t, "application/json; charset=utf-8", headers.Get("Content-Type"))
 }
 
 func makeOpts() *Options {
