@@ -21,10 +21,13 @@ func TestSplitStorage(t *testing.T) {
 	logger := logging.NewLogger(nil)
 
 	toAdd := []dtos.SplitDTO{
-		{Name: "f1", ChangeNumber: 1, Status: "ACTIVE"},
-		{Name: "f2", ChangeNumber: 2, Status: "ACTIVE"},
+		{Name: "f1", ChangeNumber: 1, Status: "ACTIVE", TrafficTypeName: "ttt"},
+		{Name: "f2", ChangeNumber: 2, Status: "ACTIVE", TrafficTypeName: "ttt"},
 	}
 	toAdd2 := []dtos.SplitDTO{{Name: "f3", ChangeNumber: 3, Status: "ACTIVE", TrafficTypeName: "ttt"}}
+	toRemove := []dtos.SplitDTO{
+		archivedDTOForView(&optimized.FeatureView{Name: "f2", Active: false, LastUpdated: 4, TrafficTypeName: "ttt"}),
+	}
 
 	splitC := persistent.NewSplitChangesCollection(dbw, logger)
 	splitC.Update(toAdd, nil, 2)
@@ -38,8 +41,8 @@ func TestSplitStorage(t *testing.T) {
 	// validate initial state of the historic cache & replace it with a mock for the next validations
 	assert.ElementsMatch(t,
 		[]optimized.FeatureView{
-			{Name: "f1", Active: true, LastUpdated: 1, FlagSets: []optimized.FlagSetView{}},
-			{Name: "f2", Active: true, LastUpdated: 2, FlagSets: []optimized.FlagSetView{}},
+			{Name: "f1", Active: true, LastUpdated: 1, FlagSets: []optimized.FlagSetView{}, TrafficTypeName: "ttt"},
+			{Name: "f2", Active: true, LastUpdated: 2, FlagSets: []optimized.FlagSetView{}, TrafficTypeName: "ttt"},
 		}, pss.historic.GetUpdatedSince(-1, nil))
 	pss.historic = &historicMock
 	// ----
@@ -72,6 +75,30 @@ func TestSplitStorage(t *testing.T) {
 	assert.Equal(t, int64(2), changes.Since)
 	assert.Equal(t, int64(3), changes.Till)
 	assert.ElementsMatch(t, changes.Splits, toAdd2)
+
+	// archive split2 and check it's no longer returned
+	historicMock.On("Update", []dtos.SplitDTO(nil), toRemove, int64(4)).Once()
+	pss.Update(nil, toRemove, 4)
+	historicMock.On("GetUpdatedSince", int64(3), []string(nil)).
+		Once().
+		Return([]optimized.FeatureView{{Name: "f2", LastUpdated: 4, Active: false, TrafficTypeName: "ttt"}})
+
+	changes, err = pss.ChangesSince(-1, nil)
+	assert.Nil(t, err)
+	assert.Equal(t, int64(-1), changes.Since)
+	assert.Equal(t, int64(4), changes.Till)
+	assert.ElementsMatch(t,
+		[]dtos.SplitDTO{
+			{Name: "f1", ChangeNumber: 1, Status: "ACTIVE", TrafficTypeName: "ttt"},
+			{Name: "f3", ChangeNumber: 3, Status: "ACTIVE", TrafficTypeName: "ttt"},
+		},
+		changes.Splits)
+
+	changes, err = pss.ChangesSince(3, nil)
+	assert.Nil(t, err)
+	assert.Equal(t, int64(3), changes.Since)
+	assert.Equal(t, int64(4), changes.Till)
+	assert.ElementsMatch(t, toRemove, changes.Splits)
 
 	historicMock.AssertExpectations(t)
 }
