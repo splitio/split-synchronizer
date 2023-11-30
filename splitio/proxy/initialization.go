@@ -166,6 +166,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		logger.Info("Synchronizer tasks started")
 		appMonitor.Start()
 		servicesMonitor.Start()
+		flagSetsAfterSanitize, _ := flagsets.SanitizeMany(cfg.FlagSetsFilter)
 		workers.TelemetryRecorder.SynchronizeConfig(
 			telemetry.InitConfig{
 				AdvancedConfig: *advanced,
@@ -175,6 +176,8 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 					TelemetrySync: int(cfg.Sync.Advanced.InternalMetricsRateMs / 1000),
 				},
 				ListenerEnabled: cfg.Integrations.ImpressionListener.Endpoint != "",
+				FlagSetsTotal:   int64(len(cfg.FlagSetsFilter)),
+				FlagSetsInvalid: int64(len(cfg.FlagSetsFilter) - len(flagSetsAfterSanitize)),
 			},
 			time.Since(before).Milliseconds(),
 			map[string]int64{cfg.Apikey: 1},

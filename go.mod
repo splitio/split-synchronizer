@@ -8,10 +8,11 @@ require (
 	github.com/gin-gonic/gin v1.9.1
 	github.com/google/uuid v1.3.0
 	github.com/splitio/gincache v1.0.1
-	github.com/splitio/go-split-commons/v5 v5.0.1-0.20231107204809-f5ccd6663702
+	github.com/splitio/go-split-commons/v5 v5.0.1-0.20231115165340-19ae11b6b7d5
 	github.com/splitio/go-toolkit/v5 v5.3.2-0.20231106173125-49e72b9823dc
 	github.com/stretchr/testify v1.8.4
 	go.etcd.io/bbolt v1.3.6
+	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
 )
 
 require (
@@ -42,7 +43,6 @@ require (
 	github.com/ugorji/go/codec v1.2.11 // indirect
 	golang.org/x/arch v0.3.0 // indirect
 	golang.org/x/crypto v0.9.0 // indirect
-	golang.org/x/exp v0.0.0-20231006140011-7918f672742d // indirect
 	golang.org/x/net v0.10.0 // indirect
 	golang.org/x/sync v0.3.0 // indirect
 	golang.org/x/sys v0.13.0 // indirect
