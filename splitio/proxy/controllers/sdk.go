@@ -140,11 +140,7 @@ func (c *SdkServerController) fetchSplitChangesSince(since int64, sets []string)
 
 	// perform a fetch to the BE using the supplied `since`, have the storage process it's response &, retry
 	// TODO(mredolatti): implement basic collapsing here to avoid flooding the BE with requests
-	fetchOptions := service.NewFetchOptions(true, nil) // TODO: pass the configured sets if any
-	splits, err = c.fetcher.Fetch(since, &fetchOptions)
-	if err != nil {
-		return nil, fmt.Errorf("error fetching splitChanges for an older since: %w", err)
-	}
-	c.proxySplitStorage.RegisterOlderCn(splits)
-	return c.proxySplitStorage.ChangesSince(since, sets)
+	fetchOptions := service.NewFetchOptions(true, nil)
+	fetchOptions.FlagSetsFilter = strings.Join(sets, ",") // at this point the sets have been sanitized & sorted
+	return c.fetcher.Fetch(since, &fetchOptions)
 }

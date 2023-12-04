@@ -3,9 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/splitio/go-split-commons/v5/flagsets"
 	"os"
-	"strings"
 
 	"github.com/splitio/split-synchronizer/v5/splitio"
 	"github.com/splitio/split-synchronizer/v5/splitio/common"
@@ -24,18 +22,6 @@ func parseCliArgs() *cconf.CliFlags {
 	return cconf.ParseCliArgs(&conf.Main{})
 }
 
-type flagSetValidationError struct {
-	wrapped []error
-}
-
-func (f flagSetValidationError) Error() string {
-	var errors []string
-	for _, err := range f.wrapped {
-		errors = append(errors, err.Error())
-	}
-	return strings.Join(errors, ".|| ")
-}
-
 func setupConfig(cliArgs *cconf.CliFlags) (*conf.Main, error) {
 	syncConf := conf.Main{}
 	cconf.PopulateDefaults(&syncConf)
@@ -50,13 +36,7 @@ func setupConfig(cliArgs *cconf.CliFlags) (*conf.Main, error) {
 	cconf.PopulateFromArguments(&syncConf, cliArgs.RawConfig)
 
 	var err error
-	sanitizedFlagSets, fsErr := flagsets.SanitizeMany(syncConf.FlagSetsFilter)
-	if fsErr != nil {
-		err = flagSetValidationError{wrapped: fsErr}
-	}
-	if sanitizedFlagSets != nil {
-		syncConf.FlagSetsFilter = sanitizedFlagSets
-	}
+	syncConf.FlagSetsFilter, err = cconf.ValidateFlagsets(syncConf.FlagSetsFilter)
 	return &syncConf, err
 }
 
@@ -80,7 +60,7 @@ func main() {
 
 	cfg, err := setupConfig(cliArgs)
 	if err != nil {
-		var fsErr flagSetValidationError
+		var fsErr cconf.FlagSetValidationError
 		if errors.As(err, &fsErr) {
 			fmt.Println("error processing flagset: ", err.Error())
 		} else {

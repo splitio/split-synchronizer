@@ -57,8 +57,11 @@ func (h *HistoricChangesImpl) updateFrom(source []dtos.SplitDTO) {
 }
 
 func (h *HistoricChangesImpl) findByName(name string) *FeatureView {
+	// yes, it's linear search because features are sorted by CN, but it's only used
+	// when processing an update coming from the BE. it's off the critical path of incoming
+	// requests.
 	for idx := range h.data {
-		if h.data[idx].Name == name { // TODO(mredolatti): optimize!
+		if h.data[idx].Name == name {
 			return &h.data[idx]
 		}
 	}
@@ -90,8 +93,12 @@ func (f *FeatureView) updateFrom(s *dtos.SplitDTO) {
 	f.updateFlagsets(s.Sets, s.ChangeNumber)
 }
 
-func (f *FeatureView) updateFlagsets(incoming []string, lastUpdated int64) {
-	// TODO(mredolatti): need a copy of incoming?
+func (f *FeatureView) updateFlagsets(i []string, lastUpdated int64) {
+	incoming := slices.Clone(i) // make a copy since we'll reorder elements
+
+	// check if the current flagsets are still present in the updated split.
+	// if they're present & currently marked as inactive, update their status & CN
+	// if they're not present, mark them as ARCHIVED & update the CN
 	for idx := range f.FlagSets {
 		if itemIdx := slices.Index(incoming, f.FlagSets[idx].Name); itemIdx != -1 {
 			if !f.FlagSets[idx].Active { // Association changed from ARCHIVED to ACTIVE
@@ -101,9 +108,8 @@ func (f *FeatureView) updateFlagsets(incoming []string, lastUpdated int64) {
 			}
 
 			// "soft delete" the item so that it's not traversed later on
-			// (replaces the item with the last one, clears the latter and shrinks the slice by 1)
+			// (replaces the item with the last one and shrinks the slice by 1)
 			incoming[itemIdx] = incoming[len(incoming)-1]
-			incoming[len(incoming)-1] = ""
 			incoming = incoming[:len(incoming)-1]
 
 		} else { // Association changed from ARCHIVED to ACTIVE
@@ -112,9 +118,9 @@ func (f *FeatureView) updateFlagsets(incoming []string, lastUpdated int64) {
 		}
 	}
 
+	// the only leftover in `incoming` should be the items that were not
+	// present in the feature's previously associated flagsets, so they're new & active
 	for idx := range incoming {
-		// the only leftover in `incoming` should be the items that were not
-		// present in the feature's previously associated flagsets, so they're new & active
 		f.FlagSets = append(f.FlagSets, FlagSetView{
 			Name:        incoming[idx],
 			Active:      true,
