@@ -96,6 +96,10 @@ images_release: # entrypoints
 	@echo "$(DOCKER) push splitsoftware/split-proxy:$(version)"
 	@echo "$(DOCKER) push splitsoftware/split-proxy:latest"
 
+## display unit test coverage derived from last test run (use `make test display-coverage` for up-to-date results)
+display-coverage: coverage.out
+	go tool cover -html=coverage.out
+
 # --------------------------------------------------------------------------
 #
 # Internal targets:
@@ -105,6 +109,8 @@ images_release: # entrypoints
 
 go.sum: go.mod
 	$(GO) mod tidy
+
+coverage.out: test_coverage
 
 # because of windows .exe suffix, we need a macro on the right side, which needs to be executed
 # after the `%` evaluation, therefore, in a second expansion

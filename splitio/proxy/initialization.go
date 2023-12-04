@@ -82,7 +82,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	splitAPI := api.NewSplitAPI(cfg.Apikey, *advanced, logger, metadata)
 
 	// Proxy storages already implement the observable interface, so no need to wrap them
-	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, cfg.Initialization.Snapshot != "", flagsets.NewFlagSetFilter(nil))
+	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, flagsets.NewFlagSetFilter(cfg.FlagSetsFilter), cfg.Initialization.Snapshot != "")
 	segmentStorage := storage.NewProxySegmentStorage(dbInstance, logger, cfg.Initialization.Snapshot != "")
 
 	// Local telemetry
@@ -254,6 +254,8 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		Telemetry:                   localTelemetryStorage,
 		Cache:                       httpCache,
 		TLSConfig:                   tlsConfig,
+		FlagSets:                    cfg.FlagSetsFilter,
+		FlagSetsStrictMatching:      cfg.FlagSetStrictMatching,
 	}
 
 	if ilcfg := cfg.Integrations.ImpressionListener; ilcfg.Endpoint != "" {

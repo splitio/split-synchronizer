@@ -21,45 +21,58 @@ const (
 	maxRecipes = 1000
 )
 
-// ErrSummaryNotCached is returned when a summary is not cached for a requested change number
-var ErrSummaryNotCached = errors.New("summary for requested change number not cached")
+// ErrSinceParamTooOld is returned when a summary is not cached for a requested change number
+var ErrSinceParamTooOld = errors.New("summary for requested change number not cached")
 
 // ProxySplitStorage defines the interface of a storage that can be used for serving splitChanges payloads
 // for different requested `since` parameters
 type ProxySplitStorage interface {
-	ChangesSince(since int64) (*dtos.SplitChangesDTO, error)
-	RegisterOlderCn(payload *dtos.SplitChangesDTO)
+	ChangesSince(since int64, flagSets []string) (*dtos.SplitChangesDTO, error)
 }
 
 // ProxySplitStorageImpl implements the ProxySplitStorage interface and the SplitProducer interface
 type ProxySplitStorageImpl struct {
-	snapshot mutexmap.MMSplitStorage
-	recipes  *optimized.SplitChangesSummaries
-	db       *persistent.SplitChangesCollection
-	mtx      sync.Mutex
+	snapshot      mutexmap.MMSplitStorage
+	db            *persistent.SplitChangesCollection
+	flagSets      flagsets.FlagSetFilter
+	historic      optimized.HistoricChanges
+	logger        logging.LoggerInterface
+	oldestKnownCN int64
+	mtx           sync.Mutex
+}
+
+// GetNamesByFlagSets implements storage.SplitStorage
+func (*ProxySplitStorageImpl) GetNamesByFlagSets(sets []string) map[string][]string {
+	// NOTE: This method is NOT used by the proxy.
+	// we need to revisit our interfaces so that we're not obliged to do this smeely empty impls.
+	return nil
 }
 
 // NewProxySplitStorage instantiates a new proxy storage that wraps an in-memory snapshot of the last known,
 // flag configuration, a changes summaries containing recipes to update SDKs with different CNs, and a persistent storage
 // for snapshot purposes
-func NewProxySplitStorage(db persistent.DBWrapper, logger logging.LoggerInterface, restoreBackup bool, flagSetsFilter flagsets.FlagSetFilter) *ProxySplitStorageImpl {
+func NewProxySplitStorage(db persistent.DBWrapper, logger logging.LoggerInterface, flagSets flagsets.FlagSetFilter, restoreBackup bool) *ProxySplitStorageImpl {
 	disk := persistent.NewSplitChangesCollection(db, logger)
-	snapshot := mutexmap.NewMMSplitStorage(flagsets.NewFlagSetFilter(nil)) // TODO(mredolatti): fix this
-	recipes := optimized.NewSplitChangesSummaries(maxRecipes)
+	snapshot := mutexmap.NewMMSplitStorage(flagSets)
+	historic := optimized.NewHistoricSplitChanges(1000)
 	if restoreBackup {
-		snapshotFromDisk(snapshot, recipes, disk, logger)
+		snapshotFromDisk(snapshot, historic, disk, logger)
 	}
 	return &ProxySplitStorageImpl{
-		snapshot: *snapshot,
-		recipes:  recipes,
-		db:       disk,
+		snapshot:      *snapshot,
+		db:            disk,
+		flagSets:      flagSets,
+		historic:      historic,
+		logger:        logger,
+		oldestKnownCN: -1,
 	}
 }
 
 // ChangesSince builds a SplitChanges payload to from `since` to the latest known CN
-func (p *ProxySplitStorageImpl) ChangesSince(since int64) (*dtos.SplitChangesDTO, error) {
-	// Special case of -1, return all
-	if since == -1 {
+func (p *ProxySplitStorageImpl) ChangesSince(since int64, flagSets []string) (*dtos.SplitChangesDTO, error) {
+
+	// No flagsets and fetching from -1, return the current snapshot
+	if since == -1 && len(flagSets) == 0 {
 		cn, err := p.snapshot.ChangeNumber()
 		if err != nil {
 			return nil, fmt.Errorf("error fetching changeNumber from snapshot: %w", err)
@@ -68,26 +81,36 @@ func (p *ProxySplitStorageImpl) ChangesSince(since int64) (*dtos.SplitChangesDTO
 		return &dtos.SplitChangesDTO{Since: since, Till: cn, Splits: all}, nil
 	}
 
-	summary, till, err := p.recipes.FetchSince(int64(since))
-	if err != nil {
-		if errors.Is(err, optimized.ErrUnknownChangeNumber) {
-			return nil, ErrSummaryNotCached
+	if since < p.getStartingPoint() {
+		// update before replying
+	}
+
+	views := p.historic.GetUpdatedSince(since, flagSets)
+	namesToFetch := make([]string, 0, len(views))
+	all := make([]dtos.SplitDTO, 0, len(views))
+	var till int64 = since
+	for idx := range views {
+		if t := views[idx].LastUpdated; t > till {
+			till = t
 		}
-		return nil, fmt.Errorf("unexpected error when fetching changes summary: %w", err)
+		if views[idx].Active {
+			namesToFetch = append(namesToFetch, views[idx].Name)
+		} else {
+			all = append(all, archivedDTOForView(&views[idx]))
+		}
 	}
 
-	// Regular flow
-	splitNames := make([]string, 0, len(summary.Updated))
-	for name := range summary.Updated {
-		splitNames = append(splitNames, name)
-	}
-
-	active := p.snapshot.FetchMany(splitNames)
-	all := make([]dtos.SplitDTO, 0, len(summary.Removed)+len(summary.Updated))
-	for _, split := range active {
+	for name, split := range p.snapshot.FetchMany(namesToFetch) {
+		if split == nil {
+			p.logger.Warning(fmt.Sprintf(
+				"possible inconsistency between historic & snapshot storages. Feature `%s` is missing in the latter",
+				name,
+			))
+			continue
+		}
 		all = append(all, *split)
 	}
-	all = append(all, optimized.BuildArchivedSplitsFor(summary.Removed)...)
+
 	return &dtos.SplitChangesDTO{Since: since, Till: till, Splits: all}, nil
 }
 
@@ -99,31 +122,34 @@ func (p *ProxySplitStorageImpl) KillLocally(splitName string, defaultTreatment s
 // Update the storage atomically
 func (p *ProxySplitStorageImpl) Update(toAdd []dtos.SplitDTO, toRemove []dtos.SplitDTO, changeNumber int64) {
 
+	p.setStartingPoint(changeNumber) // will be executed only the first time this method is called
+
 	if len(toAdd) == 0 && len(toRemove) == 0 {
 		return
 	}
 
 	p.mtx.Lock()
 	p.snapshot.Update(toAdd, toRemove, changeNumber)
-	p.recipes.AddChanges(toAdd, toRemove, changeNumber)
+	p.historic.Update(toAdd, toRemove, changeNumber)
 	p.db.Update(toAdd, toRemove, changeNumber)
 	p.mtx.Unlock()
 }
 
-// RegisterOlderCn registers payload associated to a fetch request for an old `since` for which we don't
-// have a recipe
-func (p *ProxySplitStorageImpl) RegisterOlderCn(payload *dtos.SplitChangesDTO) {
-	toAdd := make([]dtos.SplitDTO, 0)
-	toDel := make([]dtos.SplitDTO, 0)
-	for _, split := range payload.Splits {
-		if split.Status == "ACTIVE" {
-			toAdd = append(toAdd, split)
-		} else {
-			toDel = append(toDel, split)
-		}
-	}
-	p.recipes.AddOlderChange(toAdd, toDel, payload.Till)
-}
+//// RegisterOlderCn registers payload associated to a fetch request for an old `since` for which we don't
+//// have a recipe
+//func (p *ProxySplitStorageImpl) RegisterOlderCn(payload *dtos.SplitChangesDTO) {
+//	toAdd := make([]dtos.SplitDTO, 0)
+//	toDel := make([]dtos.SplitDTO, 0)
+//	for _, split := range payload.Splits {
+//		if split.Status == "ACTIVE" {
+//			toAdd = append(toAdd, split)
+//		} else {
+//			toDel = append(toDel, split)
+//		}
+//	}
+//
+//	p.Update(toAdd, toDel, payload.Till)
+//}
 
 // ChangeNumber returns the current change number
 func (p *ProxySplitStorageImpl) ChangeNumber() (int64, error) {
@@ -167,13 +193,23 @@ func (p *ProxySplitStorageImpl) Count() int {
 	return len(p.SplitNames())
 }
 
-// GetNamesByFlagSets grabs all the feature flags linked to the passed sets
-func (p *ProxySplitStorageImpl) GetNamesByFlagSets(sets []string) map[string][]string {
-	//TODO implementation if that is the case
-	return make(map[string][]string)
+func (p *ProxySplitStorageImpl) setStartingPoint(cn int64) {
+	p.mtx.Lock()
+	// will be executed only the first time this method is called or when
+	// an older change is registered
+	if p.oldestKnownCN == -1 || cn < p.oldestKnownCN {
+		p.oldestKnownCN = cn
+	}
+	p.mtx.Unlock()
 }
 
-func snapshotFromDisk(dst *mutexmap.MMSplitStorage, summary *optimized.SplitChangesSummaries, src *persistent.SplitChangesCollection, logger logging.LoggerInterface) {
+func (p *ProxySplitStorageImpl) getStartingPoint() int64 {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+	return p.oldestKnownCN
+}
+
+func snapshotFromDisk(dst *mutexmap.MMSplitStorage, historic optimized.HistoricChanges, src *persistent.SplitChangesCollection, logger logging.LoggerInterface) {
 	all, err := src.FetchAll()
 	if err != nil {
 		logger.Error("error parsing feature flags from snapshot. No data will be available!: ", err)
@@ -194,7 +230,24 @@ func snapshotFromDisk(dst *mutexmap.MMSplitStorage, summary *optimized.SplitChan
 	}
 
 	dst.Update(filtered, nil, cn)
-	summary.AddChanges(filtered, nil, cn)
+	historic.Update(filtered, nil, cn)
+}
+
+func archivedDTOForView(view *optimized.FeatureView) dtos.SplitDTO {
+	return dtos.SplitDTO{
+		ChangeNumber:          view.LastUpdated,
+		TrafficTypeName:       view.TrafficTypeName,
+		Name:                  view.Name,
+		TrafficAllocation:     100,
+		TrafficAllocationSeed: 0,
+		Seed:                  0,
+		Status:                "ARCHIVED",
+		Killed:                false,
+		DefaultTreatment:      "off",
+		Algo:                  1,
+		Conditions:            make([]dtos.ConditionDTO, 0),
+		Sets:                  view.FlagSetNames(),
+	}
 }
 
 var _ ProxySplitStorage = (*ProxySplitStorageImpl)(nil)
