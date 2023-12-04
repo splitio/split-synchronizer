@@ -9,12 +9,23 @@ import (
 	"github.com/splitio/go-split-commons/v5/dtos"
 )
 
-type HistoricChanges struct {
+type HistoricChanges interface {
+	GetUpdatedSince(since int64, flagSets []string) []FeatureView
+	Update(toAdd []dtos.SplitDTO, toRemove []dtos.SplitDTO, newCN int64)
+}
+
+type HistoricChangesImpl struct {
 	data  []FeatureView
 	mutex sync.RWMutex
 }
 
-func (h *HistoricChanges) GetUpdatedSince(since int64, flagSets []string) []FeatureView {
+func NewHistoricSplitChanges(capacity int) *HistoricChangesImpl {
+	return &HistoricChangesImpl{
+		data: make([]FeatureView, 0, capacity),
+	}
+}
+
+func (h *HistoricChangesImpl) GetUpdatedSince(since int64, flagSets []string) []FeatureView {
 	slices.Sort(flagSets)
 	h.mutex.RLock()
 	views := h.findNewerThan(since)
@@ -23,7 +34,7 @@ func (h *HistoricChanges) GetUpdatedSince(since int64, flagSets []string) []Feat
 	return toRet
 }
 
-func (h *HistoricChanges) Update(toAdd []dtos.SplitDTO, toRemove []dtos.SplitDTO, newCN int64) {
+func (h *HistoricChangesImpl) Update(toAdd []dtos.SplitDTO, toRemove []dtos.SplitDTO, newCN int64) {
 	h.mutex.Lock()
 	h.updateFrom(toAdd)
 	h.updateFrom(toRemove)
@@ -33,7 +44,7 @@ func (h *HistoricChanges) Update(toAdd []dtos.SplitDTO, toRemove []dtos.SplitDTO
 
 // public interface ends here
 
-func (h *HistoricChanges) updateFrom(source []dtos.SplitDTO) {
+func (h *HistoricChangesImpl) updateFrom(source []dtos.SplitDTO) {
 	for idx := range source {
 		if current := h.findByName(source[idx].Name); current != nil {
 			current.updateFrom(&source[idx])
@@ -43,19 +54,21 @@ func (h *HistoricChanges) updateFrom(source []dtos.SplitDTO) {
 			h.data = append(h.data, toAdd)
 		}
 	}
-
 }
 
-func (h *HistoricChanges) findByName(name string) *FeatureView {
+func (h *HistoricChangesImpl) findByName(name string) *FeatureView {
+	// yes, it's linear search because features are sorted by CN, but it's only used
+	// when processing an update coming from the BE. it's off the critical path of incoming
+	// requests.
 	for idx := range h.data {
-		if h.data[idx].Name == name { // TODO(mredolatti): optimize!
+		if h.data[idx].Name == name {
 			return &h.data[idx]
 		}
 	}
 	return nil
 }
 
-func (h *HistoricChanges) findNewerThan(since int64) []FeatureView {
+func (h *HistoricChangesImpl) findNewerThan(since int64) []FeatureView {
 	// precondition: h.data is sorted by CN
 	start := sort.Search(len(h.data), func(i int) bool { return h.data[i].LastUpdated > since })
 	if start == len(h.data) {
@@ -80,8 +93,12 @@ func (f *FeatureView) updateFrom(s *dtos.SplitDTO) {
 	f.updateFlagsets(s.Sets, s.ChangeNumber)
 }
 
-func (f *FeatureView) updateFlagsets(incoming []string, lastUpdated int64) {
-	// TODO(mredolatti): need a copy of incoming?
+func (f *FeatureView) updateFlagsets(i []string, lastUpdated int64) {
+	incoming := slices.Clone(i) // make a copy since we'll reorder elements
+
+	// check if the current flagsets are still present in the updated split.
+	// if they're present & currently marked as inactive, update their status & CN
+	// if they're not present, mark them as ARCHIVED & update the CN
 	for idx := range f.FlagSets {
 		if itemIdx := slices.Index(incoming, f.FlagSets[idx].Name); itemIdx != -1 {
 			if !f.FlagSets[idx].Active { // Association changed from ARCHIVED to ACTIVE
@@ -91,9 +108,8 @@ func (f *FeatureView) updateFlagsets(incoming []string, lastUpdated int64) {
 			}
 
 			// "soft delete" the item so that it's not traversed later on
-			// (replaces the item with the last one, clears the latter and shrinks the slice by 1)
+			// (replaces the item with the last one and shrinks the slice by 1)
 			incoming[itemIdx] = incoming[len(incoming)-1]
-			incoming[len(incoming)-1] = ""
 			incoming = incoming[:len(incoming)-1]
 
 		} else { // Association changed from ARCHIVED to ACTIVE
@@ -102,9 +118,9 @@ func (f *FeatureView) updateFlagsets(incoming []string, lastUpdated int64) {
 		}
 	}
 
+	// the only leftover in `incoming` should be the items that were not
+	// present in the feature's previously associated flagsets, so they're new & active
 	for idx := range incoming {
-		// the only leftover in `incoming` should be the items that were not
-		// present in the feature's previously associated flagsets, so they're new & active
 		f.FlagSets = append(f.FlagSets, FlagSetView{
 			Name:        incoming[idx],
 			Active:      true,
@@ -135,6 +151,14 @@ func (f *FeatureView) clone() FeatureView {
 	copy(toRet.FlagSets, f.FlagSets) // we need to deep clone to avoid race conditions
 	return toRet
 
+}
+
+func (f *FeatureView) FlagSetNames() []string {
+	toRet := make([]string, len(f.FlagSets))
+	for idx := range f.FlagSets {
+		toRet[idx] = f.FlagSets[idx].Name
+	}
+	return toRet
 }
 
 func copyAndFilter(views []FeatureView, sets []string, since int64) []FeatureView {
@@ -203,3 +227,5 @@ func incrUpTo(toIncr *int, limit int) {
 	}
 	*toIncr++
 }
+
+var _ HistoricChanges = (*HistoricChangesImpl)(nil)

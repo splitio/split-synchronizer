@@ -12,7 +12,7 @@ import (
 
 func TestHistoricSplitStorage(t *testing.T) {
 
-	var historic HistoricChanges
+	var historic HistoricChangesImpl
 	historic.Update([]dtos.SplitDTO{
 		{Name: "f1", Sets: []string{"s1", "s2"}, Status: "ACTIVE", ChangeNumber: 1, TrafficTypeName: "tt1"},
 	}, []dtos.SplitDTO{}, 1)
