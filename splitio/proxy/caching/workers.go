@@ -31,7 +31,7 @@ func NewCacheAwareSplitSync(
 	flagSetsFilter flagsets.FlagSetFilter,
 ) *CacheAwareSplitSynchronizer {
 	return &CacheAwareSplitSynchronizer{
-		wrapped:      split.NewSplitUpdater(splitStorage, splitFetcher, logger, runtimeTelemetry, appMonitor, flagsets.NewFlagSetFilter(nil)), // TODO(mredolatti): fix this
+		wrapped:      split.NewSplitUpdater(splitStorage, splitFetcher, logger, runtimeTelemetry, appMonitor, flagSetsFilter),
 		splitStorage: splitStorage,
 		cacheFlusher: cacheFlusher,
 	}

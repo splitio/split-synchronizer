@@ -61,6 +61,9 @@ func TestSplitChangesRecentSince(t *testing.T) {
 	assert.Equal(t, 2, len(s.Splits))
 	assert.Equal(t, int64(-1), s.Since)
 	assert.Equal(t, int64(1), s.Till)
+
+	splitStorage.AssertExpectations(t)
+	splitFetcher.AssertExpectations(t)
 }
 
 func TestSplitChangesOlderSince(t *testing.T) {
@@ -69,11 +72,6 @@ func TestSplitChangesOlderSince(t *testing.T) {
 	var splitStorage psmocks.ProxySplitStorageMock
 	splitStorage.On("ChangesSince", int64(-1), []string(nil)).
 		Return((*dtos.SplitChangesDTO)(nil), storage.ErrSinceParamTooOld).
-		Once()
-	splitStorage.On("ChangesSince", int64(-1), []string(nil)).
-		Return(&dtos.SplitChangesDTO{Since: -1, Till: 1, Splits: []dtos.SplitDTO{{Name: "s1", Status: "ACTIVE"}, {Name: "s2", Status: "ACTIVE"}}}, nil).
-		Once()
-	splitStorage.On("RegisterOlderCn", &dtos.SplitChangesDTO{Since: -1, Till: 1, Splits: []dtos.SplitDTO{{Name: "s1", Status: "ACTIVE"}, {Name: "s2", Status: "ACTIVE"}}}).
 		Once()
 
 	var splitFetcher splitFetcherMock
@@ -114,6 +112,9 @@ func TestSplitChangesOlderSince(t *testing.T) {
 	assert.Equal(t, 2, len(s.Splits))
 	assert.Equal(t, int64(-1), s.Since)
 	assert.Equal(t, int64(1), s.Till)
+
+	splitStorage.AssertExpectations(t)
+	splitFetcher.AssertExpectations(t)
 }
 
 func TestSplitChangesOlderSinceFetchFails(t *testing.T) {
@@ -152,6 +153,9 @@ func TestSplitChangesOlderSinceFetchFails(t *testing.T) {
 	router.ServeHTTP(resp, ctx.Request)
 
 	assert.Equal(t, 500, resp.Code)
+
+	splitStorage.AssertExpectations(t)
+	splitFetcher.AssertExpectations(t)
 }
 
 func TestSplitChangesWithFlagSets(t *testing.T) {
@@ -196,6 +200,9 @@ func TestSplitChangesWithFlagSets(t *testing.T) {
 	assert.Equal(t, 2, len(s.Splits))
 	assert.Equal(t, int64(-1), s.Since)
 	assert.Equal(t, int64(1), s.Till)
+
+	splitStorage.AssertExpectations(t)
+	splitFetcher.AssertExpectations(t)
 }
 
 func TestSplitChangesWithFlagSetsStrict(t *testing.T) {
@@ -240,6 +247,9 @@ func TestSplitChangesWithFlagSetsStrict(t *testing.T) {
 	assert.Equal(t, 2, len(s.Splits))
 	assert.Equal(t, int64(-1), s.Since)
 	assert.Equal(t, int64(1), s.Till)
+
+	splitStorage.AssertExpectations(t)
+	splitFetcher.AssertExpectations(t)
 }
 
 func TestSegmentChanges(t *testing.T) {
@@ -278,6 +288,10 @@ func TestSegmentChanges(t *testing.T) {
 	assert.Nil(t, err)
 
 	assert.Equal(t, dtos.SegmentChangesDTO{Name: "someSegment", Added: []string{"k1", "k2"}, Removed: []string{}, Since: -1, Till: 1}, s)
+
+	splitStorage.AssertExpectations(t)
+	splitFetcher.AssertExpectations(t)
+	segmentStorage.AssertExpectations(t)
 }
 
 func TestSegmentChangesNotFound(t *testing.T) {
@@ -306,6 +320,10 @@ func TestSegmentChangesNotFound(t *testing.T) {
 	ctx.Request.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
 	router.ServeHTTP(resp, ctx.Request)
 	assert.Equal(t, 404, resp.Code)
+
+	splitStorage.AssertExpectations(t)
+	splitFetcher.AssertExpectations(t)
+	segmentStorage.AssertExpectations(t)
 }
 
 func TestMySegments(t *testing.T) {
@@ -343,6 +361,10 @@ func TestMySegments(t *testing.T) {
 	assert.Nil(t, err)
 
 	assert.Equal(t, MSC{MySegments: []dtos.MySegmentDTO{{Name: "segment1"}, {Name: "segment2"}}}, ms)
+
+	splitStorage.AssertExpectations(t)
+	splitFetcher.AssertExpectations(t)
+	segmentStorage.AssertExpectations(t)
 }
 
 func TestMySegmentsError(t *testing.T) {
@@ -371,6 +393,10 @@ func TestMySegmentsError(t *testing.T) {
 	ctx.Request.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
 	router.ServeHTTP(resp, ctx.Request)
 	assert.Equal(t, 500, resp.Code)
+
+	splitStorage.AssertExpectations(t)
+	splitFetcher.AssertExpectations(t)
+	segmentStorage.AssertExpectations(t)
 }
 
 type splitFetcherMock struct {

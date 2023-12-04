@@ -28,7 +28,6 @@ var ErrSinceParamTooOld = errors.New("summary for requested change number not ca
 // for different requested `since` parameters
 type ProxySplitStorage interface {
 	ChangesSince(since int64, flagSets []string) (*dtos.SplitChangesDTO, error)
-	RegisterOlderCn(payload *dtos.SplitChangesDTO)
 }
 
 // ProxySplitStorageImpl implements the ProxySplitStorage interface and the SplitProducer interface
@@ -136,21 +135,21 @@ func (p *ProxySplitStorageImpl) Update(toAdd []dtos.SplitDTO, toRemove []dtos.Sp
 	p.mtx.Unlock()
 }
 
-// RegisterOlderCn registers payload associated to a fetch request for an old `since` for which we don't
-// have a recipe
-func (p *ProxySplitStorageImpl) RegisterOlderCn(payload *dtos.SplitChangesDTO) {
-	toAdd := make([]dtos.SplitDTO, 0)
-	toDel := make([]dtos.SplitDTO, 0)
-	for _, split := range payload.Splits {
-		if split.Status == "ACTIVE" {
-			toAdd = append(toAdd, split)
-		} else {
-			toDel = append(toDel, split)
-		}
-	}
-
-	p.Update(toAdd, toDel, payload.Till)
-}
+//// RegisterOlderCn registers payload associated to a fetch request for an old `since` for which we don't
+//// have a recipe
+//func (p *ProxySplitStorageImpl) RegisterOlderCn(payload *dtos.SplitChangesDTO) {
+//	toAdd := make([]dtos.SplitDTO, 0)
+//	toDel := make([]dtos.SplitDTO, 0)
+//	for _, split := range payload.Splits {
+//		if split.Status == "ACTIVE" {
+//			toAdd = append(toAdd, split)
+//		} else {
+//			toDel = append(toDel, split)
+//		}
+//	}
+//
+//	p.Update(toAdd, toDel, payload.Till)
+//}
 
 // ChangeNumber returns the current change number
 func (p *ProxySplitStorageImpl) ChangeNumber() (int64, error) {
