@@ -71,8 +71,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 
 	// Getting initial config data
 	advanced := cfg.BuildAdvancedConfig()
-	// advanced.FlagSetsFilter = cfg.FlagSetsFilter
-	advanced.FlagSetsFilter = make([]string, 0)
+	advanced.FlagSetsFilter = cfg.FlagSetsFilter
 	metadata := util.GetMetadata(cfg.IPAddressEnabled, true)
 
 	// FlagSetsFilter

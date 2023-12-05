@@ -41,13 +41,6 @@ type ProxySplitStorageImpl struct {
 	mtx           sync.Mutex
 }
 
-// GetNamesByFlagSets implements storage.SplitStorage
-func (*ProxySplitStorageImpl) GetNamesByFlagSets(sets []string) map[string][]string {
-	// NOTE: This method is NOT used by the proxy.
-	// we need to revisit our interfaces so that we're not obliged to do this smeely empty impls.
-	return nil
-}
-
 // NewProxySplitStorage instantiates a new proxy storage that wraps an in-memory snapshot of the last known,
 // flag configuration, a changes summaries containing recipes to update SDKs with different CNs, and a persistent storage
 // for snapshot purposes
@@ -55,8 +48,10 @@ func NewProxySplitStorage(db persistent.DBWrapper, logger logging.LoggerInterfac
 	disk := persistent.NewSplitChangesCollection(db, logger)
 	snapshot := mutexmap.NewMMSplitStorage(flagSets)
 	historic := optimized.NewHistoricSplitChanges(1000)
+
+	var initialCN int64 = -1
 	if restoreBackup {
-		snapshotFromDisk(snapshot, historic, disk, logger)
+		initialCN = snapshotFromDisk(snapshot, historic, disk, logger)
 	}
 	return &ProxySplitStorageImpl{
 		snapshot:      *snapshot,
@@ -64,7 +59,7 @@ func NewProxySplitStorage(db persistent.DBWrapper, logger logging.LoggerInterfac
 		flagSets:      flagSets,
 		historic:      historic,
 		logger:        logger,
-		oldestKnownCN: -1,
+		oldestKnownCN: initialCN,
 	}
 }
 
@@ -81,8 +76,8 @@ func (p *ProxySplitStorageImpl) ChangesSince(since int64, flagSets []string) (*d
 		return &dtos.SplitChangesDTO{Since: since, Till: cn, Splits: all}, nil
 	}
 
-	if since < p.getStartingPoint() {
-		// update before replying
+	if p.sinceIsTooOld(since) {
+		return nil, ErrSinceParamTooOld
 	}
 
 	views := p.historic.GetUpdatedSince(since, flagSets)
@@ -135,22 +130,6 @@ func (p *ProxySplitStorageImpl) Update(toAdd []dtos.SplitDTO, toRemove []dtos.Sp
 	p.mtx.Unlock()
 }
 
-//// RegisterOlderCn registers payload associated to a fetch request for an old `since` for which we don't
-//// have a recipe
-//func (p *ProxySplitStorageImpl) RegisterOlderCn(payload *dtos.SplitChangesDTO) {
-//	toAdd := make([]dtos.SplitDTO, 0)
-//	toDel := make([]dtos.SplitDTO, 0)
-//	for _, split := range payload.Splits {
-//		if split.Status == "ACTIVE" {
-//			toAdd = append(toAdd, split)
-//		} else {
-//			toDel = append(toDel, split)
-//		}
-//	}
-//
-//	p.Update(toAdd, toDel, payload.Till)
-//}
-
 // ChangeNumber returns the current change number
 func (p *ProxySplitStorageImpl) ChangeNumber() (int64, error) {
 	return p.snapshot.ChangeNumber()
@@ -193,6 +172,13 @@ func (p *ProxySplitStorageImpl) Count() int {
 	return len(p.SplitNames())
 }
 
+// GetNamesByFlagSets implements storage.SplitStorage
+func (*ProxySplitStorageImpl) GetNamesByFlagSets(sets []string) map[string][]string {
+	// NOTE: This method is NOT used by the proxy.
+	// we need to revisit our interfaces so that we're not obliged to do this smeely empty impls.
+	return nil
+}
+
 func (p *ProxySplitStorageImpl) setStartingPoint(cn int64) {
 	p.mtx.Lock()
 	// will be executed only the first time this method is called or when
@@ -203,17 +189,26 @@ func (p *ProxySplitStorageImpl) setStartingPoint(cn int64) {
 	p.mtx.Unlock()
 }
 
-func (p *ProxySplitStorageImpl) getStartingPoint() int64 {
+func (p *ProxySplitStorageImpl) sinceIsTooOld(since int64) bool {
+	if since == -1 {
+		return false
+	}
+
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
-	return p.oldestKnownCN
+	return since < p.oldestKnownCN
 }
 
-func snapshotFromDisk(dst *mutexmap.MMSplitStorage, historic optimized.HistoricChanges, src *persistent.SplitChangesCollection, logger logging.LoggerInterface) {
+func snapshotFromDisk(
+	dst *mutexmap.MMSplitStorage,
+	historic optimized.HistoricChanges,
+	src *persistent.SplitChangesCollection,
+	logger logging.LoggerInterface,
+) int64 {
 	all, err := src.FetchAll()
 	if err != nil {
 		logger.Error("error parsing feature flags from snapshot. No data will be available!: ", err)
-		return
+		return -1
 	}
 
 	var filtered []dtos.SplitDTO
@@ -231,6 +226,7 @@ func snapshotFromDisk(dst *mutexmap.MMSplitStorage, historic optimized.HistoricC
 
 	dst.Update(filtered, nil, cn)
 	historic.Update(filtered, nil, cn)
+	return cn
 }
 
 func archivedDTOForView(view *optimized.FeatureView) dtos.SplitDTO {

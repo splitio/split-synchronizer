@@ -111,6 +111,9 @@ func TestSplitStorageWithFlagsets(t *testing.T) {
 
 	logger := logging.NewLogger(nil)
 
+	splitC := persistent.NewSplitChangesCollection(dbw, logger)
+	splitC.Update(nil, []dtos.SplitDTO{{Name: "f0", ChangeNumber: 0, Status: "ARCHIVED", TrafficTypeName: "ttt"}}, 0)
+
 	pss := NewProxySplitStorage(dbw, logger, flagsets.NewFlagSetFilter(nil), true)
 
 	pss.Update([]dtos.SplitDTO{
