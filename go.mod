@@ -8,8 +8,8 @@ require (
 	github.com/gin-gonic/gin v1.9.1
 	github.com/google/uuid v1.3.0
 	github.com/splitio/gincache v1.0.1
-	github.com/splitio/go-split-commons/v5 v5.0.1-0.20231115165340-19ae11b6b7d5
-	github.com/splitio/go-toolkit/v5 v5.3.2-0.20231106173125-49e72b9823dc
+	github.com/splitio/go-split-commons/v5 v5.1.0
+	github.com/splitio/go-toolkit/v5 v5.3.2
 	github.com/stretchr/testify v1.8.4
 	go.etcd.io/bbolt v1.3.6
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
