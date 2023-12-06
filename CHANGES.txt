@@ -1,5 +1,8 @@
-5.5.0 (Month XX, 2023)
-- FlagSet
+5.5.0 (Dec 6, 2023)
+ - Added support for Flag Sets on Split Proxy and Synchronizer, which enables SDKs to interacting with the flag sets features (more details in our documentation):
+    - Updated Proxy endpoints used by SDKs to fetch flags have been updated to handle any SDKs downloading flags in certain flag sets.
+    - Updated Syncrhonizer to properly handle flagsets in redis.
+    - Added configuration options to specify which flagsets to use as a filter when downloading flag definitions. Please refer to our docs to learn more
 
 5.4.0 (July 18, 2023)
 - Improved streaming architecture implementation to apply feature flag updates from the notification received which is now enhanced, improving efficiency and reliability of the whole update system.
