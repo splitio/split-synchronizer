@@ -5,13 +5,16 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/go-split-commons/v5/dtos"
 	"github.com/splitio/go-split-commons/v5/service"
 	"github.com/splitio/go-toolkit/v5/logging"
+	"golang.org/x/exp/slices"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/caching"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/flagsets"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 )
 
@@ -21,6 +24,7 @@ type SdkServerController struct {
 	fetcher             service.SplitFetcher
 	proxySplitStorage   storage.ProxySplitStorage
 	proxySegmentStorage storage.ProxySegmentStorage
+	fsmatcher           flagsets.FlagSetMatcher
 }
 
 // NewSdkServerController instantiates a new sdk server controller
@@ -29,12 +33,15 @@ func NewSdkServerController(
 	fetcher service.SplitFetcher,
 	proxySplitStorage storage.ProxySplitStorage,
 	proxySegmentStorage storage.ProxySegmentStorage,
+	fsmatcher flagsets.FlagSetMatcher,
+
 ) *SdkServerController {
 	return &SdkServerController{
 		logger:              logger,
 		fetcher:             fetcher,
 		proxySplitStorage:   proxySplitStorage,
 		proxySegmentStorage: proxySegmentStorage,
+		fsmatcher:           fsmatcher,
 	}
 }
 
@@ -52,9 +59,19 @@ func (c *SdkServerController) SplitChanges(ctx *gin.Context) {
 	if err != nil {
 		since = -1
 	}
+
+	var rawSets []string
+	if fq, ok := ctx.GetQuery("sets"); ok {
+		rawSets = strings.Split(fq, ",")
+	}
+	sets := c.fsmatcher.Sanitize(rawSets)
+	if !slices.Equal(sets, rawSets) {
+		c.logger.Warning(fmt.Sprintf("SDK [%s] is sending flagsets unordered or with duplicates.", ctx.Request.Header.Get("SplitSDKVersion")))
+	}
+
 	c.logger.Debug(fmt.Sprintf("SDK Fetches Feature Flags Since: %d", since))
 
-	splits, err := c.fetchSplitChangesSince(since)
+	splits, err := c.fetchSplitChangesSince(since, sets)
 	if err != nil {
 		c.logger.Error("error fetching splitChanges payload from storage: ", err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -112,20 +129,18 @@ func (c *SdkServerController) MySegments(ctx *gin.Context) {
 	ctx.Set(caching.SurrogateContextKey, caching.MakeSurrogateForMySegments(mySegments))
 }
 
-func (c *SdkServerController) fetchSplitChangesSince(since int64) (*dtos.SplitChangesDTO, error) {
-	splits, err := c.proxySplitStorage.ChangesSince(since)
+func (c *SdkServerController) fetchSplitChangesSince(since int64, sets []string) (*dtos.SplitChangesDTO, error) {
+	splits, err := c.proxySplitStorage.ChangesSince(since, sets)
 	if err == nil {
 		return splits, nil
 	}
-	if !errors.Is(err, storage.ErrSummaryNotCached) {
+	if !errors.Is(err, storage.ErrSinceParamTooOld) {
 		return nil, fmt.Errorf("unexpected error fetching feature flag changes from storage: %w", err)
 	}
 
+	// perform a fetch to the BE using the supplied `since`, have the storage process it's response &, retry
+	// TODO(mredolatti): implement basic collapsing here to avoid flooding the BE with requests
 	fetchOptions := service.NewFetchOptions(true, nil)
-	splits, err = c.fetcher.Fetch(since, &fetchOptions)
-	if err == nil {
-		c.proxySplitStorage.RegisterOlderCn(splits)
-		return splits, nil
-	}
-	return nil, fmt.Errorf("unexpected error fetching feature flag changes from storage: %w", err)
+	fetchOptions.FlagSetsFilter = strings.Join(sets, ",") // at this point the sets have been sanitized & sorted
+	return c.fetcher.Fetch(since, &fetchOptions)
 }

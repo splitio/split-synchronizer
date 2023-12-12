@@ -34,7 +34,10 @@ func setupConfig(cliArgs *cconf.CliFlags) (*conf.Main, error) {
 	}
 
 	cconf.PopulateFromArguments(&proxyConf, cliArgs.RawConfig)
-	return &proxyConf, nil
+
+	var err error
+	proxyConf.FlagSetsFilter, err = cconf.ValidateFlagsets(proxyConf.FlagSetsFilter)
+	return &proxyConf, err
 }
 
 func main() {
@@ -57,8 +60,13 @@ func main() {
 
 	cfg, err := setupConfig(cliArgs)
 	if err != nil {
-		fmt.Println("error processing config: ", err)
-		os.Exit(exitCodeConfigError)
+		var fsErr cconf.FlagSetValidationError
+		if errors.As(err, &fsErr) {
+			fmt.Println("error processing flagsets: ", err.Error())
+		} else {
+			fmt.Println("error processing config: ", err)
+			os.Exit(exitCodeConfigError)
+		}
 	}
 
 	logger := log.BuildFromConfig(&cfg.Logging, "Split-Proxy", &cfg.Integrations.Slack)
