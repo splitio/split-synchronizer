@@ -110,6 +110,8 @@ images_release: # entrypoints
 go.sum: go.mod
 	$(GO) mod tidy
 
+coverage.out: test_coverage
+
 # because of windows .exe suffix, we need a macro on the right side, which needs to be executed
 # after the `%` evaluation, therefore, in a second expansion
 .SECONDEXPANSION:

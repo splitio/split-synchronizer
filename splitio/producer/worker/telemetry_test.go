@@ -27,14 +27,14 @@ func TestTelemetryMultiWorker(t *testing.T) {
 	store := storageMocks.RedisTelemetryConsumerMultiMock{
 		PopLatenciesCall: func() storage.MultiMethodLatencies {
 			return map[dtos.Metadata]dtos.MethodLatencies{
-				metadata1: dtos.MethodLatencies{Treatment: makeBucket(1, 1)},
-				metadata2: dtos.MethodLatencies{Treatment: makeBucket(2, 1)},
+				metadata1: dtos.MethodLatencies{Treatment: makeBucket(1, 1), TreatmentsByFlagSet: makeBucket(1, 2), TreatmentsWithConfigByFlagSet: makeBucket(1, 3)},
+				metadata2: dtos.MethodLatencies{Treatment: makeBucket(2, 1), TreatmentsByFlagSets: makeBucket(1, 3), TreatmentsWithConfigByFlagSets: makeBucket(1, 1)},
 			}
 		},
 		PopExceptionsCall: func() storage.MultiMethodExceptions {
 			return map[dtos.Metadata]dtos.MethodExceptions{
-				metadata1: dtos.MethodExceptions{Treatment: 1},
-				metadata2: dtos.MethodExceptions{Treatment: 2},
+				metadata1: dtos.MethodExceptions{Treatment: 1, TreatmentsByFlagSet: 9, TreatmentsWithConfigByFlagSet: 12},
+				metadata2: dtos.MethodExceptions{Treatment: 2, TreatmentsByFlagSets: 5, TreatmentsWithConfigByFlagSets: 13},
 			}
 		},
 		PopConfigsCall: func() storage.MultiConfigs {
@@ -64,14 +64,38 @@ func TestTelemetryMultiWorker(t *testing.T) {
 				if l := stats.MethodLatencies.Treatment[1]; l != 1 {
 					t.Error("invalid latency", l)
 				}
+				if l := stats.MethodLatencies.TreatmentsByFlagSet[1]; l != 2 {
+					t.Error("invalid latency", l)
+				}
+				if l := stats.MethodLatencies.TreatmentsWithConfigByFlagSet[1]; l != 3 {
+					t.Error("invalid latency", l)
+				}
 				if stats.MethodExceptions.Treatment != 1 {
+					t.Error("invalid exception count")
+				}
+				if stats.MethodExceptions.TreatmentsByFlagSet != 9 {
+					t.Error("invalid exception count")
+				}
+				if stats.MethodExceptions.TreatmentsWithConfigByFlagSet != 12 {
 					t.Error("invalid exception count")
 				}
 			} else if metadata == metadata2 {
 				if l := stats.MethodLatencies.Treatment[2]; l != 1 {
 					t.Error("invalid latency", l)
 				}
+				if l := stats.MethodLatencies.TreatmentsByFlagSets[1]; l != 3 {
+					t.Error("invalid latency", l)
+				}
+				if l := stats.MethodLatencies.TreatmentsWithConfigByFlagSets[1]; l != 1 {
+					t.Error("invalid latency", l)
+				}
 				if stats.MethodExceptions.Treatment != 2 {
+					t.Error("invalid exception count")
+				}
+				if stats.MethodExceptions.TreatmentsByFlagSets != 5 {
+					t.Error("invalid exception count")
+				}
+				if stats.MethodExceptions.TreatmentsWithConfigByFlagSets != 13 {
 					t.Error("invalid exception count")
 				}
 			}

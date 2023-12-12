@@ -11,6 +11,7 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers/middleware"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/flagsets"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks"
 
@@ -78,6 +79,10 @@ type Options struct {
 
 	// Proxy TLS configuration
 	TLSConfig *tls.Config
+
+	FlagSets []string
+
+	FlagSetsStrictMatching bool
 }
 
 // API bundles all components required to answer API calls from Split sdks
@@ -154,6 +159,7 @@ func setupSdkController(options *Options) *controllers.SdkServerController {
 		options.SplitFetcher,
 		options.ProxySplitStorage,
 		options.ProxySegmentStorage,
+		flagsets.NewMatcher(options.FlagSetsStrictMatching, options.FlagSets),
 	)
 }
 

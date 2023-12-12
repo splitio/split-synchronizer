@@ -34,7 +34,10 @@ func setupConfig(cliArgs *cconf.CliFlags) (*conf.Main, error) {
 	}
 
 	cconf.PopulateFromArguments(&syncConf, cliArgs.RawConfig)
-	return &syncConf, nil
+
+	var err error
+	syncConf.FlagSetsFilter, err = cconf.ValidateFlagsets(syncConf.FlagSetsFilter)
+	return &syncConf, err
 }
 
 func main() {
@@ -57,8 +60,13 @@ func main() {
 
 	cfg, err := setupConfig(cliArgs)
 	if err != nil {
-		fmt.Println("error processing config: ", err)
-		os.Exit(exitCodeConfigError)
+		var fsErr cconf.FlagSetValidationError
+		if errors.As(err, &fsErr) {
+			fmt.Println("error processing flagset: ", err.Error())
+		} else {
+			fmt.Println("error processing config: ", err)
+			os.Exit(exitCodeConfigError)
+		}
 	}
 
 	logger := log.BuildFromConfig(&cfg.Logging, "Split-Sync", &cfg.Integrations.Slack)
