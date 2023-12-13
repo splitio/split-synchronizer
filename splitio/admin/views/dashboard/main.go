@@ -113,6 +113,7 @@ type SplitSummary struct {
 	Killed           bool     `json:"killed"`
 	DefaultTreatment string   `json:"defaultTreatment"`
 	Treatments       []string `json:"treatments"`
+	FlagSets 		 []string `json:"flagSets"`
 	LastModified     string   `json:"cn"`
 	ChangeNumber     int64    `json:"changeNumber"`
 }
