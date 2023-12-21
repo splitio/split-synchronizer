@@ -255,6 +255,21 @@ const mainScript = `
     }
   };
 
+  function formatFlagSet(flagSet) {
+    return (
+      '<tr class="flagSetItem">' +
+      '  <td><span class="flagSetItemName">' + flagSet.name + '</span></td>' +
+      '  <td>' + flagSet.featureFlagsAssociated + '</td>' +
+      '  <td>' + flagSet.featureFlags + '</td>' +
+      '</tr>\n');
+  };
+
+  function updateFlagSets(flagSets) {
+    const formatted = flagSets.map(formatFlagSet).join('\n');
+    $('#flag_sets_rows tbody').empty();
+    $('#flag_sets_rows tbody').append(formatted);
+  }
+
   function formatSegment(segment) {
     return '<tr>' + 
           '<td><a id="showKeys-' + segment.name + '" href="#" onclick="javascript:getKeys(\'' + segment.name + '\');return false;" class="showKeysLnk btn-xs">' +
@@ -318,6 +333,7 @@ const mainScript = `
     $('#backend_total_requests').html(stats.backendTotalRequests);
     $('#feature_flags_number').html(stats.featureFlags.length);
     $('#segments_number').html(stats.segments.length);
+    $('#flag_sets_number').html(stats.flagSets.length);
     $('#impressions_queue_value').html(stats.impressionsQueueSize);
     $('#events_queue_value').html(stats.eventsQueueSize);
     $('#feature_flags_number').html();
@@ -409,6 +425,7 @@ const mainScript = `
     updateFeatureFlags(stats.featureFlags);
     updateSegments(stats.segments);
     updateLogEntries(stats.loggedMessages);
+    updateFlagSets(stats.flagSets)
 
     renderBackendStatsChart(stats.backendLatencies);
     {{if .ProxyMode}}
