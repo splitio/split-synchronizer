@@ -157,5 +157,6 @@ func (c *DashboardController) gatherStats() *dashboard.GlobalStats {
 		LoggedErrors:           errorCount,
 		LoggedMessages:         errorMessages,
 		Uptime:                 int64(c.runtime.Uptime().Seconds()),
+		FlagSets:               getFlagSetsInfo(c.storages.SplitStorage),
 	}
 }

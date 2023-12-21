@@ -304,6 +304,7 @@ func (*splitStorageMock) TrafficTypeExists(trafficType string) bool { panic("uni
 func (*splitStorageMock) Update(toAdd []dtos.SplitDTO, toRemove []dtos.SplitDTO, changeNumber int64) {
 	panic("unimplemented")
 }
+func (*splitStorageMock) GetAllFlagSetNames() []string { return make([]string, 0) }
 
 type segmentUpdaterMock struct {
 	mock.Mock
@@ -346,28 +347,28 @@ func (*segmentStorageMock) SegmentContainsKey(segmentName string, key string) (b
 func (*segmentStorageMock) SegmentKeysCount() int64 { panic("unimplemented") }
 
 /*
-type segmentUpdaterMock struct {
-	SynchronizeSegmentCall  func(name string, till *int64) (*segment.UpdateResult, error)
-	SynchronizeSegmentsCall func() (map[string]segment.UpdateResult, error)
-	SegmentNamesCall        func() []interface{}
-	IsSegmentCachedCall     func(segmentName string) bool
-}
+	type segmentUpdaterMock struct {
+		SynchronizeSegmentCall  func(name string, till *int64) (*segment.UpdateResult, error)
+		SynchronizeSegmentsCall func() (map[string]segment.UpdateResult, error)
+		SegmentNamesCall        func() []interface{}
+		IsSegmentCachedCall     func(segmentName string) bool
+	}
 
-func (s *segmentUpdaterMock) SynchronizeSegment(name string, till *int64) (*segment.UpdateResult, error) {
-	return s.SynchronizeSegmentCall(name, till)
-}
+	func (s *segmentUpdaterMock) SynchronizeSegment(name string, till *int64) (*segment.UpdateResult, error) {
+		return s.SynchronizeSegmentCall(name, till)
+	}
 
-func (s *segmentUpdaterMock) SynchronizeSegments() (map[string]segment.UpdateResult, error) {
-	return s.SynchronizeSegmentsCall()
-}
+	func (s *segmentUpdaterMock) SynchronizeSegments() (map[string]segment.UpdateResult, error) {
+		return s.SynchronizeSegmentsCall()
+	}
 
-func (s *segmentUpdaterMock) SegmentNames() []interface{} {
-	return s.SegmentNamesCall()
-}
+	func (s *segmentUpdaterMock) SegmentNames() []interface{} {
+		return s.SegmentNamesCall()
+	}
 
-func (s *segmentUpdaterMock) IsSegmentCached(segmentName string) bool {
-	return s.IsSegmentCachedCall(segmentName)
-}
+	func (s *segmentUpdaterMock) IsSegmentCached(segmentName string) bool {
+		return s.IsSegmentCachedCall(segmentName)
+	}
 */
 var _ split.Updater = (*splitUpdaterMock)(nil)
 var _ storage.SplitStorage = (*splitStorageMock)(nil)
