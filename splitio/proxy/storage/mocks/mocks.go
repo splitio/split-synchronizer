@@ -2,35 +2,36 @@ package mocks
 
 import (
 	"github.com/splitio/go-split-commons/v5/dtos"
+	"github.com/stretchr/testify/mock"
 )
 
 type ProxySplitStorageMock struct {
-	ChangesSinceCall    func(since int64) (*dtos.SplitChangesDTO, error)
-	RegisterOlderCnCall func(payload *dtos.SplitChangesDTO)
+	mock.Mock
 }
 
-func (p *ProxySplitStorageMock) ChangesSince(since int64) (*dtos.SplitChangesDTO, error) {
-	return p.ChangesSinceCall(since)
+func (p *ProxySplitStorageMock) ChangesSince(since int64, sets []string) (*dtos.SplitChangesDTO, error) {
+	args := p.Called(since, sets)
+	return args.Get(0).(*dtos.SplitChangesDTO), args.Error(1)
 }
 
 func (p *ProxySplitStorageMock) RegisterOlderCn(payload *dtos.SplitChangesDTO) {
-	p.RegisterOlderCnCall(payload)
+	p.Called(payload)
 }
 
 type ProxySegmentStorageMock struct {
-	ChangesSinceCall     func(name string, since int64) (*dtos.SegmentChangesDTO, error)
-	SegmentsForCall      func(key string) ([]string, error)
-	CountRemovedKeysCall func(segmentName string) int
+	mock.Mock
 }
 
 func (p *ProxySegmentStorageMock) ChangesSince(name string, since int64) (*dtos.SegmentChangesDTO, error) {
-	return p.ChangesSinceCall(name, since)
+	args := p.Called(name, since)
+	return args.Get(0).(*dtos.SegmentChangesDTO), args.Error(1)
 }
 
 func (p *ProxySegmentStorageMock) SegmentsFor(key string) ([]string, error) {
-	return p.SegmentsForCall(key)
+	args := p.Called(key)
+	return args.Get(0).([]string), args.Error(1)
 }
 
 func (p *ProxySegmentStorageMock) CountRemovedKeys(segmentName string) int {
-	return p.CountRemovedKeysCall(segmentName)
+	return p.Called(segmentName).Int(0)
 }

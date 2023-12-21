@@ -4,31 +4,20 @@ import (
 	"testing"
 
 	"github.com/splitio/go-split-commons/v5/dtos"
-	"github.com/splitio/go-toolkit/v5/testhelpers"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestSegment(t *testing.T) {
-
-	if MakeSurrogateForSegmentChanges("segment1") != segmentPrefix+"segment1" {
-		t.Error("wrong segment changes surrogate.")
-	}
+func TestSegmentSurrogates(t *testing.T) {
+	assert.Equal(t, segmentPrefix+"segment1", MakeSurrogateForSegmentChanges("segment1"))
+	assert.NotEqual(t, MakeSurrogateForSegmentChanges("segment1"), MakeSurrogateForSegmentChanges("segment2"))
 }
 
 func TestMySegmentKeyGeneration(t *testing.T) {
 	entries := MakeMySegmentsEntries("k1")
-	if entries[0] != "/api/mySegments/k1" {
-		t.Error("invalid mySegments cache entry")
-	}
-	if entries[1] != "gzip::/api/mySegments/k1" {
-		t.Error("invalid mySegments cache entry")
-	}
+	assert.Equal(t, "/api/mySegments/k1", entries[0])
+	assert.Equal(t, "gzip::/api/mySegments/k1", entries[1])
 }
 
-func TestMySegments(t *testing.T) {
-	testhelpers.AssertStringSliceEquals(
-		t,
-		MakeSurrogateForMySegments([]dtos.MySegmentDTO{{Name: "segment1"}, {Name: "segment2"}}),
-		[]string{},
-		"wrong my segments surrogate keys",
-	)
+func TestMySegmentsSurrogates(t *testing.T) {
+	assert.Equal(t, []string(nil), MakeSurrogateForMySegments([]dtos.MySegmentDTO{{Name: "segment1"}, {Name: "segment2"}}))
 }

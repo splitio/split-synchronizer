@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/splitio/go-split-commons/v5/conf"
+	"github.com/splitio/go-split-commons/v5/flagsets"
 	"github.com/splitio/go-split-commons/v5/service/api"
 	"github.com/splitio/go-split-commons/v5/synchronizer"
 	"github.com/splitio/go-split-commons/v5/tasks"
@@ -70,13 +71,17 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 
 	// Getting initial config data
 	advanced := cfg.BuildAdvancedConfig()
+	advanced.FlagSetsFilter = cfg.FlagSetsFilter
 	metadata := util.GetMetadata(cfg.IPAddressEnabled, true)
+
+	// FlagSetsFilter
+	flagSetsFilter := flagsets.NewFlagSetFilter(cfg.FlagSetsFilter)
 
 	// Setup fetchers & recorders
 	splitAPI := api.NewSplitAPI(cfg.Apikey, *advanced, logger, metadata)
 
 	// Proxy storages already implement the observable interface, so no need to wrap them
-	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, cfg.Initialization.Snapshot != "")
+	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, flagsets.NewFlagSetFilter(cfg.FlagSetsFilter), cfg.Initialization.Snapshot != "")
 	segmentStorage := storage.NewProxySegmentStorage(dbInstance, logger, cfg.Initialization.Snapshot != "")
 
 	// Local telemetry
@@ -112,7 +117,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 
 	// setup feature flags, segments & local telemetry API interactions
 	workers := synchronizer.Workers{
-		SplitUpdater: caching.NewCacheAwareSplitSync(splitStorage, splitAPI.SplitFetcher, logger, localTelemetryStorage, httpCache, appMonitor),
+		SplitUpdater: caching.NewCacheAwareSplitSync(splitStorage, splitAPI.SplitFetcher, logger, localTelemetryStorage, httpCache, appMonitor, flagSetsFilter),
 		SegmentUpdater: caching.NewCacheAwareSegmentSync(splitStorage, segmentStorage, splitAPI.SegmentFetcher, logger, localTelemetryStorage, httpCache,
 			appMonitor),
 		TelemetryRecorder: telemetry.NewTelemetrySynchronizer(localTelemetryStorage, telemetryRecorder, splitStorage, segmentStorage, logger,
@@ -160,6 +165,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		logger.Info("Synchronizer tasks started")
 		appMonitor.Start()
 		servicesMonitor.Start()
+		flagSetsAfterSanitize, _ := flagsets.SanitizeMany(cfg.FlagSetsFilter)
 		workers.TelemetryRecorder.SynchronizeConfig(
 			telemetry.InitConfig{
 				AdvancedConfig: *advanced,
@@ -169,6 +175,8 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 					TelemetrySync: int(cfg.Sync.Advanced.InternalMetricsRateMs / 1000),
 				},
 				ListenerEnabled: cfg.Integrations.ImpressionListener.Endpoint != "",
+				FlagSetsTotal:   int64(len(cfg.FlagSetsFilter)),
+				FlagSetsInvalid: int64(len(cfg.FlagSetsFilter) - len(flagSetsAfterSanitize)),
 			},
 			time.Since(before).Milliseconds(),
 			map[string]int64{cfg.Apikey: 1},
@@ -245,6 +253,8 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		Telemetry:                   localTelemetryStorage,
 		Cache:                       httpCache,
 		TLSConfig:                   tlsConfig,
+		FlagSets:                    cfg.FlagSetsFilter,
+		FlagSetsStrictMatching:      cfg.FlagSetStrictMatching,
 	}
 
 	if ilcfg := cfg.Integrations.ImpressionListener; ilcfg.Endpoint != "" {
