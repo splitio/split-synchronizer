@@ -177,11 +177,15 @@ func setLatency(result MultiMethodLatencies, metadata *dtos.Metadata, method str
 
 	if _, ok := result[*metadata]; !ok {
 		result[*metadata] = dtos.MethodLatencies{
-			Treatment:            make([]int64, telemetry.LatencyBucketCount),
-			Treatments:           make([]int64, telemetry.LatencyBucketCount),
-			TreatmentWithConfig:  make([]int64, telemetry.LatencyBucketCount),
-			TreatmentsWithConfig: make([]int64, telemetry.LatencyBucketCount),
-			Track:                make([]int64, telemetry.LatencyBucketCount),
+			Treatment:                      make([]int64, telemetry.LatencyBucketCount),
+			Treatments:                     make([]int64, telemetry.LatencyBucketCount),
+			TreatmentWithConfig:            make([]int64, telemetry.LatencyBucketCount),
+			TreatmentsWithConfig:           make([]int64, telemetry.LatencyBucketCount),
+			TreatmentsByFlagSet:            make([]int64, telemetry.LatencyBucketCount),
+			TreatmentsByFlagSets:           make([]int64, telemetry.LatencyBucketCount),
+			TreatmentsWithConfigByFlagSet:  make([]int64, telemetry.LatencyBucketCount),
+			TreatmentsWithConfigByFlagSets: make([]int64, telemetry.LatencyBucketCount),
+			Track:                          make([]int64, telemetry.LatencyBucketCount),
 		}
 	}
 
@@ -194,6 +198,14 @@ func setLatency(result MultiMethodLatencies, metadata *dtos.Metadata, method str
 		result[*metadata].TreatmentWithConfig[bucket] = count
 	case telemetry.TreatmentsWithConfig:
 		result[*metadata].TreatmentsWithConfig[bucket] = count
+	case telemetry.TreatmentsByFlagSet:
+		result[*metadata].TreatmentsByFlagSet[bucket] = count
+	case telemetry.TreatmentsByFlagSets:
+		result[*metadata].TreatmentsByFlagSets[bucket] = count
+	case telemetry.TreatmentsWithConfigByFlagSet:
+		result[*metadata].TreatmentsWithConfigByFlagSet[bucket] = count
+	case telemetry.TreatmentsWithConfigByFlagSets:
+		result[*metadata].TreatmentsWithConfigByFlagSets[bucket] = count
 	case telemetry.Track:
 		result[*metadata].Track[bucket] = count
 	default:
@@ -232,6 +244,14 @@ func setException(result MultiMethodExceptions, metadata *dtos.Metadata, method 
 		curr.TreatmentWithConfig = count
 	case telemetry.TreatmentsWithConfig:
 		curr.TreatmentsWithConfig = count
+	case telemetry.TreatmentsByFlagSet:
+		curr.TreatmentsByFlagSet = count
+	case telemetry.TreatmentsByFlagSets:
+		curr.TreatmentsByFlagSets = count
+	case telemetry.TreatmentsWithConfigByFlagSet:
+		curr.TreatmentsWithConfigByFlagSet = count
+	case telemetry.TreatmentsWithConfigByFlagSets:
+		curr.TreatmentsWithConfigByFlagSets = count
 	case telemetry.Track:
 		curr.Track = count
 	default:

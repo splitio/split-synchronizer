@@ -7,6 +7,7 @@ import (
 
 	cconf "github.com/splitio/go-split-commons/v5/conf"
 	"github.com/splitio/go-split-commons/v5/dtos"
+	"github.com/splitio/go-split-commons/v5/flagsets"
 	"github.com/splitio/go-split-commons/v5/provisional/strategy"
 	"github.com/splitio/go-split-commons/v5/service/api"
 	"github.com/splitio/go-split-commons/v5/storage/filter"
@@ -46,6 +47,7 @@ const (
 func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	// Getting initial config data
 	advanced := cfg.BuildAdvancedConfig()
+	advanced.FlagSetsFilter = cfg.FlagSetsFilter
 	metadata := util.GetMetadata(false, cfg.IPAddressEnabled)
 
 	clientKey, err := util.GetClientKey(cfg.Apikey)
@@ -84,8 +86,11 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	syncTelemetryStorage, _ := inmemory.NewTelemetryStorage()
 	sdkTelemetryStorage := storage.NewRedisTelemetryCosumerclient(redisClient, logger)
 
+	// FlagSetsFilter
+	flagSetsFilter := flagsets.NewFlagSetFilter(cfg.FlagSetsFilter)
+
 	// These storages are forwarded to the dashboard, the sdk-telemetry is irrelevant there
-	splitStorage, err := observability.NewObservableSplitStorage(redis.NewSplitStorage(redisClient, logger), logger)
+	splitStorage, err := observability.NewObservableSplitStorage(redis.NewSplitStorage(redisClient, logger, flagSetsFilter), logger)
 	if err != nil {
 		return fmt.Errorf("error instantiating observable feature flag storage: %w", err)
 	}
@@ -118,7 +123,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	eventEvictionMonitor := evcalc.New(1)
 
 	workers := synchronizer.Workers{
-		SplitUpdater: split.NewSplitUpdater(storages.SplitStorage, splitAPI.SplitFetcher, logger, syncTelemetryStorage, appMonitor),
+		SplitUpdater: split.NewSplitUpdater(storages.SplitStorage, splitAPI.SplitFetcher, logger, syncTelemetryStorage, appMonitor, flagSetsFilter),
 		SegmentUpdater: segment.NewSegmentUpdater(storages.SplitStorage, storages.SegmentStorage, splitAPI.SegmentFetcher,
 			logger, syncTelemetryStorage, appMonitor),
 		ImpressionsCountRecorder: impressionscount.NewRecorderSingle(impressionsCounter, splitAPI.ImpressionRecorder,
@@ -276,6 +281,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 
 	cfgForAdmin := *cfg
 	cfgForAdmin.Apikey = logging.ObfuscateAPIKey(cfgForAdmin.Apikey)
+	cfgForAdmin.Storage.Redis.Pass = "xxxxxxxxxxxxxxx"
 	adminServer, err := admin.NewServer(&admin.Options{
 		Host:              cfg.Admin.Host,
 		Port:              int(cfg.Admin.Port),
