@@ -281,6 +281,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 
 	cfgForAdmin := *cfg
 	cfgForAdmin.Apikey = logging.ObfuscateAPIKey(cfgForAdmin.Apikey)
+	cfgForAdmin.Storage.Redis.Pass = "xxxxxxxxxxxxxxx"
 	adminServer, err := admin.NewServer(&admin.Options{
 		Host:              cfg.Admin.Host,
 		Port:              int(cfg.Admin.Port),
