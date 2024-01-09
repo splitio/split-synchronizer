@@ -99,6 +99,7 @@ func parseRedisOptions(cfg *conf.Redis) (*config.RedisConfig, error) {
 		WriteTimeout: cfg.WriteTimeout,
 		PoolSize:     cfg.PoolSize,
 		TLSConfig:    tlsCfg,
+		ScanCount:    cfg.ScanCount,
 	}
 
 	if cfg.SentinelReplication {
