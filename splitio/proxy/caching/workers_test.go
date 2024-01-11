@@ -289,6 +289,9 @@ func (*splitStorageMock) FetchMany(splitNames []string) map[string]*dtos.SplitDT
 func (*splitStorageMock) GetNamesByFlagSets(sets []string) map[string][]string {
 	panic("unimplemented")
 }
+func (*splitStorageMock) GetAllFlagSetNames() []string {
+	panic("unimplemented")
+}
 func (*splitStorageMock) KillLocally(splitName string, defaultTreatment string, changeNumber int64) {
 	panic("unimplemented")
 }
