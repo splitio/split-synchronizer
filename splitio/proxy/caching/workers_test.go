@@ -307,7 +307,6 @@ func (*splitStorageMock) TrafficTypeExists(trafficType string) bool { panic("uni
 func (*splitStorageMock) Update(toAdd []dtos.SplitDTO, toRemove []dtos.SplitDTO, changeNumber int64) {
 	panic("unimplemented")
 }
-func (*splitStorageMock) GetAllFlagSetNames() []string { return make([]string, 0) }
 
 type segmentUpdaterMock struct {
 	mock.Mock
