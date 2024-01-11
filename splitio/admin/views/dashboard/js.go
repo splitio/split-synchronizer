@@ -241,6 +241,7 @@ const mainScript = `
          (!featureFlag.active ? '<td class="danger">ARCHIVED</td>' : '<td class="">ACTIVE</td>') +
          (featureFlag.killed ? '<td class="danger">true</td>' : '<td class="">false</td>') +
       '  <td>' + formatTreatments(featureFlag) + '</td>' +
+      '  <td>' + featureFlag.flagSets + '</td>' +
       '  <td>' + featureFlag.cn + '</td>' +
       '</tr>\n');
   };
