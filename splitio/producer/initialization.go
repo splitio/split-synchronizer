@@ -90,7 +90,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	flagSetsFilter := flagsets.NewFlagSetFilter(cfg.FlagSetsFilter)
 
 	// These storages are forwarded to the dashboard, the sdk-telemetry is irrelevant there
-	splitStorage, err := observability.NewObservableSplitStorage(redis.NewSplitStorage(redisClient, logger, flagSetsFilter), logger)
+	splitStorage, err := observability.NewObservableSplitStorage(redis.NewSplitStorage(redisClient, logger, flagSetsFilter, int64(redisOptions.ScanCount)), logger)
 	if err != nil {
 		return fmt.Errorf("error instantiating observable feature flag storage: %w", err)
 	}
