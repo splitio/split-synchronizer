@@ -61,11 +61,11 @@ const dataInspector = `
                       <input type="text" id="filterFeatureFlagNameInput" class="form-control" placeholder="Filter by Feature Flag name">
                       <span class="input-group-btn">
                         <button class="btn btn-default" type="button" onclick="javascript:filterFeatureFlags();">
-  		        <span class="glyphicon glyphicon-filter" aria-hidden="true"></span>
-  		      </button>
+                          <span class="glyphicon glyphicon-filter" aria-hidden="true"></span>
+                        </button>
                         <button class="btn btn-default" type="button" onclick="javascript:resetFilterFeatureFlags();">
-  		        <span class="glyphicon glyphicon-remove" aria-hidden="true"></span>
-  		      </button>
+                          <span class="glyphicon glyphicon-remove" aria-hidden="true"></span>
+                        </button>
                       </span>
                     </div>
                   </div>
@@ -79,6 +79,7 @@ const dataInspector = `
                           <th>Status</th>
                           <th>Killed</th>
                           <th>Treatments</th>
+                          <th>Flag Sets</th>
                           <th>Last Modified</th>
                         </tr>
                       </thead>
