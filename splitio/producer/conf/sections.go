@@ -103,7 +103,6 @@ type Redis struct {
 	TLSSkipNameValidation bool     `json:"tlsSkipNameValidation" s-cli:"redis-tls-skip-name-validation" s-def:"false" s-desc:"Blindly accept server's public key."`
 	TLSClientCertificate  string   `json:"tlsClientCertificate" s-cli:"redis-tls-client-certificate" s-def:"" s-desc:"Client certificate signed by a known CA"`
 	TLSClientKey          string   `json:"tlsClientKey" s-cli:"redis-tls-client-key" s-def:"" s-desc:"Client private key matching the certificate."`
-	ScanCount             int      `json:"scanCount" s-cli:"redis-scan-count" s-def:"10" s-desc:"It is the number of keys to search through at a time per cursor iteration, we use it to read feature flag names and flag set names."`
 }
 
 // Healthcheck configuration options
