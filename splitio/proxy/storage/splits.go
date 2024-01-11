@@ -182,6 +182,7 @@ func (*ProxySplitStorageImpl) GetNamesByFlagSets(sets []string) map[string][]str
 // GetAllFlagSetNames implements storage.SplitStorage
 func (*ProxySplitStorageImpl) GetAllFlagSetNames() []string {
 	// NOTE: This method is NOT used by the proxy.
+  // we need to revisit our interfaces so that we're not obliged to do this smeely empty impls.
 	return nil
 }
 
