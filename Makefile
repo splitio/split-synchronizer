@@ -1,11 +1,16 @@
 # Setup defaults
 GO ?= go
+MAKE ?= make
 ZIP ?= zip
 ARCH ?= amd64
 PYTHON ?= python3
 DOCKER ?= docker
 BUILD ?= build
+BUILD_FIPS ?= $(BUILD)/fips
+BUILD_FIPS_WIN_TMP ?= windows/build
 SHELL = /usr/bin/env bash -o pipefail
+ENFORCE_FIPS := -tags enforce_fips
+CURRENT_OS = $(shell uname -a | awk '{print $$1}')
 PLATFORM ?=
 
 # Extra arguments
@@ -114,11 +119,14 @@ coverage.out: test_coverage
 
 # because of windows .exe suffix, we need a macro on the right side, which needs to be executed
 # after the `%` evaluation, therefore, in a second expansion
+
 .SECONDEXPANSION:
-$(BUILD)/split_%.zip: $(BUILD)/split_$$(call make_exec,%)
+%.zip: $$(call mkexec,%)
 	$(ZIP) -9 --junk-paths $@ $<
 
-$(BUILD)/install_split_%.bin: $(BUILD)/split_%.zip
+# factorized installer creation since it cannot be combined into a single
+# target for both std & fips-compliant builds
+define make-installer
 	cat  $(installer_tpl) \
 	    | sed -e "s/AUTO_REPLACE_APP_NAME/$(call apptitle_from_zip,$<)/" \
 	    | sed -e "s/AUTO_REPLACE_INSTALL_NAME/$(call installed_from_zip,$<)/" \
@@ -133,11 +141,43 @@ $(BUILD)/install_split_%.bin: $(BUILD)/split_%.zip
 	chmod 755 $@
 	rm $@.tmp
 	rm $<
+endef
 
-execs := split_sync_linux split_sync_osx split_sync_windows.exe split_proxy_linux split_proxy_osx split_proxy_windows.exe
-.INTERMEDIATE: $(addprefix $(BUILD)/,$(execs))
+$(BUILD)/install_split_%.bin: $(BUILD)/split_%.zip
+	$(make-installer)
+
+$(BUILD_FIPS)/install_split_%.bin: $(BUILD_FIPS)/split_%.zip
+	$(make-installer)
+
+# Recipes to build main binaries (both std & fips-compliant)
+# @{
+posix_execs := split_sync_linux split_sync_osx split_proxy_linux split_proxy_osx_fips
+windows_execs := split_sync_windows.exe split_proxy_windows.exe
+execs := $(posix_execs) $(windows_execs)
+.INTERMEDIATE: $(addprefix $(BUILD)/,$(execs)) 
+
+# regular binaries recipe
 $(addprefix $(BUILD)/,$(execs)): $(BUILD)/split_%: $(sources) go.sum
 	CGO_ENABLED=0 GOARCH=$(ARCH) GOOS=$(call parse_os,$@) $(GO) build -o $@ cmd/$(call cmdfolder_from_bin,$@)/main.go
+
+# fips-compliant posix binaries recipe
+$(addprefix $(BUILD_FIPS)/,$(posix_execs)): $(BUILD_FIPS)/split_%: $(sources) go.sum
+	mkdir -p $(BUILD_FIPS)
+	GOEXPERIMENT=boringcrypto CGO_ENABLED=0 GOARCH=$(ARCH) GOOS=$(call parse_os,$@) $(GO) build $(ENFORCE_FIPS) -o $@ cmd/$(call cmdfolder_from_bin,$@)/main.go
+
+# fips-compliant windows binaries recipe
+ifeq ($(CURRENT_OS),Darwin) # we're on macos, we need to build using a dockerized linux
+$(addprefix $(BUILD_FIPS)/,$(windows_execs)): $(BUILD_FIPS)/split_%: $(sources) go.sum
+	mkdir -p $(BUILD_FIPS)
+	bash -c 'pushd windows && ./build_from_mac.sh'
+	cp $(BUILD_FIPS_WIN_TMP)/* $(BUILD_FIPS)
+else
+$(addprefix $(BUILD_FIPS)/,$(windows_execs)): $(BUILD_FIPS)/split_%: $(sources) go.sum
+	mkdir -p $(BUILD_FIPS) # we're on linux, we can build natively
+	$(MAKE) -f Makefile -C ./windows setup_ms_go binaries
+	cp $(BUILD_FIPS_WIN_TMP)/* $(BUILD_FIPS)
+endif
+# @}
 
 entrypoint.%.sh: clilist
 	cat docker/entrypoint.sh.tpl \
@@ -201,8 +241,8 @@ help:
 to_uppercase		= $(shell echo '$1' | tr a-z A-Z)
 remove_ext_path		= $(basename $(notdir $1))
 normalize_os		= $(if $(subst osx,,$1),$1,darwin)
-parse_os		= $(call normalize_os,$(word 3,$(subst _, ,$(call remove_ext_path,$1))))
-make_exec		= $(if $(findstring windows,$1),$1.exe,$1)
+parse_os			= $(call normalize_os,$(word 3,$(subst _, ,$(call remove_ext_path,$1))))
+mkexec 				= $(if $(findstring windows,$1),$1.exe,$1)
 installed_from_zip 	= $(if $(findstring split_sync,$1),split-sync,split-proxy)
 apptitle_from_zip	= $(if $(findstring split_sync,$1),Synchronizer,Proxy)
 cmdfolder_from_bin	= $(if $(findstring split_sync,$1),synchronizer,proxy)
