@@ -70,3 +70,7 @@ build/*
 split-proxy
 split-sync
 /clilist
+
+windows/downloads
+windows/unpacked
+windows/build
