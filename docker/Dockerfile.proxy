@@ -2,6 +2,7 @@
 FROM golang:1.21.3-alpine3.18 AS builder
 
 ARG EXTRA_BUILD_ARGS
+ARG FIPS_MODE
 
 RUN apk add \
     bash \
@@ -13,7 +14,10 @@ WORKDIR /code
 
 COPY . .
 
-RUN make clean split-proxy entrypoints EXTRA_BUILD_ARGS="${EXTRA_BUILD_ARGS}"
+RUN if [[ "${FIPS_MODE}" = "enabled" ]]; \
+    then echo "building in standard mode"; make clean split-proxy entrypoints EXTRA_BUILD_ARGS="${EXTRA_BUILD_ARGS}"; \
+    else echo "building in fips mode"; make clean split-proxy-fips entrypoints EXTRA_BUILD_ARGS="${EXTRA_BUILD_ARGS}"; mv split-proxy-fips split-proxy; \
+    fi
 
 # Runner stage
 FROM alpine:3.18.4 AS runner

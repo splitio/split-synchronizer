@@ -54,7 +54,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        mode: [synchronizer, proxy]
+        app: [synchronizer, proxy]
+        fips-mode: [enabled, disabled]
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -63,25 +64,27 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: .
-          file: docker/Dockerfile.${{ matrix.mode }}
+          file: docker/Dockerfile.${{ matrix.app }}
           push: false
-          tags: splitio-docker.jfrog.io/split-${{ matrix.mode }}:latest
+          tags: splitio-docker.jfrog.io/split-${{ matrix.app }}:latest
+          build-args: |
+            FIPS_MODE=${{ fips-mode }}
 
       - name: Scan container using Lacework
         uses: lacework/lw-scanner-action@v1.3.2
         with:
           LW_ACCOUNT_NAME: ${{ secrets.LW_ACCOUNT_NAME }}
           LW_ACCESS_TOKEN: ${{ secrets.LW_ACCESS_TOKEN }}
-          IMAGE_NAME: splitio-docker.jfrog.io/split-${{ matrix.mode }}
+          IMAGE_NAME: splitio-docker.jfrog.io/split-${{ matrix.app }}
           IMAGE_TAG: latest
           SAVE_RESULTS_IN_LACEWORK: true
           SAVE_BUILD_REPORT: true
-          BUILD_REPORT_FILE_NAME: split-${{ matrix.mode }}.html
+          BUILD_REPORT_FILE_NAME: split-${{ matrix.app }}.html
 
       - name: Save vulnerability report
         if: always()
         uses: actions/upload-artifact@v3
         with:
           name: vulnerability_report
-          path: split-${{ matrix.mode }}.html
+          path: split-${{ matrix.app }}.html
           retention-days: 7
