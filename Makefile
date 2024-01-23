@@ -17,8 +17,8 @@ PLATFORM ?=
 EXTRA_BUILD_ARGS ?=
 
 # don't depend on commit version, to avoid rebuilding unnecessarily
-sources			:= $(shell find . -name *.go -not -name "commitversion.go")
-version			:= $(shell cat splitio/version.go | grep 'const Version' | sed 's/const Version = //' | tr -d '"')
+sources				:= $(shell find . -name *.go -not -name "commitversion.go")
+version				:= $(shell cat splitio/version.go | grep 'const Version' | sed 's/const Version = //' | tr -d '"')
 commit_version		:= $(shell git rev-parse --short HEAD)
 installer_tpl		:= ./release/install_script_template
 installer_tpl_lines	:= $(shell echo $$(( $$(wc -l $(installer_tpl) | awk '{print $$1}') +1 )))
@@ -55,6 +55,14 @@ split-sync: $(sources) go.sum
 ## Build the split-proxy executable
 split-proxy: $(sources) go.sum
 	$(GO) build $(EXTRA_BUILD_ARGS) -o $@ cmd/proxy/main.go
+
+## Build the split-sync executable
+split-sync-fips: $(sources) go.sum
+	GOEXPERIMENT=boringcrypto $(GO) build $(EXTRA_BUILD_ARGS) -o $@ $(ENFORCE_FIPS) cmd/synchronizer/main.go
+
+## Build the split-proxy executable
+split-proxy-fips: $(sources) go.sum
+	GOEXPERIMENT=boringcrypto $(GO) build $(EXTRA_BUILD_ARGS) -o $@ $(ENFORCE_FIPS) cmd/proxy/main.go
 
 ## Run the unit tests
 test: $(sources) go.sum
@@ -97,13 +105,29 @@ entrypoints: entrypoint.synchronizer.sh entrypoint.proxy.sh
 
 ## Build release-ready docker images with proper tags and output push commands in stdout
 images_release: # entrypoints
-	$(DOCKER) build $(platform_str) -t splitsoftware/split-synchronizer:latest -t splitsoftware/split-synchronizer:$(version) -f docker/Dockerfile.synchronizer .
-	$(DOCKER) build $(platform_str) -t splitsoftware/split-proxy:latest -t splitsoftware/split-proxy:$(version) -f docker/Dockerfile.proxy .
+	$(DOCKER) build $(platform_str) \
+		-t splitsoftware/split-synchronizer:latest -t splitsoftware/split-synchronizer:$(version) \
+		-f docker/Dockerfile.synchronizer .
+	$(DOCKER) build $(platform_str) \
+		-t splitsoftware/split-proxy:latest -t splitsoftware/split-proxy:$(version) \
+		-f docker/Dockerfile.proxy .
+	$(DOCKER) build $(platform_str) \
+		-t splitsoftware/split-synchronizer-fips:latest -t splitsoftware/split-synchronizer-fips:$(version) \
+		--build-arg FIPS_MODE=1 \
+		-f docker/Dockerfile.synchronizer .
+	$(DOCKER) build $(platform_str) \
+		-t splitsoftware/split-proxy-fips:latest -t splitsoftware/split-proxy-fips:$(version) \
+		--build-arg FIPS_MODE=1 \
+		-f docker/Dockerfile.proxy .
 	@echo "Images created. Make sure everything works ok, and then run the following commands to push them."
 	@echo "$(DOCKER) push splitsoftware/split-synchronizer:$(version)"
 	@echo "$(DOCKER) push splitsoftware/split-synchronizer:latest"
 	@echo "$(DOCKER) push splitsoftware/split-proxy:$(version)"
 	@echo "$(DOCKER) push splitsoftware/split-proxy:latest"
+	@echo "$(DOCKER) push splitsoftware/split-synchronizer-fips:$(version)"
+	@echo "$(DOCKER) push splitsoftware/split-synchronizer-fips:latest"
+	@echo "$(DOCKER) push splitsoftware/split-proxy-fips:$(version)"
+	@echo "$(DOCKER) push splitsoftware/split-proxy-fips:latest"
 
 # --------------------------------------------------------------------------
 #
@@ -242,11 +266,11 @@ to_uppercase		= $(shell echo '$1' | tr a-z A-Z)
 remove_ext_path		= $(basename $(notdir $1))
 normalize_os		= $(if $(subst osx,,$1),$1,darwin)
 parse_os			= $(call normalize_os,$(word 3,$(subst _, ,$(call remove_ext_path,$1))))
-mkexec 				= $(if $(findstring windows,$1),$1.exe,$1)
-installed_from_zip 	= $(if $(findstring split_sync,$1),split-sync,split-proxy)
+mkexec				= $(if $(findstring windows,$1),$1.exe,$1)
+installed_from_zip	= $(if $(findstring split_sync,$1),split-sync,split-proxy)
 apptitle_from_zip	= $(if $(findstring split_sync,$1),Synchronizer,Proxy)
 cmdfolder_from_bin	= $(if $(findstring split_sync,$1),synchronizer,proxy)
-platform_str = $(if $(PLATFORM),--platform=$(PLATFORM),)
+platform_str		= $(if $(PLATFORM),--platform=$(PLATFORM),)
 
 # "constants"
 null  :=
