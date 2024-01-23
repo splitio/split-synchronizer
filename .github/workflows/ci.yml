@@ -15,7 +15,7 @@ jobs:
           - 6379:6379
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -61,17 +61,17 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Docker Build and Push
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v5
         with:
           context: .
           file: docker/Dockerfile.${{ matrix.app }}
           push: false
           tags: splitio-docker.jfrog.io/split-${{ matrix.app }}:latest
           build-args: |
-            FIPS_MODE=${{ fips-mode }}
+            FIPS_MODE=${{ matrix.fips-mode }}
 
       - name: Scan container using Lacework
-        uses: lacework/lw-scanner-action@v1.3.2
+        uses: lacework/lw-scanner-action@v1.4.0
         with:
           LW_ACCOUNT_NAME: ${{ secrets.LW_ACCOUNT_NAME }}
           LW_ACCESS_TOKEN: ${{ secrets.LW_ACCESS_TOKEN }}
@@ -83,7 +83,7 @@ jobs:
 
       - name: Save vulnerability report
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: vulnerability_report
           path: split-${{ matrix.app }}.html
