@@ -1,23 +1,22 @@
 # Build stage
-FROM golang:1.21.5-alpine3.19 AS builder
+FROM golang:1.21.6-bookworm AS builder
 
 ARG EXTRA_BUILD_ARGS
 ARG FIPS_MODE
 
-RUN apk add \
-    bash \
-    build-base \
-    python3 \
-    git
+RUN apt update -y
+RUN apt install -y build-essential ca-certificates python3 git
 
 WORKDIR /code
 
 COPY . .
 
 RUN if [[ "${FIPS_MODE}" = "enabled" ]]; \
-    then echo "building in standard mode"; make clean split-sync entrypoints EXTRA_BUILD_ARGS="${EXTRA_BUILD_ARGS}"; \
-    else echo "building in fips mode"; make clean split-sync-fips entrypoints EXTRA_BUILD_ARGS="${EXTRA_BUILD_ARGS}"; mv split-sync-fips split-sync; \
+    then echo "building in fips mode"; make clean split-sync-fips entrypoints EXTRA_BUILD_ARGS="${EXTRA_BUILD_ARGS}"; mv split-sync-fips split-sync; \
+    else echo "building in standard mode"; make clean split-sync entrypoints EXTRA_BUILD_ARGS="${EXTRA_BUILD_ARGS}"; \
     fi
+
+RUN ls -l /code
 
 # Runner stage
 FROM alpine:3.19.0 AS runner
