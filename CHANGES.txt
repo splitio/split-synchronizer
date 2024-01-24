@@ -1,5 +1,15 @@
-5.6.0 (TD)
+5.7.0 (TD)
  - Add support for FIPS-compliant binaries & docker images
+
+5.6.0 (Jan 23, 2024)
+- Replaced redis KEYS operation in favor of SCAN.
+- Added FlagSets stats into Split dashboard.
+
+5.5.1 (Dec 21, 2023)
+- Updated docker images for vulnerability fixes.
+- Updated go-split-commons version.
+- Updated how redis data is displayed in /info/configs.
+
 
 5.5.0 (Dec 12, 2023)
  - Added support for Flag Sets on Split Proxy and Synchronizer, which enables SDKs to interacting with the flag sets features (more details in our documentation):

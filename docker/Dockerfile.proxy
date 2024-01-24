@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.21.3-alpine3.18 AS builder
+FROM golang:1.21.5-alpine3.19 AS builder
 
 ARG EXTRA_BUILD_ARGS
 ARG FIPS_MODE
@@ -20,7 +20,7 @@ RUN if [[ "${FIPS_MODE}" = "enabled" ]]; \
     fi
 
 # Runner stage
-FROM alpine:3.18.4 AS runner
+FROM alpine:3.19.0 AS runner
 
 RUN apk add bash
 
