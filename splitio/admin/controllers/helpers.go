@@ -1,6 +1,8 @@
 package controllers
 
 import (
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/splitio/go-split-commons/v5/storage"
@@ -34,6 +36,7 @@ func bundleSplitInfo(splitStorage storage.SplitStorageConsumer) []dashboard.Spli
 			Killed:           split.Killed,
 			DefaultTreatment: split.DefaultTreatment,
 			Treatments:       treatmentsS,
+			FlagSets:         split.Sets,
 			LastModified:     time.Unix(0, split.ChangeNumber*int64(time.Millisecond)).UTC().Format(time.UnixDate),
 			ChangeNumber:     split.ChangeNumber,
 		})
@@ -206,6 +209,26 @@ func getEventsSize(eventStorage storage.EventMultiSdkConsumer) int64 {
 	}
 
 	return eventStorage.Count()
+}
+
+func getFlagSetsInfo(splitsStorage storage.SplitStorage) []dashboard.FlagSetsSummary {
+	flagSetNames := splitsStorage.GetAllFlagSetNames()
+
+	summaries := make([]dashboard.FlagSetsSummary, 0, len(flagSetNames))
+	featureFlagsBySets := splitsStorage.GetNamesByFlagSets(flagSetNames)
+
+	for key, featureFlags := range featureFlagsBySets {
+		summaries = append(summaries, dashboard.FlagSetsSummary{
+			Name:                   key,
+			FeatureFlagsAssociated: int64(len(featureFlags)),
+			FeatureFlags:           strings.Join(featureFlags, ", "),
+		})
+	}
+	sort.Slice(summaries, func(i, j int) bool {
+		return summaries[j].Name > summaries[i].Name
+	})
+
+	return summaries
 }
 
 func getImpressionSize(impressionStorage storage.ImpressionMultiSdkConsumer) int64 {

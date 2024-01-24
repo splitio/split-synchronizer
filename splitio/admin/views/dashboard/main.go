@@ -87,23 +87,24 @@ type RootObject struct {
 
 // GlobalStats runtime stats used to render the dashboard
 type GlobalStats struct {
-	BackendTotalRequests   int64            `json:"backendTotalRequests"`
-	RequestsOk             int64            `json:"requestsOk"`
-	RequestsErrored        int64            `json:"requestsErrored"`
-	BackendRequestsOk      int64            `json:"backendRequestsOk"`
-	BackendRequestsErrored int64            `json:"backendRequestsErrored"`
-	SdksTotalRequests      int64            `json:"sdksTotalRequests"`
-	LoggedErrors           int64            `json:"loggedErrors"`
-	LoggedMessages         []string         `json:"loggedMessages"`
-	FeatureFlags           []SplitSummary   `json:"featureFlags"`
-	Segments               []SegmentSummary `json:"segments"`
-	Latencies              []ChartJSData    `json:"latencies"`
-	BackendLatencies       []ChartJSData    `json:"backendLatencies"`
-	ImpressionsQueueSize   int64            `json:"impressionsQueueSize"`
-	ImpressionsLambda      float64          `json:"impressionsLambda"`
-	EventsQueueSize        int64            `json:"eventsQueueSize"`
-	EventsLambda           float64          `json:"eventsLambda"`
-	Uptime                 int64            `json:"uptime"`
+	BackendTotalRequests   int64             `json:"backendTotalRequests"`
+	RequestsOk             int64             `json:"requestsOk"`
+	RequestsErrored        int64             `json:"requestsErrored"`
+	BackendRequestsOk      int64             `json:"backendRequestsOk"`
+	BackendRequestsErrored int64             `json:"backendRequestsErrored"`
+	SdksTotalRequests      int64             `json:"sdksTotalRequests"`
+	LoggedErrors           int64             `json:"loggedErrors"`
+	LoggedMessages         []string          `json:"loggedMessages"`
+	FeatureFlags           []SplitSummary    `json:"featureFlags"`
+	Segments               []SegmentSummary  `json:"segments"`
+	Latencies              []ChartJSData     `json:"latencies"`
+	BackendLatencies       []ChartJSData     `json:"backendLatencies"`
+	ImpressionsQueueSize   int64             `json:"impressionsQueueSize"`
+	ImpressionsLambda      float64           `json:"impressionsLambda"`
+	EventsQueueSize        int64             `json:"eventsQueueSize"`
+	EventsLambda           float64           `json:"eventsLambda"`
+	Uptime                 int64             `json:"uptime"`
+	FlagSets               []FlagSetsSummary `json:"flagSets"`
 }
 
 // SplitSummary encapsulates a minimalistic view of feature flag properties to be presented in the dashboard
@@ -113,6 +114,7 @@ type SplitSummary struct {
 	Killed           bool     `json:"killed"`
 	DefaultTreatment string   `json:"defaultTreatment"`
 	Treatments       []string `json:"treatments"`
+	FlagSets         []string `json:"flagSets"`
 	LastModified     string   `json:"cn"`
 	ChangeNumber     int64    `json:"changeNumber"`
 }
@@ -132,6 +134,12 @@ type SegmentKeySummary struct {
 	Name         string `json:"name"`
 	Removed      bool   `json:"removed"`
 	ChangeNumber int64  `json:"cn"`
+}
+
+type FlagSetsSummary struct {
+	Name                   string `json:"name"`
+	FeatureFlagsAssociated int64  `json:"featureFlagsAssociated"`
+	FeatureFlags           string `json:"featureFlags"`
 }
 
 // RGBA bundles input to CSS's rgba function
