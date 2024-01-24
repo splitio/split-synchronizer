@@ -178,7 +178,7 @@ $(BUILD_FIPS)/install_split_%.bin: $(BUILD_FIPS)/split_%.zip
 posix_execs := split_sync_linux split_sync_osx split_proxy_linux split_proxy_osx
 windows_execs := split_sync_windows.exe split_proxy_windows.exe
 execs := $(posix_execs) $(windows_execs)
-.INTERMEDIATE: $(addprefix $(BUILD)/,$(execs)) 
+.INTERMEDIATE: $(addprefix $(BUILD)/,$(execs)) $(addprefix $(BUILD_FIPS)/,$(execs))
 
 # regular binaries recipe
 $(addprefix $(BUILD)/,$(execs)): $(BUILD)/split_%: $(sources) go.sum
@@ -217,10 +217,10 @@ define copy-release-binaries
 	for f in $^; do \
 		if [[ $$(dirname "$$f") == $(BUILD) ]]; then \
 			cp $$f $@/$(version)/$$(basename "$${f%.*}")_$(version).$${f##*.}; \
-			cp $$f $@; \
+			mv $$f $@; \
 		elif [[ $$(dirname "$$f") == $(BUILD_FIPS) ]]; then \
-			cp $$f @/$(version)/$$(basename "$${f%.*}")_fips_$(version).$${f##*.}; \
-			cp $$f $@/$$(basename "$${f%.*}")_fips.$${f##*.}; \
+			cp $$f $@/$(version)/$$(basename "$${f%.*}")_fips_$(version).$${f##*.}; \
+			mv $$f $@/$$(basename "$${f%.*}")_fips.$${f##*.}; \
 		fi \
 	done
 endef

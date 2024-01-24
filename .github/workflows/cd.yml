@@ -68,6 +68,7 @@ jobs:
     strategy:
       matrix:
         mode: [synchronizer, proxy]
+        fips-mode: [enabled, disabled]
     steps:
       - name: Login to Artifactory
         uses: docker/login-action@v2
@@ -89,3 +90,6 @@ jobs:
           file: docker/Dockerfile.${{ matrix.mode }}
           push: true
           tags: splitio-docker.jfrog.io/split-${{ matrix.mode }}:${{ env.VERSION }}
+          build-args: |
+            FIPS_MODE=${{ matrix.fips-mode }}
+
