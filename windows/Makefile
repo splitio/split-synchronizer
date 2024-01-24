@@ -33,7 +33,7 @@ binaries: $(BUILD_FOLDER)/split-proxy-fips.exe $(BUILD_FOLDER)/split-sync-fips.e
 $(DOWNLOAD_FOLDER)/go1.21.linux-amd64.tar.gz:
 	mkdir -p $(DOWNLOAD_FOLDER)
 	wget https://aka.ms/golang/release/latest/$(ASSET) --directory-prefix $(DOWNLOAD_FOLDER)
-	wget https://aka.ms/golang/release/latest/$(ASSET).sha256 --directory-prefix $(DOWNLOAD_FOLDER)
+	# wget https://aka.ms/golang/release/latest/$(ASSET).sha256 --directory-prefix $(DOWNLOAD_FOLDER)
 	# TODO(mredolatti): validate SUM
 
 $(UNPACK_FOLDER)/go: $(DOWNLOAD_FOLDER)/$(ASSET)
