@@ -179,6 +179,13 @@ func (*ProxySplitStorageImpl) GetNamesByFlagSets(sets []string) map[string][]str
 	return nil
 }
 
+// GetAllFlagSetNames implements storage.SplitStorage
+func (*ProxySplitStorageImpl) GetAllFlagSetNames() []string {
+	// NOTE: This method is NOT used by the proxy.
+  // we need to revisit our interfaces so that we're not obliged to do this smeely empty impls.
+	return nil
+}
+
 func (p *ProxySplitStorageImpl) setStartingPoint(cn int64) {
 	p.mtx.Lock()
 	// will be executed only the first time this method is called or when

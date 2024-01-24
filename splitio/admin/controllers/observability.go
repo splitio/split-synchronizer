@@ -12,6 +12,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type ObservabilityDto struct {
+	ActiveSplits   []string       `json:"activeSplits"`
+	ActiveSegments map[string]int `json:"activeSegments"`
+	ActiveFlagSets []string       `json:"activeFlagSets"`
+}
+
 // ObservabilityController interface is used to have a single constructor that returns the apropriate controller
 type ObservabilityController interface {
 	Register(gin.IRouter)
@@ -30,9 +36,10 @@ func (c *SyncObservabilityController) Register(router gin.IRouter) {
 }
 
 func (c *SyncObservabilityController) observability(ctx *gin.Context) {
-	ctx.JSON(200, gin.H{
-		"activeSplits":   c.splits.SplitNames(),
-		"activeSegments": c.segments.NamesAndCount(),
+	ctx.JSON(200, ObservabilityDto{
+		ActiveSplits:   c.splits.SplitNames(),
+		ActiveSegments: c.segments.NamesAndCount(),
+		ActiveFlagSets: c.splits.GetAllFlagSetNames(),
 	})
 }
 

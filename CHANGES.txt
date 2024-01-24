@@ -1,3 +1,7 @@
+5.6.0 (Jan 23, 2024)
+- Replaced redis KEYS operation in favor of SCAN.
+- Added FlagSets stats into Split dashboard.
+
 5.5.1 (Dec 21, 2023)
 - Updated docker images for vulnerability fixes.
 - Updated go-split-commons version.
