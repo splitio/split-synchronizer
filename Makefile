@@ -76,7 +76,7 @@ test_coverage: $(sources) go.sum
 display-coverage: coverage.out
 	go tool cover -html=coverage.out
 
-## Generate binaires for all architectures, ready to upload for distribution (with and without version)
+## Generate binaries for all architectures, ready to upload for distribution (with and without version)
 release_assets: \
     $(BUILD)/synchronizer \
     $(BUILD)/proxy
@@ -175,7 +175,7 @@ $(BUILD_FIPS)/install_split_%.bin: $(BUILD_FIPS)/split_%.zip
 
 # Recipes to build main binaries (both std & fips-compliant)
 # @{
-posix_execs := split_sync_linux split_sync_osx split_proxy_linux split_proxy_osx_fips
+posix_execs := split_sync_linux split_sync_osx split_proxy_linux split_proxy_osx
 windows_execs := split_sync_windows.exe split_proxy_windows.exe
 execs := $(posix_execs) $(windows_execs)
 .INTERMEDIATE: $(addprefix $(BUILD)/,$(execs)) 
@@ -194,12 +194,14 @@ ifeq ($(CURRENT_OS),Darwin) # we're on macos, we need to build using a dockerize
 $(addprefix $(BUILD_FIPS)/,$(windows_execs)): $(BUILD_FIPS)/split_%: $(sources) go.sum
 	mkdir -p $(BUILD_FIPS)
 	bash -c 'pushd windows && ./build_from_mac.sh'
-	cp $(BUILD_FIPS_WIN_TMP)/* $(BUILD_FIPS)
+	cp $(BUILD_FIPS_WIN_TMP)/split-sync-fips.exe $(BUILD_FIPS)/split_sync_windows.exe
+	cp $(BUILD_FIPS_WIN_TMP)/split-proxy-fips.exe $(BUILD_FIPS)/split_proxy_windows.exe
 else
 $(addprefix $(BUILD_FIPS)/,$(windows_execs)): $(BUILD_FIPS)/split_%: $(sources) go.sum
 	mkdir -p $(BUILD_FIPS) # we're on linux, we can build natively
 	$(MAKE) -f Makefile -C ./windows setup_ms_go binaries
-	cp $(BUILD_FIPS_WIN_TMP)/* $(BUILD_FIPS)
+	cp $(BUILD_FIPS_WIN_TMP)/split-sync-fips.exe $(BUILD_FIPS)/split_sync_windows.exe
+	cp $(BUILD_FIPS_WIN_TMP)/split-proxy-fips.exe $(BUILD_FIPS)/split_proxy_windows.exe
 endif
 # @}
 
@@ -211,23 +213,45 @@ entrypoint.%.sh: clilist
 	    > $@
 	chmod +x $@
 
+define copy-release-binaries
+	for f in $^; do \
+		if [[ $$(dirname "$$f") == $(BUILD) ]]; then \
+			cp $$f $@/$(version)/$$(basename "$${f%.*}")_$(version).$${f##*.}; \
+			cp $$f $@; \
+		elif [[ $$(dirname "$$f") == $(BUILD_FIPS) ]]; then \
+			cp $$f @/$(version)/$$(basename "$${f%.*}")_fips_$(version).$${f##*.}; \
+			cp $$f $@/$$(basename "$${f%.*}")_fips.$${f##*.}; \
+		fi \
+	done
+endef
+
+
 $(BUILD)/synchronizer: \
     $(BUILD)/downloads.sync.html \
     $(BUILD)/install_split_sync_linux.bin \
     $(BUILD)/install_split_sync_osx.bin \
-    $(BUILD)/split_sync_windows.zip
+    $(BUILD)/split_sync_windows.zip \
+    $(BUILD_FIPS)/install_split_sync_linux.bin \
+    $(BUILD_FIPS)/install_split_sync_osx.bin \
+    $(BUILD_FIPS)/split_sync_windows.zip
+
 	mkdir -p $(BUILD)/synchronizer/$(version)
-	for f in $^; do cp $$f $(BUILD)/synchronizer/$(version)/$$(basename "$${f%.*}")_$(version).$${f##*.}; done
-	cp {$(subst $(space),$(comma),$^)} $(BUILD)/synchronizer
+	cp $(BUILD)/downloads.sync.html $(BUILD)/synchronizer
+	$(copy-release-binaries)
+
 
 $(BUILD)/proxy: \
     $(BUILD)/downloads.proxy.html \
     $(BUILD)/install_split_proxy_linux.bin \
     $(BUILD)/install_split_proxy_osx.bin \
-    $(BUILD)/split_proxy_windows.zip
+    $(BUILD)/split_proxy_windows.zip \
+    $(BUILD_FIPS)/install_split_proxy_linux.bin \
+    $(BUILD_FIPS)/install_split_proxy_osx.bin \
+    $(BUILD_FIPS)/split_proxy_windows.zip
+
 	mkdir -p $(BUILD)/proxy/$(version)
-	for f in $^; do cp $$f $(BUILD)/proxy/$(version)/$$(basename "$${f%.*}")_$(version).$${f##*.}; done
-	cp {$(subst $(space),$(comma),$^)} $(BUILD)/proxy
+	cp $(BUILD)/downloads.proxy.html $(BUILD)/proxy
+	$(copy-release-binaries)
 
 $(BUILD)/downloads.%.html:
 	$(PYTHON) release/dp_gen.py --app $* > $@
