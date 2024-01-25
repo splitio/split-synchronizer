@@ -12,6 +12,9 @@ SOURCES := $(shell find $(PARENT_PATH) -path $(dirname $(pwd))/windows -prune -o
 		   $(PARENT_PATH)/go.mod \
 		   $(PARENT_PATH)/go.sum
 
+SYNC_BIN := split_sync_windows.exe
+PROXY_BIN := split_proxy_windows.exe
+
 .PHONY: clean setup_ms_go
 
 default: help
@@ -24,27 +27,27 @@ clean:
 setup_ms_go: $(UNPACK_FOLDER)/go
 
 ## build fips-compliant split-proxy && split-sync
-binaries: $(BUILD_FOLDER)/split-proxy-fips.exe $(BUILD_FOLDER)/split-sync-fips.exe
+binaries: $(BUILD_FOLDER)/$(SYNC_BIN) $(BUILD_FOLDER)/$(PROXY_BIN)
 
 
 # --------
 
 
-$(DOWNLOAD_FOLDER)/go1.21.linux-amd64.tar.gz:
+$(DOWNLOAD_FOLDER)/$(ASSET):
 	mkdir -p $(DOWNLOAD_FOLDER)
 	wget https://aka.ms/golang/release/latest/$(ASSET) --directory-prefix $(DOWNLOAD_FOLDER)
 	# wget https://aka.ms/golang/release/latest/$(ASSET).sha256 --directory-prefix $(DOWNLOAD_FOLDER)
-	# TODO(mredolatti): validate SUM
+	# TODO(mredolatti): validate sha256
 
 $(UNPACK_FOLDER)/go: $(DOWNLOAD_FOLDER)/$(ASSET)
 	mkdir -p $(UNPACK_FOLDER)
 	tar xvzf $(DOWNLOAD_FOLDER)/$(ASSET) --directory $(UNPACK_FOLDER)
 
-$(BUILD_FOLDER)/split-proxy-fips.exe: $(GO) $(SOURCES)
+$(BUILD_FOLDER)/$(PROXY_BIN): $(GO) $(SOURCES)
 	mkdir -p $(BUILD_FOLDER)
 	GOOS=windows GOEXPERIMENT=cngcrypto $(GO) build -tags=enforce_fips -o $@ $(PARENT_PATH)/cmd/proxy/main.go
 
-$(BUILD_FOLDER)/split-sync-fips.exe: $(GO) $(SOURCES)
+$(BUILD_FOLDER)/$(SYNC_BIN): $(GO) $(SOURCES)
 	mkdir -p $(BUILD_FOLDER)
 	GOOS=windows GOEXPERIMENT=cngcrypto $(GO) build -tags=enforce_fips -o $@ $(PARENT_PATH)/cmd/synchronizer/main.go
 

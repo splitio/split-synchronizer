@@ -143,7 +143,6 @@ coverage.out: test_coverage
 
 # because of windows .exe suffix, we need a macro on the right side, which needs to be executed
 # after the `%` evaluation, therefore, in a second expansion
-
 .SECONDEXPANSION:
 %.zip: $$(call mkexec,%)
 	$(ZIP) -9 --junk-paths $@ $<
@@ -194,8 +193,9 @@ ifeq ($(CURRENT_OS),Darwin) # we're on macos, we need to build using a dockerize
 $(addprefix $(BUILD_FIPS)/,$(windows_execs)): $(BUILD_FIPS)/split_%: $(sources) go.sum
 	mkdir -p $(BUILD_FIPS)
 	bash -c 'pushd windows && ./build_from_mac.sh'
-	cp $(BUILD_FIPS_WIN_TMP)/split-sync-fips.exe $(BUILD_FIPS)/split_sync_windows.exe
-	cp $(BUILD_FIPS_WIN_TMP)/split-proxy-fips.exe $(BUILD_FIPS)/split_proxy_windows.exe
+	cp $(BUILD_FIPS_WIN_TMP)/$(shell basename $@) $(BUILD_FIPS)
+	#cp $(BUILD_FIPS_WIN_TMP)/split_sync_windows.exe $(BUILD_FIPS)
+	#cp $(BUILD_FIPS_WIN_TMP)/split_proxy_windows.exe $(BUILD_FIPS)
 else
 $(addprefix $(BUILD_FIPS)/,$(windows_execs)): $(BUILD_FIPS)/split_%: $(sources) go.sum
 	mkdir -p $(BUILD_FIPS) # we're on linux, we can build natively
