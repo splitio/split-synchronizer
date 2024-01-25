@@ -1,3 +1,6 @@
+5.6.1 (Jan 26, 2024)
+- Fixed Data Inspector view.
+
 5.6.0 (Jan 23, 2024)
 - Replaced redis KEYS operation in favor of SCAN.
 - Added FlagSets stats into Split dashboard.
