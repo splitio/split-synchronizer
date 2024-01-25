@@ -30,6 +30,10 @@ func bundleSplitInfo(splitStorage storage.SplitStorageConsumer) []dashboard.Spli
 			treatmentsS = append(treatmentsS, t)
 		}
 
+		if split.Sets == nil {
+			split.Sets = make([]string, 0)
+		}
+
 		summaries = append(summaries, dashboard.SplitSummary{
 			Name:             split.Name,
 			Active:           split.Status == "ACTIVE",
