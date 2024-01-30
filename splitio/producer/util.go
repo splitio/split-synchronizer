@@ -30,7 +30,6 @@ import (
 const (
 	impressionsCountPeriodTaskInMemory = 1800 // 30 min
 	impressionObserverSize             = 500
-	ScanCount                          = 10
 )
 
 func parseTLSConfig(opt *conf.Redis) (*tls.Config, error) {
@@ -100,7 +99,6 @@ func parseRedisOptions(cfg *conf.Redis) (*config.RedisConfig, error) {
 		WriteTimeout: cfg.WriteTimeout,
 		PoolSize:     cfg.PoolSize,
 		TLSConfig:    tlsCfg,
-		ScanCount:    ScanCount,
 	}
 
 	if cfg.SentinelReplication {
