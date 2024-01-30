@@ -126,13 +126,9 @@ const dataInspector = `
               <table id="flag_sets_rows" class="table table-condensed table-hover">
                 <thead>
                   <tr>
-                    {{if .ProxyMode}}
-                      <th>&nbsp;</th>
-                    {{else}}
-                      <th>Flag Set</th>
-                      <th>Total Feature Flags Associated</th>
-                      <th>Feature Flags</th>
-                    {{end}}
+                    <th>Flag Set</th>
+                    <th>Total Feature Flags Associated</th>
+                    <th>Feature Flags</th>
                   </tr>
                 </thead>
                 <tbody>
