@@ -183,3 +183,67 @@ func TestSplitStorageWithFlagsets(t *testing.T) {
 		{Name: "f2", ChangeNumber: 2, Status: "ACTIVE", Sets: []string{"s2", "s3"}},
 	}, res.Splits)
 }
+
+func TestGetNamesByFlagSets(t *testing.T) {
+	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
+	if err != nil {
+		t.Error("error creating bolt wrapper: ", err)
+	}
+
+	logger := logging.NewLogger(nil)
+
+	splitC := persistent.NewSplitChangesCollection(dbw, logger)
+	flags := []dtos.SplitDTO{
+		{Name: "f0", ChangeNumber: 0, Status: "ACTIVE", TrafficTypeName: "ttt", Sets: []string{"set_1", "set2"}},
+		{Name: "f1", ChangeNumber: 0, Status: "ACTIVE", TrafficTypeName: "ttt", Sets: []string{"set_1"}},
+		{Name: "f2", ChangeNumber: 0, Status: "ACTIVE", TrafficTypeName: "ttt", Sets: []string{"set2"}},
+		{Name: "f3", ChangeNumber: 0, Status: "ACTIVE", TrafficTypeName: "ttt", Sets: []string{"set_1", "set2"}},
+		{Name: "f4", ChangeNumber: 0, Status: "ACTIVE", TrafficTypeName: "ttt", Sets: []string{"set_1", "set6"}},
+		{Name: "f5", ChangeNumber: 0, Status: "ACTIVE", TrafficTypeName: "ttt", Sets: []string{"set_5", "set6"}},
+	}
+	splitC.Update(flags, nil, 0)
+
+	pss := NewProxySplitStorage(dbw, logger, flagsets.NewFlagSetFilter(nil), true)
+
+	namesBySets := pss.GetNamesByFlagSets([]string{"set_1", "set2"})
+
+	if len(namesBySets) != 2 {
+		t.Errorf("namesBySets len should be 3. Actual %v", len(namesBySets))
+	}
+
+	if len(namesBySets["set_1"]) != 4 {
+		t.Errorf("set_1 len should be 4. Actual %v", len(namesBySets["set_1"]))
+	}
+
+	if len(namesBySets["set2"]) != 3 {
+		t.Errorf("set2 len should be 3. Actual %v", len(namesBySets["set2"]))
+	}
+}
+
+func TestGetAllFlagSetNames(t *testing.T) {
+	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
+	if err != nil {
+		t.Error("error creating bolt wrapper: ", err)
+	}
+
+	logger := logging.NewLogger(nil)
+
+	splitC := persistent.NewSplitChangesCollection(dbw, logger)
+	flags := []dtos.SplitDTO{
+		{Name: "f0", ChangeNumber: 0, Status: "ACTIVE", TrafficTypeName: "ttt", Sets: []string{"set_1", "set2"}},
+		{Name: "f1", ChangeNumber: 0, Status: "ACTIVE", TrafficTypeName: "ttt", Sets: []string{"set_1"}},
+		{Name: "f2", ChangeNumber: 0, Status: "ACTIVE", TrafficTypeName: "ttt", Sets: []string{"set2"}},
+		{Name: "f3", ChangeNumber: 0, Status: "ACTIVE", TrafficTypeName: "ttt", Sets: []string{"set_1", "set2"}},
+		{Name: "f4", ChangeNumber: 0, Status: "ACTIVE", TrafficTypeName: "ttt", Sets: []string{"set_1", "set6"}},
+		{Name: "f5", ChangeNumber: 0, Status: "ACTIVE", TrafficTypeName: "ttt", Sets: []string{"set_5", "set6"}},
+	}
+	splitC.Update(flags, nil, 0)
+
+	pss := NewProxySplitStorage(dbw, logger, flagsets.NewFlagSetFilter(nil), true)
+
+	setNames := pss.GetAllFlagSetNames()
+
+	if len(setNames) != 4 {
+		t.Errorf("setNames len should be 4. Actual %v", len(setNames))
+	}
+}

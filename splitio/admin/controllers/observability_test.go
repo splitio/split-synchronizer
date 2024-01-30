@@ -14,6 +14,7 @@ import (
 	"github.com/splitio/go-toolkit/v5/logging"
 	adminCommon "github.com/splitio/split-synchronizer/v5/splitio/admin/common"
 	"github.com/splitio/split-synchronizer/v5/splitio/provisional/observability"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 )
 
 func TestSyncObservabilityEndpoint(t *testing.T) {
@@ -79,7 +80,7 @@ func TestSyncObservabilityEndpoint(t *testing.T) {
 	router.ServeHTTP(resp, ctx.Request)
 
 	if resp.Code != 200 {
-		t.Error("hay crap.")
+		t.Errorf("Something went wrong. Status Code %v", resp.Code)
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -128,4 +129,99 @@ func (e *extMockSegmentStorage) UpdateWithSummary(name string, toAdd *set.Thread
 
 func (e *extMockSegmentStorage) Size(name string) (int, error) {
 	return e.SizeCall(name)
+}
+
+func TestProxyObservabilityEndpoint(t *testing.T) {
+	logger := logging.NewLogger(nil)
+	extSplitStorage := &extMockSplitStorage{
+		&mocks.MockSplitStorage{
+			SplitNamesCall: func() []string {
+				return []string{"split1", "split2", "split3"}
+			},
+			SegmentNamesCall: func() *set.ThreadUnsafeSet {
+				return set.NewSet("segment1")
+			},
+			GetAllFlagSetNamesCall: func() []string {
+				return []string{"fSet1", "fSet2"}
+			},
+		},
+		nil,
+	}
+
+	extSegmentStorage := &extMockSegmentStorage{
+		MockSegmentStorage: &mocks.MockSegmentStorage{},
+		SizeCall: func(name string) (int, error) {
+			switch name {
+			case "segment1":
+				return 10, nil
+			case "segment2":
+				return 20, nil
+			}
+			return 0, nil
+		},
+	}
+
+	oSplitStorage, err := observability.NewObservableSplitStorage(extSplitStorage, logger)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	oSegmentStorage, err := observability.NewObservableSegmentStorage(logger, extSplitStorage, extSegmentStorage)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	localTelemetryStorage := storage.NewTimeslicedProxyEndpointTelemetry(
+		storage.NewProxyTelemetryFacade(),
+		50,
+		5,
+	)
+
+	storages := adminCommon.Storages{
+		SplitStorage:          oSplitStorage,
+		SegmentStorage:        oSegmentStorage,
+		LocalTelemetryStorage: localTelemetryStorage,
+	}
+
+	ctrl, err := NewObservabilityController(true, logger, storages)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	resp := httptest.NewRecorder()
+	ctx, router := gin.CreateTestContext(resp)
+	ctrl.Register(router)
+
+	ctx.Request, _ = http.NewRequest(http.MethodGet, "/observability", nil)
+	router.ServeHTTP(resp, ctx.Request)
+
+	if resp.Code != 200 {
+		t.Errorf("Something went wrong. Status Code %v", resp.Code)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	var result ObservabilityDto
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Error("there should be no error ", err)
+	}
+
+	if len(result.ActiveFlagSets) != 2 {
+		t.Errorf("Active flag sets should be 2. Actual %d", len(result.ActiveFlagSets))
+	}
+
+	if len(result.ActiveSplits) != 3 {
+		t.Errorf("Active splits should be 3. Actual %d", len(result.ActiveSplits))
+	}
+
+	if len(result.ActiveSegments) != 1 {
+		t.Errorf("Active segments should be 1. Actual %d", len(result.ActiveSegments))
+	}
 }
