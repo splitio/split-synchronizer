@@ -17,11 +17,11 @@ RUN if [[ "${FIPS_MODE}" = "enabled" ]]; \
     fi
 
 # Runner stage
-FROM alpine:3.19.0 AS runner
+FROM debian:12.4 AS runner
 
-RUN apk add bash
-
-RUN addgroup -g 1000 -S 'split-proxy'
+RUN apt update -y
+RUN apt install -y bash ca-certificates
+RUN addgroup --gid 1000 --system 'split-proxy'
 RUN adduser \
     --disabled-password \
     --gecos '' \
