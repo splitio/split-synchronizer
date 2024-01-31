@@ -19,11 +19,11 @@ RUN if [[ "${FIPS_MODE}" = "enabled" ]]; \
 RUN ls -l /code
 
 # Runner stage
-FROM alpine:3.19.0 AS runner
+FROM debian:12.4 AS runner
 
-RUN apk add bash
-
-RUN addgroup -g 1000 -S 'split-synchronizer'
+RUN apt update -y
+RUN apt install -y bash ca-certificates
+RUN addgroup --gid 1000 --system 'split-synchronizer'
 RUN adduser \
     --disabled-password \
     --gecos '' \
@@ -38,7 +38,7 @@ COPY docker/functions.sh .
 COPY --from=builder /code/split-sync /usr/bin/
 COPY --from=builder /code/entrypoint.synchronizer.sh .
 
-EXPOSE 3010
+EXPOSE 3000 3010
 
 USER 'split-synchronizer'
 
