@@ -89,7 +89,7 @@ jobs:
           context: .
           file: docker/Dockerfile.${{ matrix.mode }}
           push: true
-          tags: splitio-docker.jfrog.io/split-${{ matrix.mode }}:${{ env.VERSION }}
+          tags: splitio-docker.jfrog.io/split-${{ matrix.mode }}${{ matrix.fips-mode == "enabled" && "-fips" || ""}}:${{ env.VERSION }}
           build-args: |
             FIPS_MODE=${{ matrix.fips-mode }}
 
