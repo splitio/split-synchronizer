@@ -88,3 +88,4 @@ jobs:
           name: vulnerability_report
           path: split-${{ matrix.app }}${{ matrix.fips_mode == 'enabled' && '-fips' || '' }}.html
           retention-days: 7
+          overwrite: true
