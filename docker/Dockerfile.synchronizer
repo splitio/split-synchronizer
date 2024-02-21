@@ -11,10 +11,10 @@ WORKDIR /code
 
 COPY . .
 
-RUN if [[ "${FIPS_MODE}" = "enabled" ]]; \
+RUN bash -c 'if [[ "${FIPS_MODE}" = "enabled" ]]; \
     then echo "building in fips mode"; make clean split-sync-fips entrypoints EXTRA_BUILD_ARGS="${EXTRA_BUILD_ARGS}"; mv split-sync-fips split-sync; \
     else echo "building in standard mode"; make clean split-sync entrypoints EXTRA_BUILD_ARGS="${EXTRA_BUILD_ARGS}"; \
-    fi
+    fi'
 
 # Runner stage
 FROM debian:12.4 AS runner
