@@ -32,4 +32,6 @@ jobs:
           context: .
           file: docker/Dockerfile.${{ matrix.mode }}
           push: true
-          tags: splitio-docker-dev.jfrog.io/split-${{ matrix.mode }}${{ matrix.fips-mode == "enabled" && "-fips" || ""}}:${{ env.SHORT_SHA }}
+          tags: splitio-docker-dev.jfrog.io/split-${{ matrix.mode }}${{ matrix.fips-mode == "enabled" && "-fips" || "" }}:${{ env.SHORT_SHA }}
+          build-args: |
+            FIPS_MODE=${{ matrix.fips-mode }}
