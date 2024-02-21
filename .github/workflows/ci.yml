@@ -85,7 +85,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: vulnerability_report
+          name: vulnerability_report_${{ matrix.app }}${{ matrix.fips_mode == 'enabled' && '-fips' || '' }}
           path: split-${{ matrix.app }}${{ matrix.fips_mode == 'enabled' && '-fips' || '' }}.html
           retention-days: 7
           overwrite: true
