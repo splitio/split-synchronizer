@@ -1,6 +1,11 @@
 5.7.0 (TD)
  - Add support for FIPS-compliant binaries & docker images
 
+5.6.1 (Jan 29, 2024)
+- Fixed Data Inspector view.
+- Updated docker images for vulnerability fixes.
+- Updated dependencies for vulnerability fixes.
+
 5.6.0 (Jan 23, 2024)
 - Replaced redis KEYS operation in favor of SCAN.
 - Added FlagSets stats into Split dashboard.
