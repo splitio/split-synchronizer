@@ -113,11 +113,11 @@ images_release: # entrypoints
 		-f docker/Dockerfile.proxy .
 	$(DOCKER) build $(platform_str) \
 		-t splitsoftware/split-synchronizer-fips:latest -t splitsoftware/split-synchronizer-fips:$(version) \
-		--build-arg FIPS_MODE=1 \
+		--build-arg FIPS_MODE=enabled \
 		-f docker/Dockerfile.synchronizer .
 	$(DOCKER) build $(platform_str) \
 		-t splitsoftware/split-proxy-fips:latest -t splitsoftware/split-proxy-fips:$(version) \
-		--build-arg FIPS_MODE=1 \
+		--build-arg FIPS_MODE=enabled \
 		-f docker/Dockerfile.proxy .
 	@echo "Images created. Make sure everything works ok, and then run the following commands to push them."
 	@echo "$(DOCKER) push splitsoftware/split-synchronizer:$(version)"
