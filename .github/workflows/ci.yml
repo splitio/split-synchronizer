@@ -66,7 +66,7 @@ jobs:
           context: .
           file: docker/Dockerfile.${{ matrix.app }}
           push: false
-          tags: splitio-docker.jfrog.io/split-${{ matrix.app }}:latest
+          tags: splitio-docker.jfrog.io/split-${{ matrix.app }}${{ matrix.fips-mode == "enabled" && "-fips" || "" }}:latest
           build-args: |
             FIPS_MODE=${{ matrix.fips-mode }}
 
@@ -79,12 +79,12 @@ jobs:
           IMAGE_TAG: latest
           SAVE_RESULTS_IN_LACEWORK: true
           SAVE_BUILD_REPORT: true
-          BUILD_REPORT_FILE_NAME: split-${{ matrix.app }}.html
+          BUILD_REPORT_FILE_NAME: split-${{ matrix.app }}${{ matrix.fips-mode == "enabled" && "-fips" || "" }}.html
 
       - name: Save vulnerability report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: vulnerability_report
-          path: split-${{ matrix.app }}-fips_${{ matrix.fips-mode }}.html
+          path: split-${{ matrix.app }}${{ matrix.fips-mode == "enabled" && "-fips" || "" }}.html
           retention-days: 7
