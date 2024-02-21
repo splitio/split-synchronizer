@@ -43,16 +43,22 @@ const cards = `
   
     <div class="row">
       {{if .ProxyMode}} 
-        <div class="col-md-6">
+        <div class="col-md-4">
           <div class="gray2Box metricBox">
             <h4>Cached Feature Flags</h4>
             <h1 id="feature_flags_number" class="centerText"></h1>
           </div>
         </div>
-        <div class="col-md-6">
+        <div class="col-md-4">
           <div class="gray2Box metricBox">
             <h4>Cached Segments</h4>
             <h1 id="segments_number" class="centerText"></h1>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="gray2Box metricBox">
+            <h4>Cached Flag Sets</h4>
+            <h1 id="flag_sets_number" class="centerText"></h1>
           </div>
         </div>
       {{else}}
