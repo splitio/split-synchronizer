@@ -59,6 +59,8 @@ _SYNC_PRE_VARS = {
     'latest_linux': 'install_split_sync_linux.bin',
     'latest_osx': 'install_split_sync_osx.bin',
     'latest_windows': 'split_sync_windows.zip',
+    'latest_linux_fips': 'install_split_sync_linux_fips.bin',
+    'latest_windows_fips': 'split_sync_windows_fips.zip',
 }
 
 _PROXY_PRE_VARS = {
@@ -70,6 +72,8 @@ _PROXY_PRE_VARS = {
     'latest_linux': 'install_split_proxy_linux.bin',
     'latest_osx': 'install_split_proxy_osx.bin',
     'latest_windows': 'split_proxy_windows.zip',
+    'latest_linux_fips': 'install_split_proxy_linux_fips.bin',
+    'latest_windows_fips': 'split_proxy_windows_fips.zip',
 }
 
 def make_row_vars_pre_multiexec(version: str) -> Dict[str,str]:
