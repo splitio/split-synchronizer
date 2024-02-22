@@ -1,7 +1,8 @@
 #Project files
-split-synchronizer
 split-sync
 split-proxy
+split-sync-fips
+split-proxy-fips
 proxy-opts.md
 sync-opts.md
 
@@ -70,3 +71,7 @@ build/*
 split-proxy
 split-sync
 /clilist
+
+windows/downloads
+windows/unpacked
+windows/build

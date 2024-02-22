@@ -1,19 +1,24 @@
 # Setup defaults
 GO ?= go
+MAKE ?= make
 ZIP ?= zip
 ARCH ?= amd64
 PYTHON ?= python3
 DOCKER ?= docker
 BUILD ?= build
+BUILD_FIPS ?= $(BUILD)/fips
+BUILD_FIPS_WIN_TMP ?= windows/build
 SHELL = /usr/bin/env bash -o pipefail
+ENFORCE_FIPS := -tags enforce_fips
+CURRENT_OS = $(shell uname -a | awk '{print $$1}')
 PLATFORM ?=
 
 # Extra arguments
 EXTRA_BUILD_ARGS ?=
 
 # don't depend on commit version, to avoid rebuilding unnecessarily
-sources			:= $(shell find . -name *.go -not -name "commitversion.go")
-version			:= $(shell cat splitio/version.go | grep 'const Version' | sed 's/const Version = //' | tr -d '"')
+sources				:= $(shell find . -name *.go -not -name "commitversion.go")
+version				:= $(shell cat splitio/version.go | grep 'const Version' | sed 's/const Version = //' | tr -d '"')
 commit_version		:= $(shell git rev-parse --short HEAD)
 installer_tpl		:= ./release/install_script_template
 installer_tpl_lines	:= $(shell echo $$(( $$(wc -l $(installer_tpl) | awk '{print $$1}') +1 )))
@@ -51,6 +56,14 @@ split-sync: $(sources) go.sum
 split-proxy: $(sources) go.sum
 	$(GO) build $(EXTRA_BUILD_ARGS) -o $@ cmd/proxy/main.go
 
+## Build the split-sync executable
+split-sync-fips: $(sources) go.sum
+	GOEXPERIMENT=boringcrypto $(GO) build $(EXTRA_BUILD_ARGS) -o $@ $(ENFORCE_FIPS) cmd/synchronizer/main.go
+
+## Build the split-proxy executable
+split-proxy-fips: $(sources) go.sum
+	GOEXPERIMENT=boringcrypto $(GO) build $(EXTRA_BUILD_ARGS) -o $@ $(ENFORCE_FIPS) cmd/proxy/main.go
+
 ## Run the unit tests
 test: $(sources) go.sum
 	$(GO) test ./... -count=1 -race $(ARGS)
@@ -63,7 +76,7 @@ test_coverage: $(sources) go.sum
 display-coverage: coverage.out
 	go tool cover -html=coverage.out
 
-## Generate binaires for all architectures, ready to upload for distribution (with and without version)
+## Generate binaries for all architectures, ready to upload for distribution (with and without version)
 release_assets: \
     $(BUILD)/synchronizer \
     $(BUILD)/proxy
@@ -92,13 +105,29 @@ entrypoints: entrypoint.synchronizer.sh entrypoint.proxy.sh
 
 ## Build release-ready docker images with proper tags and output push commands in stdout
 images_release: # entrypoints
-	$(DOCKER) build $(platform_str) -t splitsoftware/split-synchronizer:latest -t splitsoftware/split-synchronizer:$(version) -f docker/Dockerfile.synchronizer .
-	$(DOCKER) build $(platform_str) -t splitsoftware/split-proxy:latest -t splitsoftware/split-proxy:$(version) -f docker/Dockerfile.proxy .
+	$(DOCKER) build $(platform_str) \
+		-t splitsoftware/split-synchronizer:latest -t splitsoftware/split-synchronizer:$(version) \
+		-f docker/Dockerfile.synchronizer .
+	$(DOCKER) build $(platform_str) \
+		-t splitsoftware/split-proxy:latest -t splitsoftware/split-proxy:$(version) \
+		-f docker/Dockerfile.proxy .
+	$(DOCKER) build $(platform_str) \
+		-t splitsoftware/split-synchronizer-fips:latest -t splitsoftware/split-synchronizer-fips:$(version) \
+		--build-arg FIPS_MODE=enabled \
+		-f docker/Dockerfile.synchronizer .
+	$(DOCKER) build $(platform_str) \
+		-t splitsoftware/split-proxy-fips:latest -t splitsoftware/split-proxy-fips:$(version) \
+		--build-arg FIPS_MODE=enabled \
+		-f docker/Dockerfile.proxy .
 	@echo "Images created. Make sure everything works ok, and then run the following commands to push them."
 	@echo "$(DOCKER) push splitsoftware/split-synchronizer:$(version)"
 	@echo "$(DOCKER) push splitsoftware/split-synchronizer:latest"
 	@echo "$(DOCKER) push splitsoftware/split-proxy:$(version)"
 	@echo "$(DOCKER) push splitsoftware/split-proxy:latest"
+	@echo "$(DOCKER) push splitsoftware/split-synchronizer-fips:$(version)"
+	@echo "$(DOCKER) push splitsoftware/split-synchronizer-fips:latest"
+	@echo "$(DOCKER) push splitsoftware/split-proxy-fips:$(version)"
+	@echo "$(DOCKER) push splitsoftware/split-proxy-fips:latest"
 
 # --------------------------------------------------------------------------
 #
@@ -115,10 +144,12 @@ coverage.out: test_coverage
 # because of windows .exe suffix, we need a macro on the right side, which needs to be executed
 # after the `%` evaluation, therefore, in a second expansion
 .SECONDEXPANSION:
-$(BUILD)/split_%.zip: $(BUILD)/split_$$(call make_exec,%)
+%.zip: $$(call mkexec,%)
 	$(ZIP) -9 --junk-paths $@ $<
 
-$(BUILD)/install_split_%.bin: $(BUILD)/split_%.zip
+# factorized installer creation since it cannot be combined into a single
+# target for both std & fips-compliant builds
+define make-installer
 	cat  $(installer_tpl) \
 	    | sed -e "s/AUTO_REPLACE_APP_NAME/$(call apptitle_from_zip,$<)/" \
 	    | sed -e "s/AUTO_REPLACE_INSTALL_NAME/$(call installed_from_zip,$<)/" \
@@ -133,11 +164,43 @@ $(BUILD)/install_split_%.bin: $(BUILD)/split_%.zip
 	chmod 755 $@
 	rm $@.tmp
 	rm $<
+endef
 
-execs := split_sync_linux split_sync_osx split_sync_windows.exe split_proxy_linux split_proxy_osx split_proxy_windows.exe
-.INTERMEDIATE: $(addprefix $(BUILD)/,$(execs))
+$(BUILD)/install_split_%.bin: $(BUILD)/split_%.zip
+	$(make-installer)
+
+$(BUILD_FIPS)/install_split_%.bin: $(BUILD_FIPS)/split_%.zip
+	$(make-installer)
+
+# Recipes to build main binaries (both std & fips-compliant)
+# @{
+posix_execs := split_sync_linux split_sync_osx split_proxy_linux split_proxy_osx
+windows_execs := split_sync_windows.exe split_proxy_windows.exe
+execs := $(posix_execs) $(windows_execs)
+.INTERMEDIATE: $(addprefix $(BUILD)/,$(execs)) $(addprefix $(BUILD_FIPS)/,$(execs))
+
+# regular binaries recipe
 $(addprefix $(BUILD)/,$(execs)): $(BUILD)/split_%: $(sources) go.sum
 	CGO_ENABLED=0 GOARCH=$(ARCH) GOOS=$(call parse_os,$@) $(GO) build -o $@ cmd/$(call cmdfolder_from_bin,$@)/main.go
+
+# fips-compliant posix binaries recipe
+$(addprefix $(BUILD_FIPS)/,$(posix_execs)): $(BUILD_FIPS)/split_%: $(sources) go.sum
+	mkdir -p $(BUILD_FIPS)
+	GOEXPERIMENT=boringcrypto CGO_ENABLED=0 GOARCH=$(ARCH) GOOS=$(call parse_os,$@) $(GO) build $(ENFORCE_FIPS) -o $@ cmd/$(call cmdfolder_from_bin,$@)/main.go
+
+# fips-compliant windows binaries recipe
+ifeq ($(CURRENT_OS),Darwin) # we're on macos, we need to build using a dockerized linux
+$(addprefix $(BUILD_FIPS)/,$(windows_execs)): $(BUILD_FIPS)/split_%: $(sources) go.sum
+	mkdir -p $(BUILD_FIPS)
+	bash -c 'pushd windows && ./build_from_mac.sh'
+	cp $(BUILD_FIPS_WIN_TMP)/$(shell basename $@) $(BUILD_FIPS)
+else
+$(addprefix $(BUILD_FIPS)/,$(windows_execs)): $(BUILD_FIPS)/split_%: $(sources) go.sum
+	mkdir -p $(BUILD_FIPS) # we're on linux, we can build natively
+	$(MAKE) -f Makefile -C ./windows setup_ms_go binaries
+	cp $(BUILD_FIPS_WIN_TMP)/$(shell basename $@) $(BUILD_FIPS)
+endif
+# @}
 
 entrypoint.%.sh: clilist
 	cat docker/entrypoint.sh.tpl \
@@ -147,23 +210,45 @@ entrypoint.%.sh: clilist
 	    > $@
 	chmod +x $@
 
+define copy-release-binaries
+	for f in $^; do \
+		if [[ $$(dirname "$$f") == $(BUILD) ]]; then \
+			cp $$f $@/$(version)/$$(basename "$${f%.*}")_$(version).$${f##*.}; \
+			mv $$f $@; \
+		elif [[ $$(dirname "$$f") == $(BUILD_FIPS) ]]; then \
+			cp $$f $@/$(version)/$$(basename "$${f%.*}")_fips_$(version).$${f##*.}; \
+			mv $$f $@/$$(basename "$${f%.*}")_fips.$${f##*.}; \
+		fi \
+	done
+endef
+
+
 $(BUILD)/synchronizer: \
     $(BUILD)/downloads.sync.html \
     $(BUILD)/install_split_sync_linux.bin \
     $(BUILD)/install_split_sync_osx.bin \
-    $(BUILD)/split_sync_windows.zip
+    $(BUILD)/split_sync_windows.zip \
+    $(BUILD_FIPS)/install_split_sync_linux.bin \
+    $(BUILD_FIPS)/install_split_sync_osx.bin \
+    $(BUILD_FIPS)/split_sync_windows.zip
+
 	mkdir -p $(BUILD)/synchronizer/$(version)
-	for f in $^; do cp $$f $(BUILD)/synchronizer/$(version)/$$(basename "$${f%.*}")_$(version).$${f##*.}; done
-	cp {$(subst $(space),$(comma),$^)} $(BUILD)/synchronizer
+	cp $(BUILD)/downloads.sync.html $(BUILD)/synchronizer
+	$(copy-release-binaries)
+
 
 $(BUILD)/proxy: \
     $(BUILD)/downloads.proxy.html \
     $(BUILD)/install_split_proxy_linux.bin \
     $(BUILD)/install_split_proxy_osx.bin \
-    $(BUILD)/split_proxy_windows.zip
+    $(BUILD)/split_proxy_windows.zip \
+    $(BUILD_FIPS)/install_split_proxy_linux.bin \
+    $(BUILD_FIPS)/install_split_proxy_osx.bin \
+    $(BUILD_FIPS)/split_proxy_windows.zip
+
 	mkdir -p $(BUILD)/proxy/$(version)
-	for f in $^; do cp $$f $(BUILD)/proxy/$(version)/$$(basename "$${f%.*}")_$(version).$${f##*.}; done
-	cp {$(subst $(space),$(comma),$^)} $(BUILD)/proxy
+	cp $(BUILD)/downloads.proxy.html $(BUILD)/proxy
+	$(copy-release-binaries)
 
 $(BUILD)/downloads.%.html:
 	$(PYTHON) release/dp_gen.py --app $* > $@
@@ -201,12 +286,12 @@ help:
 to_uppercase		= $(shell echo '$1' | tr a-z A-Z)
 remove_ext_path		= $(basename $(notdir $1))
 normalize_os		= $(if $(subst osx,,$1),$1,darwin)
-parse_os		= $(call normalize_os,$(word 3,$(subst _, ,$(call remove_ext_path,$1))))
-make_exec		= $(if $(findstring windows,$1),$1.exe,$1)
-installed_from_zip 	= $(if $(findstring split_sync,$1),split-sync,split-proxy)
+parse_os			= $(call normalize_os,$(word 3,$(subst _, ,$(call remove_ext_path,$1))))
+mkexec				= $(if $(findstring windows,$1),$1.exe,$1)
+installed_from_zip	= $(if $(findstring split_sync,$1),split-sync,split-proxy)
 apptitle_from_zip	= $(if $(findstring split_sync,$1),Synchronizer,Proxy)
 cmdfolder_from_bin	= $(if $(findstring split_sync,$1),synchronizer,proxy)
-platform_str = $(if $(PLATFORM),--platform=$(PLATFORM),)
+platform_str		= $(if $(PLATFORM),--platform=$(PLATFORM),)
 
 # "constants"
 null  :=
