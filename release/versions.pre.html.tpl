@@ -70,13 +70,32 @@
         <div class="jumbotron">
           <h1>{title}</h1>
           <p class="lead">{description}</p>
-          <p>
-          <a class="btn btn-primary" href="./{latest_osx}" role="button"><i class="fab fa-apple"></i>&nbsp;Download</a>
-          <a class="btn btn-primary" href="./{latest_linux}" role="button"><i class="fab fa-linux"></i>&nbsp;Download</a>
-          <a class="btn btn-primary" href="./{latest_windows}" role="button"><i class="fab fa-windows"></i>&nbsp;Download</a>
-          <a class="btn btn-primary" href="{dockerhub_url}" role="button"><i class="fab fa-docker"></i>&nbsp;Docker Hub</a>
-           </p>
         </div>
+
+            <table class=table>
+              <thead>
+              <tr>
+                <td colspan="1">Build/OS</td>
+                <td colspan="1">OSX</td>
+                <td colspan="1">GNU/Linux</td>
+                <td colspan="1">Windows</td>
+              </tr>
+              <thead>
+              <tr>
+                <td>Standard</td>
+                <td><a class="btn btn-primary" href="./{latest_osx}" role="button"><i class="fab fa-apple"></i>&nbsp;Download</a></td>
+                <td><a class="btn btn-primary" href="./{latest_linux}" role="button"><i class="fab fa-linux"></i>&nbsp;Download</a></td>
+                <td><a class="btn btn-primary" href="./{latest_windows}" role="button"><i class="fab fa-windows"></i>&nbsp;Download</a></td>
+              </tr>
+              <tr>
+                <td>FIPS-Compliant</td>
+                <td>-</td>
+                <td><a class="btn btn-primary" href="./{latest_linux_fips}" role="button"><i class="fab fa-linux"></i>&nbsp;Download</a></td>
+                <td><a class="btn btn-primary" href="./{latest_windows_fips}" role="button"><i class="fab fa-windows"></i>&nbsp;Download</a></td>
+              </tr>
+            </table>
+
+        
 
         <h2>Older versions</h2>
         <table class="table">
