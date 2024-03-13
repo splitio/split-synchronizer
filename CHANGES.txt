@@ -1,3 +1,6 @@
+5.7.0 (TD)
+ - Add support for FIPS-compliant binaries & docker images
+
 5.6.1 (Jan 29, 2024)
 - Fixed Data Inspector view.
 - Updated docker images for vulnerability fixes.
@@ -11,6 +14,7 @@
 - Updated docker images for vulnerability fixes.
 - Updated go-split-commons version.
 - Updated how redis data is displayed in /info/configs.
+
 
 5.5.0 (Dec 12, 2023)
  - Added support for Flag Sets on Split Proxy and Synchronizer, which enables SDKs to interacting with the flag sets features (more details in our documentation):
