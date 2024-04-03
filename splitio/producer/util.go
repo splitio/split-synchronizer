@@ -37,13 +37,9 @@ func parseTLSConfig(opt *conf.Redis) (*tls.Config, error) {
 		return nil, nil
 	}
 
-	cfg := tls.Config{}
-	if !opt.SentinelReplication && !opt.ClusterMode {
-		if opt.TLSServerName != "" {
-			cfg.ServerName = opt.TLSServerName
-		} else {
-			cfg.ServerName = opt.Host
-		}
+	cfg := tls.Config{ServerName: opt.TLSServerName}
+	if cfg.ServerName == "" {
+		cfg.ServerName = opt.Host
 	}
 
 	if len(opt.TLSCACertificates) > 0 {
