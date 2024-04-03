@@ -1,4 +1,7 @@
-5.7.0 (TD)
+5.7.1  (TBD)
+- Forward TLS server name when in redis-sentinel & redis-cluster
+
+5.7.0 (Feb 22, 2024)
  - Add support for FIPS-compliant binaries & docker images
 
 5.6.1 (Jan 29, 2024)
