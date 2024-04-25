@@ -1,4 +1,5 @@
 name: unstable
+
 on:
   push:
     branches-ignore:
@@ -10,18 +11,30 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        app: [synchronizer, proxy]
-        fips_mode: [enabled, disabled]
+        app:
+          - synchronizer
+          - proxy
+        fips_mode:
+          - enabled
+          - disabled
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: amd64,arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Login to Artifactory
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: splitio-docker-dev.jfrog.io
           username: ${{ secrets.ARTIFACTORY_DOCKER_USER }}
           password: ${{ secrets.ARTIFACTORY_DOCKER_PASS }}
-
-      - name: Checkout code
-        uses: actions/checkout@v4
 
       - name: Get short hash
         run: echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
@@ -32,6 +45,7 @@ jobs:
           context: .
           file: docker/Dockerfile.${{ matrix.app }}
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: splitio-docker-dev.jfrog.io/split-${{ matrix.app }}${{ matrix.fips_mode == 'enabled' && '-fips' || '' }}:${{ env.SHORT_SHA }}
           build-args: |
             FIPS_MODE=${{ matrix.fips_mode }}
