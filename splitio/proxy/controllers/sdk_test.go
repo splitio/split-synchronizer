@@ -75,7 +75,7 @@ func TestSplitChangesOlderSince(t *testing.T) {
 		Once()
 
 	var splitFetcher splitFetcherMock
-	splitFetcher.On("Fetch", int64(-1), ref(service.NewFetchOptions(true, nil))).
+	splitFetcher.On("Fetch", ref(*service.MakeFlagRequestParams().WithChangeNumber(-1))).
 		Return(&dtos.SplitChangesDTO{Since: -1, Till: 1, Splits: []dtos.SplitDTO{{Name: "s1", Status: "ACTIVE"}, {Name: "s2", Status: "ACTIVE"}}}, nil).
 		Once()
 
@@ -126,7 +126,7 @@ func TestSplitChangesOlderSinceFetchFails(t *testing.T) {
 		Once()
 
 	var splitFetcher splitFetcherMock
-	splitFetcher.On("Fetch", int64(-1), ref(service.NewFetchOptions(true, nil))).
+	splitFetcher.On("Fetch", ref(*service.MakeFlagRequestParams().WithChangeNumber(-1))).
 		Return((*dtos.SplitChangesDTO)(nil), errors.New("something")).
 		Once()
 
@@ -404,8 +404,8 @@ type splitFetcherMock struct {
 }
 
 // Fetch implements service.SplitFetcher
-func (s *splitFetcherMock) Fetch(changeNumber int64, fetchOptions *service.FetchOptions) (*dtos.SplitChangesDTO, error) {
-	args := s.Called(changeNumber, fetchOptions)
+func (s *splitFetcherMock) Fetch(fetchOptions *service.FlagRequestParams) (*dtos.SplitChangesDTO, error) {
+	args := s.Called(fetchOptions)
 	return args.Get(0).(*dtos.SplitChangesDTO), args.Error(1)
 }
 

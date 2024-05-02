@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	cconf "github.com/splitio/go-split-commons/v5/conf"
 	config "github.com/splitio/go-split-commons/v5/conf"
 	"github.com/splitio/go-split-commons/v5/provisional"
 	"github.com/splitio/go-split-commons/v5/provisional/strategy"
@@ -116,15 +115,15 @@ func parseRedisOptions(cfg *conf.Redis) (*config.RedisConfig, error) {
 }
 
 func isValidApikey(splitFetcher service.SplitFetcher) bool {
-	_, err := splitFetcher.Fetch(time.Now().UnixNano()/int64(time.Millisecond), &service.FetchOptions{CacheControlHeaders: false})
+	_, err := splitFetcher.Fetch(service.MakeFlagRequestParams().WithCacheControl(false).WithChangeNumber(time.Now().UnixNano() / int64(time.Millisecond)))
 	return err == nil
 }
 
 func sanitizeRedis(cfg *conf.Main, miscStorage *redis.MiscStorage, logger logging.LoggerInterface) error {
 	if miscStorage == nil {
-		return errors.New("Could not sanitize redis")
+		return errors.New("could not sanitize redis")
 	}
-	currentHash := util.HashAPIKey(cfg.Apikey + strings.Join(cfg.FlagSetsFilter, "::"))
+	currentHash := util.HashAPIKey(cfg.Apikey + cfg.SpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
 	currentHashAsStr := strconv.Itoa(int(currentHash))
 	defer miscStorage.SetApikeyHash(currentHashAsStr)
 
@@ -166,7 +165,7 @@ func getAppCounterConfigs(storage storageCommon.SplitStorage) (hcAppCounter.Thre
 	return splitsConfig, segmentsConfig, storageConfig
 }
 
-func getServicesCountersConfig(advanced *cconf.AdvancedConfig) []hcServicesCounter.Config {
+func getServicesCountersConfig(advanced *config.AdvancedConfig) []hcServicesCounter.Config {
 	var cfgs []hcServicesCounter.Config
 
 	apiConfig := hcServicesCounter.DefaultConfig("API", advanced.SdkURL, "/version")
