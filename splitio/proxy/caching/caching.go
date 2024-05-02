@@ -51,23 +51,25 @@ func MakeProxyCache() *gincache.Middleware {
 	return gincache.New(&gincache.Options{
 		SuccessfulOnly: true, // we're not interested in caching non-200 responses
 		Size:           cacheSize,
-		KeyFactory: func(ctx *gin.Context) string {
-
-			var encodingPrefix string
-			if strings.Contains(ctx.Request.Header.Get("Accept-Encoding"), "gzip") {
-				encodingPrefix = "gzip::"
-			}
-
-			if strings.HasPrefix(ctx.Request.URL.Path, "/api/auth") || strings.HasPrefix(ctx.Request.URL.Path, "/api/v2/auth") {
-				// For auth requests, since we don't support streaming yet, we only need a single entry in the table,
-				// so we strip the query-string which contains the user-list
-				return encodingPrefix + ctx.Request.URL.Path
-			}
-			return encodingPrefix + ctx.Request.URL.Path + ctx.Request.URL.RawQuery
-		},
+		KeyFactory:     keyFactoryFN,
 		// we make each request handler responsible for generating the surrogates.
 		// this way we can use segment names as surrogates for mysegments & segment changes
 		// with a lot less work
 		SurrogateFactory: func(ctx *gin.Context) []string { return ctx.GetStringSlice(SurrogateContextKey) },
 	})
+}
+
+func keyFactoryFN(ctx *gin.Context) string {
+
+	var encodingPrefix string
+	if strings.Contains(ctx.Request.Header.Get("Accept-Encoding"), "gzip") {
+		encodingPrefix = "gzip::"
+	}
+
+	if strings.HasPrefix(ctx.Request.URL.Path, "/api/auth") || strings.HasPrefix(ctx.Request.URL.Path, "/api/v2/auth") {
+		// For auth requests, since we don't support streaming yet, we only need a single entry in the table,
+		// so we strip the query-string which contains the user-list
+		return encodingPrefix + ctx.Request.URL.Path
+	}
+	return encodingPrefix + ctx.Request.URL.Path + ctx.Request.URL.RawQuery
 }
