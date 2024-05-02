@@ -3,14 +3,17 @@ package controllers
 import (
 	"encoding/json"
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/go-split-commons/v5/dtos"
+	"github.com/splitio/go-split-commons/v5/engine/grammar"
+	"github.com/splitio/go-split-commons/v5/engine/grammar/matchers"
 	"github.com/splitio/go-split-commons/v5/service"
+	"github.com/splitio/go-split-commons/v5/service/api/specs"
 	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -52,7 +55,7 @@ func TestSplitChangesRecentSince(t *testing.T) {
 
 	assert.Equal(t, 200, resp.Code)
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	assert.Nil(t, err)
 
 	var s dtos.SplitChangesDTO
@@ -103,7 +106,7 @@ func TestSplitChangesOlderSince(t *testing.T) {
 
 	assert.Equal(t, 200, resp.Code)
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	assert.Nil(t, err)
 
 	var s dtos.SplitChangesDTO
@@ -192,7 +195,7 @@ func TestSplitChangesWithFlagSets(t *testing.T) {
 
 	assert.Equal(t, 200, resp.Code)
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	assert.Nil(t, err)
 
 	var s dtos.SplitChangesDTO
@@ -239,7 +242,7 @@ func TestSplitChangesWithFlagSetsStrict(t *testing.T) {
 
 	assert.Equal(t, 200, resp.Code)
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	assert.Nil(t, err)
 
 	var s dtos.SplitChangesDTO
@@ -247,6 +250,142 @@ func TestSplitChangesWithFlagSetsStrict(t *testing.T) {
 	assert.Equal(t, 2, len(s.Splits))
 	assert.Equal(t, int64(-1), s.Since)
 	assert.Equal(t, int64(1), s.Till)
+
+	splitStorage.AssertExpectations(t)
+	splitFetcher.AssertExpectations(t)
+}
+
+func TestSplitChangesNewMatcherOldSpec(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	var splitStorage psmocks.ProxySplitStorageMock
+	splitStorage.On("ChangesSince", int64(-1), []string(nil)).
+		Return(&dtos.SplitChangesDTO{
+			Since: -1,
+			Till:  1,
+			Splits: []dtos.SplitDTO{
+				{
+					Name:   "s1",
+					Status: "ACTIVE",
+					Conditions: []dtos.ConditionDTO{
+						{
+							MatcherGroup: dtos.MatcherGroupDTO{Matchers: []dtos.MatcherDTO{{MatcherType: matchers.MatcherTypeGreaterThanOrEqualToSemver}}},
+							Partitions:   []dtos.PartitionDTO{{Treatment: "on", Size: 100}},
+							Label:        "some label",
+						},
+					}},
+			},
+		}, nil).
+		Once()
+
+	var splitFetcher splitFetcherMock
+
+	resp := httptest.NewRecorder()
+	ctx, router := gin.CreateTestContext(resp)
+	logger := logging.NewLogger(nil)
+	group := router.Group("/api")
+	controller := NewSdkServerController(
+		logger,
+		&splitFetcher,
+		&splitStorage,
+		nil,
+		flagsets.NewMatcher(false, nil),
+	)
+	controller.Register(group)
+
+	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/splitChanges?since=-1", nil)
+	ctx.Request.Header.Set("Authorization", "Bearer someApiKey")
+	ctx.Request.Header.Set("SplitSDKVersion", "go-1.1.1")
+	ctx.Request.Header.Set("SplitSDKMachineIp", "1.2.3.4")
+	ctx.Request.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
+	router.ServeHTTP(resp, ctx.Request)
+
+	assert.Equal(t, 200, resp.Code)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.Nil(t, err)
+
+	var s dtos.SplitChangesDTO
+	err = json.Unmarshal(body, &s)
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(s.Splits))
+	assert.Equal(t, int64(-1), s.Since)
+	assert.Equal(t, int64(1), s.Till)
+
+	cond := s.Splits[0].Conditions[0]
+	assert.Equal(t, grammar.ConditionTypeWhitelist, cond.ConditionType)
+	assert.Equal(t, matchers.MatcherTypeAllKeys, cond.MatcherGroup.Matchers[0].MatcherType)
+	assert.Equal(t, labelUnsupportedMatcher, cond.Label)
+	assert.Equal(t, []dtos.PartitionDTO{{Treatment: "control", Size: 100}}, cond.Partitions)
+
+	splitStorage.AssertExpectations(t)
+	splitFetcher.AssertExpectations(t)
+}
+
+func TestSplitChangesNewMatcherNewSpec(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	var splitStorage psmocks.ProxySplitStorageMock
+	splitStorage.On("ChangesSince", int64(-1), []string(nil)).
+		Return(&dtos.SplitChangesDTO{
+			Since: -1,
+			Till:  1,
+			Splits: []dtos.SplitDTO{
+				{
+					Name:   "s1",
+					Status: "ACTIVE",
+					Conditions: []dtos.ConditionDTO{
+						{
+							MatcherGroup: dtos.MatcherGroupDTO{Matchers: []dtos.MatcherDTO{{MatcherType: matchers.MatcherTypeGreaterThanOrEqualToSemver}}},
+							Partitions:   []dtos.PartitionDTO{{Treatment: "on", Size: 100}},
+							Label:        "some label",
+						},
+					}},
+			},
+		}, nil).
+		Once()
+
+	var splitFetcher splitFetcherMock
+
+	resp := httptest.NewRecorder()
+	ctx, router := gin.CreateTestContext(resp)
+	logger := logging.NewLogger(nil)
+	group := router.Group("/api")
+	controller := NewSdkServerController(
+		logger,
+		&splitFetcher,
+		&splitStorage,
+		nil,
+		flagsets.NewMatcher(false, nil),
+	)
+	controller.Register(group)
+
+	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/splitChanges?since=-1", nil)
+	ctx.Request.Header.Set("Authorization", "Bearer someApiKey")
+	ctx.Request.Header.Set("SplitSDKVersion", "go-1.1.1")
+	ctx.Request.Header.Set("SplitSDKMachineIp", "1.2.3.4")
+	ctx.Request.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
+	q := ctx.Request.URL.Query()
+	q.Add("s", specs.FLAG_V1_1)
+	ctx.Request.URL.RawQuery = q.Encode()
+	router.ServeHTTP(resp, ctx.Request)
+
+	assert.Equal(t, 200, resp.Code)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.Nil(t, err)
+
+	var s dtos.SplitChangesDTO
+	err = json.Unmarshal(body, &s)
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(s.Splits))
+	assert.Equal(t, int64(-1), s.Since)
+	assert.Equal(t, int64(1), s.Till)
+
+	cond := s.Splits[0].Conditions[0]
+	assert.Equal(t, matchers.MatcherTypeGreaterThanOrEqualToSemver, cond.MatcherGroup.Matchers[0].MatcherType)
+	assert.Equal(t, "some label", cond.Label)
+	assert.Equal(t, []dtos.PartitionDTO{{Treatment: "on", Size: 100}}, cond.Partitions)
 
 	splitStorage.AssertExpectations(t)
 	splitFetcher.AssertExpectations(t)
@@ -280,7 +419,7 @@ func TestSegmentChanges(t *testing.T) {
 
 	assert.Equal(t, 200, resp.Code)
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	assert.Nil(t, err)
 
 	var s dtos.SegmentChangesDTO
@@ -353,7 +492,7 @@ func TestMySegments(t *testing.T) {
 	router.ServeHTTP(resp, ctx.Request)
 	assert.Equal(t, 200, resp.Code)
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	assert.Nil(t, err)
 
 	var ms MSC
