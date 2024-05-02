@@ -17,6 +17,7 @@ type Main struct {
 	Integrations     conf.Integrations `json:"integrations" s-nested:"true"`
 	Logging          conf.Logging      `json:"logging" s-nested:"true"`
 	Healthcheck      Healthcheck       `json:"healthcheck" s-nested:"true"`
+	SpecVersion      string
 }
 
 // BuildAdvancedConfig generates a commons-compatible advancedconfig with default + overriden parameters

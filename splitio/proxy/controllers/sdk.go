@@ -140,7 +140,6 @@ func (c *SdkServerController) fetchSplitChangesSince(since int64, sets []string)
 
 	// perform a fetch to the BE using the supplied `since`, have the storage process it's response &, retry
 	// TODO(mredolatti): implement basic collapsing here to avoid flooding the BE with requests
-	fetchOptions := service.NewFetchOptions(true, nil)
-	fetchOptions.FlagSetsFilter = strings.Join(sets, ",") // at this point the sets have been sanitized & sorted
-	return c.fetcher.Fetch(since, &fetchOptions)
+	fetchOptions := service.MakeFlagRequestParams().WithChangeNumber(since).WithFlagSetsFilter(strings.Join(sets, ",")) // at this point the sets have been sanitized & sorted
+	return c.fetcher.Fetch(fetchOptions)
 }
