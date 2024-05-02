@@ -1,3 +1,7 @@
+5.8.0 (May XX, 2024)
+ - Added support for targeting rules based on semantic versions (https://semver.org/).
+ - Added special impression label "targeting rule type unsupported by sdk" when the matcher type is not supported by the SDK, which returns 'control' treatment.
+
 5.7.0 (TD)
  - Add support for FIPS-compliant binaries & docker images
 
