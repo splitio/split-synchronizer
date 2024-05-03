@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/go-split-commons/v5/dtos"
+	"github.com/splitio/go-split-commons/v5/engine/evaluator/impressionlabels"
 	"github.com/splitio/go-split-commons/v5/engine/grammar"
 	"github.com/splitio/go-split-commons/v5/engine/grammar/matchers"
 	"github.com/splitio/go-split-commons/v5/service"
@@ -315,7 +316,7 @@ func TestSplitChangesNewMatcherOldSpec(t *testing.T) {
 	cond := s.Splits[0].Conditions[0]
 	assert.Equal(t, grammar.ConditionTypeWhitelist, cond.ConditionType)
 	assert.Equal(t, matchers.MatcherTypeAllKeys, cond.MatcherGroup.Matchers[0].MatcherType)
-	assert.Equal(t, labelUnsupportedMatcher, cond.Label)
+	assert.Equal(t, impressionlabels.UnsupportedMatcherType, cond.Label)
 	assert.Equal(t, []dtos.PartitionDTO{{Treatment: "control", Size: 100}}, cond.Partitions)
 
 	splitStorage.AssertExpectations(t)
