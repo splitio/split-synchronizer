@@ -126,7 +126,8 @@ func TestSanitizeRedisWithForcedCleanup(t *testing.T) {
 
 func TestSanitizeRedisWithRedisEqualApiKey(t *testing.T) {
 	cfg := getDefaultConf()
-	cfg.Apikey = "djasghdhjasfganyr73dsah9"
+	cfg.Apikey = "983564etyrudhijfgknf9i08euh"
+	cfg.SpecVersion = "1.0"
 
 	logger := logging.NewLogger(nil)
 
@@ -139,9 +140,10 @@ func TestSanitizeRedisWithRedisEqualApiKey(t *testing.T) {
 	if err != nil {
 		t.Error("It should be nil")
 	}
+	hash := util.HashAPIKey(cfg.Apikey + cfg.SpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
 
 	redisClient.Set("SPLITIO.test1", "123", 0)
-	redisClient.Set("SPLITIO.hash", "3376912823", 0)
+	redisClient.Set("SPLITIO.hash", hash, 0)
 
 	miscStorage := predis.NewMiscStorage(redisClient, logger)
 	err = sanitizeRedis(cfg, miscStorage, logger)
@@ -155,16 +157,18 @@ func TestSanitizeRedisWithRedisEqualApiKey(t *testing.T) {
 	}
 
 	val, _ = redisClient.Get("SPLITIO.hash")
-	if val != "3376912823" {
+	if val != strconv.FormatUint(uint64(hash), 10) {
 		t.Error("Incorrect apikey hash set in redis after sanitization operation.")
 	}
 
+	redisClient.Del("SPLITIO.hash")
 	redisClient.Del("SPLITIO.test1")
 }
 
 func TestSanitizeRedisWithRedisDifferentApiKey(t *testing.T) {
 	cfg := getDefaultConf()
 	cfg.Apikey = "983564etyrudhijfgknf9i08euh"
+	cfg.SpecVersion = "1.0"
 
 	logger := logging.NewLogger(nil)
 
@@ -177,9 +181,12 @@ func TestSanitizeRedisWithRedisDifferentApiKey(t *testing.T) {
 	if err != nil {
 		t.Error("It should be nil")
 	}
+	hash := util.HashAPIKey("djasghdhjasfganyr73dsah9" + cfg.SpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
 
 	redisClient.Set("SPLITIO.test1", "123", 0)
-	redisClient.Set("SPLITIO.hash", "3376912823", 0)
+	redisClient.Set("SPLITIO.hash", "3216514561", 0)
+
+	hash = util.HashAPIKey(cfg.Apikey + cfg.SpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
 
 	miscStorage := predis.NewMiscStorage(redisClient, logger)
 	err = sanitizeRedis(cfg, miscStorage, logger)
@@ -193,20 +200,22 @@ func TestSanitizeRedisWithRedisDifferentApiKey(t *testing.T) {
 	}
 
 	val, _ = redisClient.Get("SPLITIO.hash")
-	if val != "1497926959" {
-		t.Error("Incorrect apikey hash set in redis after sanitization operation.")
+	if val != strconv.FormatUint(uint64(hash), 10) {
+		t.Error("Incorrect apikey hash set in redis after sanitization operation.", val)
 	}
 
+	redisClient.Del("SPLITIO.hash")
 	redisClient.Del("SPLITIO.test1")
 }
 
 func TestSanitizeRedisWithForcedCleanupByFlagSets(t *testing.T) {
 	cfg := getDefaultConf()
+	cfg.SpecVersion = "1.0"
 	cfg.Apikey = "983564etyrudhijfgknf9i08euh"
 	cfg.Initialization.ForceFreshStartup = true
 	cfg.FlagSetsFilter = []string{"flagset1", "flagset2"}
 
-	hash := util.HashAPIKey(cfg.Apikey + strings.Join(cfg.FlagSetsFilter, "::"))
+	hash := util.HashAPIKey(cfg.Apikey + cfg.SpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
 
 	logger := logging.NewLogger(nil)
 
