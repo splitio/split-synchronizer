@@ -9,8 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/go-split-commons/v5/dtos"
-	"github.com/splitio/go-split-commons/v5/engine/grammar"
-	"github.com/splitio/go-split-commons/v5/engine/grammar/matchers"
+	"github.com/splitio/go-split-commons/v5/engine/validator"
 	"github.com/splitio/go-split-commons/v5/service"
 	"github.com/splitio/go-split-commons/v5/service/api/specs"
 	"github.com/splitio/go-toolkit/v5/logging"
@@ -19,10 +18,6 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/caching"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/flagsets"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
-)
-
-const (
-	labelUnsupportedMatcher = "targeting rule type unsupported by sdk"
 )
 
 // SdkServerController bundles all request handler for sdk-server apis
@@ -165,11 +160,7 @@ func (c *SdkServerController) patchUnsupportedMatchers(splits []dtos.SplitDTO, v
 		for ci := range splits[si].Conditions {
 			for mi := range splits[si].Conditions[ci].MatcherGroup.Matchers {
 				if c.versionFilter.ShouldFilter(splits[si].Conditions[ci].MatcherGroup.Matchers[mi].MatcherType, version) {
-					splits[si].Conditions[ci].ConditionType = grammar.ConditionTypeWhitelist
-					splits[si].Conditions[ci].MatcherGroup.Matchers[mi].MatcherType = matchers.MatcherTypeAllKeys
-					splits[si].Conditions[ci].MatcherGroup.Matchers[mi].String = nil
-					splits[si].Conditions[ci].Label = labelUnsupportedMatcher
-					splits[si].Conditions[ci].Partitions = []dtos.PartitionDTO{{Treatment: "control", Size: 100}}
+					validator.OverrideWithUnsupported(&splits[si], ci, mi)
 				}
 			}
 		}
