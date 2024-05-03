@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/splitio/go-split-commons/v5/dtos"
+	"github.com/splitio/go-split-commons/v5/engine/evaluator/impressionlabels"
 	"github.com/splitio/go-split-commons/v5/engine/grammar"
 	"github.com/splitio/go-split-commons/v5/engine/grammar/matchers"
 	"github.com/splitio/go-split-commons/v5/service"
@@ -19,10 +20,6 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/caching"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/flagsets"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
-)
-
-const (
-	labelUnsupportedMatcher = "targeting rule type unsupported by sdk"
 )
 
 // SdkServerController bundles all request handler for sdk-server apis
@@ -168,7 +165,7 @@ func (c *SdkServerController) patchUnsupportedMatchers(splits []dtos.SplitDTO, v
 					splits[si].Conditions[ci].ConditionType = grammar.ConditionTypeWhitelist
 					splits[si].Conditions[ci].MatcherGroup.Matchers[mi].MatcherType = matchers.MatcherTypeAllKeys
 					splits[si].Conditions[ci].MatcherGroup.Matchers[mi].String = nil
-					splits[si].Conditions[ci].Label = labelUnsupportedMatcher
+					splits[si].Conditions[ci].Label = impressionlabels.UnsupportedMatcherType
 					splits[si].Conditions[ci].Partitions = []dtos.PartitionDTO{{Treatment: "control", Size: 100}}
 				}
 			}
