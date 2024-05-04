@@ -29,6 +29,7 @@ type DashboardController struct {
 	eventsEvCalc      evcalc.Monitor
 	runtime           common.Runtime
 	appMonitor        application.MonitorIterface
+	specVersion       string
 }
 
 // NewDashboardController instantiates a new dashboard controller
@@ -41,6 +42,7 @@ func NewDashboardController(
 	eventsEvCalc evcalc.Monitor,
 	runtime common.Runtime,
 	appMonitor application.MonitorIterface,
+	specVersion string,
 ) (*DashboardController, error) {
 
 	toReturn := &DashboardController{
@@ -52,6 +54,7 @@ func NewDashboardController(
 		eventsEvCalc:      eventsEvCalc,
 		impressionsEvCalc: impressionEvCalc,
 		appMonitor:        appMonitor,
+		specVersion:       specVersion,
 	}
 
 	var err error
@@ -110,6 +113,7 @@ func (c *DashboardController) renderDashboard() ([]byte, error) {
 		RefreshTime:    30000,
 		Stats:          *c.gatherStats(),
 		Health:         c.appMonitor.GetHealthStatus(),
+		SpecVersion:    c.specVersion,
 	})
 
 	if err != nil {
