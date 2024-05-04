@@ -224,6 +224,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		HcServicesMonitor: servicesMonitor,
 		FullConfig:        cfgForAdmin,
 		TLS:               adminTLSConfig,
+		SpecVersion:       cfg.SpecVersion,
 	})
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error starting admin server: %w", err), common.ExitAdminError)

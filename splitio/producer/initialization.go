@@ -300,6 +300,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		HcServicesMonitor: servicesMonitor,
 		FullConfig:        cfgForAdmin,
 		TLS:               adminTLSConfig,
+		SpecVersion:       cfg.SpecVersion,
 	})
 	if err != nil {
 		panic(err.Error())
