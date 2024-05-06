@@ -39,7 +39,7 @@ type Options struct {
 	Snapshotter       cstorage.Snapshotter
 	TLS               *tls.Config
 	FullConfig        interface{}
-	SpecVersion       string
+	FlagSpecVersion   string
 }
 
 type AdminServer struct {
@@ -67,7 +67,7 @@ func NewServer(options *Options) (*AdminServer, error) {
 		options.EventsEvCalc,
 		options.Runtime,
 		options.HcAppMonitor,
-		options.SpecVersion,
+		options.FlagSpecVersion,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error instantiating dashboard controller: %w", err)
