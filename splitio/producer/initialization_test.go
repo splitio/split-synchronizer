@@ -81,7 +81,7 @@ func TestIsApikeyValidNotOk(t *testing.T) {
 func TestSanitizeRedisWithForcedCleanup(t *testing.T) {
 	cfg := getDefaultConf()
 	cfg.Apikey = "983564etyrudhijfgknf9i08euh"
-	cfg.SpecVersion = "1.0"
+	cfg.FlagSpecVersion = "1.0"
 	cfg.Initialization.ForceFreshStartup = true
 
 	logger := logging.NewLogger(nil)
@@ -127,7 +127,7 @@ func TestSanitizeRedisWithForcedCleanup(t *testing.T) {
 func TestSanitizeRedisWithRedisEqualApiKey(t *testing.T) {
 	cfg := getDefaultConf()
 	cfg.Apikey = "983564etyrudhijfgknf9i08euh"
-	cfg.SpecVersion = "1.0"
+	cfg.FlagSpecVersion = "1.0"
 
 	logger := logging.NewLogger(nil)
 
@@ -140,7 +140,7 @@ func TestSanitizeRedisWithRedisEqualApiKey(t *testing.T) {
 	if err != nil {
 		t.Error("It should be nil")
 	}
-	hash := util.HashAPIKey(cfg.Apikey + cfg.SpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
+	hash := util.HashAPIKey(cfg.Apikey + cfg.FlagSpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
 
 	redisClient.Set("SPLITIO.test1", "123", 0)
 	redisClient.Set("SPLITIO.hash", hash, 0)
@@ -168,7 +168,7 @@ func TestSanitizeRedisWithRedisEqualApiKey(t *testing.T) {
 func TestSanitizeRedisWithRedisDifferentApiKey(t *testing.T) {
 	cfg := getDefaultConf()
 	cfg.Apikey = "983564etyrudhijfgknf9i08euh"
-	cfg.SpecVersion = "1.0"
+	cfg.FlagSpecVersion = "1.0"
 
 	logger := logging.NewLogger(nil)
 
@@ -181,12 +181,12 @@ func TestSanitizeRedisWithRedisDifferentApiKey(t *testing.T) {
 	if err != nil {
 		t.Error("It should be nil")
 	}
-	hash := util.HashAPIKey("djasghdhjasfganyr73dsah9" + cfg.SpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
+	hash := util.HashAPIKey("djasghdhjasfganyr73dsah9" + cfg.FlagSpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
 
 	redisClient.Set("SPLITIO.test1", "123", 0)
 	redisClient.Set("SPLITIO.hash", "3216514561", 0)
 
-	hash = util.HashAPIKey(cfg.Apikey + cfg.SpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
+	hash = util.HashAPIKey(cfg.Apikey + cfg.FlagSpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
 
 	miscStorage := predis.NewMiscStorage(redisClient, logger)
 	err = sanitizeRedis(cfg, miscStorage, logger)
@@ -210,12 +210,12 @@ func TestSanitizeRedisWithRedisDifferentApiKey(t *testing.T) {
 
 func TestSanitizeRedisWithForcedCleanupByFlagSets(t *testing.T) {
 	cfg := getDefaultConf()
-	cfg.SpecVersion = "1.0"
+	cfg.FlagSpecVersion = "1.0"
 	cfg.Apikey = "983564etyrudhijfgknf9i08euh"
 	cfg.Initialization.ForceFreshStartup = true
 	cfg.FlagSetsFilter = []string{"flagset1", "flagset2"}
 
-	hash := util.HashAPIKey(cfg.Apikey + cfg.SpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
+	hash := util.HashAPIKey(cfg.Apikey + cfg.FlagSpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
 
 	logger := logging.NewLogger(nil)
 
@@ -264,9 +264,9 @@ func TestSanitizeRedisWithForcedCleanupBySpecVersion(t *testing.T) {
 	cfg := getDefaultConf()
 	cfg.Apikey = "983564etyrudhijfgknf9i08euh"
 	cfg.Initialization.ForceFreshStartup = true
-	cfg.SpecVersion = "1.0"
+	cfg.FlagSpecVersion = "1.0"
 
-	hash := util.HashAPIKey(cfg.Apikey + cfg.SpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
+	hash := util.HashAPIKey(cfg.Apikey + cfg.FlagSpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
 
 	logger := logging.NewLogger(nil)
 
@@ -290,7 +290,7 @@ func TestSanitizeRedisWithForcedCleanupBySpecVersion(t *testing.T) {
 		t.Error("Value should have been set properly")
 	}
 
-	cfg.SpecVersion = "1.1"
+	cfg.FlagSpecVersion = "1.1"
 	miscStorage := predis.NewMiscStorage(redisClient, logger)
 	err = sanitizeRedis(cfg, miscStorage, logger)
 	if err != nil {
