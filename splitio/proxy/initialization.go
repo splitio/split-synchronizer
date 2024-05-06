@@ -72,8 +72,8 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	// Getting initial config data
 	advanced := cfg.BuildAdvancedConfig()
 	advanced.FlagSetsFilter = cfg.FlagSetsFilter
-	advanced.AuthSpecVersion = cfg.SpecVersion
-	advanced.FlagsSpecVersion = cfg.SpecVersion
+	advanced.AuthSpecVersion = cfg.FlagSpecVersion
+	advanced.FlagsSpecVersion = cfg.FlagSpecVersion
 	metadata := util.GetMetadata(cfg.IPAddressEnabled, true)
 
 	// FlagSetsFilter
@@ -224,7 +224,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		HcServicesMonitor: servicesMonitor,
 		FullConfig:        cfgForAdmin,
 		TLS:               adminTLSConfig,
-		SpecVersion:       cfg.SpecVersion,
+		FlagSpecVersion:   cfg.FlagSpecVersion,
 	})
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error starting admin server: %w", err), common.ExitAdminError)
