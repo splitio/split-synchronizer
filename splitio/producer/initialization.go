@@ -47,6 +47,8 @@ const (
 func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	// Getting initial config data
 	advanced := cfg.BuildAdvancedConfig()
+	advanced.AuthSpecVersion = cfg.SpecVersion
+	advanced.FlagsSpecVersion = cfg.SpecVersion
 	advanced.FlagSetsFilter = cfg.FlagSetsFilter
 	metadata := util.GetMetadata(false, cfg.IPAddressEnabled)
 
