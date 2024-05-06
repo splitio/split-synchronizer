@@ -47,8 +47,8 @@ const (
 func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	// Getting initial config data
 	advanced := cfg.BuildAdvancedConfig()
-	advanced.AuthSpecVersion = cfg.SpecVersion
-	advanced.FlagsSpecVersion = cfg.SpecVersion
+	advanced.AuthSpecVersion = cfg.FlagSpecVersion
+	advanced.FlagsSpecVersion = cfg.FlagSpecVersion
 	advanced.FlagSetsFilter = cfg.FlagSetsFilter
 	metadata := util.GetMetadata(false, cfg.IPAddressEnabled)
 
@@ -300,6 +300,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		HcServicesMonitor: servicesMonitor,
 		FullConfig:        cfgForAdmin,
 		TLS:               adminTLSConfig,
+		FlagSpecVersion:   cfg.FlagSpecVersion,
 	})
 	if err != nil {
 		panic(err.Error())

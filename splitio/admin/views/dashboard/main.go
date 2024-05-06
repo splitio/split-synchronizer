@@ -45,7 +45,7 @@ const main = `
 	  {{template "SplitLogo" .}}
         </div>
         <div class="pull-right" style="text-align: center; padding-right: 10px;">
-	  <p style="padding-top: 8px; color: white; margin: 0px; font-weight: bold; text-align: right"><span>{{.Version}}</span></p>
+	  <p style="padding-top: 8px; color: white; margin: 0px; font-weight: bold; text-align: right"><span>{{.Version}}</span> | Flag Spec: <span>{{.FlagSpecVersion}}</span></p>
           <p class="navbar-text navbar-right" style="padding-top: 0px;margin-bottom: 15px;margin-top: 0px;color:white;min-width: 175px;height: 10px;">
             <a href="#" onclick="javascript:sendSignal('graceful'); return false;" class="navbar-link">
 	      <span class="label label-success">Graceful stop</span>
@@ -76,13 +76,14 @@ const main = `
 
 // RootObject is the main/root object used to render the dashboard
 type RootObject struct {
-	DashboardTitle string
-	Version        string
-	ProxyMode      bool
-	RefreshTime    int64
-	Stats          GlobalStats           `json:"stats"`
-	Health         application.HealthDto `json:"health"`
-	ServicesHealth services.HealthDto    `json:"servicesHealth"`
+	DashboardTitle  string
+	Version         string
+	ProxyMode       bool
+	RefreshTime     int64
+	Stats           GlobalStats           `json:"stats"`
+	Health          application.HealthDto `json:"health"`
+	ServicesHealth  services.HealthDto    `json:"servicesHealth"`
+	FlagSpecVersion string
 }
 
 // GlobalStats runtime stats used to render the dashboard
