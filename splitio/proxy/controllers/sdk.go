@@ -155,16 +155,22 @@ func (c *SdkServerController) fetchSplitChangesSince(since int64, sets []string)
 	return c.fetcher.Fetch(fetchOptions)
 }
 
-func (c *SdkServerController) patchUnsupportedMatchers(splits []dtos.SplitDTO, version string) []dtos.SplitDTO {
-	for si := range splits {
-		for ci := range splits[si].Conditions {
-			for mi := range splits[si].Conditions[ci].MatcherGroup.Matchers {
-				if c.versionFilter.ShouldFilter(splits[si].Conditions[ci].MatcherGroup.Matchers[mi].MatcherType, version) {
-					validator.OverrideWithUnsupported(&splits[si], ci, mi)
-				}
+func (c *SdkServerController) shouldOverrideSplitCondition(split *dtos.SplitDTO, version string) bool {
+	for _, condition := range split.Conditions {
+		for _, matcher := range condition.MatcherGroup.Matchers {
+			if c.versionFilter.ShouldFilter(matcher.MatcherType, version) {
+				return true
 			}
 		}
 	}
+	return false
+}
 
+func (c *SdkServerController) patchUnsupportedMatchers(splits []dtos.SplitDTO, version string) []dtos.SplitDTO {
+	for si := range splits {
+		if c.shouldOverrideSplitCondition(&splits[si], version) {
+			splits[si].Conditions = validator.MakeUnsupportedMatcherConditionReplacement()
+		}
+	}
 	return splits
 }
