@@ -36,13 +36,9 @@ func parseTLSConfig(opt *conf.Redis) (*tls.Config, error) {
 		return nil, nil
 	}
 
-	cfg := tls.Config{}
-	if !opt.SentinelReplication && !opt.ClusterMode {
-		if opt.TLSServerName != "" {
-			cfg.ServerName = opt.TLSServerName
-		} else {
-			cfg.ServerName = opt.Host
-		}
+	cfg := tls.Config{ServerName: opt.TLSServerName}
+	if cfg.ServerName == "" {
+		cfg.ServerName = opt.Host
 	}
 
 	if len(opt.TLSCACertificates) > 0 {
@@ -123,7 +119,7 @@ func sanitizeRedis(cfg *conf.Main, miscStorage *redis.MiscStorage, logger loggin
 	if miscStorage == nil {
 		return errors.New("could not sanitize redis")
 	}
-	currentHash := util.HashAPIKey(cfg.Apikey + cfg.SpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
+	currentHash := util.HashAPIKey(cfg.Apikey + cfg.FlagSpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
 	currentHashAsStr := strconv.Itoa(int(currentHash))
 	defer miscStorage.SetApikeyHash(currentHashAsStr)
 
