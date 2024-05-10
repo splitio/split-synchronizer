@@ -270,6 +270,11 @@ func TestSplitChangesNewMatcherOldSpec(t *testing.T) {
 					Status: "ACTIVE",
 					Conditions: []dtos.ConditionDTO{
 						{
+							MatcherGroup: dtos.MatcherGroupDTO{Matchers: []dtos.MatcherDTO{{MatcherType: matchers.MatcherTypeEndsWith}}},
+							Partitions:   []dtos.PartitionDTO{{Treatment: "on", Size: 100}},
+							Label:        "some label",
+						},
+						{
 							MatcherGroup: dtos.MatcherGroupDTO{Matchers: []dtos.MatcherDTO{{MatcherType: matchers.MatcherTypeGreaterThanOrEqualToSemver}}},
 							Partitions:   []dtos.PartitionDTO{{Treatment: "on", Size: 100}},
 							Label:        "some label",
@@ -313,6 +318,7 @@ func TestSplitChangesNewMatcherOldSpec(t *testing.T) {
 	assert.Equal(t, int64(-1), s.Since)
 	assert.Equal(t, int64(1), s.Till)
 
+	assert.Equal(t, 1, len(s.Splits[0].Conditions))
 	cond := s.Splits[0].Conditions[0]
 	assert.Equal(t, grammar.ConditionTypeWhitelist, cond.ConditionType)
 	assert.Equal(t, matchers.MatcherTypeAllKeys, cond.MatcherGroup.Matchers[0].MatcherType)
