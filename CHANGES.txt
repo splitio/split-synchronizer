@@ -2,6 +2,8 @@
  - Added support for targeting rules based on semantic versions (https://semver.org/).
  - Added special impression label "targeting rule type unsupported by sdk" when the matcher type is not supported by the SDK, which returns 'control' treatment.
  - Forward TLS server name when in redis-sentinel & redis-cluster
+ - Fixed vulnerabilities
+ - Updated go-split-commons to v6
 
 5.7.0 (TBD)
  - Add support for FIPS-compliant binaries & docker images

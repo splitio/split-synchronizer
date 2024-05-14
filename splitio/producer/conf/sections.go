@@ -1,7 +1,7 @@
 package conf
 
 import (
-	cconf "github.com/splitio/go-split-commons/v5/conf"
+	cconf "github.com/splitio/go-split-commons/v6/conf"
 	"github.com/splitio/split-synchronizer/v5/splitio/common/conf"
 )
 

@@ -1,7 +1,7 @@
 package internal
 
 import (
-	"github.com/splitio/go-split-commons/v5/dtos"
+	"github.com/splitio/go-split-commons/v6/dtos"
 )
 
 // RawData represents the raw data submitted by an sdk when posting data with associated metadata
