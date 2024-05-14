@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/splitio/go-split-commons/v5/storage"
-	"github.com/splitio/go-split-commons/v5/telemetry"
+	"github.com/splitio/go-split-commons/v6/storage"
+	"github.com/splitio/go-split-commons/v6/telemetry"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/admin/views/dashboard"
 	"github.com/splitio/split-synchronizer/v5/splitio/producer/evcalc"

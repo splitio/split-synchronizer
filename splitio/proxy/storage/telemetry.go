@@ -4,9 +4,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/splitio/go-split-commons/v5/storage"
-	"github.com/splitio/go-split-commons/v5/storage/inmemory"
-	"github.com/splitio/go-split-commons/v5/telemetry"
+	"github.com/splitio/go-split-commons/v6/storage"
+	"github.com/splitio/go-split-commons/v6/storage/inmemory"
+	"github.com/splitio/go-split-commons/v6/telemetry"
 )
 
 // Local telemetry constants
