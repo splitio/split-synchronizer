@@ -9,12 +9,12 @@ import (
 
 	"strings"
 
-	"github.com/splitio/go-split-commons/v5/conf"
-	"github.com/splitio/go-split-commons/v5/flagsets"
-	"github.com/splitio/go-split-commons/v5/service/api"
-	"github.com/splitio/go-split-commons/v5/synchronizer"
-	"github.com/splitio/go-split-commons/v5/tasks"
-	"github.com/splitio/go-split-commons/v5/telemetry"
+	"github.com/splitio/go-split-commons/v6/conf"
+	"github.com/splitio/go-split-commons/v6/flagsets"
+	"github.com/splitio/go-split-commons/v6/service/api"
+	"github.com/splitio/go-split-commons/v6/synchronizer"
+	"github.com/splitio/go-split-commons/v6/tasks"
+	"github.com/splitio/go-split-commons/v6/telemetry"
 	"github.com/splitio/go-toolkit/v5/backoff"
 	"github.com/splitio/go-toolkit/v5/logging"
 
@@ -72,6 +72,8 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	// Getting initial config data
 	advanced := cfg.BuildAdvancedConfig()
 	advanced.FlagSetsFilter = cfg.FlagSetsFilter
+	advanced.AuthSpecVersion = cfg.FlagSpecVersion
+	advanced.FlagsSpecVersion = cfg.FlagSpecVersion
 	metadata := util.GetMetadata(cfg.IPAddressEnabled, true)
 
 	// FlagSetsFilter
@@ -222,6 +224,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		HcServicesMonitor: servicesMonitor,
 		FullConfig:        cfgForAdmin,
 		TLS:               adminTLSConfig,
+		FlagSpecVersion:   cfg.FlagSpecVersion,
 	})
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error starting admin server: %w", err), common.ExitAdminError)

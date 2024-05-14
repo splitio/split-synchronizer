@@ -5,20 +5,20 @@ import (
 	"fmt"
 	"time"
 
-	cconf "github.com/splitio/go-split-commons/v5/conf"
-	"github.com/splitio/go-split-commons/v5/dtos"
-	"github.com/splitio/go-split-commons/v5/flagsets"
-	"github.com/splitio/go-split-commons/v5/provisional/strategy"
-	"github.com/splitio/go-split-commons/v5/service/api"
-	"github.com/splitio/go-split-commons/v5/storage/filter"
-	"github.com/splitio/go-split-commons/v5/storage/inmemory"
-	"github.com/splitio/go-split-commons/v5/storage/redis"
-	"github.com/splitio/go-split-commons/v5/synchronizer"
-	"github.com/splitio/go-split-commons/v5/synchronizer/worker/impressionscount"
-	"github.com/splitio/go-split-commons/v5/synchronizer/worker/segment"
-	"github.com/splitio/go-split-commons/v5/synchronizer/worker/split"
-	"github.com/splitio/go-split-commons/v5/tasks"
-	"github.com/splitio/go-split-commons/v5/telemetry"
+	cconf "github.com/splitio/go-split-commons/v6/conf"
+	"github.com/splitio/go-split-commons/v6/dtos"
+	"github.com/splitio/go-split-commons/v6/flagsets"
+	"github.com/splitio/go-split-commons/v6/provisional/strategy"
+	"github.com/splitio/go-split-commons/v6/service/api"
+	"github.com/splitio/go-split-commons/v6/storage/filter"
+	"github.com/splitio/go-split-commons/v6/storage/inmemory"
+	"github.com/splitio/go-split-commons/v6/storage/redis"
+	"github.com/splitio/go-split-commons/v6/synchronizer"
+	"github.com/splitio/go-split-commons/v6/synchronizer/worker/impressionscount"
+	"github.com/splitio/go-split-commons/v6/synchronizer/worker/segment"
+	"github.com/splitio/go-split-commons/v6/synchronizer/worker/split"
+	"github.com/splitio/go-split-commons/v6/tasks"
+	"github.com/splitio/go-split-commons/v6/telemetry"
 	"github.com/splitio/go-toolkit/v5/logging"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/admin"
@@ -47,6 +47,8 @@ const (
 func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	// Getting initial config data
 	advanced := cfg.BuildAdvancedConfig()
+	advanced.AuthSpecVersion = cfg.FlagSpecVersion
+	advanced.FlagsSpecVersion = cfg.FlagSpecVersion
 	advanced.FlagSetsFilter = cfg.FlagSetsFilter
 	metadata := util.GetMetadata(false, cfg.IPAddressEnabled)
 
@@ -298,6 +300,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		HcServicesMonitor: servicesMonitor,
 		FullConfig:        cfgForAdmin,
 		TLS:               adminTLSConfig,
+		FlagSpecVersion:   cfg.FlagSpecVersion,
 	})
 	if err != nil {
 		panic(err.Error())

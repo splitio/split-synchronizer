@@ -29,6 +29,7 @@ type DashboardController struct {
 	eventsEvCalc      evcalc.Monitor
 	runtime           common.Runtime
 	appMonitor        application.MonitorIterface
+	FlagSpecVersion   string
 }
 
 // NewDashboardController instantiates a new dashboard controller
@@ -41,6 +42,7 @@ func NewDashboardController(
 	eventsEvCalc evcalc.Monitor,
 	runtime common.Runtime,
 	appMonitor application.MonitorIterface,
+	flagSpecVersion string,
 ) (*DashboardController, error) {
 
 	toReturn := &DashboardController{
@@ -52,6 +54,7 @@ func NewDashboardController(
 		eventsEvCalc:      eventsEvCalc,
 		impressionsEvCalc: impressionEvCalc,
 		appMonitor:        appMonitor,
+		FlagSpecVersion:   flagSpecVersion,
 	}
 
 	var err error
@@ -104,12 +107,13 @@ func (c *DashboardController) segmentKeys(ctx *gin.Context) {
 func (c *DashboardController) renderDashboard() ([]byte, error) {
 	var layoutBuffer bytes.Buffer
 	err := c.layout.Execute(&layoutBuffer, dashboard.RootObject{
-		DashboardTitle: c.title,
-		Version:        splitio.Version,
-		ProxyMode:      c.proxy,
-		RefreshTime:    30000,
-		Stats:          *c.gatherStats(),
-		Health:         c.appMonitor.GetHealthStatus(),
+		DashboardTitle:  c.title,
+		Version:         splitio.Version,
+		ProxyMode:       c.proxy,
+		RefreshTime:     30000,
+		Stats:           *c.gatherStats(),
+		Health:          c.appMonitor.GetHealthStatus(),
+		FlagSpecVersion: c.FlagSpecVersion,
 	})
 
 	if err != nil {

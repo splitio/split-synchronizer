@@ -7,7 +7,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/splitio/go-split-commons/v5/synchronizer"
+	"github.com/splitio/go-split-commons/v6/synchronizer"
 	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/go-toolkit/v5/sync"
 
