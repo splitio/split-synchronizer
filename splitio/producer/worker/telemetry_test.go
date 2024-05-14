@@ -3,9 +3,9 @@ package worker
 import (
 	"testing"
 
-	"github.com/splitio/go-split-commons/v5/dtos"
-	serviceMocks "github.com/splitio/go-split-commons/v5/service/mocks"
-	"github.com/splitio/go-split-commons/v5/telemetry"
+	"github.com/splitio/go-split-commons/v6/dtos"
+	serviceMocks "github.com/splitio/go-split-commons/v6/service/mocks"
+	"github.com/splitio/go-split-commons/v6/telemetry"
 	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v5/splitio/producer/storage"
 	storageMocks "github.com/splitio/split-synchronizer/v5/splitio/producer/storage/mocks"

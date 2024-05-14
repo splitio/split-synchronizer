@@ -1,4 +1,14 @@
-5.7.0 (TD)
+5.8.0 (May 14, 2024)
+ - Added support for targeting rules based on semantic versions (https://semver.org/).
+ - Added special impression label "targeting rule type unsupported by sdk" when the matcher type is not supported by the SDK, which returns 'control' treatment.
+ - Forward TLS server name when in redis-sentinel & redis-cluster
+ - Fixed vulnerabilities:
+   - Updated debian image to 12.5
+   - Updated golang image to 1.21.10
+   - Updated gin/gonic to 1.10
+ - Updated go-split-commons to v6
+
+5.7.0 (TBD)
  - Add support for FIPS-compliant binaries & docker images
 
 5.6.1 (Jan 29, 2024)
