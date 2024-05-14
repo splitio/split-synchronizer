@@ -8,10 +8,10 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/go-split-commons/v5/dtos"
-	"github.com/splitio/go-split-commons/v5/engine/validator"
-	"github.com/splitio/go-split-commons/v5/service"
-	"github.com/splitio/go-split-commons/v5/service/api/specs"
+	"github.com/splitio/go-split-commons/v6/dtos"
+	"github.com/splitio/go-split-commons/v6/engine/validator"
+	"github.com/splitio/go-split-commons/v6/service"
+	"github.com/splitio/go-split-commons/v6/service/api/specs"
 	"github.com/splitio/go-toolkit/v5/logging"
 	"golang.org/x/exp/slices"
 

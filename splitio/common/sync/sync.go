@@ -3,10 +3,10 @@ package sync
 import (
 	"github.com/splitio/go-toolkit/v5/logging"
 
-	"github.com/splitio/go-split-commons/v5/conf"
+	"github.com/splitio/go-split-commons/v6/conf"
 
-	"github.com/splitio/go-split-commons/v5/synchronizer"
-	"github.com/splitio/go-split-commons/v5/tasks"
+	"github.com/splitio/go-split-commons/v6/synchronizer"
+	"github.com/splitio/go-split-commons/v6/tasks"
 )
 
 // WSync is a wrapper for the Regular synchronizer that handles both local telemetry
