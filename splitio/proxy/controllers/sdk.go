@@ -8,8 +8,10 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/go-split-commons/v5/dtos"
-	"github.com/splitio/go-split-commons/v5/service"
+	"github.com/splitio/go-split-commons/v6/dtos"
+	"github.com/splitio/go-split-commons/v6/engine/validator"
+	"github.com/splitio/go-split-commons/v6/service"
+	"github.com/splitio/go-split-commons/v6/service/api/specs"
 	"github.com/splitio/go-toolkit/v5/logging"
 	"golang.org/x/exp/slices"
 
@@ -25,6 +27,7 @@ type SdkServerController struct {
 	proxySplitStorage   storage.ProxySplitStorage
 	proxySegmentStorage storage.ProxySegmentStorage
 	fsmatcher           flagsets.FlagSetMatcher
+	versionFilter       specs.SplitVersionFilter
 }
 
 // NewSdkServerController instantiates a new sdk server controller
@@ -42,6 +45,7 @@ func NewSdkServerController(
 		proxySplitStorage:   proxySplitStorage,
 		proxySegmentStorage: proxySegmentStorage,
 		fsmatcher:           fsmatcher,
+		versionFilter:       specs.NewSplitVersionFilter(),
 	}
 }
 
@@ -77,6 +81,13 @@ func (c *SdkServerController) SplitChanges(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	spec, _ := ctx.GetQuery("s")
+	if spec != specs.FLAG_V1_1 {
+		spec = specs.FLAG_V1_0
+	}
+	splits.Splits = c.patchUnsupportedMatchers(splits.Splits, spec)
+
 	ctx.JSON(http.StatusOK, splits)
 	ctx.Set(caching.SurrogateContextKey, []string{caching.SplitSurrogate})
 	ctx.Set(caching.StickyContextKey, true)
@@ -140,7 +151,26 @@ func (c *SdkServerController) fetchSplitChangesSince(since int64, sets []string)
 
 	// perform a fetch to the BE using the supplied `since`, have the storage process it's response &, retry
 	// TODO(mredolatti): implement basic collapsing here to avoid flooding the BE with requests
-	fetchOptions := service.NewFetchOptions(true, nil)
-	fetchOptions.FlagSetsFilter = strings.Join(sets, ",") // at this point the sets have been sanitized & sorted
-	return c.fetcher.Fetch(since, &fetchOptions)
+	fetchOptions := service.MakeFlagRequestParams().WithChangeNumber(since).WithFlagSetsFilter(strings.Join(sets, ",")) // at this point the sets have been sanitized & sorted
+	return c.fetcher.Fetch(fetchOptions)
+}
+
+func (c *SdkServerController) shouldOverrideSplitCondition(split *dtos.SplitDTO, version string) bool {
+	for _, condition := range split.Conditions {
+		for _, matcher := range condition.MatcherGroup.Matchers {
+			if c.versionFilter.ShouldFilter(matcher.MatcherType, version) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (c *SdkServerController) patchUnsupportedMatchers(splits []dtos.SplitDTO, version string) []dtos.SplitDTO {
+	for si := range splits {
+		if c.shouldOverrideSplitCondition(&splits[si], version) {
+			splits[si].Conditions = validator.MakeUnsupportedMatcherConditionReplacement()
+		}
+	}
+	return splits
 }

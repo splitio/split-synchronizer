@@ -1,7 +1,7 @@
 package conf
 
 import (
-	cconf "github.com/splitio/go-split-commons/v5/conf"
+	cconf "github.com/splitio/go-split-commons/v6/conf"
 	"github.com/splitio/split-synchronizer/v5/splitio/common/conf"
 )
 
@@ -20,6 +20,7 @@ type Main struct {
 	Logging               conf.Logging      `json:"logging" s-nested:"true"`
 	Healthcheck           Healthcheck       `json:"healthcheck" s-nested:"true"`
 	Observability         Observability     `json:"observability" s-nested:"true"`
+	FlagSpecVersion       string            `json:"flagSpecVersion" s-cli:"flag-spec-version" s-def:"1.1" s-desc:"Spec version for flags"`
 }
 
 // BuildAdvancedConfig generates a commons-compatible advancedconfig with default + overriden parameters
