@@ -1,11 +1,25 @@
 package caching
 
 import (
+	"net/http"
+	"net/url"
 	"testing"
 
-	"github.com/splitio/go-split-commons/v5/dtos"
+	"github.com/gin-gonic/gin"
+	"github.com/splitio/go-split-commons/v6/dtos"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestCacheKeysDoNotOverlap(t *testing.T) {
+
+	url1, _ := url.Parse("http://proxy.split.io/api/spitChanges?since=-1")
+	c1 := &gin.Context{Request: &http.Request{URL: url1}}
+
+	url2, _ := url.Parse("http://proxy.split.io/api/spitChanges?s=1.1&since=-1")
+	c2 := &gin.Context{Request: &http.Request{URL: url2}}
+
+	assert.NotEqual(t, keyFactoryFN(c1), keyFactoryFN(c2))
+}
 
 func TestSegmentSurrogates(t *testing.T) {
 	assert.Equal(t, segmentPrefix+"segment1", MakeSurrogateForSegmentChanges("segment1"))
