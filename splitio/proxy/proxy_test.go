@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/splitio/go-split-commons/v5/dtos"
-	serviceMocks "github.com/splitio/go-split-commons/v5/service/mocks"
+	"github.com/splitio/go-split-commons/v6/dtos"
+	serviceMocks "github.com/splitio/go-split-commons/v6/service/mocks"
 	"github.com/splitio/go-toolkit/v5/logging"
 	ilmock "github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener/mocks"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/caching"
