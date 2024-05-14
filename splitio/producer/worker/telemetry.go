@@ -3,8 +3,8 @@ package worker
 import (
 	"fmt"
 
-	"github.com/splitio/go-split-commons/v5/dtos"
-	"github.com/splitio/go-split-commons/v5/service"
+	"github.com/splitio/go-split-commons/v6/dtos"
+	"github.com/splitio/go-split-commons/v6/service"
 	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v5/splitio/producer/storage"
 )
@@ -115,17 +115,6 @@ func (w *TelemetryMultiWorkerImpl) SyncrhonizeConfigs() error {
 	return nil
 }
 
-// import (
-// 	"sync"
-//
-// 	"github.com/splitio/go-split-commons/v5/dtos"
-// 	"github.com/splitio/go-split-commons/v5/service"
-// 	"github.com/splitio/go-split-commons/v5/storage"
-//
-// 	//	"github.com/splitio/go-split-commons/v5/synchronizer/worker/metric"
-// 	"github.com/splitio/go-toolkit/v5/logging"
-// )
-//
 // // RecorderMetricMultiple struct for metric sync
 // type RecorderMetricMultiple struct {
 // 	metricRecorder          service.MetricsRecorder
