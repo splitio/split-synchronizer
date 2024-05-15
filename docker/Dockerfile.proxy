@@ -5,6 +5,7 @@ ARG EXTRA_BUILD_ARGS
 ARG FIPS_MODE
 
 RUN apt update -y
+RUN apt upgrade -y
 RUN apt install -y build-essential ca-certificates python3 git
 
 WORKDIR /code
@@ -17,9 +18,10 @@ RUN bash -c 'if [[ "${FIPS_MODE}" = "enabled" ]]; \
     fi'
 
 # Runner stage
-FROM debian:12.5 AS runner
+FROM debian:12.5-slim AS runner
 
 RUN apt update -y
+RUN apt upgrade -y
 RUN apt install -y bash ca-certificates
 RUN addgroup --gid 1000 --system 'split-proxy'
 RUN adduser \
