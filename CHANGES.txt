@@ -1,4 +1,7 @@
 5.8.1 (Jul 11, 2024)
+- Fixed vulnerabilities:
+   - Updated debian image to 12.6
+   - Updated gin-contrib/cors to 1.6.0 
 
 5.8.0 (May 14, 2024)
  - Added support for targeting rules based on semantic versions (https://semver.org/).
