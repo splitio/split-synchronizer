@@ -1,3 +1,5 @@
+5.8.1 (Jul 11, 2024)
+
 5.8.0 (May 14, 2024)
  - Added support for targeting rules based on semantic versions (https://semver.org/).
  - Added special impression label "targeting rule type unsupported by sdk" when the matcher type is not supported by the SDK, which returns 'control' treatment.
