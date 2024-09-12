@@ -1,5 +1,5 @@
 5.8.2 (Sep 13, 2024)
-- Fixed healcheck monitor for cases with no segments.
+- Fixed healthcheck monitor for cases with no segments.
 - Updated go-split-commons version to v6.0.1.
 
 5.8.1 (Jul 12, 2024)
