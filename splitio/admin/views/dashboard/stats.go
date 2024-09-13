@@ -130,7 +130,7 @@ const cards = `
         <div id="sdk_server_div_error" class="col-md-2 hidden">
           <div class="red1Box metricBox">
             <h4>SDK Server</h4>
-            <h1 id="sdk_server" class="centerText">ERROR</h1>
+            <h1 id="sdk_server" class="centerText">Error</h1>
           </div>
         </div>
         <div id="event_server_div_ok" class="col-md-1">
@@ -142,7 +142,7 @@ const cards = `
         <div id="streaming_div_error" class="col-md-1 hidden">
           <div class="red1Box metricBox">
             <h4>Events</h4>
-            <h1 id="streamingr" class="centerText">ERROR</h1>
+            <h1 id="streamingr" class="centerText">Error</h1>
           </div>
         </div>
         <div id="streaming_div_ok" class="col-md-1">
@@ -154,7 +154,7 @@ const cards = `
       <div id="streaming_div_error" class="col-md-1 hidden">
         <div class="red1Box metricBox">
           <h4>Streaming</h4>
-          <h1 id="streaming" class="centerText">ERROR</h1>
+          <h1 id="streaming" class="centerText">Error</h1>
         </div>
       </div>
         <div id="auth_server_div_ok" class="col-md-1">
@@ -166,7 +166,7 @@ const cards = `
         <div id="auth_server_div_error" class="col-md-1 hidden">
           <div class="red1Box metricBox">
             <h4>Auth</h4>
-            <h1 id="auth" class="centerText">ERROR</h1>
+            <h1 id="auth" class="centerText">Error</h1>
           </div>
         </div>
         <div id="telemetry_server_div_ok" class="col-md-1">
@@ -178,7 +178,7 @@ const cards = `
       <div id="telemetry_server_div_error" class="col-md-1 hidden">
         <div class="red1Box metricBox">
           <h4>Telemetry</h4>
-          <h1 id="telemetry" class="centerText">ERROR</h1>
+          <h1 id="telemetry" class="centerText">Error</h1>
         </div>
       </div>
         <div id="storage_div_ok" class="col-md-1">
@@ -190,13 +190,19 @@ const cards = `
         <div id="storage_div_error" class="col-md-1 hidden">
           <div class="red1Box metricBox">
             <h4>Storage</h4>
-            <h1 id="storage" class="centerText">ERROR</h1>
+            <h1 id="storage" class="centerText">Error</h1>
           </div>
         </div>
-        <div class="col-md-1">
+        <div id="sync_div_ok" class="col-md-1">
           <div class="green1Box metricBox">
             <h4>Sync</h4>
             <h1 id="sync" class="centerText">OK</h1>
+          </div>
+        </div>
+        <div id="sync_div_error" class="col-md-1 hidden">
+          <div class="red1Box metricBox">
+            <h4>Sync</h4>
+            <h1 id="sync" class="centerText">Error</h1>
           </div>
         </div>
       </div>
@@ -252,8 +258,8 @@ const cards = `
         </div>
         <div id="streaming_div_error" class="col-md-2 hidden">
         <div class="red1Box metricBox">
-          <h4>Events</h4>
-          <h1 id="streamingr" class="centerText">ERROR</h1>
+          <h4>Streaming</h4>
+          <h1 id="streaming" class="centerText">ERROR</h1>
         </div>
       </div>
       <div id="streaming_div_ok" class="col-md-2">
@@ -261,14 +267,20 @@ const cards = `
           <h4>Streaming</h4>
           <h1 id="streaming" class="centerText">OK</h1>
         </div>
-    </div>
-        <div class="col-md-2">
-          <div class="green1Box metricBox">
-            <h4>Sync</h4>
-            <h1 id="sync" class="centerText">OK</h1>
-          </div>
+      </div>
+      <div id="sync_div_ok" class="col-md-2">
+        <div class="green1Box metricBox">
+          <h4>Sync</h4>
+          <h1 id="sync" class="centerText">OK</h1>
         </div>
       </div>
+      <div id="sync_div_error" class="col-md-2 hidden">
+          <div class="red1Box metricBox">
+            <h4>Sync</h4>
+            <h1 id="sync" class="centerText">Error</h1>
+          </div>
+        </div>
+    </div>
     {{end}}
   
     <div class="row">
