@@ -545,6 +545,82 @@ func TestMySegmentsError(t *testing.T) {
 	segmentStorage.AssertExpectations(t)
 }
 
+func TestMemberships(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	var splitFetcher splitFetcherMock
+	var splitStorage psmocks.ProxySplitStorageMock
+	var segmentStorage psmocks.ProxySegmentStorageMock
+	segmentStorage.On("SegmentsFor", "testKey").
+		Return([]string{"segment1", "segment2", "segmentTest"}, nil).
+		Once()
+
+	resp := httptest.NewRecorder()
+	ctx, router := gin.CreateTestContext(resp)
+
+	logger := logging.NewLogger(nil)
+
+	group := router.Group("/api")
+	controller := NewSdkServerController(logger, &splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil))
+	controller.Register(group)
+
+	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/memberships/testKey", nil)
+	ctx.Request.Header.Set("Authorization", "Bearer someApiKey")
+	ctx.Request.Header.Set("SplitSDKVersion", "go-1.1.1")
+	ctx.Request.Header.Set("SplitSDKMachineIp", "1.2.3.4")
+	ctx.Request.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
+	router.ServeHTTP(resp, ctx.Request)
+	assert.Equal(t, 200, resp.Code)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.Nil(t, err)
+
+	var memberships dtos.MembershipsDTO
+	err = json.Unmarshal(body, &memberships)
+	assert.Nil(t, err)
+
+	assert.Equal(t, dtos.MembershipsDTO{
+		MySegments:    dtos.Member{Keys: []dtos.MemItem{{Name: "segment1"}, {Name: "segment2"}, {Name: "segmentTest"}}},
+		LargeSegments: dtos.Member{Keys: []dtos.MemItem{}},
+	}, memberships)
+
+	splitStorage.AssertExpectations(t)
+	splitFetcher.AssertExpectations(t)
+	segmentStorage.AssertExpectations(t)
+}
+
+func TestMembershipsError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	var splitFetcher splitFetcherMock
+	var splitStorage psmocks.ProxySplitStorageMock
+	var segmentStorage psmocks.ProxySegmentStorageMock
+	segmentStorage.On("SegmentsFor", "testKey").
+		Return([]string{}, errors.New("something")).
+		Once()
+
+	resp := httptest.NewRecorder()
+	ctx, router := gin.CreateTestContext(resp)
+
+	logger := logging.NewLogger(nil)
+
+	group := router.Group("/api")
+	controller := NewSdkServerController(logger, &splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil))
+	controller.Register(group)
+
+	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/memberships/testKey", nil)
+	ctx.Request.Header.Set("Authorization", "Bearer someApiKey")
+	ctx.Request.Header.Set("SplitSDKVersion", "go-1.1.1")
+	ctx.Request.Header.Set("SplitSDKMachineIp", "1.2.3.4")
+	ctx.Request.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
+	router.ServeHTTP(resp, ctx.Request)
+	assert.Equal(t, 500, resp.Code)
+
+	splitStorage.AssertExpectations(t)
+	splitFetcher.AssertExpectations(t)
+	segmentStorage.AssertExpectations(t)
+}
+
 type splitFetcherMock struct {
 	mock.Mock
 }
