@@ -54,6 +54,7 @@ func (c *SdkServerController) Register(router gin.IRouter) {
 	router.GET("/splitChanges", c.SplitChanges)
 	router.GET("/segmentChanges/:name", c.SegmentChanges)
 	router.GET("/mySegments/:key", c.MySegments)
+	router.GET("/memberships/:key", c.Memberships)
 }
 
 // SplitChanges Returns a diff containing changes in feature flags from a certain point in time until now.
@@ -138,6 +139,35 @@ func (c *SdkServerController) MySegments(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, gin.H{"mySegments": mySegments})
 	ctx.Set(caching.SurrogateContextKey, caching.MakeSurrogateForMySegments(mySegments))
+}
+
+// Memberships Returns
+func (c *SdkServerController) Memberships(ctx *gin.Context) {
+	c.logger.Debug(fmt.Sprintf("Headers: %v", ctx.Request.Header))
+	key := ctx.Param("key")
+	segmentList, err := c.proxySegmentStorage.SegmentsFor(key)
+	if err != nil {
+		c.logger.Error(fmt.Sprintf("error fetching segments for user '%s': %s", key, err.Error()))
+		ctx.JSON(http.StatusInternalServerError, gin.H{})
+	}
+
+	mySegments := make([]dtos.MemItem, 0, len(segmentList))
+	for _, segmentName := range segmentList {
+		mySegments = append(mySegments, dtos.MemItem{Name: segmentName})
+	}
+
+	payoad := dtos.MembershipsDTO{
+		MySegments: dtos.Member{
+			Keys: mySegments,
+		},
+		LargeSegments: dtos.Member{
+			Keys:         []dtos.MemItem{},
+			ChangeNumber: 0,
+		},
+	}
+
+	ctx.JSON(http.StatusOK, payoad)
+	ctx.Set(caching.SurrogateContextKey, nil)
 }
 
 func (c *SdkServerController) fetchSplitChangesSince(since int64, sets []string) (*dtos.SplitChangesDTO, error) {
