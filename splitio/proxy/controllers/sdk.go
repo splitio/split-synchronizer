@@ -151,18 +151,17 @@ func (c *SdkServerController) Memberships(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{})
 	}
 
-	mySegments := make([]dtos.MemItem, 0, len(segmentList))
+	mySegments := make([]dtos.Segment, 0, len(segmentList))
 	for _, segmentName := range segmentList {
-		mySegments = append(mySegments, dtos.MemItem{Name: segmentName})
+		mySegments = append(mySegments, dtos.Segment{Name: segmentName})
 	}
 
-	payoad := dtos.MembershipsDTO{
-		MySegments: dtos.Member{
-			Keys: mySegments,
+	payoad := dtos.MembershipsResponseDTO{
+		MySegments: dtos.Memberships{
+			Segments: mySegments,
 		},
-		LargeSegments: dtos.Member{
-			Keys:         []dtos.MemItem{},
-			ChangeNumber: 0,
+		MyLargeSegments: dtos.Memberships{
+			Segments: []dtos.Segment{},
 		},
 	}
 
