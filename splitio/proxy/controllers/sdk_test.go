@@ -575,13 +575,13 @@ func TestMemberships(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	assert.Nil(t, err)
 
-	var memberships dtos.MembershipsDTO
+	var memberships dtos.MembershipsResponseDTO
 	err = json.Unmarshal(body, &memberships)
 	assert.Nil(t, err)
 
-	assert.Equal(t, dtos.MembershipsDTO{
-		MySegments:    dtos.Member{Keys: []dtos.MemItem{{Name: "segment1"}, {Name: "segment2"}, {Name: "segmentTest"}}},
-		LargeSegments: dtos.Member{Keys: []dtos.MemItem{}},
+	assert.Equal(t, dtos.MembershipsResponseDTO{
+		MySegments:      dtos.Memberships{Segments: []dtos.Segment{{Name: "segment1"}, {Name: "segment2"}, {Name: "segmentTest"}}},
+		MyLargeSegments: dtos.Memberships{Segments: []dtos.Segment{}},
 	}, memberships)
 
 	splitStorage.AssertExpectations(t)
