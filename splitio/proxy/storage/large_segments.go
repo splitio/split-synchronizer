@@ -68,13 +68,12 @@ func (s *LargeSegmentsStorageImpl) names() []string {
 }
 
 func (s *LargeSegmentsStorageImpl) exists(lsName string, userKey string) bool {
-	data := s.largeSegments[lsName]
-	length := len(data)
-	if length == 0 {
+	data, ok := s.largeSegments[lsName]
+	if !ok {
 		return false
 	}
 
-	i := sort.Search(length, func(i int) bool {
+	i := sort.Search(len(data), func(i int) bool {
 		return data[i] >= userKey
 	})
 
