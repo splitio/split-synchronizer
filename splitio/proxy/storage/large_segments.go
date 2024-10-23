@@ -7,20 +7,21 @@ import (
 	"github.com/splitio/go-toolkit/v5/logging"
 )
 
+// LargeSegmentsStorage defines the interface for a per-user large segments storage
 type LargeSegmentsStorage interface {
 	Count() int
 	SegmentsForUser(key string) []string
 	Update(lsName string, userKeys []string)
 }
 
-// MySegmentsCacheImpl implements the MySegmentsCache interface
+// LargeSegmentsStorageImpl implements the LargeSegmentsStorage interface
 type LargeSegmentsStorageImpl struct {
 	largeSegments map[string][]string
 	mutex         *sync.RWMutex
 	logger        logging.LoggerInterface
 }
 
-// NewMySegmentsCache constructs a new MySegments cache
+// NewLargeSegmentsStorage constructs a new LargeSegments cache
 func NewLargeSegmentsStorage(logger logging.LoggerInterface) *LargeSegmentsStorageImpl {
 	return &LargeSegmentsStorageImpl{
 		largeSegments: make(map[string][]string),
@@ -29,12 +30,14 @@ func NewLargeSegmentsStorage(logger logging.LoggerInterface) *LargeSegmentsStora
 	}
 }
 
+// Count retuns the amount of Large Segments
 func (s *LargeSegmentsStorageImpl) Count() int {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 	return len(s.largeSegments)
 }
 
+// SegmentsForUser returns the list of segments a certain user belongs to
 func (s *LargeSegmentsStorageImpl) SegmentsForUser(key string) []string {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -51,6 +54,7 @@ func (s *LargeSegmentsStorageImpl) SegmentsForUser(key string) []string {
 	return toReturn
 }
 
+// Update adds and remove keys to segments
 func (s *LargeSegmentsStorageImpl) Update(lsName string, userKeys []string) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -58,6 +62,7 @@ func (s *LargeSegmentsStorageImpl) Update(lsName string, userKeys []string) {
 	s.largeSegments[lsName] = userKeys
 }
 
+// names returns the list with Large Segment Names
 func (s *LargeSegmentsStorageImpl) names() []string {
 	toReturn := make([]string, 0, len(s.largeSegments))
 	for key := range s.largeSegments {
@@ -67,6 +72,7 @@ func (s *LargeSegmentsStorageImpl) names() []string {
 	return toReturn
 }
 
+// exists returns true if a userKey is part of a large segment, else returns false
 func (s *LargeSegmentsStorageImpl) exists(lsName string, userKey string) bool {
 	data, ok := s.largeSegments[lsName]
 	if !ok {
