@@ -16,7 +16,7 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/service/dtos"
 )
 
-var MEM_VERSION_10 = "1.0"
+var MEM_VERSION_10 = "1.0" // support for csv format with one column
 
 const (
 	// Unknown format

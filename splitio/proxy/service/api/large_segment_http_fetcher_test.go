@@ -46,8 +46,7 @@ func TestFetchCsvMultipleColumns(t *testing.T) {
 		"api-key",
 		"1.0",
 		cmnConf.AdvancedConfig{
-			EventsURL: ts.URL,
-			SdkURL:    ts.URL,
+			SdkURL: ts.URL,
 		},
 		logger,
 		cmnDTOs.Metadata{},
@@ -88,8 +87,7 @@ func TestFetchCsvFormat(t *testing.T) {
 		"api-key",
 		"1.0",
 		cmnConf.AdvancedConfig{
-			EventsURL: ts.URL,
-			SdkURL:    ts.URL,
+			SdkURL: ts.URL,
 		},
 		logger,
 		cmnDTOs.Metadata{},
@@ -134,8 +132,7 @@ func TestFetchCsvFormatWithOtherVersion(t *testing.T) {
 		"api-key",
 		"1.0",
 		cmnConf.AdvancedConfig{
-			EventsURL: ts.URL,
-			SdkURL:    ts.URL,
+			SdkURL: ts.URL,
 		},
 		logger,
 		cmnDTOs.Metadata{},
@@ -177,8 +174,7 @@ func TestFetchUnknownFormat(t *testing.T) {
 		"api-key",
 		"1.0",
 		cmnConf.AdvancedConfig{
-			EventsURL: ts.URL,
-			SdkURL:    ts.URL,
+			SdkURL: ts.URL,
 		},
 		logger,
 		cmnDTOs.Metadata{},
@@ -202,8 +198,7 @@ func TestFetchAPIError(t *testing.T) {
 		"api-key",
 		"1.0",
 		cmnConf.AdvancedConfig{
-			EventsURL: ts.URL,
-			SdkURL:    ts.URL,
+			SdkURL: ts.URL,
 		},
 		logger,
 		cmnDTOs.Metadata{},
@@ -243,8 +238,7 @@ func TestFetchDownloadServerError(t *testing.T) {
 		"api-key",
 		"1.0",
 		cmnConf.AdvancedConfig{
-			EventsURL: ts.URL,
-			SdkURL:    ts.URL,
+			SdkURL: ts.URL,
 		},
 		logger,
 		cmnDTOs.Metadata{},
