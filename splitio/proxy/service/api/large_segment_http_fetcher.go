@@ -37,7 +37,7 @@ type HTTPLargeSegmentFetcher struct {
 }
 
 // NewHTTPLargeSegmentsFetcher
-func NewHTTPLargeSegmentFetcher(apikey string, memVersion string, cfg cmnConf.AdvancedConfig, logger logging.LoggerInterface, metadata cmnDTOs.Metadata) LargeSegmentFetcher {
+func NewHTTPLargeSegmentFetcher(apikey string, memVersion string, cfg cmnConf.AdvancedConfig, logger logging.LoggerInterface, metadata cmnDTOs.Metadata) *HTTPLargeSegmentFetcher {
 	return &HTTPLargeSegmentFetcher{
 		client:     cmnAPI.NewHTTPClient(apikey, cfg, cfg.SdkURL, logger, metadata),
 		logger:     logger,
@@ -132,3 +132,5 @@ func parseCsvFile(response *http.Response, totalKeys int64, version string) ([]s
 		return nil, fmt.Errorf("unsupported csv version %s", version)
 	}
 }
+
+var _ LargeSegmentFetcher = (*HTTPLargeSegmentFetcher)(nil)
