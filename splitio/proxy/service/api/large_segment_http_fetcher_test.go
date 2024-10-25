@@ -16,6 +16,48 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestFetchCsvMultipleColumns(t *testing.T) {
+	logger := logging.NewLogger(&logging.LoggerOptions{})
+
+	test_csv, _ := os.ReadFile("testdata/ls_wrong.csv")
+	fileServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(test_csv)
+	}))
+	defer fileServer.Close()
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		data, _ := json.Marshal(dtos.RfeDTO{
+			Params: dtos.ParamsDTO{
+				Method: "GET",
+				URL:    fileServer.URL,
+			},
+			Format:       Csv,
+			TotalKeys:    1500,
+			Size:         100,
+			ChangeNumber: 100,
+			Name:         "large_segment_test",
+			Version:      "1.0",
+		})
+		w.Write(data)
+	}))
+	defer ts.Close()
+
+	fetcher := NewHTTPLargeSegmentFetcher(
+		"api-key",
+		"1.0",
+		cmnConf.AdvancedConfig{
+			EventsURL: ts.URL,
+			SdkURL:    ts.URL,
+		},
+		logger,
+		cmnDTOs.Metadata{},
+	)
+
+	lsData, err := fetcher.Fetch("large_segment_test", &cmnService.SegmentRequestParams{})
+	assert.Equal(t, "unssuported file content. The file has multiple columns", err.Error())
+	assert.Equal(t, (*dtos.LargeSegmentDTO)(nil), lsData)
+}
+
 func TestFetchCsvFormat(t *testing.T) {
 	logger := logging.NewLogger(&logging.LoggerOptions{})
 
