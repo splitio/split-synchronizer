@@ -3,8 +3,9 @@ package dtos
 import "net/http"
 
 type LargeSegmentDTO struct {
-	Name string
-	Keys []string
+	Name         string
+	Keys         []string
+	ChangeNumber int64
 }
 
 type RfeDTO struct {

@@ -44,6 +44,7 @@ func TestFetchCsvFormat(t *testing.T) {
 
 	fetcher := NewHTTPLargeSegmentFetcher(
 		"api-key",
+		"1.0",
 		cmnConf.AdvancedConfig{
 			EventsURL: ts.URL,
 			SdkURL:    ts.URL,
@@ -89,6 +90,7 @@ func TestFetchCsvFormatWithOtherVersion(t *testing.T) {
 
 	fetcher := NewHTTPLargeSegmentFetcher(
 		"api-key",
+		"1.0",
 		cmnConf.AdvancedConfig{
 			EventsURL: ts.URL,
 			SdkURL:    ts.URL,
@@ -131,6 +133,7 @@ func TestFetchUnknownFormat(t *testing.T) {
 
 	fetcher := NewHTTPLargeSegmentFetcher(
 		"api-key",
+		"1.0",
 		cmnConf.AdvancedConfig{
 			EventsURL: ts.URL,
 			SdkURL:    ts.URL,
@@ -155,6 +158,7 @@ func TestFetchAPIError(t *testing.T) {
 
 	fetcher := NewHTTPLargeSegmentFetcher(
 		"api-key",
+		"1.0",
 		cmnConf.AdvancedConfig{
 			EventsURL: ts.URL,
 			SdkURL:    ts.URL,
@@ -195,6 +199,7 @@ func TestFetchDownloadServerError(t *testing.T) {
 
 	fetcher := NewHTTPLargeSegmentFetcher(
 		"api-key",
+		"1.0",
 		cmnConf.AdvancedConfig{
 			EventsURL: ts.URL,
 			SdkURL:    ts.URL,

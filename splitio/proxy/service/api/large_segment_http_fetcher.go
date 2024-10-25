@@ -2,11 +2,11 @@ package api
 
 import (
 	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 
 	cmnConf "github.com/splitio/go-split-commons/v6/conf"
 	cmnDTOs "github.com/splitio/go-split-commons/v6/dtos"
@@ -37,11 +37,11 @@ type HTTPLargeSegmentFetcher struct {
 }
 
 // NewHTTPLargeSegmentsFetcher
-func NewHTTPLargeSegmentFetcher(apikey string, cfg cmnConf.AdvancedConfig, logger logging.LoggerInterface, metadata cmnDTOs.Metadata) LargeSegmentFetcher {
+func NewHTTPLargeSegmentFetcher(apikey string, memVersion string, cfg cmnConf.AdvancedConfig, logger logging.LoggerInterface, metadata cmnDTOs.Metadata) LargeSegmentFetcher {
 	return &HTTPLargeSegmentFetcher{
 		client:     cmnAPI.NewHTTPClient(apikey, cfg, cfg.SdkURL, logger, metadata),
 		logger:     logger,
-		memVersion: &MEM_VERSION_10,
+		memVersion: &memVersion, // TODO: move version to cmnConf.AdvancedConfig
 		httpClient: &http.Client{},
 	}
 }
@@ -70,8 +70,9 @@ func (f *HTTPLargeSegmentFetcher) Fetch(name string, fetchOptions *cmnService.Se
 	}
 
 	return &dtos.LargeSegmentDTO{
-		Name: name,
-		Keys: keys,
+		Name:         name,
+		Keys:         keys,
+		ChangeNumber: rfeDTO.ChangeNumber,
 	}, nil
 }
 
@@ -87,7 +88,7 @@ func (f *HTTPLargeSegmentFetcher) downloadAndParse(rfe dtos.RfeDTO) ([]string, e
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(response.StatusCode)
+
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return nil, cmnDTOs.HTTPError{
 			Code:    response.StatusCode,
@@ -98,21 +99,35 @@ func (f *HTTPLargeSegmentFetcher) downloadAndParse(rfe dtos.RfeDTO) ([]string, e
 
 	switch rfe.Format {
 	case Csv:
-		body, err := io.ReadAll(response.Body)
-		if err != nil {
-			return nil, err
-		}
-
-		return csv(rfe.Version, body)
+		return parseCsvFile(response, rfe.TotalKeys, rfe.Version)
 	default:
 		return nil, fmt.Errorf("unsupported file format")
 	}
 }
 
-func csv(version string, body []byte) ([]string, error) {
+func parseCsvFile(response *http.Response, totalKeys int64, version string) ([]string, error) {
 	switch version {
 	case MEM_VERSION_10:
-		return strings.Split(string(body), "\n"), nil
+		keys := make([]string, 0, totalKeys)
+		reader := csv.NewReader(response.Body)
+		for {
+			record, err := reader.Read()
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+
+				return nil, fmt.Errorf("error reading csv file. %w", err)
+			}
+
+			if l := len(record); l != 1 {
+				return nil, fmt.Errorf("unssuported file content. The file has multiple columns")
+			}
+
+			keys = append(keys, record[0])
+		}
+
+		return keys, nil
 	default:
 		return nil, fmt.Errorf("unsupported csv version %s", version)
 	}
