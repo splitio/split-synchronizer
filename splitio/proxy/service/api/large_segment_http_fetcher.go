@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	cmnConf "github.com/splitio/go-split-commons/v6/conf"
 	cmnDTOs "github.com/splitio/go-split-commons/v6/dtos"
@@ -26,7 +27,7 @@ const (
 )
 
 type LargeSegmentFetcher interface {
-	Fetch(name string, fetchOptions *cmnService.SegmentRequestParams) (*dtos.LargeSegmentDTO, error)
+	Fetch(name string, fetchOptions *cmnService.SegmentRequestParams) *dtos.LargeSegmentResponse
 }
 
 type HTTPLargeSegmentFetcher struct {
@@ -46,69 +47,84 @@ func NewHTTPLargeSegmentFetcher(apikey string, memVersion string, cfg cmnConf.Ad
 	}
 }
 
-func (f *HTTPLargeSegmentFetcher) Fetch(name string, fetchOptions *cmnService.SegmentRequestParams) (*dtos.LargeSegmentDTO, error) {
+func (f *HTTPLargeSegmentFetcher) Fetch(name string, fetchOptions *cmnService.SegmentRequestParams) *dtos.LargeSegmentResponse {
 	var bufferQuery bytes.Buffer
 	bufferQuery.WriteString("/proxy/largeSegment/")
 	bufferQuery.WriteString(name)
 
 	data, err := f.client.Get(bufferQuery.String(), fetchOptions)
 	if err != nil {
-		f.logger.Error(err.Error())
-		return nil, err
+		return &dtos.LargeSegmentResponse{
+			Error: err,
+			Retry: true,
+		}
 	}
 
 	var rfeDTO dtos.RfeDTO
 	err = json.Unmarshal(data, &rfeDTO)
 	if err != nil {
-		f.logger.Error("Error getting Request for Export: ", name, err)
-		return nil, err
+		return &dtos.LargeSegmentResponse{
+			Error: fmt.Errorf("error getting Request for Export: %s. %w", name, err),
+			Retry: true,
+		}
 	}
 
-	keys, err := f.downloadAndParse(rfeDTO)
+	if time.Now().UnixMilli() > rfeDTO.ExpiresAt {
+		return &dtos.LargeSegmentResponse{
+			Error: fmt.Errorf("URL expired"),
+			Retry: true,
+		}
+	}
+
+	var toReturn dtos.LargeSegmentDTO
+	retry, err := f.downloadAndParse(rfeDTO, &toReturn)
 	if err != nil {
-		return nil, err
+		return &dtos.LargeSegmentResponse{
+			Error: err,
+			Retry: retry,
+		}
 	}
 
-	return &dtos.LargeSegmentDTO{
-		Name:         name,
-		Keys:         keys,
-		ChangeNumber: rfeDTO.ChangeNumber,
-	}, nil
+	return &dtos.LargeSegmentResponse{
+		Data:  &toReturn,
+		Error: nil,
+	}
 }
 
-func (f *HTTPLargeSegmentFetcher) downloadAndParse(rfe dtos.RfeDTO) ([]string, error) {
+func (f *HTTPLargeSegmentFetcher) downloadAndParse(rfe dtos.RfeDTO, tr *dtos.LargeSegmentDTO) (bool, error) {
 	method := rfe.Params.Method
 	if len(method) == 0 {
 		method = http.MethodGet
 	}
 
-	req, _ := http.NewRequest(method, rfe.Params.URL, nil)
+	req, _ := http.NewRequest(method, rfe.Params.URL, bytes.NewBuffer(rfe.Params.Body))
 	req.Header = rfe.Params.Headers
 	response, err := f.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return true, err
 	}
 
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return nil, cmnDTOs.HTTPError{
-			Code:    response.StatusCode,
-			Message: response.Status,
-		}
+		return true,
+			cmnDTOs.HTTPError{
+				Code:    response.StatusCode,
+				Message: response.Status,
+			}
 	}
 	defer response.Body.Close()
 
 	switch rfe.Format {
 	case Csv:
-		return parseCsvFile(response, rfe.TotalKeys, rfe.Version)
+		return csvReader(response, rfe, tr)
 	default:
-		return nil, fmt.Errorf("unsupported file format")
+		return false, fmt.Errorf("unsupported file format")
 	}
 }
 
-func parseCsvFile(response *http.Response, totalKeys int64, version string) ([]string, error) {
-	switch version {
+func csvReader(response *http.Response, rfe dtos.RfeDTO, tr *dtos.LargeSegmentDTO) (bool, error) {
+	switch rfe.Version {
 	case MEM_VERSION_10:
-		keys := make([]string, 0, totalKeys)
+		keys := make([]string, 0, rfe.TotalKeys)
 		reader := csv.NewReader(response.Body)
 		for {
 			record, err := reader.Read()
@@ -117,19 +133,22 @@ func parseCsvFile(response *http.Response, totalKeys int64, version string) ([]s
 					break
 				}
 
-				return nil, fmt.Errorf("error reading csv file. %w", err)
+				return false, fmt.Errorf("error reading csv file. %w", err)
 			}
 
 			if l := len(record); l != 1 {
-				return nil, fmt.Errorf("unssuported file content. The file has multiple columns")
+				return false, fmt.Errorf("unssuported file content. The file has multiple columns")
 			}
 
 			keys = append(keys, record[0])
 		}
 
-		return keys, nil
+		tr.ChangeNumber = rfe.ChangeNumber
+		tr.Name = rfe.Name
+		tr.Keys = keys
+		return false, nil
 	default:
-		return nil, fmt.Errorf("unsupported csv version %s", version)
+		return false, fmt.Errorf("unsupported csv version %s", rfe.Version)
 	}
 }
 
