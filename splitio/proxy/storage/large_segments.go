@@ -10,7 +10,7 @@ import (
 // LargeSegmentsStorage defines the interface for a per-user large segments storage
 type LargeSegmentsStorage interface {
 	Count() int
-	SegmentsForUser(key string) []string
+	LargeSegmentsForUser(userKey string) []string
 	Update(lsName string, userKeys []string)
 }
 
@@ -38,16 +38,18 @@ func (s *LargeSegmentsStorageImpl) Count() int {
 }
 
 // SegmentsForUser returns the list of segments a certain user belongs to
-func (s *LargeSegmentsStorageImpl) SegmentsForUser(key string) []string {
+func (s *LargeSegmentsStorageImpl) LargeSegmentsForUser(userKey string) []string {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
-	toReturn := make([]string, 0)
-	lsNames := s.names()
+	toReturn := make([]string, 0, len(s.largeSegments))
+	for lsName, data := range s.largeSegments {
+		i := sort.Search(len(data), func(i int) bool {
+			return data[i] >= userKey
+		})
 
-	for _, name := range lsNames {
-		if s.exists(name, key) {
-			toReturn = append(toReturn, name)
+		if i < len(data) && data[i] == userKey {
+			toReturn = append(toReturn, lsName)
 		}
 	}
 
@@ -62,26 +64,4 @@ func (s *LargeSegmentsStorageImpl) Update(lsName string, userKeys []string) {
 	s.largeSegments[lsName] = userKeys
 }
 
-// names returns the list with Large Segment Names
-func (s *LargeSegmentsStorageImpl) names() []string {
-	toReturn := make([]string, 0, len(s.largeSegments))
-	for key := range s.largeSegments {
-		toReturn = append(toReturn, key)
-	}
-
-	return toReturn
-}
-
-// exists returns true if a userKey is part of a large segment, else returns false
-func (s *LargeSegmentsStorageImpl) exists(lsName string, userKey string) bool {
-	data, ok := s.largeSegments[lsName]
-	if !ok {
-		return false
-	}
-
-	i := sort.Search(len(data), func(i int) bool {
-		return data[i] >= userKey
-	})
-
-	return i < len(data) && data[i] == userKey
-}
+var _ LargeSegmentsStorage = (*LargeSegmentsStorageImpl)(nil)

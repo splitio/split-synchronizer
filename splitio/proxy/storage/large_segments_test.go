@@ -38,19 +38,19 @@ func TestLatgeSegmentStorage(t *testing.T) {
 
 	assert.Equal(t, 3, storage.Count())
 
-	result := storage.SegmentsForUser(*sharedKey)
+	result := storage.LargeSegmentsForUser(*sharedKey)
 	sort.Strings(result)
 	assert.Equal(t, []string{"ls_test_1", "ls_test_2", "ls_test_3"}, result)
 
-	result = storage.SegmentsForUser(keys1[100])
+	result = storage.LargeSegmentsForUser(keys1[100])
 	assert.Equal(t, []string{"ls_test_1"}, result)
 
-	result = storage.SegmentsForUser(keys2[100])
+	result = storage.LargeSegmentsForUser(keys2[100])
 	assert.Equal(t, []string{"ls_test_2"}, result)
 
-	result = storage.SegmentsForUser(keys3[100])
+	result = storage.LargeSegmentsForUser(keys3[100])
 	assert.Equal(t, []string{"ls_test_3"}, result)
 
-	result = storage.SegmentsForUser("mauro-test")
+	result = storage.LargeSegmentsForUser("mauro-test")
 	assert.Equal(t, []string{}, result)
 }
