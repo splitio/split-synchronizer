@@ -10,11 +10,10 @@ import (
 
 	"os"
 
-	cmnConf "github.com/splitio/go-split-commons/v6/conf"
-	cmnDTOs "github.com/splitio/go-split-commons/v6/dtos"
-	cmnService "github.com/splitio/go-split-commons/v6/service"
+	"github.com/splitio/go-split-commons/v6/conf"
+	"github.com/splitio/go-split-commons/v6/dtos"
+	"github.com/splitio/go-split-commons/v6/service"
 	"github.com/splitio/go-toolkit/v5/logging"
-	"github.com/splitio/split-synchronizer/v5/splitio/proxy/service/dtos"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -48,14 +47,14 @@ func TestFetchCsvFormatHappyPath(t *testing.T) {
 	fetcher := NewHTTPLargeSegmentFetcher(
 		"api-key",
 		"1.0",
-		cmnConf.AdvancedConfig{
+		conf.AdvancedConfig{
 			SdkURL: ts.URL,
 		},
 		logger,
-		cmnDTOs.Metadata{},
+		dtos.Metadata{},
 	)
 
-	response := fetcher.Fetch("large_segment_test", &cmnService.SegmentRequestParams{})
+	response := fetcher.Fetch("large_segment_test", &service.SegmentRequestParams{})
 	if response.Error != nil {
 		t.Error("Error should be nil")
 		fmt.Println(response.Error)
@@ -95,14 +94,14 @@ func TestFetchCsvMultipleColumns(t *testing.T) {
 	fetcher := NewHTTPLargeSegmentFetcher(
 		"api-key",
 		"1.0",
-		cmnConf.AdvancedConfig{
+		conf.AdvancedConfig{
 			SdkURL: ts.URL,
 		},
 		logger,
-		cmnDTOs.Metadata{},
+		dtos.Metadata{},
 	)
 
-	response := fetcher.Fetch("large_segment_test", &cmnService.SegmentRequestParams{})
+	response := fetcher.Fetch("large_segment_test", &service.SegmentRequestParams{})
 	assert.Equal(t, "unssuported file content. The file has multiple columns", response.Error.Error())
 	assert.Equal(t, (*dtos.LargeSegmentDTO)(nil), response.Data)
 }
@@ -137,14 +136,14 @@ func TestFetchCsvFormatWithOtherVersion(t *testing.T) {
 	fetcher := NewHTTPLargeSegmentFetcher(
 		"api-key",
 		"1.0",
-		cmnConf.AdvancedConfig{
+		conf.AdvancedConfig{
 			SdkURL: ts.URL,
 		},
 		logger,
-		cmnDTOs.Metadata{},
+		dtos.Metadata{},
 	)
 
-	response := fetcher.Fetch("large_segment_test", &cmnService.SegmentRequestParams{})
+	response := fetcher.Fetch("large_segment_test", &service.SegmentRequestParams{})
 	assert.Equal(t, "unsupported csv version 1111.0", response.Error.Error())
 	assert.Equal(t, (*dtos.LargeSegmentDTO)(nil), response.Data)
 }
@@ -179,14 +178,14 @@ func TestFetchUnknownFormat(t *testing.T) {
 	fetcher := NewHTTPLargeSegmentFetcher(
 		"api-key",
 		"1.0",
-		cmnConf.AdvancedConfig{
+		conf.AdvancedConfig{
 			SdkURL: ts.URL,
 		},
 		logger,
-		cmnDTOs.Metadata{},
+		dtos.Metadata{},
 	)
 
-	response := fetcher.Fetch("large_segment_test", &cmnService.SegmentRequestParams{})
+	response := fetcher.Fetch("large_segment_test", &service.SegmentRequestParams{})
 	assert.Equal(t, "unsupported file format", response.Error.Error())
 	assert.Equal(t, (*dtos.LargeSegmentDTO)(nil), response.Data)
 }
@@ -202,14 +201,14 @@ func TestFetchAPIError(t *testing.T) {
 	fetcher := NewHTTPLargeSegmentFetcher(
 		"api-key",
 		"1.0",
-		cmnConf.AdvancedConfig{
+		conf.AdvancedConfig{
 			SdkURL: ts.URL,
 		},
 		logger,
-		cmnDTOs.Metadata{},
+		dtos.Metadata{},
 	)
 
-	response := fetcher.Fetch("large_segment_test", &cmnService.SegmentRequestParams{})
+	response := fetcher.Fetch("large_segment_test", &service.SegmentRequestParams{})
 	assert.Equal(t, "500 Internal Server Error", response.Error.Error())
 	assert.Equal(t, (*dtos.LargeSegmentDTO)(nil), response.Data)
 }
@@ -243,14 +242,14 @@ func TestFetchDownloadServerError(t *testing.T) {
 	fetcher := NewHTTPLargeSegmentFetcher(
 		"api-key",
 		"1.0",
-		cmnConf.AdvancedConfig{
+		conf.AdvancedConfig{
 			SdkURL: ts.URL,
 		},
 		logger,
-		cmnDTOs.Metadata{},
+		dtos.Metadata{},
 	)
 
-	response := fetcher.Fetch("large_segment_test", &cmnService.SegmentRequestParams{})
+	response := fetcher.Fetch("large_segment_test", &service.SegmentRequestParams{})
 	assert.Equal(t, "500 Internal Server Error", response.Error.Error())
 	assert.Equal(t, (*dtos.LargeSegmentDTO)(nil), response.Data)
 }
@@ -285,14 +284,14 @@ func TestFetchWithPost(t *testing.T) {
 	fetcher := NewHTTPLargeSegmentFetcher(
 		"api-key",
 		"1.0",
-		cmnConf.AdvancedConfig{
+		conf.AdvancedConfig{
 			SdkURL: ts.URL,
 		},
 		logger,
-		cmnDTOs.Metadata{},
+		dtos.Metadata{},
 	)
 
-	response := fetcher.Fetch("large_segment_test", &cmnService.SegmentRequestParams{})
+	response := fetcher.Fetch("large_segment_test", &service.SegmentRequestParams{})
 	if response.Error != nil {
 		t.Error("Error shuld be nil")
 	}
@@ -325,14 +324,14 @@ func TestFetcahURLExpired(t *testing.T) {
 	fetcher := NewHTTPLargeSegmentFetcher(
 		"api-key",
 		"1.0",
-		cmnConf.AdvancedConfig{
+		conf.AdvancedConfig{
 			SdkURL: ts.URL,
 		},
 		logger,
-		cmnDTOs.Metadata{},
+		dtos.Metadata{},
 	)
 
-	response := fetcher.Fetch("large_segment_test", &cmnService.SegmentRequestParams{})
+	response := fetcher.Fetch("large_segment_test", &service.SegmentRequestParams{})
 	assert.Equal(t, "URL expired", response.Error.Error())
 	assert.Equal(t, (*dtos.LargeSegmentDTO)(nil), response.Data)
 }

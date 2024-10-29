@@ -10,14 +10,12 @@ import (
 	"time"
 
 	cmnConf "github.com/splitio/go-split-commons/v6/conf"
-	cmnDTOs "github.com/splitio/go-split-commons/v6/dtos"
+	"github.com/splitio/go-split-commons/v6/dtos"
 	cmnService "github.com/splitio/go-split-commons/v6/service"
 	cmnAPI "github.com/splitio/go-split-commons/v6/service/api"
+	"github.com/splitio/go-split-commons/v6/service/api/specs"
 	"github.com/splitio/go-toolkit/v5/logging"
-	"github.com/splitio/split-synchronizer/v5/splitio/proxy/service/dtos"
 )
-
-var MEM_VERSION_10 = "1.0" // support for csv format with one column
 
 const (
 	// Unknown format
@@ -38,18 +36,18 @@ type HTTPLargeSegmentFetcher struct {
 }
 
 // NewHTTPLargeSegmentsFetcher
-func NewHTTPLargeSegmentFetcher(apikey string, memVersion string, cfg cmnConf.AdvancedConfig, logger logging.LoggerInterface, metadata cmnDTOs.Metadata) *HTTPLargeSegmentFetcher {
+func NewHTTPLargeSegmentFetcher(apikey string, memVersion string, cfg cmnConf.AdvancedConfig, logger logging.LoggerInterface, metadata dtos.Metadata) *HTTPLargeSegmentFetcher {
 	return &HTTPLargeSegmentFetcher{
 		client:     cmnAPI.NewHTTPClient(apikey, cfg, cfg.SdkURL, logger, metadata),
 		logger:     logger,
-		memVersion: &memVersion, // TODO: move version to cmnConf.AdvancedConfig
+		memVersion: &memVersion, // TODO (sanzmauro): move version to cmnConf.AdvancedConfig
 		httpClient: &http.Client{},
 	}
 }
 
 func (f *HTTPLargeSegmentFetcher) Fetch(name string, fetchOptions *cmnService.SegmentRequestParams) *dtos.LargeSegmentResponse {
 	var bufferQuery bytes.Buffer
-	bufferQuery.WriteString("/proxy/largeSegment/")
+	bufferQuery.WriteString("/largeSegmentDefinition/")
 	bufferQuery.WriteString(name)
 
 	data, err := f.client.Get(bufferQuery.String(), fetchOptions)
@@ -106,7 +104,7 @@ func (f *HTTPLargeSegmentFetcher) downloadAndParse(rfe dtos.RfeDTO, tr *dtos.Lar
 
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return true,
-			cmnDTOs.HTTPError{
+			dtos.HTTPError{
 				Code:    response.StatusCode,
 				Message: response.Status,
 			}
@@ -123,7 +121,7 @@ func (f *HTTPLargeSegmentFetcher) downloadAndParse(rfe dtos.RfeDTO, tr *dtos.Lar
 
 func csvReader(response *http.Response, rfe dtos.RfeDTO, tr *dtos.LargeSegmentDTO) (bool, error) {
 	switch rfe.Version {
-	case MEM_VERSION_10:
+	case specs.MEMBERSHIP_V10:
 		keys := make([]string, 0, rfe.TotalKeys)
 		reader := csv.NewReader(response.Body)
 		for {
