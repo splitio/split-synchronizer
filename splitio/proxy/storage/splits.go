@@ -153,6 +153,11 @@ func (p *ProxySplitStorageImpl) FetchMany(names []string) map[string]*dtos.Split
 	return p.snapshot.FetchMany(names)
 }
 
+// LargeSegmentNames
+func (p *ProxySplitStorageImpl) LargeSegmentNames() *set.ThreadUnsafeSet {
+	return p.snapshot.LargeSegmentNames()
+}
+
 // SegmentNames call is forwarded to the snapshot
 func (p *ProxySplitStorageImpl) SegmentNames() *set.ThreadUnsafeSet { return p.snapshot.SegmentNames() }
 

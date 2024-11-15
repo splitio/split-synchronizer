@@ -68,9 +68,10 @@ type Persistent struct {
 
 // Sync configuration options
 type Sync struct {
-	SplitRefreshRateMs   int64        `json:"splitRefreshRateMs" s-cli:"split-refresh-rate-ms" s-def:"60000" s-desc:"How often to refresh feature flags"`
-	SegmentRefreshRateMs int64        `json:"segmentRefreshRateMs" s-cli:"segment-refresh-rate-ms" s-def:"60000" s-desc:"How often to refresh segments"`
-	Advanced             AdvancedSync `json:"advanced" s-nested:"true"`
+	SplitRefreshRateMs        int64        `json:"splitRefreshRateMs" s-cli:"split-refresh-rate-ms" s-def:"60000" s-desc:"How often to refresh feature flags"`
+	SegmentRefreshRateMs      int64        `json:"segmentRefreshRateMs" s-cli:"segment-refresh-rate-ms" s-def:"60000" s-desc:"How often to refresh segments"`
+	Advanced                  AdvancedSync `json:"advanced" s-nested:"true"`
+	LargeSegmentRefreshRateMs int64        `json:"largeSegmentRefreshRateMs" s-cli:"large-segment-refresh-rate-ms" s-def:"3600000" s-desc:"How often to refresh large segments"`
 }
 
 // AdvancedSync configuration options
