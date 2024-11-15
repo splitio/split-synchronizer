@@ -298,6 +298,9 @@ func (*splitStorageMock) KillLocally(splitName string, defaultTreatment string, 
 func (s *splitStorageMock) SegmentNames() *set.ThreadUnsafeSet {
 	return s.Called().Get(0).(*set.ThreadUnsafeSet)
 }
+func (s *splitStorageMock) LargeSegmentNames() *set.ThreadUnsafeSet {
+	return s.Called().Get(0).(*set.ThreadUnsafeSet)
+}
 func (s *splitStorageMock) SetChangeNumber(changeNumber int64) error {
 	return s.Called(changeNumber).Error(0)
 }

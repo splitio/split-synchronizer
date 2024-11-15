@@ -8,7 +8,7 @@ require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/google/uuid v1.3.0
 	github.com/splitio/gincache v1.0.1
-	github.com/splitio/go-split-commons/v6 v6.0.1
+	github.com/splitio/go-split-commons/v6 v6.0.2-0.20241114213309-4748736195ee
 	github.com/splitio/go-toolkit/v5 v5.4.0
 	github.com/stretchr/testify v1.9.0
 	go.etcd.io/bbolt v1.3.6

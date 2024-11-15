@@ -12,7 +12,9 @@ import (
 	"github.com/splitio/go-split-commons/v6/conf"
 	"github.com/splitio/go-split-commons/v6/flagsets"
 	"github.com/splitio/go-split-commons/v6/service/api"
+	"github.com/splitio/go-split-commons/v6/storage/inmemory/mutexmap"
 	"github.com/splitio/go-split-commons/v6/synchronizer"
+	"github.com/splitio/go-split-commons/v6/synchronizer/worker/largesegment"
 	"github.com/splitio/go-split-commons/v6/tasks"
 	"github.com/splitio/go-split-commons/v6/telemetry"
 	"github.com/splitio/go-toolkit/v5/backoff"
@@ -85,6 +87,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	// Proxy storages already implement the observable interface, so no need to wrap them
 	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, flagsets.NewFlagSetFilter(cfg.FlagSetsFilter), cfg.Initialization.Snapshot != "")
 	segmentStorage := storage.NewProxySegmentStorage(dbInstance, logger, cfg.Initialization.Snapshot != "")
+	largeSegmentStorage := mutexmap.NewLargeSegmentsStorage()
 
 	// Local telemetry
 	tbufferSize := int(cfg.Sync.Advanced.TelemetryBuffer)
@@ -124,6 +127,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 			appMonitor),
 		TelemetryRecorder: telemetry.NewTelemetrySynchronizer(localTelemetryStorage, telemetryRecorder, splitStorage, segmentStorage, logger,
 			metadata, localTelemetryStorage),
+		LargeSegmentUpdater: largesegment.NewLargeSegmentUpdater(splitStorage, largeSegmentStorage, splitAPI.LargeSegmentFetcher, logger, localTelemetryStorage, appMonitor),
 	}
 
 	// setup periodic tasks in case streaming is disabled or we need to fall back to polling
@@ -135,6 +139,8 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		ImpressionSyncTask:       impressionTask,
 		ImpressionsCountSyncTask: impressionCountTask,
 		EventSyncTask:            eventsTask,
+		LargeSegmentSyncTask: tasks.NewFetchLargeSegmentsTask(workers.LargeSegmentUpdater, splitStorage, int(cfg.Sync.LargeSegmentRefreshRateMs/1000),
+			advanced.LargeSegmentWorkers, advanced.LargeSegmentQueueSize, logger),
 	}
 
 	// Creating Synchronizer for tasks
