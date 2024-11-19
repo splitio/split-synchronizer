@@ -6,6 +6,7 @@ import (
 	"github.com/splitio/go-split-commons/v6/healthcheck/application"
 	"github.com/splitio/go-split-commons/v6/service"
 	"github.com/splitio/go-split-commons/v6/storage"
+	"github.com/splitio/go-split-commons/v6/synchronizer/worker/largesegment"
 	"github.com/splitio/go-split-commons/v6/synchronizer/worker/segment"
 	"github.com/splitio/go-split-commons/v6/synchronizer/worker/split"
 	"github.com/splitio/go-toolkit/v5/logging"
@@ -150,4 +151,66 @@ func (c *CacheAwareSegmentSynchronizer) SegmentNames() []interface{} {
 // IsSegmentCached forwards the call to the wrapped sync
 func (c *CacheAwareSegmentSynchronizer) IsSegmentCached(segmentName string) bool {
 	return c.wrapped.IsSegmentCached(segmentName)
+}
+
+// CacheAwareLargeSegmentSynchronizer
+type CacheAwareLargeSegmentSynchronizer struct {
+	wrapped             largesegment.Updater
+	largeSegmentStorage storage.LargeSegmentsStorage
+	cacheFlusher        gincache.CacheFlusher
+	splitStorage        storage.SplitStorage
+}
+
+func NewCacheAwareLargeSegmentSync(
+	splitStorage storage.SplitStorage,
+	largeSegmentStorage storage.LargeSegmentsStorage,
+	largeSegmentFetcher service.LargeSegmentFetcher,
+	logger logging.LoggerInterface,
+	runtimeTelemetry storage.TelemetryRuntimeProducer,
+	cacheFlusher gincache.CacheFlusher,
+	appMonitor application.MonitorProducerInterface,
+) *CacheAwareLargeSegmentSynchronizer {
+	return &CacheAwareLargeSegmentSynchronizer{
+		wrapped:             largesegment.NewLargeSegmentUpdater(splitStorage, largeSegmentStorage, largeSegmentFetcher, logger, runtimeTelemetry, appMonitor),
+		cacheFlusher:        cacheFlusher,
+		largeSegmentStorage: largeSegmentStorage,
+		splitStorage:        splitStorage,
+	}
+}
+
+func (c *CacheAwareLargeSegmentSynchronizer) SynchronizeLargeSegment(name string, till *int64) (*int64, error) {
+	previous := c.largeSegmentStorage.ChangeNumber(name)
+	newCN, err := c.wrapped.SynchronizeLargeSegment(name, till)
+
+	c.shouldEvictBySurrogate(name, previous, *newCN)
+
+	return newCN, err
+}
+
+func (c *CacheAwareLargeSegmentSynchronizer) SynchronizeLargeSegments() (map[string]*int64, error) {
+	previousLargeSegmentNames := c.splitStorage.LargeSegmentNames()
+	previousCNs := make(map[string]int64, previousLargeSegmentNames.Size())
+	for _, name := range previousLargeSegmentNames.List() {
+		if strName, ok := name.(string); ok {
+			cn := c.largeSegmentStorage.ChangeNumber(strName)
+			previousCNs[strName] = cn
+		}
+	}
+
+	results, err := c.wrapped.SynchronizeLargeSegments()
+	for name, res := range results {
+		c.shouldEvictBySurrogate(name, previousCNs[name], *res)
+	}
+
+	return results, err
+}
+
+func (c *CacheAwareLargeSegmentSynchronizer) shouldEvictBySurrogate(name string, previousCN int64, currentCN int64) {
+	if currentCN > previousCN || (previousCN > 0 && currentCN == -1) {
+		c.cacheFlusher.EvictBySurrogate(MakeSurrogateForLargeSegmentChanges(name))
+	}
+}
+
+func (c *CacheAwareLargeSegmentSynchronizer) IsCached(name string) bool {
+	return c.wrapped.IsCached(name)
 }
