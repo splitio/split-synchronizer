@@ -156,6 +156,11 @@ func (p *ProxySplitStorageImpl) FetchMany(names []string) map[string]*dtos.Split
 // SegmentNames call is forwarded to the snapshot
 func (p *ProxySplitStorageImpl) SegmentNames() *set.ThreadUnsafeSet { return p.snapshot.SegmentNames() }
 
+// LargeSegmentNames call is forwarded to the snapshot
+func (p *ProxySplitStorageImpl) LargeSegmentNames() *set.ThreadUnsafeSet {
+	return p.snapshot.LargeSegmentNames()
+}
+
 // Split call is forwarded to the snapshot
 func (p *ProxySplitStorageImpl) Split(name string) *dtos.SplitDTO { return p.snapshot.Split(name) }
 
