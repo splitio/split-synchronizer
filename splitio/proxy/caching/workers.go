@@ -1,8 +1,6 @@
 package caching
 
 import (
-	"fmt"
-
 	"github.com/splitio/go-split-commons/v6/dtos"
 	"github.com/splitio/go-split-commons/v6/flagsets"
 	"github.com/splitio/go-split-commons/v6/healthcheck/application"
@@ -209,7 +207,6 @@ func (c *CacheAwareLargeSegmentSynchronizer) SynchronizeLargeSegments() (map[str
 
 func (c *CacheAwareLargeSegmentSynchronizer) shouldEvictBySurrogate(name string, previousCN int64, currentCN int64) {
 	if currentCN > previousCN || currentCN == -1 {
-		fmt.Println("aca")
 		c.cacheFlusher.EvictBySurrogate(MakeSurrogateForLargeSegmentChanges(name))
 	}
 }
