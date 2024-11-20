@@ -316,8 +316,8 @@ func TestSynchronizeLargeSegments(t *testing.T) {
 	var cn1 int64 = 100
 	var cn2 int64 = 200
 	var largeSegmentStorage mocks.LargeSegmentStorageMock
-	largeSegmentStorage.On("ChangeNumber", "ls1").Return(cn1).Once()
-	largeSegmentStorage.On("ChangeNumber", "ls2").Return(cn2).Once()
+	largeSegmentStorage.On("ChangeNumber", "ls1").Return(cn1 - 50).Once()
+	largeSegmentStorage.On("ChangeNumber", "ls2").Return(cn2 - 50).Once()
 
 	var lsUpdater mocks.LargeSegmentUpdaterMock
 	result := map[string]*int64{
