@@ -264,6 +264,10 @@ func TestSynchronizeLargeSegment(t *testing.T) {
 	if *cn != 100 {
 		t.Error("ChangeNumber should be 100. Actual: ", *cn)
 	}
+
+	cacheFlusher.AssertExpectations(t)
+	largeSegmentStorage.AssertExpectations(t)
+	lsUpdater.AssertExpectations(t)
 }
 
 func TestSynchronizeLargeSegmentHighestPrevious(t *testing.T) {
@@ -271,7 +275,6 @@ func TestSynchronizeLargeSegmentHighestPrevious(t *testing.T) {
 
 	var splitStorage mocks.SplitStorageMock
 	var cacheFlusher mocks.CacheFlusherMock
-	cacheFlusher.On("EvictBySurrogate", MakeSurrogateForLargeSegmentChanges(lsName)).Times(0)
 
 	var largeSegmentStorage mocks.LargeSegmentStorageMock
 	largeSegmentStorage.On("ChangeNumber", lsName).Return(int64(200)).Once()
@@ -295,6 +298,11 @@ func TestSynchronizeLargeSegmentHighestPrevious(t *testing.T) {
 	if *cn != 100 {
 		t.Error("ChangeNumber should be 100. Actual: ", *cn)
 	}
+
+	splitStorage.AssertExpectations(t)
+	cacheFlusher.AssertExpectations(t)
+	largeSegmentStorage.AssertExpectations(t)
+	lsUpdater.AssertExpectations(t)
 }
 
 func TestSynchronizeLargeSegments(t *testing.T) {
@@ -337,4 +345,9 @@ func TestSynchronizeLargeSegments(t *testing.T) {
 	if *cn["ls2"] != cn2 {
 		t.Error("ChangeNumber should be 200. Actual: ", *cn["ls2"])
 	}
+
+	splitStorage.AssertExpectations(t)
+	cacheFlusher.AssertExpectations(t)
+	largeSegmentStorage.AssertExpectations(t)
+	lsUpdater.AssertExpectations(t)
 }
