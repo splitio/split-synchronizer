@@ -350,8 +350,11 @@ const mainScript = `
       if (health.healthySince != null) {
         const dateHealthy = new Date(Date.parse(health.healthySince)).toLocaleString()
         $('#healthy_since').html(dateHealthy);
+        $('#sync_div_error').addClass('hidden');
       } else {
-        $('#healthy_since').html('<strong>NOT HEALTHY</strong>'); 
+        $('#healthy_since').html('Not Healthy');
+        $('#sync_div_ok').addClass('hidden');
+        $('#sync_div_error').removeClass('hidden');
       }
       if (health.dependencies == null) { return }
       const payload = {};
