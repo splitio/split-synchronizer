@@ -7,7 +7,7 @@ BUILD_FOLDER := $(CURRENT_PATH)/build
 
 
 GO := $(BIN_FOLDER)/go
-ASSET ?= go1.22.linux-amd64.tar.gz 
+ASSET ?= go1.23.linux-amd64.tar.gz
 SOURCES := $(shell find $(PARENT_PATH) -path $(dirname $(pwd))/windows -prune -o -name "*.go" -print) \
 		   $(PARENT_PATH)/go.mod \
 		   $(PARENT_PATH)/go.sum
@@ -67,5 +67,3 @@ help:
 	    } \
 	    { lastLine = $$0 }' $(MAKEFILE_LIST) | sort -u
 	@printf "\n"
-
-
