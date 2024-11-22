@@ -1,6 +1,6 @@
 module github.com/splitio/split-synchronizer/v5
 
-go 1.22
+go 1.23.3
 
 require (
 	github.com/gin-contrib/cors v1.6.0
