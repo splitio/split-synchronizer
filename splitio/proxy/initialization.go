@@ -130,7 +130,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	stasks := synchronizer.SplitTasks{
 		SplitSyncTask: tasks.NewFetchSplitsTask(workers.SplitUpdater, int(cfg.Sync.SplitRefreshRateMs/1000), logger),
 		SegmentSyncTask: tasks.NewFetchSegmentsTask(workers.SegmentUpdater, int(cfg.Sync.SegmentRefreshRateMs/1000), advanced.SegmentWorkers,
-			advanced.SegmentQueueSize, logger),
+			advanced.SegmentQueueSize, logger, appMonitor),
 		TelemetrySyncTask:        tasks.NewRecordTelemetryTask(workers.TelemetryRecorder, int(cfg.Sync.Advanced.InternalMetricsRateMs), logger),
 		ImpressionSyncTask:       impressionTask,
 		ImpressionsCountSyncTask: impressionCountTask,
