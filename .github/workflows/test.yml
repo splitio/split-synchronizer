@@ -23,7 +23,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '^1.13.1'
+          go-version: '^1.23.3'
 
       - name: Get version
         run: echo "VERSION=$(awk '/^const Version/{gsub(/"/, "", $4); print $4}' splitio/version.go)" >> $GITHUB_ENV
