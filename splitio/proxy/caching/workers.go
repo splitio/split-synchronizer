@@ -214,3 +214,12 @@ func (c *CacheAwareLargeSegmentSynchronizer) shouldEvictBySurrogate(name string,
 func (c *CacheAwareLargeSegmentSynchronizer) IsCached(name string) bool {
 	return c.wrapped.IsCached(name)
 }
+
+func (c *CacheAwareLargeSegmentSynchronizer) SynchronizeLargeSegmentUpdate(lsRFDResponseDTO *dtos.LargeSegmentRFDResponseDTO) (*int64, error) {
+	previous := c.largeSegmentStorage.ChangeNumber(lsRFDResponseDTO.Name)
+	newCN, err := c.wrapped.SynchronizeLargeSegmentUpdate(lsRFDResponseDTO)
+
+	c.shouldEvictBySurrogate(lsRFDResponseDTO.Name, previous, *newCN)
+
+	return newCN, err
+}
