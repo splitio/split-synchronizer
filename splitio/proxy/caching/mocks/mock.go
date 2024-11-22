@@ -148,7 +148,7 @@ func (s *LargeSegmentStorageMock) Count() int {
 func (s *LargeSegmentStorageMock) LargeSegmentsForUser(userKey string) []string {
 	return []string{}
 }
-func (s *LargeSegmentStorageMock) ContainsKey(name string, key string) (bool, error) {
+func (s *LargeSegmentStorageMock) IsInLargeSegment(name string, key string) (bool, error) {
 	args := s.Called(name, key)
 	return args.Get(0).(bool), args.Error(1)
 }
@@ -168,7 +168,11 @@ func (u *LargeSegmentUpdaterMock) SynchronizeLargeSegments() (map[string]*int64,
 	return args.Get(0).(map[string]*int64), args.Error(1)
 }
 func (u *LargeSegmentUpdaterMock) IsCached(name string) bool {
-	return false
+	return u.Called().Get(0).(bool)
+}
+func (u *LargeSegmentUpdaterMock) SynchronizeLargeSegmentUpdate(lsRFDResponseDTO *dtos.LargeSegmentRFDResponseDTO) (*int64, error) {
+	args := u.Called(lsRFDResponseDTO)
+	return args.Get(0).(*int64), args.Error(1)
 }
 
 // ---
