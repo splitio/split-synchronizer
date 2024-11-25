@@ -1,6 +1,9 @@
 name: test
 
 on:
+  push:
+    branches:
+      - master
   pull_request:
     branches-ignore:
       - none
@@ -12,6 +15,9 @@ jobs:
     services:
       redis:
         image: redis
+        credentials:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_RO_TOKEN }}
         ports:
           - 6379:6379
     steps:
@@ -31,14 +37,9 @@ jobs:
       - name: Run test
         run: make test_coverage
 
-      - name: Create build folder
-        run: mkdir -p build
-
-      - name: Build assets
-        run: make release_assets
-
       - name: SonarQube Scan (Pull Request)
-        uses: SonarSource/sonarcloud-github-action@v2
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: SonarSource/sonarcloud-github-action@v3
         env:
           SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
         with:
@@ -49,3 +50,14 @@ jobs:
             -Dsonar.pullrequest.key=${{ github.event.pull_request.number }}
             -Dsonar.pullrequest.branch=${{ github.event.pull_request.head.ref }}
             -Dsonar.pullrequest.base=${{ github.event.pull_request.base.ref }}
+
+      - name: SonarQube Scan (Push)
+        if: ${{ github.event_name == 'push' }}
+        uses: SonarSource/sonarcloud-github-action@v3
+        env:
+          SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+        with:
+          projectBaseDir: .
+          args: >
+            -Dsonar.host.url=${{ secrets.SONARQUBE_HOST }}
+            -Dsonar.projectVersion=${{ env.VERSION }}

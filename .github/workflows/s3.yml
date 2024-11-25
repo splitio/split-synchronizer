@@ -1,0 +1,46 @@
+name: cd
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build-publish:
+    name: Build and publish to S3
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '^1.13.1'
+
+      - name: Create build folder
+        run: mkdir -p build
+
+      - name: Execute build
+        run: make release_assets
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::825951051969:role/gha-downloads-role
+          aws-region: us-east-1
+
+      - name: Deploy to S3
+        run: aws s3 sync $SOURCE_DIR s3://$BUCKET
+        env:
+          BUCKET: downloads.split.io
+          SOURCE_DIR: ./build
