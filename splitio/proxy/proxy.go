@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/splitio/go-split-commons/v6/service"
+	cmnStorage "github.com/splitio/go-split-commons/v6/storage"
 	"github.com/splitio/go-toolkit/v5/logging"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
@@ -83,6 +84,9 @@ type Options struct {
 	FlagSets []string
 
 	FlagSetsStrictMatching bool
+
+	// LargeSegmentStorage
+	LargeSegmentStorage cmnStorage.LargeSegmentsStorage
 }
 
 // API bundles all components required to answer API calls from Split sdks
@@ -160,6 +164,7 @@ func setupSdkController(options *Options) *controllers.SdkServerController {
 		options.ProxySplitStorage,
 		options.ProxySegmentStorage,
 		flagsets.NewMatcher(options.FlagSetsStrictMatching, options.FlagSets),
+		options.LargeSegmentStorage,
 	)
 }
 

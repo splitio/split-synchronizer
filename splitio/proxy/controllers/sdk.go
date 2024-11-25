@@ -12,6 +12,7 @@ import (
 	"github.com/splitio/go-split-commons/v6/engine/validator"
 	"github.com/splitio/go-split-commons/v6/service"
 	"github.com/splitio/go-split-commons/v6/service/api/specs"
+	cmnStorage "github.com/splitio/go-split-commons/v6/storage"
 	"github.com/splitio/go-toolkit/v5/logging"
 	"golang.org/x/exp/slices"
 
@@ -28,6 +29,7 @@ type SdkServerController struct {
 	proxySegmentStorage storage.ProxySegmentStorage
 	fsmatcher           flagsets.FlagSetMatcher
 	versionFilter       specs.SplitVersionFilter
+	largeSegmentStorage cmnStorage.LargeSegmentsStorage
 }
 
 // NewSdkServerController instantiates a new sdk server controller
@@ -37,6 +39,7 @@ func NewSdkServerController(
 	proxySplitStorage storage.ProxySplitStorage,
 	proxySegmentStorage storage.ProxySegmentStorage,
 	fsmatcher flagsets.FlagSetMatcher,
+	largeSegmentStorage cmnStorage.LargeSegmentsStorage,
 
 ) *SdkServerController {
 	return &SdkServerController{
@@ -46,6 +49,7 @@ func NewSdkServerController(
 		proxySegmentStorage: proxySegmentStorage,
 		fsmatcher:           fsmatcher,
 		versionFilter:       specs.NewSplitVersionFilter(),
+		largeSegmentStorage: largeSegmentStorage,
 	}
 }
 
@@ -54,6 +58,40 @@ func (c *SdkServerController) Register(router gin.IRouter) {
 	router.GET("/splitChanges", c.SplitChanges)
 	router.GET("/segmentChanges/:name", c.SegmentChanges)
 	router.GET("/mySegments/:key", c.MySegments)
+	router.GET("/memberships/:key", c.Memberships)
+}
+
+func (c *SdkServerController) Memberships(ctx *gin.Context) {
+	c.logger.Debug(fmt.Sprintf("Headers: %v", ctx.Request.Header))
+	key := ctx.Param("key")
+	segmentList, err := c.proxySegmentStorage.SegmentsFor(key)
+	if err != nil {
+		c.logger.Error(fmt.Sprintf("error fetching segments for user '%s': %s", key, err.Error()))
+		ctx.JSON(http.StatusInternalServerError, gin.H{})
+	}
+
+	mySegments := make([]dtos.Segment, 0, len(segmentList))
+	for _, segmentName := range segmentList {
+		mySegments = append(mySegments, dtos.Segment{Name: segmentName})
+	}
+
+	lsList := c.largeSegmentStorage.LargeSegmentsForUser(key)
+	myLargeSegments := make([]dtos.Segment, 0, len(lsList))
+	for _, name := range lsList {
+		myLargeSegments = append(myLargeSegments, dtos.Segment{Name: name})
+	}
+
+	payoad := dtos.MembershipsResponseDTO{
+		MySegments: dtos.Memberships{
+			Segments: mySegments,
+		},
+		MyLargeSegments: dtos.Memberships{
+			Segments: myLargeSegments,
+		},
+	}
+
+	ctx.JSON(http.StatusOK, payoad)
+	ctx.Set(caching.SurrogateContextKey, nil)
 }
 
 // SplitChanges Returns a diff containing changes in feature flags from a certain point in time until now.

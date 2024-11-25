@@ -12,6 +12,7 @@ import (
 	"github.com/splitio/go-split-commons/v6/conf"
 	"github.com/splitio/go-split-commons/v6/flagsets"
 	"github.com/splitio/go-split-commons/v6/service/api"
+	inmemory "github.com/splitio/go-split-commons/v6/storage/inmemory/mutexmap"
 	"github.com/splitio/go-split-commons/v6/synchronizer"
 	"github.com/splitio/go-split-commons/v6/tasks"
 	"github.com/splitio/go-split-commons/v6/telemetry"
@@ -38,7 +39,6 @@ import (
 
 // Start initialize in proxy mode
 func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
-
 	clientKey, err := util.GetClientKey(cfg.Apikey)
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error parsing client key from provided apikey: %w", err), common.ExitInvalidApikey)
@@ -76,6 +76,15 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	advanced.FlagsSpecVersion = cfg.FlagSpecVersion
 	metadata := util.GetMetadata(cfg.IPAddressEnabled, true)
 
+	//advanced.StreamingEnabled = false
+	advanced.LargeSegment.Enable = true
+	//advanced.LargeSegment.LazyLoad = true
+
+	advanced.AuthServiceURL = "https://auth.split-stage.io"
+	advanced.EventsURL = "https://events.split-stage.io/api"
+	advanced.SdkURL = "https://sdk.split-stage.io/api"
+	advanced.TelemetryServiceURL = "https://telemetry.split-stage.io/api/v1"
+
 	// FlagSetsFilter
 	flagSetsFilter := flagsets.NewFlagSetFilter(cfg.FlagSetsFilter)
 
@@ -85,6 +94,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	// Proxy storages already implement the observable interface, so no need to wrap them
 	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, flagsets.NewFlagSetFilter(cfg.FlagSetsFilter), cfg.Initialization.Snapshot != "")
 	segmentStorage := storage.NewProxySegmentStorage(dbInstance, logger, cfg.Initialization.Snapshot != "")
+	largeSegmentStorage := inmemory.NewLargeSegmentsStorage()
 
 	// Local telemetry
 	tbufferSize := int(cfg.Sync.Advanced.TelemetryBuffer)
@@ -124,6 +134,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 			appMonitor),
 		TelemetryRecorder: telemetry.NewTelemetrySynchronizer(localTelemetryStorage, telemetryRecorder, splitStorage, segmentStorage, logger,
 			metadata, localTelemetryStorage),
+		LargeSegmentUpdater: caching.NewCacheAwareLargeSegmentSync(splitStorage, largeSegmentStorage, splitAPI.LargeSegmentFetcher, logger, localTelemetryStorage, httpCache, appMonitor),
 	}
 
 	// setup periodic tasks in case streaming is disabled or we need to fall back to polling
@@ -135,6 +146,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		ImpressionSyncTask:       impressionTask,
 		ImpressionsCountSyncTask: impressionCountTask,
 		EventSyncTask:            eventsTask,
+		LargeSegmentSyncTask:     tasks.NewFetchLargeSegmentsTask(workers.LargeSegmentUpdater, splitStorage, 60, advanced.SegmentWorkers, 100, logger),
 	}
 
 	// Creating Synchronizer for tasks
@@ -198,6 +210,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		SplitStorage:          splitStorage,
 		SegmentStorage:        segmentStorage,
 		LocalTelemetryStorage: localTelemetryStorage,
+		LargeSegmentStorage:   largeSegmentStorage,
 	}
 
 	// --------------------------- ADMIN DASHBOARD ------------------------------
@@ -236,6 +249,10 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		return common.NewInitError(fmt.Errorf("error setting up proxy TLS config: %w", err), common.ExitTLSError)
 	}
 
+	cfg.Server.ClientApikeys = append(cfg.Server.ClientApikeys, "h1diffat7nmej6kulfdr4ectghnjc1quqa3c")
+
+	fmt.Println("##")
+	fmt.Println(cfg.Server.Port)
 	proxyOptions := &Options{
 		Logger:                      logger,
 		Host:                        cfg.Server.Host,
@@ -258,6 +275,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		TLSConfig:                   tlsConfig,
 		FlagSets:                    cfg.FlagSetsFilter,
 		FlagSetsStrictMatching:      cfg.FlagSetStrictMatching,
+		LargeSegmentStorage:         largeSegmentStorage,
 	}
 
 	if ilcfg := cfg.Integrations.ImpressionListener; ilcfg.Endpoint != "" {

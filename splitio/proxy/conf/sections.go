@@ -20,7 +20,8 @@ type Main struct {
 	Logging               conf.Logging      `json:"logging" s-nested:"true"`
 	Healthcheck           Healthcheck       `json:"healthcheck" s-nested:"true"`
 	Observability         Observability     `json:"observability" s-nested:"true"`
-	FlagSpecVersion       string            `json:"flagSpecVersion" s-cli:"flag-spec-version" s-def:"1.1" s-desc:"Spec version for flags"`
+	FlagSpecVersion       string            `json:"flagSpecVersion" s-cli:"flag-spec-version" s-def:"1.2" s-desc:"Spec version for flags"`
+	LargeSegmentVersion   string            `json:"largeSegmentVersion" s-cli:"large-segment-version" s-def:"1.0" s-desc:"Spec version for large segments"`
 }
 
 // BuildAdvancedConfig generates a commons-compatible advancedconfig with default + overriden parameters
