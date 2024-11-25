@@ -49,10 +49,16 @@ const cards = `
             <h1 id="feature_flags_number" class="centerText"></h1>
           </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-2">
           <div class="gray2Box metricBox">
             <h4>Cached Segments</h4>
             <h1 id="segments_number" class="centerText"></h1>
+          </div>
+        </div>
+        <div class="col-md-2">
+          <div class="gray2Box metricBox">
+            <h4>Cached Large Segments</h4>
+            <h1 id="large_segments_number" class="centerText"></h1>
           </div>
         </div>
         <div class="col-md-4">
