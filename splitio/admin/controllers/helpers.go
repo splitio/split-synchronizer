@@ -48,6 +48,30 @@ func bundleSplitInfo(splitStorage storage.SplitStorageConsumer) []dashboard.Spli
 	return summaries
 }
 
+func bundleLargeSegmentInfo(splitStorage storage.SplitStorage, lsStorage storage.LargeSegmentStorageConsumer) []dashboard.LargeSegmentSummary {
+	if lsStorage == nil {
+		return []dashboard.LargeSegmentSummary{}
+	}
+
+	lsNames := splitStorage.LargeSegmentNames()
+
+	toReturn := make([]dashboard.LargeSegmentSummary, 0, lsNames.Size())
+	for _, name := range lsNames.List() {
+		strName, ok := name.(string)
+		if !ok {
+			continue
+		}
+		cn := lsStorage.ChangeNumber(strName)
+		toReturn = append(toReturn, dashboard.LargeSegmentSummary{
+			Name:         strName,
+			TotalKeys:    lsStorage.TotalKeys(strName),
+			LastModified: time.Unix(0, cn*int64(time.Millisecond)).UTC().Format(time.UnixDate),
+		})
+	}
+
+	return toReturn
+}
+
 func bundleSegmentInfo(splitStorage storage.SplitStorage, segmentStorage storage.SegmentStorageConsumer) []dashboard.SegmentSummary {
 	names := splitStorage.SegmentNames()
 	summaries := make([]dashboard.SegmentSummary, 0, names.Size())

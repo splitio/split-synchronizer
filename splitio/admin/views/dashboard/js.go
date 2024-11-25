@@ -316,10 +316,24 @@ const mainScript = `
         '</tr>';
   }
 
+  function formatLargeSegment(segment) {
+    return '<tr>' + 
+          '<td>' + segment.name + '</td>' +
+          '<td>' + segment.totalKeys + '</td>' +
+          '<td>' + segment.cn + '</td>' +
+        '</tr>';
+  }
+
   function updateSegments(segments) {
     const formatted = segments.map(formatSegment).join('\n');
     $('#segment_rows tbody').empty();
     $('#segment_rows tbody').append(formatted);
+  };
+
+  function updateLargeSegments(segments) {
+    const formatted = segments.map(formatLargeSegment).join('\n');
+    $('#large_segment_rows tbody').empty();
+    $('#large_segment_rows tbody').append(formatted);
   };
 
   function updateMetricCards(stats) {
@@ -333,6 +347,7 @@ const mainScript = `
     $('#backend_total_requests').html(stats.backendTotalRequests);
     $('#feature_flags_number').html(stats.featureFlags.length);
     $('#segments_number').html(stats.segments.length);
+    $('#large_segments_number').html(stats.largesegments.length);
     $('#flag_sets_number').html(stats.flagSets.length);
     $('#impressions_queue_value').html(stats.impressionsQueueSize);
     $('#events_queue_value').html(stats.eventsQueueSize);
@@ -427,6 +442,7 @@ const mainScript = `
     updateMetricCards(stats)
     updateFeatureFlags(stats.featureFlags);
     updateSegments(stats.segments);
+    updateLargeSegments(stats.largesegments);
     updateLogEntries(stats.loggedMessages);
     updateFlagSets(stats.flagSets)
 
