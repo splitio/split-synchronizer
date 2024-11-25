@@ -10,4 +10,5 @@ type Storages struct {
 	EventStorage          storage.EventMultiSdkConsumer
 	ImpressionStorage     storage.ImpressionMultiSdkConsumer
 	UniqueKeysStorage     storage.UniqueKeysMultiSdkConsumer
+	LargeSegmentStorage   storage.LargeSegmentsStorage
 }
