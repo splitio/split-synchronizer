@@ -206,7 +206,7 @@ func (c *CacheAwareLargeSegmentSynchronizer) SynchronizeLargeSegments() (map[str
 }
 
 func (c *CacheAwareLargeSegmentSynchronizer) shouldEvictBySurrogate(name string, previousCN int64, currentCN int64) {
-	if currentCN > previousCN || currentCN == -1 {
+	if currentCN > previousCN || (previousCN != -1 && currentCN == -1) {
 		c.cacheFlusher.EvictBySurrogate(MakeSurrogateForLargeSegmentChanges(name))
 	}
 }
