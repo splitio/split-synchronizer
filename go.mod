@@ -8,12 +8,14 @@ require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/google/uuid v1.3.0
 	github.com/splitio/gincache v1.0.1
-	github.com/splitio/go-split-commons/v6 v6.0.2-0.20241122192419-cc8d0413fa8e
+	github.com/splitio/go-split-commons/v6 v6.0.2-0.20241125153044-959311072c68
 	github.com/splitio/go-toolkit/v5 v5.4.0
 	github.com/stretchr/testify v1.9.0
 	go.etcd.io/bbolt v1.3.6
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
 )
+
+replace github.com/splitio/go-split-commons/v6 => /Users/maurosanz/go/src/github/splitio/go-split-commons
 
 require (
 	github.com/bits-and-blooms/bitset v1.3.1 // indirect

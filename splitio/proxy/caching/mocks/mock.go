@@ -152,6 +152,9 @@ func (s *LargeSegmentStorageMock) IsInLargeSegment(name string, key string) (boo
 	args := s.Called(name, key)
 	return args.Get(0).(bool), args.Error(1)
 }
+func (s *LargeSegmentStorageMock) TotalKeys(name string) int {
+	return s.Called(name).Get(0).(int)
+}
 
 // ---
 
