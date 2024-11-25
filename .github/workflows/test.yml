@@ -59,5 +59,5 @@ jobs:
         with:
           projectBaseDir: .
           args: >
-            -Dsonar.host.url=${{ secrets.SONARQUBE_HOST }}
+            -Dsonar.host.url=${{ vars.SONARQUBE_HOST }}
             -Dsonar.projectVersion=${{ env.VERSION }}
