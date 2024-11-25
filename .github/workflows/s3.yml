@@ -34,12 +34,14 @@ jobs:
         run: make release_assets
 
       - name: Configure AWS credentials
+        if: ${{ github.event_name == 'push' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::825951051969:role/gha-downloads-role
           aws-region: us-east-1
 
       - name: Deploy to S3
+        if: ${{ github.event_name == 'push' }}
         run: aws s3 sync $SOURCE_DIR s3://$BUCKET
         env:
           BUCKET: downloads.split.io
