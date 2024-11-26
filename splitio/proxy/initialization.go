@@ -76,15 +76,6 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	advanced.FlagsSpecVersion = cfg.FlagSpecVersion
 	metadata := util.GetMetadata(cfg.IPAddressEnabled, true)
 
-	//advanced.StreamingEnabled = false
-	advanced.LargeSegment.Enable = true
-	//advanced.LargeSegment.LazyLoad = true
-
-	advanced.AuthServiceURL = "https://auth.split-stage.io"
-	advanced.EventsURL = "https://events.split-stage.io/api"
-	advanced.SdkURL = "https://sdk.split-stage.io/api"
-	advanced.TelemetryServiceURL = "https://telemetry.split-stage.io/api/v1"
-
 	// FlagSetsFilter
 	flagSetsFilter := flagsets.NewFlagSetFilter(cfg.FlagSetsFilter)
 
@@ -146,7 +137,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		ImpressionSyncTask:       impressionTask,
 		ImpressionsCountSyncTask: impressionCountTask,
 		EventSyncTask:            eventsTask,
-		LargeSegmentSyncTask:     tasks.NewFetchLargeSegmentsTask(workers.LargeSegmentUpdater, splitStorage, 60, advanced.SegmentWorkers, 100, logger),
+		LargeSegmentSyncTask:     tasks.NewFetchLargeSegmentsTask(workers.LargeSegmentUpdater, splitStorage, int(cfg.Sync.LargeSegmentRefreshRateMs/1000), advanced.SegmentWorkers, 100, logger),
 	}
 
 	// Creating Synchronizer for tasks
@@ -249,10 +240,6 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		return common.NewInitError(fmt.Errorf("error setting up proxy TLS config: %w", err), common.ExitTLSError)
 	}
 
-	cfg.Server.ClientApikeys = append(cfg.Server.ClientApikeys, "h1diffat7nmej6kulfdr4ectghnjc1quqa3c")
-
-	fmt.Println("##")
-	fmt.Println(cfg.Server.Port)
 	proxyOptions := &Options{
 		Logger:                      logger,
 		Host:                        cfg.Server.Host,
