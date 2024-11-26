@@ -68,6 +68,7 @@ func (c *SdkServerController) Memberships(ctx *gin.Context) {
 	if err != nil {
 		c.logger.Error(fmt.Sprintf("error fetching segments for user '%s': %s", key, err.Error()))
 		ctx.JSON(http.StatusInternalServerError, gin.H{})
+		return
 	}
 
 	mySegments := make([]dtos.Segment, 0, len(segmentList))

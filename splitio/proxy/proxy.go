@@ -51,6 +51,9 @@ type Options struct {
 	// used to resolve segmentChanges & mySegments requests
 	ProxySegmentStorage storage.ProxySegmentStorage
 
+	// ProxyLargeSegmentStorage
+	ProxyLargeSegmentStorage cmnStorage.LargeSegmentsStorage
+
 	// what to do with received impression bulk payloads
 	ImpressionsSink tasks.DeferredRecordingTask
 
@@ -84,9 +87,6 @@ type Options struct {
 	FlagSets []string
 
 	FlagSetsStrictMatching bool
-
-	// LargeSegmentStorage
-	LargeSegmentStorage cmnStorage.LargeSegmentsStorage
 }
 
 // API bundles all components required to answer API calls from Split sdks
@@ -164,7 +164,7 @@ func setupSdkController(options *Options) *controllers.SdkServerController {
 		options.ProxySplitStorage,
 		options.ProxySegmentStorage,
 		flagsets.NewMatcher(options.FlagSetsStrictMatching, options.FlagSets),
-		options.LargeSegmentStorage,
+		options.ProxyLargeSegmentStorage,
 	)
 }
 
