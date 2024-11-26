@@ -644,7 +644,7 @@ func TestMembershipsError(t *testing.T) {
 	controller := NewSdkServerController(logger, &splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock)
 	controller.Register(group)
 
-	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/memberships/dale ya ", nil)
+	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/memberships/keyTest", nil)
 	ctx.Request.Header.Set("Authorization", "Bearer someApiKey")
 	ctx.Request.Header.Set("SplitSDKVersion", "go-1.1.1")
 	ctx.Request.Header.Set("SplitSDKMachineIp", "1.2.3.4")
