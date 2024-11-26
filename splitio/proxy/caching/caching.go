@@ -19,20 +19,16 @@ const (
 	// SplitSurrogate key (we only need one, since all splitChanges should be expired when an update is processed)
 	SplitSurrogate = "sp"
 
+	// LargeSegmentSurrogate key (we only need one, since all memberships should be expired when an update is processed)
+	LargeSegmentSurrogate = "ls"
+
 	// AuthSurrogate key (having push disabled, it's safe to cache this and return it on all requests)
 	AuthSurrogate = "au"
 
 	segmentPrefix = "se::"
-
-	largeSegmentPrefix = "ls::"
 )
 
 const cacheSize = 1000000
-
-// MakeSurrogateForSegmentChanges creates a surrogate key for the segment being queried
-func MakeSurrogateForLargeSegmentChanges(name string) string {
-	return largeSegmentPrefix + name
-}
 
 // MakeSurrogateForSegmentChanges creates a surrogate key for the segment being queried
 func MakeSurrogateForSegmentChanges(segmentName string) string {
@@ -43,14 +39,6 @@ func MakeSurrogateForSegmentChanges(segmentName string) string {
 func MakeSurrogateForMySegments(mysegments []dtos.MySegmentDTO) []string {
 	// Since we are now evicting individually for every updated key, we don't need surrogates for mySegments
 	return nil
-}
-
-// MakeMembershipsEntries create a cache entry key for Memberships
-func MakeMembershipsEntries(key string) []string {
-	return []string{
-		"/api/memberships/" + key,
-		"gzip::/api/memberships/" + key,
-	}
 }
 
 // MakeMySegmentsEntry create a cache entry key for mysegments

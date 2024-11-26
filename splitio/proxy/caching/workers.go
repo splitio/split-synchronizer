@@ -182,7 +182,7 @@ func (c *CacheAwareLargeSegmentSynchronizer) SynchronizeLargeSegment(name string
 	previous := c.largeSegmentStorage.ChangeNumber(name)
 	newCN, err := c.wrapped.SynchronizeLargeSegment(name, till)
 
-	c.shouldEvictBySurrogate(name, previous, *newCN)
+	c.shouldEvictBySurrogate(previous, *newCN)
 
 	return newCN, err
 }
@@ -198,17 +198,11 @@ func (c *CacheAwareLargeSegmentSynchronizer) SynchronizeLargeSegments() (map[str
 	}
 
 	results, err := c.wrapped.SynchronizeLargeSegments()
-	for name, res := range results {
-		c.shouldEvictBySurrogate(name, previousCNs[name], *res)
+	for name, currentCN := range results {
+		c.shouldEvictBySurrogate(previousCNs[name], *currentCN)
 	}
 
 	return results, err
-}
-
-func (c *CacheAwareLargeSegmentSynchronizer) shouldEvictBySurrogate(name string, previousCN int64, currentCN int64) {
-	if currentCN > previousCN || (previousCN != -1 && currentCN == -1) {
-		c.cacheFlusher.EvictBySurrogate(MakeSurrogateForLargeSegmentChanges(name))
-	}
 }
 
 func (c *CacheAwareLargeSegmentSynchronizer) IsCached(name string) bool {
@@ -219,7 +213,13 @@ func (c *CacheAwareLargeSegmentSynchronizer) SynchronizeLargeSegmentUpdate(lsRFD
 	previous := c.largeSegmentStorage.ChangeNumber(lsRFDResponseDTO.Name)
 	newCN, err := c.wrapped.SynchronizeLargeSegmentUpdate(lsRFDResponseDTO)
 
-	c.shouldEvictBySurrogate(lsRFDResponseDTO.Name, previous, *newCN)
+	c.shouldEvictBySurrogate(previous, *newCN)
 
 	return newCN, err
+}
+
+func (c *CacheAwareLargeSegmentSynchronizer) shouldEvictBySurrogate(previousCN int64, currentCN int64) {
+	if currentCN > previousCN || currentCN == -1 {
+		c.cacheFlusher.EvictBySurrogate(LargeSegmentSurrogate)
+	}
 }

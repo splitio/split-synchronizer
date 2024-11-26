@@ -240,7 +240,7 @@ func TestSynchronizeLargeSegment(t *testing.T) {
 
 	var splitStorage mocks.SplitStorageMock
 	var cacheFlusher mocks.CacheFlusherMock
-	cacheFlusher.On("EvictBySurrogate", MakeSurrogateForLargeSegmentChanges(lsName)).Once()
+	cacheFlusher.On("EvictBySurrogate", LargeSegmentSurrogate).Once()
 
 	var largeSegmentStorage mocks.LargeSegmentStorageMock
 	largeSegmentStorage.On("ChangeNumber", lsName).Return(int64(-1)).Once()
@@ -310,8 +310,7 @@ func TestSynchronizeLargeSegments(t *testing.T) {
 	splitStorage.On("LargeSegmentNames").Return(set.NewSet("ls1", "ls2"))
 
 	var cacheFlusher mocks.CacheFlusherMock
-	cacheFlusher.On("EvictBySurrogate", MakeSurrogateForLargeSegmentChanges("ls1")).Once()
-	cacheFlusher.On("EvictBySurrogate", MakeSurrogateForLargeSegmentChanges("ls2")).Once()
+	cacheFlusher.On("EvictBySurrogate", LargeSegmentSurrogate).Times(2)
 
 	var cn1 int64 = 100
 	var cn2 int64 = 200
