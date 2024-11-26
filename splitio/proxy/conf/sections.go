@@ -33,6 +33,7 @@ func (m *Main) BuildAdvancedConfig() *cconf.AdvancedConfig {
 	tmp.StreamingEnabled = m.Sync.Advanced.StreamingEnabled
 	tmp.SplitsRefreshRate = int(m.Sync.SplitRefreshRateMs / 1000)
 	tmp.SegmentsRefreshRate = int(m.Sync.SegmentRefreshRateMs / 1000)
+	tmp.LargeSegment.Enable = true
 	return tmp
 }
 
@@ -69,9 +70,10 @@ type Persistent struct {
 
 // Sync configuration options
 type Sync struct {
-	SplitRefreshRateMs   int64        `json:"splitRefreshRateMs" s-cli:"split-refresh-rate-ms" s-def:"60000" s-desc:"How often to refresh feature flags"`
-	SegmentRefreshRateMs int64        `json:"segmentRefreshRateMs" s-cli:"segment-refresh-rate-ms" s-def:"60000" s-desc:"How often to refresh segments"`
-	Advanced             AdvancedSync `json:"advanced" s-nested:"true"`
+	SplitRefreshRateMs        int64        `json:"splitRefreshRateMs" s-cli:"split-refresh-rate-ms" s-def:"60000" s-desc:"How often to refresh feature flags"`
+	SegmentRefreshRateMs      int64        `json:"segmentRefreshRateMs" s-cli:"segment-refresh-rate-ms" s-def:"60000" s-desc:"How often to refresh segments"`
+	LargeSegmentRefreshRateMs int64        `json:"largeSegmentRefreshRateMs" s-cli:"large-segment-refresh-rate-ms" s-def:"3600000" s-desc:"How often to refresh large segments"`
+	Advanced                  AdvancedSync `json:"advanced" s-nested:"true"`
 }
 
 // AdvancedSync configuration options
