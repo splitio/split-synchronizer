@@ -262,7 +262,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		TLSConfig:                   tlsConfig,
 		FlagSets:                    cfg.FlagSetsFilter,
 		FlagSetsStrictMatching:      cfg.FlagSetStrictMatching,
-		LargeSegmentStorage:         largeSegmentStorage,
+		ProxyLargeSegmentStorage:    largeSegmentStorage,
 	}
 
 	if ilcfg := cfg.Integrations.ImpressionListener; ilcfg.Endpoint != "" {
