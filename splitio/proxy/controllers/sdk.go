@@ -91,7 +91,7 @@ func (c *SdkServerController) Memberships(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, payoad)
-	ctx.Set(caching.SurrogateContextKey, nil)
+	ctx.Set(caching.SurrogateContextKey, []string{caching.LargeSegmentSurrogate})
 }
 
 // SplitChanges Returns a diff containing changes in feature flags from a certain point in time until now.
