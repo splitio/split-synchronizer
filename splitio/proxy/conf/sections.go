@@ -33,7 +33,6 @@ func (m *Main) BuildAdvancedConfig() *cconf.AdvancedConfig {
 	tmp.StreamingEnabled = m.Sync.Advanced.StreamingEnabled
 	tmp.SplitsRefreshRate = int(m.Sync.SplitRefreshRateMs / 1000)
 	tmp.SegmentsRefreshRate = int(m.Sync.SegmentRefreshRateMs / 1000)
-	tmp.LargeSegment.Enable = true
 	return tmp
 }
 
