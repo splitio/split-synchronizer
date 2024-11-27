@@ -144,6 +144,7 @@ func TestCacheAwareSegmentSyncSingle(t *testing.T) {
 	cacheFlusher.On("EvictBySurrogate", MakeSurrogateForSegmentChanges("segment1")).Times(2)
 	cacheFlusher.On("Evict", "/api/mySegments/k1").Times(2)
 	cacheFlusher.On("Evict", "gzip::/api/mySegments/k1").Times(2)
+	cacheFlusher.On("EvictBySurrogate", LargeSegmentSurrogate).Times(2)
 
 	var segmentStorage mocks.SegmentStorageMock
 	segmentStorage.On("ChangeNumber", "segment1").Return(int64(0), nil).Once()
@@ -189,6 +190,7 @@ func TestCacheAwareSegmentSyncAllSegments(t *testing.T) {
 	cacheFlusher.On("EvictBySurrogate", MakeSurrogateForSegmentChanges("segment2")).Times(1)
 	cacheFlusher.On("Evict", "/api/mySegments/k1").Times(3)
 	cacheFlusher.On("Evict", "gzip::/api/mySegments/k1").Times(3)
+	cacheFlusher.On("EvictBySurrogate", LargeSegmentSurrogate).Times(3)
 
 	var segmentStorage mocks.SegmentStorageMock
 	segmentStorage.On("ChangeNumber", "segment2").Return(int64(0), nil).Once()
