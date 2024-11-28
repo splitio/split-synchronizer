@@ -23,23 +23,24 @@ const baseShutdownPath = "/shutdown"
 
 // Options encapsulates dependencies & config options for the Admin server
 type Options struct {
-	Host              string
-	Port              int
-	Name              string
-	Proxy             bool
-	Username          string
-	Password          string
-	Logger            logging.LoggerInterface
-	Storages          adminCommon.Storages
-	ImpressionsEvCalc evcalc.Monitor
-	EventsEvCalc      evcalc.Monitor
-	Runtime           common.Runtime
-	HcAppMonitor      application.MonitorIterface
-	HcServicesMonitor services.MonitorIterface
-	Snapshotter       cstorage.Snapshotter
-	TLS               *tls.Config
-	FullConfig        interface{}
-	FlagSpecVersion   string
+	Host                string
+	Port                int
+	Name                string
+	Proxy               bool
+	Username            string
+	Password            string
+	Logger              logging.LoggerInterface
+	Storages            adminCommon.Storages
+	ImpressionsEvCalc   evcalc.Monitor
+	EventsEvCalc        evcalc.Monitor
+	Runtime             common.Runtime
+	HcAppMonitor        application.MonitorIterface
+	HcServicesMonitor   services.MonitorIterface
+	Snapshotter         cstorage.Snapshotter
+	TLS                 *tls.Config
+	FullConfig          interface{}
+	FlagSpecVersion     string
+	LargeSegmentVersion string
 }
 
 type AdminServer struct {
@@ -68,6 +69,7 @@ func NewServer(options *Options) (*AdminServer, error) {
 		options.Runtime,
 		options.HcAppMonitor,
 		options.FlagSpecVersion,
+		options.LargeSegmentVersion,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error instantiating dashboard controller: %w", err)
