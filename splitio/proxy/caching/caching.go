@@ -19,6 +19,9 @@ const (
 	// SplitSurrogate key (we only need one, since all splitChanges should be expired when an update is processed)
 	SplitSurrogate = "sp"
 
+	// LargeSegmentSurrogate key (we only need one, since all memberships should be expired when an update is processed)
+	LargeSegmentSurrogate = "ls"
+
 	// AuthSurrogate key (having push disabled, it's safe to cache this and return it on all requests)
 	AuthSurrogate = "au"
 
@@ -60,7 +63,6 @@ func MakeProxyCache() *gincache.Middleware {
 }
 
 func keyFactoryFN(ctx *gin.Context) string {
-
 	var encodingPrefix string
 	if strings.Contains(ctx.Request.Header.Get("Accept-Encoding"), "gzip") {
 		encodingPrefix = "gzip::"
