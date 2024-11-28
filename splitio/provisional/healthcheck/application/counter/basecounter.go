@@ -15,15 +15,6 @@ const (
 	Low
 )
 
-const (
-	// Splits counter type
-	Splits = iota
-	// Segments counter type
-	Segments
-	// Storage counter type
-	Storage
-)
-
 // HealthyResult description
 type HealthyResult struct {
 	Name       string
