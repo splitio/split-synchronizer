@@ -236,6 +236,41 @@ func TestSegmentChangesAndMySegmentsEndpoints(t *testing.T) {
 	assert.Equal(t, "application/json; charset=utf-8", headers.Get("Content-Type"))
 }
 
+func TestMembershipEndpoint(t *testing.T) {
+	var segmentStorage pstorageMocks.ProxySegmentStorageMock
+	var lsStorage pstorageMocks.ProxyLargeSegmentStorageMock
+
+	opts := makeOpts()
+	opts.ProxySegmentStorage = &segmentStorage
+	opts.ProxyLargeSegmentStorage = &lsStorage
+	proxy := New(opts)
+	go proxy.Start()
+	time.Sleep(1 * time.Second) // Let the scheduler switch the current thread/gr and start the server
+
+	// Test that a request without auth fails and is not cached
+	status, _, _ := get("memberships/mauro", opts.Port, nil)
+	if status != 401 {
+		t.Error("status should be 401. Is", status)
+	}
+
+	segmentStorage.On("SegmentsFor", "mauro").Return([]string{"segment1"}, nil).Once()
+	lsStorage.On("LargeSegmentsForUser", "mauro").Return([]string{"largeSegment1", "largeSegment2"}).Once()
+
+	status, body, headers := get("memberships/mauro", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
+	response := memberships(body)
+	expected := dtos.MembershipsResponseDTO{
+		MySegments: dtos.Memberships{
+			Segments: []dtos.Segment{{Name: "segment1"}},
+		},
+		MyLargeSegments: dtos.Memberships{
+			Segments: []dtos.Segment{{Name: "largeSegment1"}, {Name: "largeSegment2"}},
+		},
+	}
+	assert.Equal(t, 200, status)
+	assert.Equal(t, expected, response)
+	assert.Equal(t, "application/json; charset=utf-8", headers.Get("Content-Type"))
+}
+
 func makeOpts() *Options {
 	return &Options{
 		Logger:              logging.NewLogger(nil),
@@ -306,4 +341,13 @@ func toMySegments(body []byte) []dtos.MySegmentDTO {
 		panic(err.Error())
 	}
 	return c["mySegments"]
+}
+
+func memberships(body []byte) dtos.MembershipsResponseDTO {
+	var c dtos.MembershipsResponseDTO
+	err := json.Unmarshal(body, &c)
+	if err != nil {
+		panic(err.Error())
+	}
+	return c
 }

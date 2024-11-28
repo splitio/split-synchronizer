@@ -8,13 +8,14 @@ import (
 
 // InitAdvancedOptions initializes an advanced config with default values + overriden urls.
 func InitAdvancedOptions(proxy bool) *conf.AdvancedConfig {
+	advanced := conf.GetDefaultAdvancedConfig()
 
 	prefix := "SPLIT_SYNC_"
 	if proxy {
 		prefix = "SPLIT_PROXY_"
+		advanced.LargeSegment.Enable = true
 	}
 
-	advanced := conf.GetDefaultAdvancedConfig()
 	if envSdkURL := os.Getenv(prefix + "SDK_URL"); envSdkURL != "" {
 		advanced.SdkURL = envSdkURL
 	}
