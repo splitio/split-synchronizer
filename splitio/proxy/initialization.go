@@ -98,8 +98,8 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	)
 
 	// Healcheck Monitor
-	splitsConfig, segmentsConfig := getAppCounterConfigs()
-	appMonitor := hcApplication.NewMonitorImp(splitsConfig, segmentsConfig, nil, logger)
+	splitsConfig, segmentsConfig, lsConfig := getAppCounterConfigs()
+	appMonitor := hcApplication.NewMonitorImp(splitsConfig, segmentsConfig, &lsConfig, nil, logger)
 	servicesMonitor := hcServices.NewMonitorImp(getServicesCountersConfig(*advanced), logger)
 
 	// Creating Workers and Tasks
@@ -137,7 +137,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		ImpressionSyncTask:       impressionTask,
 		ImpressionsCountSyncTask: impressionCountTask,
 		EventSyncTask:            eventsTask,
-		LargeSegmentSyncTask:     tasks.NewFetchLargeSegmentsTask(workers.LargeSegmentUpdater, splitStorage, int(cfg.Sync.LargeSegmentRefreshRateMs/1000), advanced.LargeSegment.Workers, advanced.LargeSegment.QueueSize, logger),
+		LargeSegmentSyncTask:     tasks.NewFetchLargeSegmentsTask(workers.LargeSegmentUpdater, splitStorage, advanced.LargeSegment.RefreshRate, advanced.LargeSegment.Workers, advanced.LargeSegment.QueueSize, logger, appMonitor),
 	}
 
 	// Creating Synchronizer for tasks
@@ -321,11 +321,12 @@ func startBGSyng(m synchronizer.Manager, mstatus chan int, haveSnapshot bool, on
 
 }
 
-func getAppCounterConfigs() (hcAppCounter.ThresholdConfig, hcAppCounter.ThresholdConfig) {
+func getAppCounterConfigs() (hcAppCounter.ThresholdConfig, hcAppCounter.ThresholdConfig, hcAppCounter.ThresholdConfig) {
 	splitsConfig := hcAppCounter.DefaultThresholdConfig("Splits")
 	segmentsConfig := hcAppCounter.DefaultThresholdConfig("Segments")
+	LargeSegmentsConfig := hcAppCounter.DefaultThresholdConfig("LargeSegments")
 
-	return splitsConfig, segmentsConfig
+	return splitsConfig, segmentsConfig, LargeSegmentsConfig
 }
 
 func getServicesCountersConfig(advanced conf.AdvancedConfig) []hcServicesCounter.Config {
