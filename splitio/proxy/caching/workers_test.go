@@ -144,7 +144,7 @@ func TestCacheAwareSegmentSyncSingle(t *testing.T) {
 	cacheFlusher.On("EvictBySurrogate", MakeSurrogateForSegmentChanges("segment1")).Times(2)
 	cacheFlusher.On("Evict", "/api/mySegments/k1").Times(2)
 	cacheFlusher.On("Evict", "gzip::/api/mySegments/k1").Times(2)
-	cacheFlusher.On("EvictBySurrogate", LargeSegmentSurrogate).Times(2)
+	cacheFlusher.On("EvictBySurrogate", MembershipsSurrogate).Times(2)
 
 	var segmentStorage mocks.SegmentStorageMock
 	segmentStorage.On("ChangeNumber", "segment1").Return(int64(0), nil).Once()
@@ -190,7 +190,7 @@ func TestCacheAwareSegmentSyncAllSegments(t *testing.T) {
 	cacheFlusher.On("EvictBySurrogate", MakeSurrogateForSegmentChanges("segment2")).Times(1)
 	cacheFlusher.On("Evict", "/api/mySegments/k1").Times(3)
 	cacheFlusher.On("Evict", "gzip::/api/mySegments/k1").Times(3)
-	cacheFlusher.On("EvictBySurrogate", LargeSegmentSurrogate).Times(3)
+	cacheFlusher.On("EvictBySurrogate", MembershipsSurrogate).Times(3)
 
 	var segmentStorage mocks.SegmentStorageMock
 	segmentStorage.On("ChangeNumber", "segment2").Return(int64(0), nil).Once()
@@ -242,7 +242,7 @@ func TestSynchronizeLargeSegment(t *testing.T) {
 
 	var splitStorage mocks.SplitStorageMock
 	var cacheFlusher mocks.CacheFlusherMock
-	cacheFlusher.On("EvictBySurrogate", LargeSegmentSurrogate).Once()
+	cacheFlusher.On("EvictBySurrogate", MembershipsSurrogate).Once()
 
 	var largeSegmentStorage mocks.LargeSegmentStorageMock
 	largeSegmentStorage.On("ChangeNumber", lsName).Return(int64(-1)).Once()
@@ -312,7 +312,7 @@ func TestSynchronizeLargeSegments(t *testing.T) {
 	splitStorage.On("LargeSegmentNames").Return(set.NewSet("ls1", "ls2"))
 
 	var cacheFlusher mocks.CacheFlusherMock
-	cacheFlusher.On("EvictBySurrogate", LargeSegmentSurrogate).Times(2)
+	cacheFlusher.On("EvictBySurrogate", MembershipsSurrogate).Times(2)
 
 	var cn1 int64 = 100
 	var cn2 int64 = 200
