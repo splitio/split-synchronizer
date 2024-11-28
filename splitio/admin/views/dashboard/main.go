@@ -76,36 +76,38 @@ const main = `
 
 // RootObject is the main/root object used to render the dashboard
 type RootObject struct {
-	DashboardTitle  string
-	Version         string
-	ProxyMode       bool
-	RefreshTime     int64
-	Stats           GlobalStats           `json:"stats"`
-	Health          application.HealthDto `json:"health"`
-	ServicesHealth  services.HealthDto    `json:"servicesHealth"`
-	FlagSpecVersion string
+	DashboardTitle      string
+	Version             string
+	ProxyMode           bool
+	RefreshTime         int64
+	Stats               GlobalStats           `json:"stats"`
+	Health              application.HealthDto `json:"health"`
+	ServicesHealth      services.HealthDto    `json:"servicesHealth"`
+	FlagSpecVersion     string
+	LargeSegmentVersion string
 }
 
 // GlobalStats runtime stats used to render the dashboard
 type GlobalStats struct {
-	BackendTotalRequests   int64             `json:"backendTotalRequests"`
-	RequestsOk             int64             `json:"requestsOk"`
-	RequestsErrored        int64             `json:"requestsErrored"`
-	BackendRequestsOk      int64             `json:"backendRequestsOk"`
-	BackendRequestsErrored int64             `json:"backendRequestsErrored"`
-	SdksTotalRequests      int64             `json:"sdksTotalRequests"`
-	LoggedErrors           int64             `json:"loggedErrors"`
-	LoggedMessages         []string          `json:"loggedMessages"`
-	FeatureFlags           []SplitSummary    `json:"featureFlags"`
-	Segments               []SegmentSummary  `json:"segments"`
-	Latencies              []ChartJSData     `json:"latencies"`
-	BackendLatencies       []ChartJSData     `json:"backendLatencies"`
-	ImpressionsQueueSize   int64             `json:"impressionsQueueSize"`
-	ImpressionsLambda      float64           `json:"impressionsLambda"`
-	EventsQueueSize        int64             `json:"eventsQueueSize"`
-	EventsLambda           float64           `json:"eventsLambda"`
-	Uptime                 int64             `json:"uptime"`
-	FlagSets               []FlagSetsSummary `json:"flagSets"`
+	BackendTotalRequests   int64                 `json:"backendTotalRequests"`
+	RequestsOk             int64                 `json:"requestsOk"`
+	RequestsErrored        int64                 `json:"requestsErrored"`
+	BackendRequestsOk      int64                 `json:"backendRequestsOk"`
+	BackendRequestsErrored int64                 `json:"backendRequestsErrored"`
+	SdksTotalRequests      int64                 `json:"sdksTotalRequests"`
+	LoggedErrors           int64                 `json:"loggedErrors"`
+	LoggedMessages         []string              `json:"loggedMessages"`
+	FeatureFlags           []SplitSummary        `json:"featureFlags"`
+	Segments               []SegmentSummary      `json:"segments"`
+	LargeSegments          []LargeSegmentSummary `json:"largesegments"`
+	Latencies              []ChartJSData         `json:"latencies"`
+	BackendLatencies       []ChartJSData         `json:"backendLatencies"`
+	ImpressionsQueueSize   int64                 `json:"impressionsQueueSize"`
+	ImpressionsLambda      float64               `json:"impressionsLambda"`
+	EventsQueueSize        int64                 `json:"eventsQueueSize"`
+	EventsLambda           float64               `json:"eventsLambda"`
+	Uptime                 int64                 `json:"uptime"`
+	FlagSets               []FlagSetsSummary     `json:"flagSets"`
 }
 
 // SplitSummary encapsulates a minimalistic view of feature flag properties to be presented in the dashboard
@@ -126,6 +128,12 @@ type SegmentSummary struct {
 	TotalKeys    int    `json:"totalKeys"`
 	RemovedKeys  int    `json:"removedKeys"`
 	ActiveKeys   int    `json:"activeKeys"`
+	LastModified string `json:"cn"`
+}
+
+type LargeSegmentSummary struct {
+	Name         string `json:"name"`
+	TotalKeys    int    `json:"totalKeys"`
 	LastModified string `json:"cn"`
 }
 
