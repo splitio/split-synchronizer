@@ -99,7 +99,7 @@ func (c *CacheAwareSegmentSynchronizer) SynchronizeSegment(name string, till *in
 	result, err := c.wrapped.SynchronizeSegment(name, till)
 	if current := result.NewChangeNumber; current > previous || (previous != -1 && current == -1) {
 		c.cacheFlusher.EvictBySurrogate(MakeSurrogateForSegmentChanges(name))
-		c.cacheFlusher.EvictBySurrogate(LargeSegmentSurrogate)
+		c.cacheFlusher.EvictBySurrogate(MembershipsSurrogate)
 	}
 
 	// remove individual entries for each affected key
@@ -131,7 +131,7 @@ func (c *CacheAwareSegmentSynchronizer) SynchronizeSegments() (map[string]segmen
 		if pcn, _ := previousCNs[segmentName]; ccn > pcn || (pcn > 0 && ccn == -1) {
 			// if the segment was updated or the segment was removed, evict it
 			c.cacheFlusher.EvictBySurrogate(MakeSurrogateForSegmentChanges(segmentName))
-			c.cacheFlusher.EvictBySurrogate(LargeSegmentSurrogate)
+			c.cacheFlusher.EvictBySurrogate(MembershipsSurrogate)
 		}
 
 		for idx := range result.UpdatedKeys {
@@ -222,6 +222,6 @@ func (c *CacheAwareLargeSegmentSynchronizer) SynchronizeLargeSegmentUpdate(lsRFD
 
 func (c *CacheAwareLargeSegmentSynchronizer) evictByLargeSegmentSurrogate(previousCN int64, currentCN int64) {
 	if currentCN > previousCN || currentCN == -1 {
-		c.cacheFlusher.EvictBySurrogate(LargeSegmentSurrogate)
+		c.cacheFlusher.EvictBySurrogate(MembershipsSurrogate)
 	}
 }
