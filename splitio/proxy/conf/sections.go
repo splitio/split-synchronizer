@@ -35,6 +35,7 @@ func (m *Main) BuildAdvancedConfig() *cconf.AdvancedConfig {
 	tmp.SegmentsRefreshRate = int(m.Sync.SegmentRefreshRateMs / 1000)
 	tmp.LargeSegment.LazyLoad = m.Sync.Advanced.LargeSegmentLazyLoad
 	tmp.LargeSegment.RefreshRate = int(m.Sync.LargeSegmentRefreshRateMs / 1000)
+	tmp.LargeSegment.Version = m.LargeSegmentVersion
 	return tmp
 }
 

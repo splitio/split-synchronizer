@@ -121,10 +121,14 @@ func (c *SdkServerController) SplitChanges(ctx *gin.Context) {
 		return
 	}
 
-	spec, _ := ctx.GetQuery("s")
-	if spec != specs.FLAG_V1_1 {
-		spec = specs.FLAG_V1_0
+	sParam, _ := ctx.GetQuery("s")
+	spec, err := specs.ParseAndValidate(sParam)
+	if err != nil {
+		c.logger.Error(fmt.Sprintf("error getting split changes: %s.", err))
+		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
 	}
+
 	splits.Splits = c.patchUnsupportedMatchers(splits.Splits, spec)
 
 	ctx.JSON(http.StatusOK, splits)
