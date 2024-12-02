@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	hc "github.com/splitio/go-split-commons/v6/healthcheck/application"
 	"github.com/splitio/go-toolkit/v5/logging"
 	toolkitsync "github.com/splitio/go-toolkit/v5/sync"
 	"github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/application/counter"
@@ -21,13 +22,12 @@ type MonitorIterface interface {
 
 // MonitorImp description
 type MonitorImp struct {
-	splitsCounter   counter.ThresholdCounterInterface
-	segmentsCounter counter.ThresholdCounterInterface
-	storageCounter  counter.PeriodicCounterInterface
-	producerMode    toolkitsync.AtomicBool
-	healthySince    *time.Time
-	lock            sync.RWMutex
-	logger          logging.LoggerInterface
+	counters       map[int]counter.ThresholdCounterInterface
+	storageCounter counter.PeriodicCounterInterface
+	producerMode   toolkitsync.AtomicBool
+	healthySince   *time.Time
+	lock           sync.RWMutex
+	logger         logging.LoggerInterface
 }
 
 // HealthDto struct
@@ -56,7 +56,7 @@ func (m *MonitorImp) getHealthySince(healthy bool) *time.Time {
 
 func checkIfIsHealthy(result []ItemDto) bool {
 	for _, r := range result {
-		if r.Healthy == false && r.Severity == counter.Critical {
+		if !r.Healthy && r.Severity == counter.Critical {
 			return false
 		}
 	}
@@ -71,7 +71,10 @@ func (m *MonitorImp) GetHealthStatus() HealthDto {
 
 	var items []ItemDto
 	var results []counter.HealthyResult
-	results = append(results, m.splitsCounter.IsHealthy(), m.segmentsCounter.IsHealthy())
+
+	for _, mc := range m.counters {
+		results = append(results, mc.IsHealthy())
+	}
 
 	if m.producerMode.IsSet() {
 		results = append(results, m.storageCounter.IsHealthy())
@@ -104,12 +107,12 @@ func (m *MonitorImp) NotifyEvent(counterType int) {
 
 	m.logger.Debug(fmt.Sprintf("Notify Event. Type: %d.", counterType))
 
-	switch counterType {
-	case counter.Splits:
-		m.splitsCounter.NotifyHit()
-	case counter.Segments:
-		m.segmentsCounter.NotifyHit()
+	counter, ok := m.counters[counterType]
+	if !ok {
+		m.logger.Debug(fmt.Sprintf("wrong counterType: %d", counterType))
+		return
 	}
+	counter.NotifyHit()
 }
 
 // Reset counter value
@@ -119,12 +122,12 @@ func (m *MonitorImp) Reset(counterType int, value int) {
 
 	m.logger.Debug(fmt.Sprintf("Reset. Type: %d. Value: %d", counterType, value))
 
-	switch counterType {
-	case counter.Splits:
-		m.splitsCounter.ResetThreshold(value)
-	case counter.Segments:
-		m.segmentsCounter.ResetThreshold(value)
+	counter, ok := m.counters[counterType]
+	if !ok {
+		m.logger.Debug(fmt.Sprintf("wrong counterType: %d", counterType))
+		return
 	}
+	counter.ResetThreshold(value)
 }
 
 // Start counters
@@ -132,8 +135,10 @@ func (m *MonitorImp) Start() {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
-	m.splitsCounter.Start()
-	m.segmentsCounter.Start()
+	for _, counter := range m.counters {
+		counter.Start()
+	}
+
 	if m.producerMode.IsSet() {
 		m.storageCounter.Start()
 	}
@@ -146,8 +151,9 @@ func (m *MonitorImp) Stop() {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
-	m.splitsCounter.Stop()
-	m.segmentsCounter.Stop()
+	for _, counter := range m.counters {
+		counter.Stop()
+	}
 
 	if m.producerMode.IsSet() {
 		m.storageCounter.Stop()
@@ -158,16 +164,25 @@ func (m *MonitorImp) Stop() {
 func NewMonitorImp(
 	splitsConfig counter.ThresholdConfig,
 	segmentsConfig counter.ThresholdConfig,
+	largeSegmentsConfig *counter.ThresholdConfig,
 	storageConfig *counter.PeriodicConfig,
 	logger logging.LoggerInterface,
 ) *MonitorImp {
 	now := time.Now()
+	splitsCounter := counter.NewThresholdCounter(splitsConfig, logger)
+	segmentsCounter := counter.NewThresholdCounter(segmentsConfig, logger)
 	monitor := &MonitorImp{
-		splitsCounter:   counter.NewThresholdCounter(splitsConfig, logger),
-		segmentsCounter: counter.NewThresholdCounter(segmentsConfig, logger),
-		producerMode:    *toolkitsync.NewAtomicBool(storageConfig != nil),
-		logger:          logger,
-		healthySince:    &now,
+		counters:     map[int]counter.ThresholdCounterInterface{},
+		producerMode: *toolkitsync.NewAtomicBool(storageConfig != nil),
+		logger:       logger,
+		healthySince: &now,
+	}
+
+	monitor.counters[hc.Splits] = splitsCounter
+	monitor.counters[hc.Segments] = segmentsCounter
+
+	if largeSegmentsConfig != nil {
+		monitor.counters[hc.LargeSegments] = counter.NewThresholdCounter(*largeSegmentsConfig, logger)
 	}
 
 	if monitor.producerMode.IsSet() {
