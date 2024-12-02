@@ -2,6 +2,7 @@ package conf
 
 import (
 	cconf "github.com/splitio/go-split-commons/v6/conf"
+	"github.com/splitio/go-split-commons/v6/service/api/specs"
 	"github.com/splitio/split-synchronizer/v5/splitio/common/conf"
 )
 
@@ -21,7 +22,6 @@ type Main struct {
 	Healthcheck           Healthcheck       `json:"healthcheck" s-nested:"true"`
 	Observability         Observability     `json:"observability" s-nested:"true"`
 	FlagSpecVersion       string            `json:"flagSpecVersion" s-cli:"flag-spec-version" s-def:"1.2" s-desc:"Spec version for flags"`
-	LargeSegmentVersion   string            `json:"largeSegmentVersion" s-cli:"largesegment-version" s-def:"1.0" s-desc:"Spec version for large segments"`
 }
 
 // BuildAdvancedConfig generates a commons-compatible advancedconfig with default + overriden parameters
@@ -34,6 +34,8 @@ func (m *Main) BuildAdvancedConfig() *cconf.AdvancedConfig {
 	tmp.SplitsRefreshRate = int(m.Sync.SplitRefreshRateMs / 1000)
 	tmp.SegmentsRefreshRate = int(m.Sync.SegmentRefreshRateMs / 1000)
 	tmp.LargeSegment.LazyLoad = m.Sync.Advanced.LargeSegmentLazyLoad
+	tmp.LargeSegment.RefreshRate = int(m.Sync.LargeSegmentRefreshRateMs / 1000)
+	tmp.LargeSegment.Version = specs.LARGESEGMENT_V10
 	return tmp
 }
 
@@ -72,7 +74,7 @@ type Persistent struct {
 type Sync struct {
 	SplitRefreshRateMs        int64        `json:"splitRefreshRateMs" s-cli:"split-refresh-rate-ms" s-def:"60000" s-desc:"How often to refresh feature flags"`
 	SegmentRefreshRateMs      int64        `json:"segmentRefreshRateMs" s-cli:"segment-refresh-rate-ms" s-def:"60000" s-desc:"How often to refresh segments"`
-	LargeSegmentRefreshRateMs int64        `json:"largeSegmentRefreshRateMs" s-cli:"largesegment-refresh-rate-ms" s-def:"3600000" s-desc:"How often to refresh large segments"`
+	LargeSegmentRefreshRateMs int64        `json:"largeSegmentRefreshRateMs" s-cli:"largesegment-refresh-rate-ms" s-def:"600000" s-desc:"How often to refresh large segments"`
 	Advanced                  AdvancedSync `json:"advanced" s-nested:"true"`
 }
 
