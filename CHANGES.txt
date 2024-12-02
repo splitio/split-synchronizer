@@ -1,3 +1,8 @@
+5.9.0 (Dec 2, 2024)
+- Split Proxy:
+   - Added support for targeting rules based on large segments.
+   - Added `/memberships` endpoint to support SDKs running with large segments.
+
 5.8.2 (Sep 17, 2024)
 - Fixed healthcheck monitor for cases with no segments.
 - Updated go-split-commons version to v6.0.1.
