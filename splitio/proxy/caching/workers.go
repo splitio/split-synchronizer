@@ -6,6 +6,7 @@ import (
 	"github.com/splitio/go-split-commons/v6/healthcheck/application"
 	"github.com/splitio/go-split-commons/v6/service"
 	"github.com/splitio/go-split-commons/v6/storage"
+	"github.com/splitio/go-split-commons/v6/synchronizer/worker/largesegment"
 	"github.com/splitio/go-split-commons/v6/synchronizer/worker/segment"
 	"github.com/splitio/go-split-commons/v6/synchronizer/worker/split"
 	"github.com/splitio/go-toolkit/v5/logging"
@@ -98,6 +99,7 @@ func (c *CacheAwareSegmentSynchronizer) SynchronizeSegment(name string, till *in
 	result, err := c.wrapped.SynchronizeSegment(name, till)
 	if current := result.NewChangeNumber; current > previous || (previous != -1 && current == -1) {
 		c.cacheFlusher.EvictBySurrogate(MakeSurrogateForSegmentChanges(name))
+		c.cacheFlusher.EvictBySurrogate(MembershipsSurrogate)
 	}
 
 	// remove individual entries for each affected key
@@ -129,6 +131,7 @@ func (c *CacheAwareSegmentSynchronizer) SynchronizeSegments() (map[string]segmen
 		if pcn, _ := previousCNs[segmentName]; ccn > pcn || (pcn > 0 && ccn == -1) {
 			// if the segment was updated or the segment was removed, evict it
 			c.cacheFlusher.EvictBySurrogate(MakeSurrogateForSegmentChanges(segmentName))
+			c.cacheFlusher.EvictBySurrogate(MembershipsSurrogate)
 		}
 
 		for idx := range result.UpdatedKeys {
@@ -150,4 +153,75 @@ func (c *CacheAwareSegmentSynchronizer) SegmentNames() []interface{} {
 // IsSegmentCached forwards the call to the wrapped sync
 func (c *CacheAwareSegmentSynchronizer) IsSegmentCached(segmentName string) bool {
 	return c.wrapped.IsSegmentCached(segmentName)
+}
+
+// CacheAwareLargeSegmentSynchronizer
+type CacheAwareLargeSegmentSynchronizer struct {
+	wrapped             largesegment.Updater
+	largeSegmentStorage storage.LargeSegmentsStorage
+	cacheFlusher        gincache.CacheFlusher
+	splitStorage        storage.SplitStorage
+}
+
+func NewCacheAwareLargeSegmentSync(
+	splitStorage storage.SplitStorage,
+	largeSegmentStorage storage.LargeSegmentsStorage,
+	largeSegmentFetcher service.LargeSegmentFetcher,
+	logger logging.LoggerInterface,
+	runtimeTelemetry storage.TelemetryRuntimeProducer,
+	cacheFlusher gincache.CacheFlusher,
+	appMonitor application.MonitorProducerInterface,
+) *CacheAwareLargeSegmentSynchronizer {
+	return &CacheAwareLargeSegmentSynchronizer{
+		wrapped:             largesegment.NewLargeSegmentUpdater(splitStorage, largeSegmentStorage, largeSegmentFetcher, logger, runtimeTelemetry, appMonitor),
+		cacheFlusher:        cacheFlusher,
+		largeSegmentStorage: largeSegmentStorage,
+		splitStorage:        splitStorage,
+	}
+}
+
+func (c *CacheAwareLargeSegmentSynchronizer) SynchronizeLargeSegment(name string, till *int64) (*int64, error) {
+	previous := c.largeSegmentStorage.ChangeNumber(name)
+	newCN, err := c.wrapped.SynchronizeLargeSegment(name, till)
+
+	c.evictByLargeSegmentSurrogate(previous, *newCN)
+
+	return newCN, err
+}
+
+func (c *CacheAwareLargeSegmentSynchronizer) SynchronizeLargeSegments() (map[string]*int64, error) {
+	previousLargeSegmentNames := c.splitStorage.LargeSegmentNames()
+	previousCNs := make(map[string]int64, previousLargeSegmentNames.Size())
+	for _, name := range previousLargeSegmentNames.List() {
+		if strName, ok := name.(string); ok {
+			cn := c.largeSegmentStorage.ChangeNumber(strName)
+			previousCNs[strName] = cn
+		}
+	}
+
+	results, err := c.wrapped.SynchronizeLargeSegments()
+	for name, currentCN := range results {
+		c.evictByLargeSegmentSurrogate(previousCNs[name], *currentCN)
+	}
+
+	return results, err
+}
+
+func (c *CacheAwareLargeSegmentSynchronizer) IsCached(name string) bool {
+	return c.wrapped.IsCached(name)
+}
+
+func (c *CacheAwareLargeSegmentSynchronizer) SynchronizeLargeSegmentUpdate(lsRFDResponseDTO *dtos.LargeSegmentRFDResponseDTO) (*int64, error) {
+	previous := c.largeSegmentStorage.ChangeNumber(lsRFDResponseDTO.Name)
+	newCN, err := c.wrapped.SynchronizeLargeSegmentUpdate(lsRFDResponseDTO)
+
+	c.evictByLargeSegmentSurrogate(previous, *newCN)
+
+	return newCN, err
+}
+
+func (c *CacheAwareLargeSegmentSynchronizer) evictByLargeSegmentSurrogate(previousCN int64, currentCN int64) {
+	if currentCN > previousCN || currentCN == -1 {
+		c.cacheFlusher.EvictBySurrogate(MembershipsSurrogate)
+	}
 }

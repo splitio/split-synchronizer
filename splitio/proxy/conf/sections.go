@@ -2,6 +2,7 @@ package conf
 
 import (
 	cconf "github.com/splitio/go-split-commons/v6/conf"
+	"github.com/splitio/go-split-commons/v6/service/api/specs"
 	"github.com/splitio/split-synchronizer/v5/splitio/common/conf"
 )
 
@@ -20,7 +21,7 @@ type Main struct {
 	Logging               conf.Logging      `json:"logging" s-nested:"true"`
 	Healthcheck           Healthcheck       `json:"healthcheck" s-nested:"true"`
 	Observability         Observability     `json:"observability" s-nested:"true"`
-	FlagSpecVersion       string            `json:"flagSpecVersion" s-cli:"flag-spec-version" s-def:"1.1" s-desc:"Spec version for flags"`
+	FlagSpecVersion       string            `json:"flagSpecVersion" s-cli:"flag-spec-version" s-def:"1.2" s-desc:"Spec version for flags"`
 }
 
 // BuildAdvancedConfig generates a commons-compatible advancedconfig with default + overriden parameters
@@ -32,6 +33,9 @@ func (m *Main) BuildAdvancedConfig() *cconf.AdvancedConfig {
 	tmp.StreamingEnabled = m.Sync.Advanced.StreamingEnabled
 	tmp.SplitsRefreshRate = int(m.Sync.SplitRefreshRateMs / 1000)
 	tmp.SegmentsRefreshRate = int(m.Sync.SegmentRefreshRateMs / 1000)
+	tmp.LargeSegment.LazyLoad = m.Sync.Advanced.LargeSegmentLazyLoad
+	tmp.LargeSegment.RefreshRate = int(m.Sync.LargeSegmentRefreshRateMs / 1000)
+	tmp.LargeSegment.Version = specs.LARGESEGMENT_V10
 	return tmp
 }
 
@@ -68,9 +72,10 @@ type Persistent struct {
 
 // Sync configuration options
 type Sync struct {
-	SplitRefreshRateMs   int64        `json:"splitRefreshRateMs" s-cli:"split-refresh-rate-ms" s-def:"60000" s-desc:"How often to refresh feature flags"`
-	SegmentRefreshRateMs int64        `json:"segmentRefreshRateMs" s-cli:"segment-refresh-rate-ms" s-def:"60000" s-desc:"How often to refresh segments"`
-	Advanced             AdvancedSync `json:"advanced" s-nested:"true"`
+	SplitRefreshRateMs        int64        `json:"splitRefreshRateMs" s-cli:"split-refresh-rate-ms" s-def:"60000" s-desc:"How often to refresh feature flags"`
+	SegmentRefreshRateMs      int64        `json:"segmentRefreshRateMs" s-cli:"segment-refresh-rate-ms" s-def:"60000" s-desc:"How often to refresh segments"`
+	LargeSegmentRefreshRateMs int64        `json:"largeSegmentRefreshRateMs" s-cli:"largesegment-refresh-rate-ms" s-def:"600000" s-desc:"How often to refresh large segments"`
+	Advanced                  AdvancedSync `json:"advanced" s-nested:"true"`
 }
 
 // AdvancedSync configuration options
@@ -84,6 +89,7 @@ type AdvancedSync struct {
 	EventsWorkers         int64 `json:"eventsWorkers" s-cli:"events-workers" s-def:"10" s-desc:"#workers to forward events to Split servers"`
 	TelemetryWorkers      int64 `json:"telemetryWorkers" s-cli:"telemetry-workers" s-def:"10" s-desc:"#workers to forward telemetry to Split servers"`
 	InternalMetricsRateMs int64 `json:"internalTelemetryRateMs" s-cli:"internal-metrics-rate-ms" s-def:"3600000" s-desc:"How often to send internal metrics"`
+	LargeSegmentLazyLoad  bool  `json:"largeSegmentLazyLoad" s-cli:"largesegment-lazy-load" s-def:"false" s-desc:"On/Off Large Segment Lazy Load"`
 }
 
 // Healthcheck configuration options
