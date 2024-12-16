@@ -112,7 +112,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 
 	// Healcheck Monitor
 	splitsConfig, segmentsConfig, storageConfig := getAppCounterConfigs(storages.SplitStorage)
-	appMonitor := hcApplication.NewMonitorImp(splitsConfig, segmentsConfig, &storageConfig, logger)
+	appMonitor := hcApplication.NewMonitorImp(splitsConfig, segmentsConfig, nil, &storageConfig, logger)
 	servicesMonitor := hcServices.NewMonitorImp(getServicesCountersConfig(advanced), logger)
 
 	impressionsCounter := strategy.NewImpressionsCounter()

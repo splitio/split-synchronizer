@@ -20,16 +20,17 @@ import (
 
 // DashboardController contains handlers for rendering the dashboard and its associated FE queries
 type DashboardController struct {
-	title             string
-	proxy             bool
-	logger            logging.LoggerInterface
-	storages          adminCommon.Storages
-	layout            *template.Template
-	impressionsEvCalc evcalc.Monitor
-	eventsEvCalc      evcalc.Monitor
-	runtime           common.Runtime
-	appMonitor        application.MonitorIterface
-	FlagSpecVersion   string
+	title               string
+	proxy               bool
+	logger              logging.LoggerInterface
+	storages            adminCommon.Storages
+	layout              *template.Template
+	impressionsEvCalc   evcalc.Monitor
+	eventsEvCalc        evcalc.Monitor
+	runtime             common.Runtime
+	appMonitor          application.MonitorIterface
+	FlagSpecVersion     string
+	LargeSegmentVersion string
 }
 
 // NewDashboardController instantiates a new dashboard controller
@@ -43,18 +44,20 @@ func NewDashboardController(
 	runtime common.Runtime,
 	appMonitor application.MonitorIterface,
 	flagSpecVersion string,
+	largeSegmentVersion string,
 ) (*DashboardController, error) {
 
 	toReturn := &DashboardController{
-		title:             name,
-		proxy:             proxy,
-		logger:            logger,
-		runtime:           runtime,
-		storages:          storages,
-		eventsEvCalc:      eventsEvCalc,
-		impressionsEvCalc: impressionEvCalc,
-		appMonitor:        appMonitor,
-		FlagSpecVersion:   flagSpecVersion,
+		title:               name,
+		proxy:               proxy,
+		logger:              logger,
+		runtime:             runtime,
+		storages:            storages,
+		eventsEvCalc:        eventsEvCalc,
+		impressionsEvCalc:   impressionEvCalc,
+		appMonitor:          appMonitor,
+		FlagSpecVersion:     flagSpecVersion,
+		LargeSegmentVersion: largeSegmentVersion,
 	}
 
 	var err error
@@ -146,6 +149,7 @@ func (c *DashboardController) gatherStats() *dashboard.GlobalStats {
 	return &dashboard.GlobalStats{
 		FeatureFlags:           bundleSplitInfo(c.storages.SplitStorage),
 		Segments:               bundleSegmentInfo(c.storages.SplitStorage, c.storages.SegmentStorage),
+		LargeSegments:          bundleLargeSegmentInfo(c.storages.SplitStorage, c.storages.LargeSegmentStorage),
 		Latencies:              bundleProxyLatencies(c.storages.LocalTelemetryStorage),
 		BackendLatencies:       bundleLocalSyncLatencies(c.storages.LocalTelemetryStorage),
 		ImpressionsQueueSize:   getImpressionSize(c.storages.ImpressionStorage),

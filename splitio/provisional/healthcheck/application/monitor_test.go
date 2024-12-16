@@ -36,6 +36,12 @@ func TestMonitor(t *testing.T) {
 		Severity: counter.Critical,
 	}
 
+	lsCfg := counter.ThresholdConfig{
+		Name:     "LargeSegments",
+		Period:   10,
+		Severity: counter.Critical,
+	}
+
 	storageCfg := counter.PeriodicConfig{
 		Name:                     "Storage",
 		Period:                   10,
@@ -46,7 +52,7 @@ func TestMonitor(t *testing.T) {
 		},
 	}
 
-	monitor := NewMonitorImp(splitsCfg, segmentsCfg, &storageCfg, logging.NewLogger(nil))
+	monitor := NewMonitorImp(splitsCfg, segmentsCfg, &lsCfg, &storageCfg, logging.NewLogger(nil))
 
 	monitor.Start()
 

@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/splitio/go-split-commons/v6/service"
+	cmnStorage "github.com/splitio/go-split-commons/v6/storage"
 	"github.com/splitio/go-toolkit/v5/logging"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
@@ -49,6 +50,9 @@ type Options struct {
 
 	// used to resolve segmentChanges & mySegments requests
 	ProxySegmentStorage storage.ProxySegmentStorage
+
+	// ProxyLargeSegmentStorage
+	ProxyLargeSegmentStorage cmnStorage.LargeSegmentsStorage
 
 	// what to do with received impression bulk payloads
 	ImpressionsSink tasks.DeferredRecordingTask
@@ -160,6 +164,7 @@ func setupSdkController(options *Options) *controllers.SdkServerController {
 		options.ProxySplitStorage,
 		options.ProxySegmentStorage,
 		flagsets.NewMatcher(options.FlagSetsStrictMatching, options.FlagSets),
+		options.ProxyLargeSegmentStorage,
 	)
 }
 
