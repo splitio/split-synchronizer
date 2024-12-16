@@ -12,6 +12,7 @@ import (
 	"github.com/splitio/go-split-commons/v6/conf"
 	"github.com/splitio/go-split-commons/v6/flagsets"
 	"github.com/splitio/go-split-commons/v6/service/api"
+	inmemory "github.com/splitio/go-split-commons/v6/storage/inmemory/mutexmap"
 	"github.com/splitio/go-split-commons/v6/synchronizer"
 	"github.com/splitio/go-split-commons/v6/tasks"
 	"github.com/splitio/go-split-commons/v6/telemetry"
@@ -38,7 +39,6 @@ import (
 
 // Start initialize in proxy mode
 func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
-
 	clientKey, err := util.GetClientKey(cfg.Apikey)
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error parsing client key from provided apikey: %w", err), common.ExitInvalidApikey)
@@ -85,6 +85,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	// Proxy storages already implement the observable interface, so no need to wrap them
 	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, flagsets.NewFlagSetFilter(cfg.FlagSetsFilter), cfg.Initialization.Snapshot != "")
 	segmentStorage := storage.NewProxySegmentStorage(dbInstance, logger, cfg.Initialization.Snapshot != "")
+	largeSegmentStorage := inmemory.NewLargeSegmentsStorage()
 
 	// Local telemetry
 	tbufferSize := int(cfg.Sync.Advanced.TelemetryBuffer)
@@ -97,8 +98,8 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	)
 
 	// Healcheck Monitor
-	splitsConfig, segmentsConfig := getAppCounterConfigs()
-	appMonitor := hcApplication.NewMonitorImp(splitsConfig, segmentsConfig, nil, logger)
+	splitsConfig, segmentsConfig, lsConfig := getAppCounterConfigs()
+	appMonitor := hcApplication.NewMonitorImp(splitsConfig, segmentsConfig, &lsConfig, nil, logger)
 	servicesMonitor := hcServices.NewMonitorImp(getServicesCountersConfig(*advanced), logger)
 
 	// Creating Workers and Tasks
@@ -124,6 +125,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 			appMonitor),
 		TelemetryRecorder: telemetry.NewTelemetrySynchronizer(localTelemetryStorage, telemetryRecorder, splitStorage, segmentStorage, logger,
 			metadata, localTelemetryStorage),
+		LargeSegmentUpdater: caching.NewCacheAwareLargeSegmentSync(splitStorage, largeSegmentStorage, splitAPI.LargeSegmentFetcher, logger, localTelemetryStorage, httpCache, appMonitor),
 	}
 
 	// setup periodic tasks in case streaming is disabled or we need to fall back to polling
@@ -135,6 +137,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		ImpressionSyncTask:       impressionTask,
 		ImpressionsCountSyncTask: impressionCountTask,
 		EventSyncTask:            eventsTask,
+		LargeSegmentSyncTask:     tasks.NewFetchLargeSegmentsTask(workers.LargeSegmentUpdater, splitStorage, advanced.LargeSegment.RefreshRate, advanced.LargeSegment.Workers, advanced.LargeSegment.QueueSize, logger, appMonitor),
 	}
 
 	// Creating Synchronizer for tasks
@@ -198,6 +201,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		SplitStorage:          splitStorage,
 		SegmentStorage:        segmentStorage,
 		LocalTelemetryStorage: localTelemetryStorage,
+		LargeSegmentStorage:   largeSegmentStorage,
 	}
 
 	// --------------------------- ADMIN DASHBOARD ------------------------------
@@ -258,6 +262,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		TLSConfig:                   tlsConfig,
 		FlagSets:                    cfg.FlagSetsFilter,
 		FlagSetsStrictMatching:      cfg.FlagSetStrictMatching,
+		ProxyLargeSegmentStorage:    largeSegmentStorage,
 	}
 
 	if ilcfg := cfg.Integrations.ImpressionListener; ilcfg.Endpoint != "" {
@@ -316,11 +321,12 @@ func startBGSyng(m synchronizer.Manager, mstatus chan int, haveSnapshot bool, on
 
 }
 
-func getAppCounterConfigs() (hcAppCounter.ThresholdConfig, hcAppCounter.ThresholdConfig) {
+func getAppCounterConfigs() (hcAppCounter.ThresholdConfig, hcAppCounter.ThresholdConfig, hcAppCounter.ThresholdConfig) {
 	splitsConfig := hcAppCounter.DefaultThresholdConfig("Splits")
 	segmentsConfig := hcAppCounter.DefaultThresholdConfig("Segments")
+	LargeSegmentsConfig := hcAppCounter.DefaultThresholdConfig("LargeSegments")
 
-	return splitsConfig, segmentsConfig
+	return splitsConfig, segmentsConfig, LargeSegmentsConfig
 }
 
 func getServicesCountersConfig(advanced conf.AdvancedConfig) []hcServicesCounter.Config {
