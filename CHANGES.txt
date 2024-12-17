@@ -1,3 +1,8 @@
+5.9.1 (Dec 17, 2024)
+- Added support for arm64.
+- Fixed vulnerabilities:
+   - Updated golang image to 1.23.4.
+   - Updated x/crypto dependency.
 
 5.9.0 (Dec 2, 2024)
 - Split Proxy:
