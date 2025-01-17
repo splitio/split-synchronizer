@@ -1,3 +1,5 @@
+5.10.0 (Jan 17, 2024)
+- Added support for the new impressions tracking toggle available on feature flags, both respecting the setting. Read more in our docs.
 
 5.9.0 (Dec 2, 2024)
 - Split Proxy:
