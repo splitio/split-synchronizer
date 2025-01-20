@@ -11,7 +11,8 @@ BUILD_FIPS_WIN_TMP ?= windows/build
 SHELL = /usr/bin/env bash -o pipefail
 ENFORCE_FIPS := -tags enforce_fips
 CURRENT_OS = $(shell uname -a | awk '{print $$1}')
-PLATFORM ?=
+PLATFORM ?= linux/arm64/v8,linux/amd64
+BUILDER ?= container
 
 # Extra arguments
 EXTRA_BUILD_ARGS ?=
@@ -129,6 +130,44 @@ images_release: # entrypoints
 	@echo "$(DOCKER) push splitsoftware/split-proxy-fips:$(version)"
 	@echo "$(DOCKER) push splitsoftware/split-proxy-fips:latest"
 
+## Build release-ready docker images with proper tags and output push commands in stdout
+images_release_multi: # entrypoints
+	@echo "make sure you have buildx configured 'docker buildx ls', if not 'docker buildx create --name container --driver=docker-container'"
+	$(DOCKER) buildx build \
+		-t splitsoftware/split-synchronizer:latest -t splitsoftware/split-synchronizer:$(version) \
+		-f docker/Dockerfile.synchronizer \
+		--platform $(PLATFORM) \
+		--builder $(BUILDER) \
+		--load .
+	$(DOCKER) buildx build \
+		-t splitsoftware/split-proxy:latest -t splitsoftware/split-proxy:$(version) \
+		-f docker/Dockerfile.proxy \
+		--platform $(PLATFORM) \
+		--builder $(BUILDER) \
+		--load .
+	$(DOCKER) buildx build \
+		-t splitsoftware/split-synchronizer-fips:latest -t splitsoftware/split-synchronizer-fips:$(version) \
+		--build-arg FIPS_MODE=enabled \
+		-f docker/Dockerfile.synchronizer \
+		--platform $(PLATFORM) \
+		--builder $(BUILDER) \
+		--load .
+	$(DOCKER) buildx build \
+		-t splitsoftware/split-proxy-fips:latest -t splitsoftware/split-proxy-fips:$(version) \
+		--build-arg FIPS_MODE=enabled \
+		-f docker/Dockerfile.proxy \
+		--platform $(PLATFORM) \
+		--builder $(BUILDER) \
+		--load .
+	@echo "Images created. Make sure everything works ok, and then run the following commands to push them."
+	@echo "$(DOCKER) push splitsoftware/split-synchronizer:$(version)"
+	@echo "$(DOCKER) push splitsoftware/split-synchronizer:latest"
+	@echo "$(DOCKER) push splitsoftware/split-proxy:$(version)"
+	@echo "$(DOCKER) push splitsoftware/split-proxy:latest"
+	@echo "$(DOCKER) push splitsoftware/split-synchronizer-fips:$(version)"
+	@echo "$(DOCKER) push splitsoftware/split-synchronizer-fips:latest"
+	@echo "$(DOCKER) push splitsoftware/split-proxy-fips:$(version)"
+	@echo "$(DOCKER) push splitsoftware/split-proxy-fips:latest"
 # --------------------------------------------------------------------------
 #
 # Internal targets:
@@ -291,7 +330,7 @@ mkexec				= $(if $(findstring windows,$1),$1.exe,$1)
 installed_from_zip	= $(if $(findstring split_sync,$1),split-sync,split-proxy)
 apptitle_from_zip	= $(if $(findstring split_sync,$1),Synchronizer,Proxy)
 cmdfolder_from_bin	= $(if $(findstring split_sync,$1),synchronizer,proxy)
-platform_str		= $(if $(PLATFORM),--platform=$(PLATFORM),)
+platform_str		= $(if $(PLATFORM),--platform $(PLATFORM),)
 
 # "constants"
 null  :=
