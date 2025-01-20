@@ -1,5 +1,10 @@
 5.10.0 (Jan 17, 2024)
 - Added support for the new impressions tracking toggle available on feature flags, both respecting the setting. Read more in our docs.
+- Added support for arm64.
+- Fixed vulnerabilities:
+   - Updated golang image to 1.23.4.
+   - Updated x/crypto dependency.
+   - Updated x/net dependency.
 
 5.9.0 (Dec 2, 2024)
 - Split Proxy:
