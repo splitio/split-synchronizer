@@ -33,7 +33,7 @@ func TestSplitChangesEndpoints(t *testing.T) {
 	assert.Equal(t, 401, status)
 
 	splitStorage.On("ChangesSince", int64(-1), []string(nil)).
-		Return(&dtos.SplitChangesDTO{Since: -1, Till: 1, Splits: []dtos.SplitDTO{{Name: "split1"}}}, nil).
+		Return(&dtos.SplitChangesDTO{Since: -1, Till: 1, Splits: []dtos.SplitDTO{{Name: "split1", ImpressionsDisabled: true}}}, nil).
 		Once()
 
 	// Make a proper request
@@ -55,6 +55,7 @@ func TestSplitChangesEndpoints(t *testing.T) {
 	assert.Equal(t, int64(-1), changes.Since)
 	assert.Equal(t, int64(1), changes.Till)
 	assert.Equal(t, "split1", changes.Splits[0].Name)
+	assert.True(t, changes.Splits[0].ImpressionsDisabled)
 	assert.Equal(t, "application/json; charset=utf-8", headers.Get("Content-Type"))
 
 	// Lets evict the key (simulating a change in splits and re-check)
@@ -69,6 +70,7 @@ func TestSplitChangesEndpoints(t *testing.T) {
 	assert.Equal(t, int64(-1), changes.Since)
 	assert.Equal(t, int64(2), changes.Till)
 	assert.Equal(t, "split2", changes.Splits[0].Name)
+	assert.False(t, changes.Splits[0].ImpressionsDisabled)
 	assert.Equal(t, "application/json; charset=utf-8", headers.Get("Content-Type"))
 
 }
