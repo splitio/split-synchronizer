@@ -17,7 +17,7 @@ RUN bash -c 'if [[ "${FIPS_MODE}" = "enabled" ]]; \
     fi'
 
 # Runner stage
-FROM debian:12.8 AS runner
+FROM debian:12.9 AS runner
 
 RUN apt update -y
 RUN apt install -y bash ca-certificates
