@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.23.4-bookworm AS builder
+FROM golang:1.23.5-bookworm AS builder
 
 ARG EXTRA_BUILD_ARGS
 ARG FIPS_MODE
@@ -17,7 +17,7 @@ RUN bash -c 'if [[ "${FIPS_MODE}" = "enabled" ]]; \
     fi'
 
 # Runner stage
-FROM debian:12.8 AS runner
+FROM debian:12.9 AS runner
 
 RUN apt update -y
 RUN apt install -y bash ca-certificates
