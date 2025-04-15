@@ -124,9 +124,8 @@ func (c *SdkServerController) SplitChanges(ctx *gin.Context) {
 	sParam, _ := ctx.GetQuery("s")
 	spec, err := specs.ParseAndValidate(sParam)
 	if err != nil {
-		c.logger.Error(fmt.Sprintf("error parsing spec version: %s.", err))
-		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
-		return
+		c.logger.Error(fmt.Sprintf("error parsing spec version: %s. Defaulting to: %s", err, specs.Latest))
+		spec = specs.Latest
 	}
 
 	splits.Splits = c.patchUnsupportedMatchers(splits.Splits, spec)
