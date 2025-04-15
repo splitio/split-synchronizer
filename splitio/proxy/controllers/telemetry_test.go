@@ -265,7 +265,7 @@ func TestPostKeysServerSide(t *testing.T) {
 					t.Error("It should parse two keys")
 				}
 
-				keysMap := make(map[string][]string)
+				keysMap := make(map[string][]interface{})
 				for _, key := range parsed.Keys {
 					keysMap[key.Feature] = key.Keys
 				}
@@ -295,8 +295,8 @@ func TestPostKeysServerSide(t *testing.T) {
 
 	serialized, err := json.Marshal(dtos.Uniques{
 		Keys: []dtos.Key{
-			{Feature: "feature-1", Keys: []string{"key-1", "key-2"}},
-			{Feature: "feature-2", Keys: []string{"key-1", "key-3"}},
+			{Feature: "feature-1", Keys: []interface{}{"key-1", "key-2"}},
+			{Feature: "feature-2", Keys: []interface{}{"key-1", "key-3"}},
 		},
 	})
 	if err != nil {
