@@ -14,7 +14,6 @@ import (
 	"github.com/splitio/go-split-commons/v6/engine/grammar"
 	"github.com/splitio/go-split-commons/v6/engine/grammar/matchers"
 	"github.com/splitio/go-split-commons/v6/service"
-	"github.com/splitio/go-split-commons/v6/service/api/specs"
 	cmnStorage "github.com/splitio/go-split-commons/v6/storage"
 	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/stretchr/testify/assert"
@@ -440,7 +439,7 @@ func TestSplitChangesNewMatcherNewSpec(t *testing.T) {
 	ctx.Request.Header.Set("SplitSDKMachineIp", "1.2.3.4")
 	ctx.Request.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
 	q := ctx.Request.URL.Query()
-	q.Add("s", specs.FLAG_V1_1)
+	q.Add("s", "1.1")
 	ctx.Request.URL.RawQuery = q.Encode()
 	router.ServeHTTP(resp, ctx.Request)
 
