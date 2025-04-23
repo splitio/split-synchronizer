@@ -124,7 +124,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		SegmentUpdater: caching.NewCacheAwareSegmentSync(splitStorage, segmentStorage, splitAPI.SegmentFetcher, logger, localTelemetryStorage, httpCache,
 			appMonitor),
 		TelemetryRecorder: telemetry.NewTelemetrySynchronizer(localTelemetryStorage, telemetryRecorder, splitStorage, segmentStorage, logger,
-			metadata, localTelemetryStorage),
+			metadata, localTelemetryStorage, nil),
 		LargeSegmentUpdater: caching.NewCacheAwareLargeSegmentSync(splitStorage, largeSegmentStorage, splitAPI.LargeSegmentFetcher, logger, localTelemetryStorage, httpCache, appMonitor),
 	}
 
