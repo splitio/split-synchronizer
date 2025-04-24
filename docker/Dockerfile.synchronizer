@@ -5,22 +5,8 @@ ARG EXTRA_BUILD_ARGS
 ARG FIPS_MODE
 
 RUN apt update -y
-RUN apt install -y build-essential ca-certificates python3 git
+RUN apt install -y build-essential ca-certificates python3 git bash-static
 
-WORKDIR /code
-
-COPY . .
-
-RUN bash -c 'if [[ "${FIPS_MODE}" = "enabled" ]]; \
-    then echo "building in fips mode"; make clean split-sync-fips entrypoints EXTRA_BUILD_ARGS="${EXTRA_BUILD_ARGS}"; mv split-sync-fips split-sync; \
-    else echo "building in standard mode"; make clean split-sync entrypoints EXTRA_BUILD_ARGS="${EXTRA_BUILD_ARGS}"; \
-    fi'
-
-# Runner stage
-FROM debian:12.10 AS runner
-
-RUN apt update -y
-RUN apt install -y bash ca-certificates
 RUN addgroup --gid 1000 --system 'split-synchronizer'
 RUN adduser \
     --disabled-password \
@@ -31,10 +17,40 @@ RUN adduser \
     --uid 1000 \
     'split-synchronizer'
 
+WORKDIR /code
+
+COPY . .
+
+RUN bash -c 'if [[ "${FIPS_MODE}" = "enabled" ]]; \
+    then echo "building in fips mode"; make clean split-sync-fips entrypoints EXTRA_BUILD_ARGS="${EXTRA_BUILD_ARGS}"; mv split-sync-fips split-sync; \
+    else echo "building in standard mode"; make clean split-sync entrypoints EXTRA_BUILD_ARGS="${EXTRA_BUILD_ARGS}"; \
+    fi'
+
+# copy1 stage
+FROM scratch AS copy1
+
 COPY docker/functions.sh .
 
 COPY --from=builder /code/split-sync /usr/bin/
 COPY --from=builder /code/entrypoint.synchronizer.sh .
+COPY --from=builder /bin/bash-static /bin/bash
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=builder /etc/passwd /etc/passwd
+COPY --from=builder /etc/shadow /etc/shadow
+COPY --from=builder /etc/group /etc/group
+# because split-sync is dynamically linked to glibc for the net library
+COPY --from=builder /lib/x86_64-linux-gnu/libc.so.6 /lib/x86_64-linux-gnu/libc.so.6
+COPY --from=builder /lib64/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2
+# Get copyright statements for included components for legal compliance
+COPY --from=builder /usr/share/doc/ca-certificates/copyright /usr/share/doc/ca-certificates/copyright
+COPY --from=builder /usr/share/doc/bash-static/copyright /usr/share/doc/bash-static/copyright
+COPY --from=builder /usr/share/doc/libc6/copyright /usr/share/doc/libc6/copyright
+
+
+# runner stage squashed minimum layer
+FROM scratch
+
+COPY --from=copy1 / /
 
 EXPOSE 3000 3010
 

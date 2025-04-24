@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
 function parse_flags_from_conf_file() {
     fn=$1
@@ -21,7 +21,8 @@ function flag_to_env_var() {
         return 1
     fi
 
-    echo "${prefix}_${flag}" | tr "[a-z]" "[A-Z]" | tr "-" "_"
+    uppercase="${prefix^^}_${flag^^}"
+    echo "${uppercase//-/_}"
     return 0
 }
 
