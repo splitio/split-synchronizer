@@ -1,3 +1,14 @@
+5.10.2 (May 29, 2025)
+- Fixed vulnerabilities:
+   - Updated golang image to 1.23.9
+   - Updated debian image to 12.11
+   - Updated golang.org/x/arch to 0.17.0
+   - Updated golang.org/x/crypto to 0.38.0
+   - Updated golang.org/x/net to 0.40.0
+   - Updated golang.org/x/sync to 0.14.0
+	- Updated golang.org/x/sys to 0.33.0
+	- Updated golang.org/x/text to 0.25.0
+
 5.10.1 (Apr 23, 2025)
 - Fixed vulnerabilities:
    - Updated golang image to 1.23.8
