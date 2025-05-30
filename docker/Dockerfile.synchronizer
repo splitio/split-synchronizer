@@ -5,7 +5,7 @@ ARG EXTRA_BUILD_ARGS
 ARG FIPS_MODE
 
 RUN apt update -y
-RUN apt install -y build-essential ca-certificates python3 git bash-static
+RUN apt install -y build-essential ca-certificates python3 git
 
 RUN addgroup --gid 1000 --system 'split-synchronizer'
 RUN adduser \
@@ -33,7 +33,7 @@ COPY docker/functions.sh .
 
 COPY --from=builder /code/split-sync /usr/bin/
 COPY --from=builder /code/entrypoint.synchronizer.sh .
-COPY --from=builder /bin/bash-static /bin/bash
+COPY --from=builder /bin/bash /bin/
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=builder /etc/passwd /etc/passwd
 COPY --from=builder /etc/shadow /etc/shadow
@@ -41,12 +41,14 @@ COPY --from=builder /etc/group /etc/group
 # because split-sync is dynamically linked to glibc for the net library
 COPY --from=builder /lib/x86_64-linux-gnu/libc.so.6 /lib/x86_64-linux-gnu/libc.so.6
 COPY --from=builder /lib64/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2
+COPY --from=builder /lib/x86_64-linux-gnu/libtinfo* /lib/x86_64-linux-gnu/
 # health check
 COPY --from=builder /code/healthcheck.sh /usr/bin/
 # Get copyright statements for included components for legal compliance
 COPY --from=builder /usr/share/doc/ca-certificates/copyright /usr/share/doc/ca-certificates/copyright
-COPY --from=builder /usr/share/doc/bash-static/copyright /usr/share/doc/bash-static/copyright
+COPY --from=builder /usr/share/doc/bash/copyright /usr/share/doc/bash/copyright
 COPY --from=builder /usr/share/doc/libc6/copyright /usr/share/doc/libc6/copyright
+COPY --from=builder /usr/share/doc/libtinfo6/copyright /usr/share/doc/libtinfo6/copyright
 
 
 # runner stage squashed minimum layer
