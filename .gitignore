@@ -54,10 +54,10 @@ _testmain.go
 !/test/dataset/test.conf.warning3.json
 !/test/dataset/test.conf.warning4.json
 !/test/dataset/test.conf.warning5.json
-!/web/src/package.json
-!/web/src/tsconfig.app.json
-!/web/src/tsconfig.json
-!/web/src/tsconfig.node.json
+!/web/package.json
+!/web/tsconfig.app.json
+!/web/tsconfig.json
+!/web/tsconfig.node.json
 
 # vim backup files
 *.swp
