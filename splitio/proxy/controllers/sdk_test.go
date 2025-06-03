@@ -25,6 +25,56 @@ import (
 	psmocks "github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/mocks"
 )
 
+func TestSplitChangesImpressionsDisabled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	var splitStorage psmocks.ProxySplitStorageMock
+	splitStorage.On("ChangesSince", int64(-1), []string(nil)).
+		Return(&dtos.SplitChangesDTO{Since: -1, Till: 1, Splits: []dtos.SplitDTO{{Name: "s1", Status: "ACTIVE", ImpressionsDisabled: true}, {Name: "s2", Status: "ACTIVE"}}}, nil).
+		Once()
+
+	var splitFetcher splitFetcherMock
+	var largeSegmentStorageMock largeSegmentStorageMock
+
+	resp := httptest.NewRecorder()
+	ctx, router := gin.CreateTestContext(resp)
+	logger := logging.NewLogger(nil)
+	group := router.Group("/api")
+	controller := NewSdkServerController(
+		logger,
+		&splitFetcher,
+		&splitStorage,
+		nil,
+		flagsets.NewMatcher(false, nil),
+		&largeSegmentStorageMock,
+	)
+	controller.Register(group)
+
+	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/splitChanges?since=-1", nil)
+	ctx.Request.Header.Set("Authorization", "Bearer someApiKey")
+	ctx.Request.Header.Set("SplitSDKVersion", "go-1.1.1")
+	ctx.Request.Header.Set("SplitSDKMachineIp", "1.2.3.4")
+	ctx.Request.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
+	router.ServeHTTP(resp, ctx.Request)
+
+	assert.Equal(t, 200, resp.Code)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.Nil(t, err)
+
+	var s dtos.SplitChangesDTO
+	err = json.Unmarshal(body, &s)
+	assert.Nil(t, err)
+	assert.Equal(t, 2, len(s.Splits))
+	assert.Equal(t, int64(-1), s.Since)
+	assert.Equal(t, int64(1), s.Till)
+	assert.True(t, s.Splits[0].ImpressionsDisabled)
+	assert.False(t, s.Splits[1].ImpressionsDisabled)
+
+	splitStorage.AssertExpectations(t)
+	splitFetcher.AssertExpectations(t)
+}
+
 func TestSplitChangesRecentSince(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
