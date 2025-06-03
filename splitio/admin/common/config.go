@@ -1,6 +1,10 @@
 package common
 
-import "github.com/splitio/go-split-commons/v6/storage"
+import (
+	pSt "github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
+
+	"github.com/splitio/go-split-commons/v6/storage"
+)
 
 // Storages wraps storages in one struct
 type Storages struct {
@@ -11,4 +15,6 @@ type Storages struct {
 	ImpressionStorage     storage.ImpressionMultiSdkConsumer
 	UniqueKeysStorage     storage.UniqueKeysMultiSdkConsumer
 	LargeSegmentStorage   storage.LargeSegmentsStorage
+
+	OverrideStorage pSt.OverrideStorage
 }

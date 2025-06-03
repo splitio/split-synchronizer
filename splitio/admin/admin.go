@@ -21,6 +21,7 @@ import (
 const baseAdminPath = "/admin"
 const baseInfoPath = "/info"
 const baseShutdownPath = "/shutdown"
+const baseOverridesPath = "/overrides"
 
 // Options encapsulates dependencies & config options for the Admin server
 type Options struct {
@@ -101,6 +102,9 @@ func NewServer(options *Options) (*AdminServer, error) {
 		snapshotController := controllers.NewSnapshotController(options.Logger, options.Snapshotter)
 		snapshotController.Register(admin)
 	}
+
+	overrideController := controllers.NewOverrideController(options.Logger, options.Storages.OverrideStorage)
+	overrideController.Register(admin)
 
 	return &AdminServer{
 		server: &http.Server{

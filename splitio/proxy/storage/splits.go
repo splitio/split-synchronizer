@@ -28,6 +28,7 @@ var ErrSinceParamTooOld = errors.New("summary for requested change number not ca
 // for different requested `since` parameters
 type ProxySplitStorage interface {
 	ChangesSince(since int64, flagSets []string) (*dtos.SplitChangesDTO, error)
+	FetchMany(names []string) map[string]*dtos.SplitDTO
 }
 
 // ProxySplitStorageImpl implements the ProxySplitStorage interface and the SplitProducer interface

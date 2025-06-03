@@ -14,6 +14,14 @@ func (p *ProxySplitStorageMock) ChangesSince(since int64, sets []string) (*dtos.
 	return args.Get(0).(*dtos.SplitChangesDTO), args.Error(1)
 }
 
+func (p *ProxySplitStorageMock) FetchMany(names []string) map[string]*dtos.SplitDTO {
+	args := p.Called(names)
+	if args.Get(0) == nil {
+		return nil
+	}
+	return args.Get(0).(map[string]*dtos.SplitDTO)
+}
+
 func (p *ProxySplitStorageMock) RegisterOlderCn(payload *dtos.SplitChangesDTO) {
 	p.Called(payload)
 }
