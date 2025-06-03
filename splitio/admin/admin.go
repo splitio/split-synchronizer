@@ -13,6 +13,7 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/producer/evcalc"
 	"github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/application"
 	"github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/services"
+	"github.com/splitio/split-synchronizer/v5/web"
 
 	"github.com/gin-gonic/gin"
 )
@@ -50,6 +51,7 @@ type AdminServer struct {
 // NewServer instantiates a new admin server
 func NewServer(options *Options) (*AdminServer, error) {
 	router := gin.New()
+	web.RegisterHandlers(router)
 	admin := router.Group(baseAdminPath)
 	info := router.Group(baseInfoPath)
 	shutdown := router.Group(baseShutdownPath)
