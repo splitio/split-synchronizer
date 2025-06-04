@@ -70,9 +70,25 @@ func NewDashboardController(
 
 // Register the dashboard endpoints
 func (c *DashboardController) Register(router gin.IRouter) {
-	router.GET("/dashboard", c.dashboard)
-	router.GET("/dashboard/segmentKeys/:segment", c.segmentKeys)
-	router.GET("/dashboard/stats", c.stats)
+	router.GET("/dashboard", c.enableCORS(c.dashboard))
+	router.GET("/dashboard/segmentKeys/:segment", c.enableCORS(c.segmentKeys))
+	router.GET("/dashboard/stats", c.enableCORS(c.stats))
+}
+
+// CORS middleware
+func (c *DashboardController) enableCORS(next gin.HandlerFunc) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		ctx.Writer.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
+		ctx.Writer.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+		ctx.Writer.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type")
+
+		if ctx.Request.Method == "OPTIONS" {
+			ctx.AbortWithStatus(204)
+			return
+		}
+
+		next(ctx)
+	}
 }
 
 // Endpoint functions \{
