@@ -66,7 +66,7 @@ func (c *OverrideController) overrideFeatureFlag(ctx *gin.Context) {
 		return
 	}
 
-	ff, err := c.db.FeatureFlag(name, overridePayload.Killed, overridePayload.DefaultTreatment)
+	ff, err := c.db.OverrideFF(name, overridePayload.Killed, overridePayload.DefaultTreatment)
 	if err != nil {
 		c.logger.Error(fmt.Sprintf("overrides.ff: error saving override for feature flag %s: %s", name, err.Error()))
 		if errors.Is(err, storage.ErrFeatureFlagNotFound) {
@@ -97,17 +97,8 @@ func (c *OverrideController) deleteFeatureFlag(ctx *gin.Context) {
 		return
 	}
 
-	ff, err := c.db.DeleteFeatureFlag(name)
-	if err != nil {
-		c.logger.Error(fmt.Sprintf("overrides.ff: error deleting override for feature flag %s: %s", name, err.Error()))
-		if errors.Is(err, storage.ErrFeatureFlagNotFound) {
-			ctx.AbortWithStatusJSON(http.StatusNotFound, APIError{Code: http.StatusNotFound, Message: err.Error()})
-			return
-		}
-		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{Code: http.StatusInternalServerError, Message: err.Error()})
-		return
-	}
-	ctx.JSON(200, ff)
+	c.db.RemoveOverrideFF(name)
+	ctx.JSON(200, nil)
 }
 
 /*
