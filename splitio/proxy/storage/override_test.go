@@ -68,6 +68,12 @@ func TestFeatureFlag(t *testing.T) {
 		assert.Equal(t, cachedFF.Name, ff.Name)
 		assert.Equal(t, cachedFF.Killed, true)
 		assert.Equal(t, cachedFF.DefaultTreatment, "off")
+		// Get all overrides to ensure the override is present
+		overrides := storage.GetOverrides()
+		assert.Len(t, overrides, 1)
+		assert.Equal(t, overrides["ff1"].Name, "ff1")
+		assert.Equal(t, overrides["ff1"].Killed, true)
+		assert.Equal(t, overrides["ff1"].DefaultTreatment, "off")
 		// Remove the override
 		storage.RemoveOverrideFF("ff1")
 		// Fetch the same flag again to ensure it is not cached
@@ -75,5 +81,36 @@ func TestFeatureFlag(t *testing.T) {
 		assert.Nil(t, cachedFF)
 
 		mockedStorage.AssertExpectations(t)
+	})
+}
+
+// TestSegment tests the segment override functionality
+func TestSegment(t *testing.T) {
+	t.Run("OverrideSegment Integration", func(t *testing.T) {
+		storage := NewOverrideStorage(nil)
+		segment1u1 := storage.OverrideSegment("user1", "segment1", "add")
+		segment2u1 := storage.OverrideSegment("user1", "segment2", "remove")
+		segment2u2 := storage.OverrideSegment("user2", "segment2", "add")
+
+		assert.Equal(t, SegmentOverride{Operation: "add"}, segment1u1)
+		assert.Equal(t, SegmentOverride{Operation: "remove"}, segment2u1)
+		assert.Equal(t, SegmentOverride{Operation: "add"}, segment2u2)
+
+		overridesu1 := storage.Segment("user1")
+		assert.Equal(t, SegmentOverride{Operation: "add"}, overridesu1["segment1"])
+		assert.Equal(t, SegmentOverride{Operation: "remove"}, overridesu1["segment2"])
+		overridesu2 := storage.Segment("user2")
+		assert.Equal(t, SegmentOverride{Operation: "add"}, overridesu2["segment2"])
+
+		overridesForUs1 := storage.GetOverridesForSegment()
+		assert.Len(t, overridesForUs1, 2)
+		assert.Contains(t, overridesForUs1["user1"], PerKey{Operation: "add", Key: "segment1"})
+		assert.Contains(t, overridesForUs1["user1"], PerKey{Operation: "remove", Key: "segment2"})
+		assert.Contains(t, overridesForUs1["user2"], PerKey{Operation: "add", Key: "segment2"})
+
+		storage.RemoveOverrideSegment("user1", "segment1")
+		overridesu1 = storage.Segment("user1")
+		assert.Len(t, overridesu1, 1)
+		assert.Equal(t, SegmentOverride{Operation: "remove"}, overridesu1["segment2"])
 	})
 }
