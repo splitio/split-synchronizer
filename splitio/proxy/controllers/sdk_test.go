@@ -47,6 +47,7 @@ func TestSplitChangesImpressionsDisabled(t *testing.T) {
 		nil,
 		flagsets.NewMatcher(false, nil),
 		&largeSegmentStorageMock,
+		&psmocks.ProxyOverrideStorageMock{},
 	)
 	controller.Register(group)
 
@@ -94,9 +95,10 @@ func TestSplitChangesRecentSince(t *testing.T) {
 		logger,
 		&splitFetcher,
 		&splitStorage,
-		nil,
+		&psmocks.ProxySegmentStorageMock{},
 		flagsets.NewMatcher(false, nil),
 		&largeSegmentStorageMock,
+		&psmocks.ProxyOverrideStorageMock{},
 	)
 	controller.Register(group)
 
@@ -148,9 +150,10 @@ func TestSplitChangesOlderSince(t *testing.T) {
 		logger,
 		&splitFetcher,
 		&splitStorage,
-		nil,
+		&psmocks.ProxySegmentStorageMock{},
 		flagsets.NewMatcher(false, nil),
 		&largeSegmentStorageMock,
+		&psmocks.ProxyOverrideStorageMock{},
 	)
 	controller.Register(group)
 
@@ -202,9 +205,10 @@ func TestSplitChangesOlderSinceFetchFails(t *testing.T) {
 		logger,
 		&splitFetcher,
 		&splitStorage,
-		nil,
+		&psmocks.ProxySegmentStorageMock{},
 		flagsets.NewMatcher(false, nil),
 		&largeSegmentStorageMock,
+		&psmocks.ProxyOverrideStorageMock{},
 	)
 	controller.Register(group)
 
@@ -242,9 +246,10 @@ func TestSplitChangesWithFlagSets(t *testing.T) {
 		logger,
 		&splitFetcher,
 		&splitStorage,
-		nil,
+		&psmocks.ProxySegmentStorageMock{},
 		flagsets.NewMatcher(false, nil),
 		&largeSegmentStorageMock,
+		&psmocks.ProxyOverrideStorageMock{},
 	)
 	controller.Register(group)
 
@@ -291,9 +296,10 @@ func TestSplitChangesWithFlagSetsStrict(t *testing.T) {
 		logger,
 		&splitFetcher,
 		&splitStorage,
-		nil,
+		&psmocks.ProxySegmentStorageMock{},
 		flagsets.NewMatcher(true, []string{"a", "c"}),
 		&largeSegmentStorageMock,
+		&psmocks.ProxyOverrideStorageMock{},
 	)
 	controller.Register(group)
 
@@ -358,9 +364,10 @@ func TestSplitChangesNewMatcherOldSpec(t *testing.T) {
 		logger,
 		&splitFetcher,
 		&splitStorage,
-		nil,
+		&psmocks.ProxySegmentStorageMock{},
 		flagsets.NewMatcher(false, nil),
 		&largeSegmentStorageMock,
+		&psmocks.ProxyOverrideStorageMock{},
 	)
 	controller.Register(group)
 
@@ -391,6 +398,99 @@ func TestSplitChangesNewMatcherOldSpec(t *testing.T) {
 	assert.Equal(t, []dtos.PartitionDTO{{Treatment: "control", Size: 100}}, cond.Partitions)
 
 	splitStorage.AssertExpectations(t)
+	splitFetcher.AssertExpectations(t)
+}
+
+func TestSplitChangesWithOverrides(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	var splitStorage psmocks.ProxySplitStorageMock
+	var overrideStorage psmocks.ProxyOverrideStorageMock
+	splitStorage.On("ChangesSince", int64(-1), []string(nil)).
+		Return(&dtos.SplitChangesDTO{
+			Since: -1,
+			Till:  1,
+			Splits: []dtos.SplitDTO{
+				{
+					Name:   "s1",
+					Status: "ACTIVE",
+					Killed: false,
+					DefaultTreatment: "control",
+					Conditions: []dtos.ConditionDTO{
+						{
+							MatcherGroup: dtos.MatcherGroupDTO{Matchers: []dtos.MatcherDTO{{MatcherType: matchers.MatcherTypeEndsWith}}},
+							Partitions:   []dtos.PartitionDTO{{Treatment: "on", Size: 100}},
+							Label:        "some label",
+						},
+						{
+							MatcherGroup: dtos.MatcherGroupDTO{Matchers: []dtos.MatcherDTO{{MatcherType: matchers.MatcherTypeGreaterThanOrEqualToSemver}}},
+							Partitions:   []dtos.PartitionDTO{{Treatment: "on", Size: 100}},
+							Label:        "some label",
+						},
+					}},
+			},
+		}, nil).
+		Once()
+	overrideStorage.On("FF", "s1").Return(&dtos.SplitDTO{
+		Name:   "s1",
+		Status: "ACTIVE",
+		Killed: true,
+		DefaultTreatment: "sdk_test",
+		Conditions: []dtos.ConditionDTO{
+			{
+				MatcherGroup: dtos.MatcherGroupDTO{Matchers: []dtos.MatcherDTO{{MatcherType: matchers.MatcherTypeEndsWith}}},
+				Partitions:   []dtos.PartitionDTO{{Treatment: "on", Size: 100}},
+						Label:        "some label",
+					},
+					{
+						MatcherGroup: dtos.MatcherGroupDTO{Matchers: []dtos.MatcherDTO{{MatcherType: matchers.MatcherTypeGreaterThanOrEqualToSemver}}},
+						Partitions:   []dtos.PartitionDTO{{Treatment: "on", Size: 100}},
+						Label:        "some label",
+					},
+				},
+		}, nil).
+		Once()
+
+	var splitFetcher splitFetcherMock
+	var largeSegmentStorageMock largeSegmentStorageMock
+
+	resp := httptest.NewRecorder()
+	ctx, router := gin.CreateTestContext(resp)
+	logger := logging.NewLogger(nil)
+	group := router.Group("/api")
+	controller := NewSdkServerController(
+		logger,
+		&splitFetcher,
+		&splitStorage,
+		&psmocks.ProxySegmentStorageMock{},
+		flagsets.NewMatcher(false, nil),
+		&largeSegmentStorageMock,
+		&overrideStorage,
+	)
+	controller.Register(group)
+
+	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/splitChanges?since=-1", nil)
+	ctx.Request.Header.Set("Authorization", "Bearer someApiKey")
+	ctx.Request.Header.Set("SplitSDKVersion", "go-1.1.1")
+	ctx.Request.Header.Set("SplitSDKMachineIp", "1.2.3.4")
+	ctx.Request.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
+	router.ServeHTTP(resp, ctx.Request)
+
+	assert.Equal(t, 200, resp.Code)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.Nil(t, err)
+
+	var s dtos.SplitChangesDTO
+	err = json.Unmarshal(body, &s)
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(s.Splits))
+	assert.Equal(t, "sdk_test", s.Splits[0].DefaultTreatment)
+	assert.Equal(t, true, s.Splits[0].Killed)
+	
+
+	splitStorage.AssertExpectations(t)
+	overrideStorage.AssertExpectations(t)
 	splitFetcher.AssertExpectations(t)
 }
 
@@ -428,9 +528,10 @@ func TestSplitChangesNewMatcherNewSpec(t *testing.T) {
 		logger,
 		&splitFetcher,
 		&splitStorage,
-		nil,
+		&psmocks.ProxySegmentStorageMock{},
 		flagsets.NewMatcher(false, nil),
 		&largeSegmentStorageMock,
+		&psmocks.ProxyOverrideStorageMock{},
 	)
 	controller.Register(group)
 
@@ -483,7 +584,7 @@ func TestSegmentChanges(t *testing.T) {
 	logger := logging.NewLogger(nil)
 
 	group := router.Group("/api")
-	controller := NewSdkServerController(logger, &splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock)
+	controller := NewSdkServerController(logger, &splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock, &psmocks.ProxyOverrideStorageMock{})
 	controller.Register(group)
 
 	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/segmentChanges/someSegment?since=-1", nil)
@@ -527,7 +628,7 @@ func TestSegmentChangesNotFound(t *testing.T) {
 	logger := logging.NewLogger(nil)
 
 	group := router.Group("/api")
-	controller := NewSdkServerController(logger, &splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock)
+	controller := NewSdkServerController(logger, &splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock, &psmocks.ProxyOverrideStorageMock{})
 	controller.Register(group)
 
 	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/segmentChanges/someSegment?since=-1", nil)
@@ -561,7 +662,7 @@ func TestMySegments(t *testing.T) {
 	logger := logging.NewLogger(nil)
 
 	group := router.Group("/api")
-	controller := NewSdkServerController(logger, &splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock)
+	controller := NewSdkServerController(logger, &splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock, &psmocks.ProxyOverrideStorageMock{})
 	controller.Register(group)
 
 	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/mySegments/someKey", nil)
@@ -604,7 +705,7 @@ func TestMySegmentsError(t *testing.T) {
 	logger := logging.NewLogger(nil)
 
 	group := router.Group("/api")
-	controller := NewSdkServerController(logger, &splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock)
+	controller := NewSdkServerController(logger, &splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock, &psmocks.ProxyOverrideStorageMock{})
 	controller.Register(group)
 
 	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/mySegments/someKey", nil)
@@ -641,7 +742,7 @@ func TestMemberships(t *testing.T) {
 	logger := logging.NewLogger(nil)
 
 	group := router.Group("/api")
-	controller := NewSdkServerController(logger, &splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock)
+	controller := NewSdkServerController(logger, &splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock, &psmocks.ProxyOverrideStorageMock{})
 	controller.Register(group)
 
 	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/memberships/keyTest", nil)
@@ -691,7 +792,7 @@ func TestMembershipsError(t *testing.T) {
 	logger := logging.NewLogger(nil)
 
 	group := router.Group("/api")
-	controller := NewSdkServerController(logger, &splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock)
+	controller := NewSdkServerController(logger, &splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock, &psmocks.ProxyOverrideStorageMock{})
 	controller.Register(group)
 
 	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/memberships/keyTest", nil)

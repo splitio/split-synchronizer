@@ -74,3 +74,21 @@ func (s *ProxyLargeSegmentStorageMock) IsInLargeSegment(name string, key string)
 func (s *ProxyLargeSegmentStorageMock) TotalKeys(name string) int {
 	return s.Called(name).Get(0).(int)
 }
+
+type ProxyOverrideStorageMock struct {
+	mock.Mock
+}
+
+func (p *ProxyOverrideStorageMock) FF(name string) *dtos.SplitDTO {
+	args := p.Called(name)
+	return args.Get(0).(*dtos.SplitDTO)
+}
+
+func (p *ProxyOverrideStorageMock) OverrideFF(name string, killed *bool, defaultTreatment *string) (*dtos.SplitDTO, error) {
+	args := p.Called(name, killed, defaultTreatment)
+	return args.Get(0).(*dtos.SplitDTO), args.Error(1)
+}
+
+func (p *ProxyOverrideStorageMock) RemoveOverrideFF(name string) {
+	p.Called(name)
+}

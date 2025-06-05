@@ -4,6 +4,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/splitio/gincache"
 	"github.com/splitio/go-split-commons/v6/dtos"
 )
 
@@ -25,14 +26,17 @@ type OverrideStorageImpl struct {
 
 	ffOverrides      map[string]*dtos.SplitDTO
 	ffOverridesMutex *sync.RWMutex
+	cache            gincache.CacheFlusher
 }
 
 // NewOverrideStorage creates a new instance of OverrideStorageImpl
 func NewOverrideStorage(
 	ffStorage ProxySplitStorage,
+	cache gincache.CacheFlusher,
 ) *OverrideStorageImpl {
 	return &OverrideStorageImpl{
 		ffStorage: ffStorage,
+		cache:     cache,
 
 		ffOverrides:      make(map[string]*dtos.SplitDTO),
 		ffOverridesMutex: &sync.RWMutex{},
@@ -81,6 +85,8 @@ func (s *OverrideStorageImpl) OverrideFF(name string, killed *bool, defaultTreat
 	// Store the updated feature flag in the cache
 	s.ffOverrides[name] = ff
 
+	s.cache.EvictAll()
+
 	return ff, nil
 }
 
@@ -90,6 +96,8 @@ func (s *OverrideStorageImpl) RemoveOverrideFF(name string) {
 	defer s.ffOverridesMutex.Unlock()
 
 	delete(s.ffOverrides, name)
+
+	s.cache.EvictAll()
 }
 
 var _ OverrideStorage = (*OverrideStorageImpl)(nil)

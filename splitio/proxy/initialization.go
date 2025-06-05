@@ -86,7 +86,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, flagsets.NewFlagSetFilter(cfg.FlagSetsFilter), cfg.Initialization.Snapshot != "")
 	segmentStorage := storage.NewProxySegmentStorage(dbInstance, logger, cfg.Initialization.Snapshot != "")
 	largeSegmentStorage := inmemory.NewLargeSegmentsStorage()
-	overrideStorage := storage.NewOverrideStorage(splitStorage)
+	overrideStorage := storage.NewOverrideStorage(splitStorage, httpCache)
 
 	// Local telemetry
 	tbufferSize := int(cfg.Sync.Advanced.TelemetryBuffer)
@@ -266,6 +266,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		FlagSets:                    cfg.FlagSetsFilter,
 		FlagSetsStrictMatching:      cfg.FlagSetStrictMatching,
 		ProxyLargeSegmentStorage:    largeSegmentStorage,
+		ProxyOverrideStorage:        overrideStorage,
 	}
 
 	if ilcfg := cfg.Integrations.ImpressionListener; ilcfg.Endpoint != "" {

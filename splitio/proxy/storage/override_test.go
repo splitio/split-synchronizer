@@ -14,7 +14,7 @@ func TestFeatureFlag(t *testing.T) {
 	t.Run("OverrideFF FlagNotFound", func(t *testing.T) {
 		mockedStorage := &mocks.ProxySplitStorageMock{}
 		mockedStorage.On("FetchMany", []string{"nonexistent"}).Return(nil).Once()
-		storage := NewOverrideStorage(mockedStorage)
+		storage := NewOverrideStorage(mockedStorage, nil)
 		_, err := storage.OverrideFF("nonexistent", nil, nil)
 		assert.NotNil(t, err)
 		assert.ErrorAs(t, err, &ErrFeatureFlagNotFound)
@@ -32,7 +32,7 @@ func TestFeatureFlag(t *testing.T) {
 			},
 		}).Once()
 
-		storage := NewOverrideStorage(mockedStorage)
+		storage := NewOverrideStorage(mockedStorage, nil)
 		killed := true
 		defaultTreatment := "off"
 		ff, err := storage.OverrideFF("ff1", &killed, &defaultTreatment)
@@ -53,7 +53,7 @@ func TestFeatureFlag(t *testing.T) {
 			},
 		}).Once()
 
-		storage := NewOverrideStorage(mockedStorage)
+		storage := NewOverrideStorage(mockedStorage, nil)
 		killed := true
 		defaultTreatment := "off"
 		// Override the feature flag
