@@ -132,7 +132,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 			metadata, logger, syncTelemetryStorage),
 		// local telemetry
 		TelemetryRecorder: telemetry.NewTelemetrySynchronizer(syncTelemetryStorage, splitAPI.TelemetryRecorder,
-			storages.SplitStorage, storages.SegmentStorage, logger, metadata, syncTelemetryStorage),
+			storages.SplitStorage, storages.SegmentStorage, logger, metadata, syncTelemetryStorage, nil),
 	}
 	splitTasks := synchronizer.SplitTasks{
 		SplitSyncTask: tasks.NewFetchSplitsTask(workers.SplitUpdater, int(cfg.Sync.SplitRefreshRateMs)/1000, logger),
@@ -216,15 +216,14 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	}
 
 	filter := filter.NewBloomFilter(bfExpectedElemenets, bfFalsePositiveProbability)
-	uniqueKeysTracker := strategy.NewUniqueKeysTracker(filter)
+
 	uniquesWorker := task.NewUniqueKeysWorker(&task.UniqueWorkerConfig{
-		Logger:            logger,
-		Storage:           storages.UniqueKeysStorage,
-		UniqueKeysTracker: uniqueKeysTracker,
-		URL:               advanced.TelemetryServiceURL,
-		Apikey:            cfg.Apikey,
-		FetchSize:         int(cfg.Sync.Advanced.UniqueKeysFetchSize),
-		Metadata:          metadata,
+		Logger:    logger,
+		Storage:   storages.UniqueKeysStorage,
+		URL:       advanced.TelemetryServiceURL,
+		Apikey:    cfg.Apikey,
+		FetchSize: int(cfg.Sync.Advanced.UniqueKeysFetchSize),
+		Metadata:  metadata,
 	})
 
 	uniquesTask, err := task.NewPipelinedTask(&task.Config{
