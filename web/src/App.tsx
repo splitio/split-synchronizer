@@ -1,5 +1,5 @@
 import './App.css'
-import { Button, Layout, Text, ButtonVariation, TableV2, SlidingPane, Tag } from '@harness/uicore'
+import { Button, Layout, Text, ButtonVariation, TableV2, SlidingPane, Tag, ModalDialog } from '@harness/uicore'
 import { useCallback, useState, useEffect } from 'react'
 import type { SlidingPaneState } from '@harness/uicore'
 import moment from 'moment'
@@ -14,6 +14,7 @@ interface FeatureFlag {
   flagSets: string[]
   cn: string
   changeNumber: number
+  isOverridden?: boolean
 }
 
 interface DashboardStats {
@@ -34,20 +35,55 @@ function App() {
   const [selectedFlag, setSelectedFlag] = useState<FeatureFlag | null>(null)
   const [flags, setFlags] = useState<FeatureFlag[]>([])
   const [searchTerm, setSearchTerm] = useState('')
+  const [editDialogOpen, setEditDialogOpen] = useState<boolean>(false)
+  const [flagToEdit, setFlagToEdit] = useState<FeatureFlag | null>(null)
   
   const filteredFlags = flags.filter(flag => 
     flag.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     flag.treatments.some(t => t.toLowerCase().includes(searchTerm.toLowerCase()))
   )
 
-  useEffect(() => {
-    fetch('http://localhost:3010/admin/dashboard/stats')
-      .then(response => response.json())
-      .then((data: DashboardStats) => {
-        setFlags(data.featureFlags || [])
-      })
-      .catch(error => console.error('Error fetching splits:', error))
+  const fetchAndMergeFlags = useCallback(async () => {
+    try {
+      // Fetch both endpoints in parallel
+      const [statsResponse, overridesResponse] = await Promise.all([
+        fetch('http://localhost:3010/admin/dashboard/stats'),
+        fetch('http://localhost:3010/admin/overrides/ff')
+      ])
+
+      const statsData: DashboardStats = await statsResponse.json()
+      const overridesData = await overridesResponse.json()
+
+      // Create a map of overridden flags
+      const overridesMap = new Map(
+        Object.entries(overridesData || {}).map(([name, flag]) => [name, flag as FeatureFlag])
+      )
+
+      // Merge the flags
+      const mergedFlags = statsData.featureFlags
+        .map(flag => {
+          const override = overridesMap.get(flag.name)
+          if (override) {
+            return {
+              ...flag,
+              killed: override.killed,
+              defaultTreatment: override.defaultTreatment,
+              isOverridden: true
+            }
+          }
+          return { ...flag, isOverridden: false }
+        })
+        .sort((a, b) => a.name.localeCompare(b.name))
+
+      setFlags(mergedFlags)
+    } catch (error) {
+      console.error('Error fetching data:', error)
+    }
   }, [])
+
+  useEffect(() => {
+    fetchAndMergeFlags()
+  }, [fetchAndMergeFlags])
 
   const formatDate = useCallback((dateStr: string) => {
     return moment.utc(dateStr, 'ddd MMM DD HH:mm:ss UTC YYYY')
@@ -60,9 +96,54 @@ function App() {
     setPaneState('open')
   }, [])
 
-  const handleKill = useCallback((flag: FeatureFlag) => {
-    console.log('Kill:', flag)
+  const handleKillRestoreClick = useCallback((flag: FeatureFlag) => {
+    setFlagToEdit(flag)
+    setEditDialogOpen(true)
   }, [])
+
+  const handleDeleteOverride = useCallback(async (flag: FeatureFlag) => {
+    try {
+      const response = await fetch(`http://localhost:3010/admin/overrides/ff/${flag.name}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to delete override')
+      }
+
+      await fetchAndMergeFlags()
+    } catch (error) {
+      console.error('Error deleting override:', error)
+    }
+  }, [fetchAndMergeFlags])
+
+  const handleEditConfirm = useCallback(async () => {
+    if (!flagToEdit) return
+
+    try {
+      const response = await fetch(`http://localhost:3010/admin/overrides/ff/${flagToEdit.name}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          killed: !flagToEdit.killed,
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to kill feature flag')
+      }
+
+      // Refresh the data
+      await fetchAndMergeFlags()
+    } catch (error) {
+      console.error('Error updating feature flag:', error)
+    } finally {
+      setEditDialogOpen(false)
+      setFlagToEdit(null)
+    }
+  }, [flagToEdit, fetchAndMergeFlags])
 
   return (
     <Layout.Vertical spacing="large" style={{ alignItems: 'center', textAlign: 'center' }}>
@@ -108,8 +189,7 @@ function App() {
                 {row.original.active ? 'Active' : 'Inactive'}
               </Text>
             )
-          },
-          {
+          },          {
             Header: 'Killed',
             accessor: 'killed',
             id: 'killed',
@@ -134,11 +214,11 @@ function App() {
             )
           },
           {
-            Header: 'Flag Sets',
-            accessor: 'flagSets',
-            id: 'flagSets',
+            Header: 'Override',
+            accessor: 'isOverridden',
+            id: 'isOverridden',
             Cell: ({ row }: { row: { original: FeatureFlag } }) => (
-              <Text>{row.original.flagSets.join(', ')}</Text>
+              <Text>{row.original.isOverridden ? 'Yes' : '-'}</Text>
             )
           },
           {
@@ -152,6 +232,7 @@ function App() {
           {
             Header: 'Actions',
             id: 'actions',
+            width: 350,
             Cell: ({ row }: { row: { original: FeatureFlag } }) => (
               <Layout.Horizontal spacing="small">
                 <Button
@@ -162,13 +243,24 @@ function App() {
                   variation={ButtonVariation.PRIMARY}
                 />
                 <Button
-                  text="Kill"
-                  onClick={() => handleKill(row.original)}
+                  text={row.original.killed ? 'Restore' : 'Kill'}
+                  onClick={() => handleKillRestoreClick(row.original)}
                   minimal
                   small
-                  intent="danger"
-                  variation={ButtonVariation.PRIMARY} 
+                  intent={row.original.killed ? 'success' : 'danger'}
+                  variation={ButtonVariation.PRIMARY}
+                  style={{ width: '86px' }}
                 />
+                {row.original.isOverridden && (
+                  <Button
+                    text="Discard override"
+                    onClick={() => handleDeleteOverride(row.original)}
+                    minimal
+                    small
+                    intent="warning"
+                    variation={ButtonVariation.PRIMARY} 
+                  />
+                )}
               </Layout.Horizontal>
             )
           }
@@ -212,6 +304,36 @@ function App() {
           </Layout.Vertical>
         )}
       </SlidingPane>
+
+      {/* @ts-expect-error ModalDialog type mismatch */}
+      <ModalDialog
+        isOpen={editDialogOpen}
+        onClose={() => setEditDialogOpen(false)}
+        title={flagToEdit?.killed ? 'Restore Feature Flag' : 'Kill Feature Flag'}
+        footer={
+          <Layout.Horizontal spacing="small">
+          <Button
+            variation={ButtonVariation.PRIMARY}
+            intent={flagToEdit?.killed ? 'success' : 'danger'}
+            text="Yes"
+            minimal
+            small
+            onClick={handleEditConfirm}
+          />
+          <Button
+            variation={ButtonVariation.SECONDARY}
+            text="Cancel"
+            minimal
+            small
+            onClick={() => setEditDialogOpen(false)}
+          />
+        </Layout.Horizontal>
+        }
+      >
+          <Text>
+            Are you sure you want to {flagToEdit?.killed ? 'restore' : 'kill'} the feature flag "{flagToEdit?.name}"?
+          </Text>
+      </ModalDialog>
     </Layout.Vertical>
   )
 }

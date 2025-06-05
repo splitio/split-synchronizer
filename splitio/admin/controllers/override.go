@@ -39,15 +39,33 @@ func NewOverrideController(logger logging.LoggerInterface, db storage.OverrideSt
 	return &OverrideController{logger: logger, db: db}
 }
 
+// CORS middleware
+func (c *OverrideController) enableCORS(next gin.HandlerFunc) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		ctx.Writer.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
+		ctx.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+		ctx.Writer.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type")
+
+		if ctx.Request.Method == "OPTIONS" {
+			ctx.AbortWithStatus(204)
+			return
+		}
+
+		next(ctx)
+	}
+}
+
 // Register mounts the endpoints in the provided router
 func (c *OverrideController) Register(router gin.IRouter) {
-	router.GET("/overrides/ff", c.getOverridesFeatureFlags)
-	router.POST("/overrides/ff/:name", c.overrideFeatureFlag)
-	router.DELETE("/overrides/ff/:name", c.deleteFeatureFlag)
+	router.GET("/overrides/ff", c.enableCORS(c.getOverridesFeatureFlags))
+	router.POST("/overrides/ff/:name", c.enableCORS(c.overrideFeatureFlag))
+	router.DELETE("/overrides/ff/:name", c.enableCORS(c.deleteFeatureFlag))
+	router.OPTIONS("/overrides/ff/:name", c.enableCORS(func(ctx *gin.Context) {}))
 
-	router.GET("/overrides/segment", c.getOverridesForSegments)
-	router.POST("/overrides/segment/:name/:key", c.overrideSegment)
-	router.DELETE("/overrides/segment/:name/:key", c.deleteSegmentOverride)
+	router.GET("/overrides/segment", c.enableCORS(c.getOverridesForSegments))
+	router.POST("/overrides/segment/:name/:key", c.enableCORS(c.overrideSegment))
+	router.DELETE("/overrides/segment/:name/:key", c.enableCORS(c.deleteSegmentOverride))
+	router.OPTIONS("/overrides/segment/:name/:key", c.enableCORS(func(ctx *gin.Context) {}))
 }
 
 // @Summary retrieves all feature flag overrides
