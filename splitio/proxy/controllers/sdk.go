@@ -30,6 +30,7 @@ type SdkServerController struct {
 	fsmatcher           flagsets.FlagSetMatcher
 	versionFilter       specs.SplitVersionFilter
 	largeSegmentStorage cmnStorage.LargeSegmentsStorage
+	overrideStorage     storage.OverrideStorage
 }
 
 // NewSdkServerController instantiates a new sdk server controller
@@ -40,7 +41,7 @@ func NewSdkServerController(
 	proxySegmentStorage storage.ProxySegmentStorage,
 	fsmatcher flagsets.FlagSetMatcher,
 	largeSegmentStorage cmnStorage.LargeSegmentsStorage,
-
+	overrideStorage storage.OverrideStorage,
 ) *SdkServerController {
 	return &SdkServerController{
 		logger:              logger,
@@ -50,6 +51,7 @@ func NewSdkServerController(
 		fsmatcher:           fsmatcher,
 		versionFilter:       specs.NewSplitVersionFilter(),
 		largeSegmentStorage: largeSegmentStorage,
+		overrideStorage:     overrideStorage,
 	}
 }
 
@@ -130,6 +132,9 @@ func (c *SdkServerController) SplitChanges(ctx *gin.Context) {
 	}
 
 	splits.Splits = c.patchUnsupportedMatchers(splits.Splits, spec)
+
+	//check if there are some overrides
+	c.applyOverridesToSplitChanges(splits)
 
 	ctx.JSON(http.StatusOK, splits)
 	ctx.Set(caching.SurrogateContextKey, []string{caching.SplitSurrogate})
@@ -216,4 +221,12 @@ func (c *SdkServerController) patchUnsupportedMatchers(splits []dtos.SplitDTO, v
 		}
 	}
 	return splits
+}
+
+func (c *SdkServerController) applyOverridesToSplitChanges(splits *dtos.SplitChangesDTO) {
+	for idx := range splits.Splits {
+		if split := c.overrideStorage.FF(splits.Splits[idx].Name); split != nil {
+			splits.Splits[idx] = *split
+		}
+	}
 }
