@@ -1,3 +1,7 @@
+5.10.3 (Sep 3, 2025)
+- Fixed vulnerabilities:
+   - Updated debian image to stable
+
 5.10.2 (May 29, 2025)
 - Fixed vulnerabilities:
    - Updated golang image to 1.23.9
