@@ -7,7 +7,6 @@ ARG FIPS_MODE
 RUN apt update -y
 RUN apt install -y build-essential ca-certificates python3 git
 
-
 WORKDIR /code
 
 COPY . .
