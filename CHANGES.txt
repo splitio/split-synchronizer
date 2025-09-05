@@ -1,6 +1,17 @@
 5.10.3 (Sep 3, 2025)
 - Fixed vulnerabilities:
-   - Updated debian image to stable
+   - Updated golang image to 1.24.6
+   - Updated debian image to 13.0
+   - Updated gin-contrib/gzip to 1.2.3
+   - Updated gin-gonic/gin 1.10.1
+   - Updated stretchr/testify 1.10.0
+   - Updated golang.org/x/arch 0.20.0
+	- Updated golang.org/x/crypto 0.41.0
+	- Updated golang.org/x/net 0.43.0
+	- Updated golang.org/x/sync 0.16.0
+	- Updated golang.org/x/sys 0.35.0
+	- Updated golang.org/x/text 0.28.0
+	- Updated google.golang.org/protobuf 1.36.8
 
 5.10.2 (May 29, 2025)
 - Fixed vulnerabilities:
