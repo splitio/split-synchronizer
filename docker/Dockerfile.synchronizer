@@ -1,11 +1,12 @@
 # Build stage
-FROM golang:1.23.9-bookworm AS builder
+FROM golang:1.24.6-bookworm AS builder
 
 ARG EXTRA_BUILD_ARGS
 ARG FIPS_MODE
 
-RUN apt update -y
-RUN apt install -y build-essential ca-certificates python3 git
+RUN apt update && \
+    apt install -y --no-install-recommends build-essential ca-certificates python3 git && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /code
 
@@ -17,19 +18,12 @@ RUN bash -c 'if [[ "${FIPS_MODE}" = "enabled" ]]; \
     fi'
 
 # Runner stage
-FROM debian:12.11 AS runner
+FROM debian:13.0 AS runner
 
 RUN apt update -y
 RUN apt install -y bash ca-certificates
-RUN addgroup --gid 1000 --system 'split-synchronizer'
-RUN adduser \
-    --disabled-password \
-    --gecos '' \
-    --ingroup 'split-synchronizer' \
-    --no-create-home \
-    --system \
-    --uid 1000 \
-    'split-synchronizer'
+RUN groupadd -g 1000 split-synchronizer
+RUN useradd -r -u 1000 -g split-synchronizer -s /usr/sbin/nologin split-synchronizer
 
 COPY docker/functions.sh .
 

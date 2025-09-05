@@ -45,6 +45,9 @@ clean:
 	rm -f ./entrypoint.*.sh
 	rm -f ./clilist
 	rm -Rf $(BUILD)/*
+	rm -Rf windows/build/*
+	rm -Rf windows/downloads/*
+	rm -Rf windows/unpacked/*
 
 ## Build split-sync and split-proxy
 build: split-sync split-proxy
