@@ -259,16 +259,16 @@ func (p *PipelinedSyncTask) sinker() {
 				p.logger.Debug(fmt.Sprintf("[pipelined/%s] - impressions post ready. making request", p.name))
 				req, err := p.worker.BuildRequest(bulk)
 				if err != nil {
-					return fmt.Errorf(fmt.Sprintf("[pipelined/%s] error building request: %s", p.name, err))
+					return fmt.Errorf("[pipelined/%s] error building request: %s", p.name, err)
 				}
 
 				resp, err := p.httpClient.Do(req)
 				if err != nil {
-					return fmt.Errorf(fmt.Sprintf("[pipelined/%s] error posting: %s", p.name, err))
+					return fmt.Errorf("[pipelined/%s] error posting: %s", p.name, err)
 				}
 
 				if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-					return fmt.Errorf(fmt.Sprintf("[pipelined/%s] bad status code when sinking data: %d", p.name, resp.StatusCode))
+					return fmt.Errorf("[pipelined/%s] bad status code when sinking data: %d", p.name, resp.StatusCode)
 				}
 
 				if resp.Body != nil {
