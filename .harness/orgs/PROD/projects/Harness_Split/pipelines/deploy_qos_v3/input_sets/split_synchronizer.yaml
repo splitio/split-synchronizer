@@ -25,7 +25,7 @@ inputSet:
                         identifier: BuildAndPush
                         type: BuildAndPushDockerRegistry
                         spec:
-                          repo: <+trigger.payload.repository.name>/split-<+matrix.app><+<+matrix.fips_mode>=="enabled"?"-fips":"">
+                          repo: split-<+matrix.app><+<+matrix.fips_mode>=="enabled"?"-fips":"">
                           tags:
                             - <+pipeline.stages.CI<+strategy.identifierPostFix>.spec.execution.steps.custom_tag.output.outputVariables.VERSION>
                             - latest
@@ -61,7 +61,7 @@ inputSet:
                         identifier: BuildAndPushECR
                         type: BuildAndPushECR
                         spec:
-                          imageName: <+trigger.payload.repository.name>/split-<+matrix.app><+<+matrix.fips_mode>=="enabled"?"-fips":"">
+                          imageName: split-<+matrix.app><+<+matrix.fips_mode>=="enabled"?"-fips":"">
                           tags:
                             - <+pipeline.stages.ECR<+strategy.identifierPostFix>.spec.execution.steps.custom_tag.output.outputVariables.VERSION>
                             - latest
