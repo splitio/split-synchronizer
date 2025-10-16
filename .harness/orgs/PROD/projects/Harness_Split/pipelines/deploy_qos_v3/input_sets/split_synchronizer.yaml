@@ -1,5 +1,6 @@
 inputSet:
   name: split_synchronizer
+  tags: {}
   identifier: split_synchronizer
   orgIdentifier: PROD
   projectIdentifier: Harness_Split
@@ -33,7 +34,7 @@ inputSet:
                           buildArgs:
                             FIPS_MODE: <+matrix.fips_mode>
                           envVariables:
-                            PLUGIN_NO_PUSH: <+<+trigger.payload.ref>!="refs/heads/main"?"true":"false">
+                            PLUGIN_NO_PUSH: <+<+trigger.payload.ref>=="refs/heads/main"?"true":"false">
                             PLUGIN_PLATFORM: linux/amd64,linux/arm64
               strategy:
                 matrix:
@@ -69,7 +70,7 @@ inputSet:
                           buildArgs:
                             FIPS_MODE: <+matrix.fips_mode>
                           envVariables:
-                            PLUGIN_NO_PUSH: <+<+trigger.payload.ref>!="refs/heads/main"?"true":"false">
+                            PLUGIN_NO_PUSH: <+<+trigger.payload.ref>=="refs/heads/main"?"true":"false">
                             PLUGIN_PLATFORM: linux/amd64,linux/arm64
               strategy:
                 matrix:
