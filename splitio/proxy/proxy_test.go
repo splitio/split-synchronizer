@@ -3,7 +3,7 @@ package proxy
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math/rand"
 	"net/http"
 	"testing"
@@ -312,7 +312,7 @@ func get(path string, port int, headers map[string]string) (status int, body []b
 	}
 	defer resp.Body.Close()
 
-	body, err = ioutil.ReadAll(resp.Body)
+	body, err = io.ReadAll(resp.Body)
 	if err != nil {
 		panic(err.Error())
 	}

@@ -26,7 +26,6 @@ import (
 	"github.com/splitio/go-split-commons/v8/flagsets"
 	"github.com/splitio/go-split-commons/v8/provisional/strategy"
 	"github.com/splitio/go-split-commons/v8/service/api"
-	"github.com/splitio/go-split-commons/v8/service/api/specs"
 	"github.com/splitio/go-split-commons/v8/storage/filter"
 	"github.com/splitio/go-split-commons/v8/storage/inmemory"
 	"github.com/splitio/go-split-commons/v8/storage/redis"
@@ -128,7 +127,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 
 	workers := synchronizer.Workers{
 		// TODO add ruleBasedSegmentStorage, ruleBuilder, sdkOverrides
-		SplitUpdater: split.NewSplitUpdater(storages.SplitStorage, nil, splitAPI.SplitFetcher, logger, syncTelemetryStorage, appMonitor, flagSetsFilter, grammar.RuleBuilder{}, false, specs.FLAG_V1_3),
+		SplitUpdater: split.NewSplitUpdater(storages.SplitStorage, nil, splitAPI.SplitFetcher, logger, syncTelemetryStorage, appMonitor, flagSetsFilter, grammar.RuleBuilder{}, false, cfg.FlagSpecVersion),
 		// TODO add ruleBasedSegmentStorage
 		SegmentUpdater: segment.NewSegmentUpdater(storages.SplitStorage, storages.SegmentStorage, nil, splitAPI.SegmentFetcher,
 			logger, syncTelemetryStorage, appMonitor),

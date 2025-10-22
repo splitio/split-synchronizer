@@ -16,6 +16,7 @@ import (
 	"github.com/splitio/go-split-commons/v8/service"
 	"github.com/splitio/go-split-commons/v8/service/api/specs"
 	cmnStorage "github.com/splitio/go-split-commons/v8/storage"
+	"github.com/splitio/go-toolkit/v5/common"
 	"github.com/splitio/go-toolkit/v5/logging"
 
 	"github.com/gin-gonic/gin"
@@ -31,6 +32,7 @@ type SdkServerController struct {
 	fsmatcher           flagsets.FlagSetMatcher
 	versionFilter       specs.SplitVersionFilter
 	largeSegmentStorage cmnStorage.LargeSegmentsStorage
+	specVersion         string
 }
 
 // NewSdkServerController instantiates a new sdk server controller
@@ -41,7 +43,7 @@ func NewSdkServerController(
 	proxySegmentStorage storage.ProxySegmentStorage,
 	fsmatcher flagsets.FlagSetMatcher,
 	largeSegmentStorage cmnStorage.LargeSegmentsStorage,
-
+	specVersion string,
 ) *SdkServerController {
 	return &SdkServerController{
 		logger:              logger,
@@ -51,6 +53,7 @@ func NewSdkServerController(
 		fsmatcher:           fsmatcher,
 		versionFilter:       specs.NewSplitVersionFilter(),
 		largeSegmentStorage: largeSegmentStorage,
+		specVersion:         specVersion,
 	}
 }
 
@@ -195,7 +198,7 @@ func (c *SdkServerController) fetchSplitChangesSince(since int64, sets []string)
 
 	// perform a fetch to the BE using the supplied `since`, have the storage process it's response &, retry
 	// TODO(mredolatti): implement basic collapsing here to avoid flooding the BE with requests
-	fetchOptions := service.MakeFlagRequestParams().WithChangeNumber(since).WithFlagSetsFilter(strings.Join(sets, ",")) // at this point the sets have been sanitized & sorted
+	fetchOptions := service.MakeFlagRequestParams().WithSpecVersion(common.StringRef(c.specVersion)).WithChangeNumber(since).WithFlagSetsFilter(strings.Join(sets, ",")) // at this point the sets have been sanitized & sorted
 	ruleChanges, err := c.fetcher.Fetch(fetchOptions)
 	if err != nil {
 		return nil, err

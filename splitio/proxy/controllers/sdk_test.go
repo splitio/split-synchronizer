@@ -20,6 +20,7 @@ import (
 	"github.com/splitio/go-split-commons/v8/service/api/specs"
 	"github.com/splitio/go-split-commons/v8/service/mocks"
 	cmnStorage "github.com/splitio/go-split-commons/v8/storage"
+	"github.com/splitio/go-toolkit/v5/common"
 	"github.com/splitio/go-toolkit/v5/logging"
 
 	"github.com/gin-gonic/gin"
@@ -49,6 +50,7 @@ func TestSplitChangesImpressionsDisabled(t *testing.T) {
 		nil,
 		flagsets.NewMatcher(false, nil),
 		&largeSegmentStorageMock,
+		specs.FLAG_V1_2,
 	)
 	controller.Register(group)
 
@@ -99,6 +101,7 @@ func TestSplitChangesRecentSince(t *testing.T) {
 		nil,
 		flagsets.NewMatcher(false, nil),
 		&largeSegmentStorageMock,
+		specs.FLAG_V1_2,
 	)
 	controller.Register(group)
 
@@ -134,7 +137,7 @@ func TestSplitChangesOlderSince(t *testing.T) {
 		Once()
 
 	splitFetcher := &mocks.MockSplitFetcher{}
-	splitFetcher.On("Fetch", ref(*service.MakeFlagRequestParams().WithChangeNumber(-1))).Return(
+	splitFetcher.On("Fetch", ref(*service.MakeFlagRequestParams().WithChangeNumber(-1).WithSpecVersion(common.StringRef(specs.FLAG_V1_2)))).Return(
 		&dtos.FFResponseLegacy{
 			SplitChanges: dtos.SplitChangesDTO{
 				Since: -1, Till: 1, Splits: []dtos.SplitDTO{{Name: "s1", Status: "ACTIVE"}, {Name: "s2", Status: "ACTIVE"}},
@@ -156,6 +159,7 @@ func TestSplitChangesOlderSince(t *testing.T) {
 		nil,
 		flagsets.NewMatcher(false, nil),
 		&largeSegmentStorageMock,
+		specs.FLAG_V1_2,
 	)
 	controller.Register(group)
 
@@ -191,7 +195,7 @@ func TestSplitChangesOlderSinceFetchFails(t *testing.T) {
 		Once()
 
 	splitFetcher := &mocks.MockSplitFetcher{}
-	splitFetcher.On("Fetch", ref(*service.MakeFlagRequestParams().WithChangeNumber(-1))).
+	splitFetcher.On("Fetch", ref(*service.MakeFlagRequestParams().WithChangeNumber(-1).WithSpecVersion(common.StringRef(specs.FLAG_V1_2)))).
 		Return(nil, errors.New("something")).
 		Once()
 
@@ -210,6 +214,7 @@ func TestSplitChangesOlderSinceFetchFails(t *testing.T) {
 		nil,
 		flagsets.NewMatcher(false, nil),
 		&largeSegmentStorageMock,
+		specs.FLAG_V1_2,
 	)
 	controller.Register(group)
 
@@ -250,6 +255,7 @@ func TestSplitChangesWithFlagSets(t *testing.T) {
 		nil,
 		flagsets.NewMatcher(false, nil),
 		&largeSegmentStorageMock,
+		specs.FLAG_V1_2,
 	)
 	controller.Register(group)
 
@@ -299,6 +305,7 @@ func TestSplitChangesWithFlagSetsStrict(t *testing.T) {
 		nil,
 		flagsets.NewMatcher(true, []string{"a", "c"}),
 		&largeSegmentStorageMock,
+		specs.FLAG_V1_2,
 	)
 	controller.Register(group)
 
@@ -366,6 +373,7 @@ func TestSplitChangesNewMatcherOldSpec(t *testing.T) {
 		nil,
 		flagsets.NewMatcher(false, nil),
 		&largeSegmentStorageMock,
+		specs.FLAG_V1_2,
 	)
 	controller.Register(group)
 
@@ -436,6 +444,7 @@ func TestSplitChangesNewMatcherNewSpec(t *testing.T) {
 		nil,
 		flagsets.NewMatcher(false, nil),
 		&largeSegmentStorageMock,
+		specs.FLAG_V1_2,
 	)
 	controller.Register(group)
 
@@ -488,7 +497,7 @@ func TestSegmentChanges(t *testing.T) {
 	logger := logging.NewLogger(nil)
 
 	group := router.Group("/api")
-	controller := NewSdkServerController(logger, splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock)
+	controller := NewSdkServerController(logger, splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock, specs.FLAG_V1_2)
 	controller.Register(group)
 
 	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/segmentChanges/someSegment?since=-1", nil)
@@ -532,7 +541,7 @@ func TestSegmentChangesNotFound(t *testing.T) {
 	logger := logging.NewLogger(nil)
 
 	group := router.Group("/api")
-	controller := NewSdkServerController(logger, splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock)
+	controller := NewSdkServerController(logger, splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock, specs.FLAG_V1_2)
 	controller.Register(group)
 
 	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/segmentChanges/someSegment?since=-1", nil)
@@ -566,7 +575,7 @@ func TestMySegments(t *testing.T) {
 	logger := logging.NewLogger(nil)
 
 	group := router.Group("/api")
-	controller := NewSdkServerController(logger, splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock)
+	controller := NewSdkServerController(logger, splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock, specs.FLAG_V1_2)
 	controller.Register(group)
 
 	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/mySegments/someKey", nil)
@@ -609,7 +618,7 @@ func TestMySegmentsError(t *testing.T) {
 	logger := logging.NewLogger(nil)
 
 	group := router.Group("/api")
-	controller := NewSdkServerController(logger, splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock)
+	controller := NewSdkServerController(logger, splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock, specs.FLAG_V1_2)
 	controller.Register(group)
 
 	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/mySegments/someKey", nil)
@@ -646,7 +655,7 @@ func TestMemberships(t *testing.T) {
 	logger := logging.NewLogger(nil)
 
 	group := router.Group("/api")
-	controller := NewSdkServerController(logger, splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock)
+	controller := NewSdkServerController(logger, splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock, specs.FLAG_V1_2)
 	controller.Register(group)
 
 	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/memberships/keyTest", nil)
@@ -696,7 +705,7 @@ func TestMembershipsError(t *testing.T) {
 	logger := logging.NewLogger(nil)
 
 	group := router.Group("/api")
-	controller := NewSdkServerController(logger, splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock)
+	controller := NewSdkServerController(logger, splitFetcher, &splitStorage, &segmentStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock, specs.FLAG_V1_2)
 	controller.Register(group)
 
 	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/memberships/keyTest", nil)

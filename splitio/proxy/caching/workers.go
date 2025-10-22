@@ -7,7 +7,6 @@ import (
 	"github.com/splitio/go-split-commons/v8/flagsets"
 	"github.com/splitio/go-split-commons/v8/healthcheck/application"
 	"github.com/splitio/go-split-commons/v8/service"
-	"github.com/splitio/go-split-commons/v8/service/api/specs"
 	"github.com/splitio/go-split-commons/v8/storage"
 	"github.com/splitio/go-split-commons/v8/synchronizer/worker/largesegment"
 	"github.com/splitio/go-split-commons/v8/synchronizer/worker/segment"
@@ -31,10 +30,11 @@ func NewCacheAwareSplitSync(
 	cacheFlusher gincache.CacheFlusher,
 	appMonitor application.MonitorProducerInterface,
 	flagSetsFilter flagsets.FlagSetFilter,
+	specVersion string,
 ) *CacheAwareSplitSynchronizer {
 	return &CacheAwareSplitSynchronizer{
-		// TODO add ruleBasedSegmentStorage, ruleBuilder
-		wrapped:      split.NewSplitUpdater(splitStorage, nil, splitFetcher, logger, runtimeTelemetry, appMonitor, flagSetsFilter, grammar.RuleBuilder{}, false, specs.FLAG_V1_3),
+		// TODO add ruleBasedSegmentStorage, ruleBuilder, increase FLAG SPEC when we support RUleBased
+		wrapped:      split.NewSplitUpdater(splitStorage, nil, splitFetcher, logger, runtimeTelemetry, appMonitor, flagSetsFilter, grammar.RuleBuilder{}, false, specVersion),
 		splitStorage: splitStorage,
 		cacheFlusher: cacheFlusher,
 	}
