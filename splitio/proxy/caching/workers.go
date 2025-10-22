@@ -24,6 +24,7 @@ type CacheAwareSplitSynchronizer struct {
 // NewCacheAwareSplitSync constructs a split-sync wrapper that evicts cache on updates
 func NewCacheAwareSplitSync(
 	splitStorage storage.SplitStorage,
+	ruleBasedStorage storage.RuleBasedSegmentsStorage,
 	splitFetcher service.SplitFetcher,
 	logger logging.LoggerInterface,
 	runtimeTelemetry storage.TelemetryRuntimeProducer,
@@ -34,7 +35,7 @@ func NewCacheAwareSplitSync(
 ) *CacheAwareSplitSynchronizer {
 	return &CacheAwareSplitSynchronizer{
 		// TODO add ruleBasedSegmentStorage, ruleBuilder, increase FLAG SPEC when we support RUleBased
-		wrapped:      split.NewSplitUpdater(splitStorage, nil, splitFetcher, logger, runtimeTelemetry, appMonitor, flagSetsFilter, grammar.RuleBuilder{}, false, specVersion),
+		wrapped:      split.NewSplitUpdater(splitStorage, ruleBasedStorage, splitFetcher, logger, runtimeTelemetry, appMonitor, flagSetsFilter, grammar.RuleBuilder{}, false, specVersion),
 		splitStorage: splitStorage,
 		cacheFlusher: cacheFlusher,
 	}
@@ -81,6 +82,7 @@ type CacheAwareSegmentSynchronizer struct {
 func NewCacheAwareSegmentSync(
 	splitStorage storage.SplitStorage,
 	segmentStorage storage.SegmentStorage,
+	ruleBasedStorage storage.RuleBasedSegmentsStorage,
 	segmentFetcher service.SegmentFetcher,
 	logger logging.LoggerInterface,
 	runtimeTelemetry storage.TelemetryRuntimeProducer,
@@ -88,8 +90,7 @@ func NewCacheAwareSegmentSync(
 	appMonitor application.MonitorProducerInterface,
 ) *CacheAwareSegmentSynchronizer {
 	return &CacheAwareSegmentSynchronizer{
-		// TODO add ruleBasedSegmentStorage
-		wrapped:        segment.NewSegmentUpdater(splitStorage, segmentStorage, nil, segmentFetcher, logger, runtimeTelemetry, appMonitor),
+		wrapped:        segment.NewSegmentUpdater(splitStorage, segmentStorage, ruleBasedStorage, segmentFetcher, logger, runtimeTelemetry, appMonitor),
 		cacheFlusher:   cacheFlusher,
 		splitStorage:   splitStorage,
 		segmentStorage: segmentStorage,

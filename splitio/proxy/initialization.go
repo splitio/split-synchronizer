@@ -83,6 +83,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 
 	// Proxy storages already implement the observable interface, so no need to wrap them
 	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, flagsets.NewFlagSetFilter(cfg.FlagSetsFilter), cfg.Initialization.Snapshot != "")
+	ruleBasedStorage := storage.NewProxyRuleBasedSegmentsStorage(logger)
 	segmentStorage := storage.NewProxySegmentStorage(dbInstance, logger, cfg.Initialization.Snapshot != "")
 	largeSegmentStorage := inmemory.NewLargeSegmentsStorage()
 
@@ -119,8 +120,8 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 
 	// setup feature flags, segments & local telemetry API interactions
 	workers := synchronizer.Workers{
-		SplitUpdater: caching.NewCacheAwareSplitSync(splitStorage, splitAPI.SplitFetcher, logger, localTelemetryStorage, httpCache, appMonitor, flagSetsFilter, advanced.FlagsSpecVersion),
-		SegmentUpdater: caching.NewCacheAwareSegmentSync(splitStorage, segmentStorage, splitAPI.SegmentFetcher, logger, localTelemetryStorage, httpCache,
+		SplitUpdater: caching.NewCacheAwareSplitSync(splitStorage, ruleBasedStorage, splitAPI.SplitFetcher, logger, localTelemetryStorage, httpCache, appMonitor, flagSetsFilter, advanced.FlagsSpecVersion),
+		SegmentUpdater: caching.NewCacheAwareSegmentSync(splitStorage, segmentStorage, ruleBasedStorage, splitAPI.SegmentFetcher, logger, localTelemetryStorage, httpCache,
 			appMonitor),
 		TelemetryRecorder: telemetry.NewTelemetrySynchronizer(localTelemetryStorage, telemetryRecorder, splitStorage, segmentStorage, logger,
 			metadata, localTelemetryStorage),
@@ -165,7 +166,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	// health monitors are only started after successful init (otherwise they'll fail if the app doesn't sync correctly within the
 	/// specified refresh period)
 	before := time.Now()
-	err = startBGSyng(syncManager, mstatus, cfg.Initialization.Snapshot != "", func() {
+	err = startBGSync(syncManager, mstatus, cfg.Initialization.Snapshot != "", func() {
 		logger.Info("Synchronizer tasks started")
 		appMonitor.Start()
 		servicesMonitor.Start()
@@ -262,6 +263,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		FlagSets:                    cfg.FlagSetsFilter,
 		FlagSetsStrictMatching:      cfg.FlagSetStrictMatching,
 		ProxyLargeSegmentStorage:    largeSegmentStorage,
+		SpecVersion:                 cfg.FlagSpecVersion,
 	}
 
 	if ilcfg := cfg.Integrations.ImpressionListener; ilcfg.Endpoint != "" {
@@ -286,8 +288,7 @@ var (
 	errUnrecoverable = errors.New("error and no snapshot available")
 )
 
-func startBGSyng(m synchronizer.Manager, mstatus chan int, haveSnapshot bool, onReady func()) error {
-
+func startBGSync(m synchronizer.Manager, mstatus chan int, haveSnapshot bool, onReady func()) error {
 	attemptInit := func() bool {
 		go m.Start()
 		status := <-mstatus
