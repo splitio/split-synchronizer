@@ -1,9 +1,10 @@
 package conf
 
 import (
-	cconf "github.com/splitio/go-split-commons/v6/conf"
-	"github.com/splitio/go-split-commons/v6/service/api/specs"
 	"github.com/splitio/split-synchronizer/v5/splitio/common/conf"
+
+	cconf "github.com/splitio/go-split-commons/v8/conf"
+	"github.com/splitio/go-split-commons/v8/service/api/specs"
 )
 
 // Main configuration options

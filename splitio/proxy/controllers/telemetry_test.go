@@ -7,12 +7,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gin-gonic/gin"
-	"github.com/splitio/go-split-commons/v6/dtos"
-	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers/middleware"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/internal"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks/mocks"
+
+	"github.com/splitio/go-split-commons/v8/dtos"
+	"github.com/splitio/go-toolkit/v5/logging"
+
+	"github.com/gin-gonic/gin"
 )
 
 func TestPostConfig(t *testing.T) {

@@ -7,18 +7,19 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gin-gonic/gin"
-	"github.com/splitio/go-split-commons/v6/dtos"
-	"github.com/splitio/go-split-commons/v6/engine/validator"
-	"github.com/splitio/go-split-commons/v6/service"
-	"github.com/splitio/go-split-commons/v6/service/api/specs"
-	cmnStorage "github.com/splitio/go-split-commons/v6/storage"
-	"github.com/splitio/go-toolkit/v5/logging"
-	"golang.org/x/exp/slices"
-
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/caching"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/flagsets"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
+
+	"github.com/splitio/go-split-commons/v8/dtos"
+	"github.com/splitio/go-split-commons/v8/engine/validator"
+	"github.com/splitio/go-split-commons/v8/service"
+	"github.com/splitio/go-split-commons/v8/service/api/specs"
+	cmnStorage "github.com/splitio/go-split-commons/v8/storage"
+	"github.com/splitio/go-toolkit/v5/logging"
+
+	"github.com/gin-gonic/gin"
+	"golang.org/x/exp/slices"
 )
 
 // SdkServerController bundles all request handler for sdk-server apis
@@ -195,7 +196,15 @@ func (c *SdkServerController) fetchSplitChangesSince(since int64, sets []string)
 	// perform a fetch to the BE using the supplied `since`, have the storage process it's response &, retry
 	// TODO(mredolatti): implement basic collapsing here to avoid flooding the BE with requests
 	fetchOptions := service.MakeFlagRequestParams().WithChangeNumber(since).WithFlagSetsFilter(strings.Join(sets, ",")) // at this point the sets have been sanitized & sorted
-	return c.fetcher.Fetch(fetchOptions)
+	ruleChanges, err := c.fetcher.Fetch(fetchOptions)
+	if err != nil {
+		return nil, err
+	}
+	return &dtos.SplitChangesDTO{
+		Since:  ruleChanges.FFSince(),
+		Till:   ruleChanges.FFTill(),
+		Splits: ruleChanges.FeatureFlags(),
+	}, nil
 }
 
 func (c *SdkServerController) shouldOverrideSplitCondition(split *dtos.SplitDTO, version string) bool {

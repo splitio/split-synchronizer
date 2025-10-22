@@ -9,14 +9,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/splitio/go-split-commons/v6/dtos"
-	serviceMocks "github.com/splitio/go-split-commons/v6/service/mocks"
-	"github.com/splitio/go-toolkit/v5/logging"
 	ilmock "github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener/mocks"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/caching"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 	pstorageMocks "github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/mocks"
 	taskMocks "github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks/mocks"
+
+	"github.com/splitio/go-split-commons/v8/dtos"
+	serviceMocks "github.com/splitio/go-split-commons/v8/service/mocks"
+	"github.com/splitio/go-toolkit/v5/logging"
+
 	"github.com/stretchr/testify/assert"
 )
 

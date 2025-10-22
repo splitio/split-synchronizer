@@ -5,7 +5,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/common/conf"
@@ -55,7 +55,7 @@ func TLSConfigForServer(cfg *conf.TLS) (*tls.Config, error) {
 
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	if cfg.ClientValidationRootCert != "" {
-		certBytes, err := ioutil.ReadFile(cfg.ClientValidationRootCert)
+		certBytes, err := os.ReadFile(cfg.ClientValidationRootCert)
 		if err != nil {
 			return nil, fmt.Errorf("error reading root certificate for client validation")
 		}

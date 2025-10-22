@@ -1,7 +1,7 @@
 package mocks
 
 import (
-	"github.com/splitio/go-split-commons/v6/dtos"
+	"github.com/splitio/go-split-commons/v8/dtos"
 )
 
 // RedisTelemetryConsumerMultiMock is a mock

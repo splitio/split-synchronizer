@@ -5,22 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	cconf "github.com/splitio/go-split-commons/v6/conf"
-	"github.com/splitio/go-split-commons/v6/dtos"
-	"github.com/splitio/go-split-commons/v6/flagsets"
-	"github.com/splitio/go-split-commons/v6/provisional/strategy"
-	"github.com/splitio/go-split-commons/v6/service/api"
-	"github.com/splitio/go-split-commons/v6/storage/filter"
-	"github.com/splitio/go-split-commons/v6/storage/inmemory"
-	"github.com/splitio/go-split-commons/v6/storage/redis"
-	"github.com/splitio/go-split-commons/v6/synchronizer"
-	"github.com/splitio/go-split-commons/v6/synchronizer/worker/impressionscount"
-	"github.com/splitio/go-split-commons/v6/synchronizer/worker/segment"
-	"github.com/splitio/go-split-commons/v6/synchronizer/worker/split"
-	"github.com/splitio/go-split-commons/v6/tasks"
-	"github.com/splitio/go-split-commons/v6/telemetry"
-	"github.com/splitio/go-toolkit/v5/logging"
-
 	"github.com/splitio/split-synchronizer/v5/splitio/admin"
 	adminCommon "github.com/splitio/split-synchronizer/v5/splitio/admin/common"
 	"github.com/splitio/split-synchronizer/v5/splitio/common"
@@ -35,6 +19,24 @@ import (
 	hcServices "github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/services"
 	"github.com/splitio/split-synchronizer/v5/splitio/provisional/observability"
 	"github.com/splitio/split-synchronizer/v5/splitio/util"
+
+	cconf "github.com/splitio/go-split-commons/v8/conf"
+	"github.com/splitio/go-split-commons/v8/dtos"
+	"github.com/splitio/go-split-commons/v8/engine/grammar"
+	"github.com/splitio/go-split-commons/v8/flagsets"
+	"github.com/splitio/go-split-commons/v8/provisional/strategy"
+	"github.com/splitio/go-split-commons/v8/service/api"
+	"github.com/splitio/go-split-commons/v8/service/api/specs"
+	"github.com/splitio/go-split-commons/v8/storage/filter"
+	"github.com/splitio/go-split-commons/v8/storage/inmemory"
+	"github.com/splitio/go-split-commons/v8/storage/redis"
+	"github.com/splitio/go-split-commons/v8/synchronizer"
+	"github.com/splitio/go-split-commons/v8/synchronizer/worker/impressionscount"
+	"github.com/splitio/go-split-commons/v8/synchronizer/worker/segment"
+	"github.com/splitio/go-split-commons/v8/synchronizer/worker/split"
+	"github.com/splitio/go-split-commons/v8/tasks"
+	"github.com/splitio/go-split-commons/v8/telemetry"
+	"github.com/splitio/go-toolkit/v5/logging"
 )
 
 const (
@@ -125,8 +127,10 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	eventEvictionMonitor := evcalc.New(1)
 
 	workers := synchronizer.Workers{
-		SplitUpdater: split.NewSplitUpdater(storages.SplitStorage, splitAPI.SplitFetcher, logger, syncTelemetryStorage, appMonitor, flagSetsFilter),
-		SegmentUpdater: segment.NewSegmentUpdater(storages.SplitStorage, storages.SegmentStorage, splitAPI.SegmentFetcher,
+		// TODO add ruleBasedSegmentStorage, ruleBuilder, sdkOverrides
+		SplitUpdater: split.NewSplitUpdater(storages.SplitStorage, nil, splitAPI.SplitFetcher, logger, syncTelemetryStorage, appMonitor, flagSetsFilter, grammar.RuleBuilder{}, false, specs.FLAG_V1_3),
+		// TODO add ruleBasedSegmentStorage
+		SegmentUpdater: segment.NewSegmentUpdater(storages.SplitStorage, storages.SegmentStorage, nil, splitAPI.SegmentFetcher,
 			logger, syncTelemetryStorage, appMonitor),
 		ImpressionsCountRecorder: impressionscount.NewRecorderSingle(impressionsCounter, splitAPI.ImpressionRecorder,
 			metadata, logger, syncTelemetryStorage),

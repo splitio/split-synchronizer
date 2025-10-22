@@ -5,10 +5,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/splitio/go-split-commons/v6/service"
-	cmnStorage "github.com/splitio/go-split-commons/v6/storage"
-	"github.com/splitio/go-toolkit/v5/logging"
-
 	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers/middleware"
@@ -16,10 +12,14 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks"
 
+	"github.com/splitio/gincache"
+	"github.com/splitio/go-split-commons/v8/service"
+	cmnStorage "github.com/splitio/go-split-commons/v8/storage"
+	"github.com/splitio/go-toolkit/v5/logging"
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/gincache"
 )
 
 // Options struct to set options for Proxy mode.

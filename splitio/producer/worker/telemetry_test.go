@@ -3,12 +3,13 @@ package worker
 import (
 	"testing"
 
-	"github.com/splitio/go-split-commons/v6/dtos"
-	serviceMocks "github.com/splitio/go-split-commons/v6/service/mocks"
-	"github.com/splitio/go-split-commons/v6/telemetry"
-	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v5/splitio/producer/storage"
 	storageMocks "github.com/splitio/split-synchronizer/v5/splitio/producer/storage/mocks"
+
+	"github.com/splitio/go-split-commons/v8/dtos"
+	serviceMocks "github.com/splitio/go-split-commons/v8/service/mocks"
+	"github.com/splitio/go-split-commons/v8/telemetry"
+	"github.com/splitio/go-toolkit/v5/logging"
 )
 
 func makeBucket(index int, count int64) []int64 {

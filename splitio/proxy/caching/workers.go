@@ -1,17 +1,18 @@
 package caching
 
 import (
-	"github.com/splitio/go-split-commons/v6/dtos"
-	"github.com/splitio/go-split-commons/v6/flagsets"
-	"github.com/splitio/go-split-commons/v6/healthcheck/application"
-	"github.com/splitio/go-split-commons/v6/service"
-	"github.com/splitio/go-split-commons/v6/storage"
-	"github.com/splitio/go-split-commons/v6/synchronizer/worker/largesegment"
-	"github.com/splitio/go-split-commons/v6/synchronizer/worker/segment"
-	"github.com/splitio/go-split-commons/v6/synchronizer/worker/split"
-	"github.com/splitio/go-toolkit/v5/logging"
-
 	"github.com/splitio/gincache"
+	"github.com/splitio/go-split-commons/v8/dtos"
+	"github.com/splitio/go-split-commons/v8/engine/grammar"
+	"github.com/splitio/go-split-commons/v8/flagsets"
+	"github.com/splitio/go-split-commons/v8/healthcheck/application"
+	"github.com/splitio/go-split-commons/v8/service"
+	"github.com/splitio/go-split-commons/v8/service/api/specs"
+	"github.com/splitio/go-split-commons/v8/storage"
+	"github.com/splitio/go-split-commons/v8/synchronizer/worker/largesegment"
+	"github.com/splitio/go-split-commons/v8/synchronizer/worker/segment"
+	"github.com/splitio/go-split-commons/v8/synchronizer/worker/split"
+	"github.com/splitio/go-toolkit/v5/logging"
 )
 
 // CacheAwareSplitSynchronizer wraps a SplitSynchronizer and flushes cache when an update happens
@@ -32,7 +33,8 @@ func NewCacheAwareSplitSync(
 	flagSetsFilter flagsets.FlagSetFilter,
 ) *CacheAwareSplitSynchronizer {
 	return &CacheAwareSplitSynchronizer{
-		wrapped:      split.NewSplitUpdater(splitStorage, splitFetcher, logger, runtimeTelemetry, appMonitor, flagSetsFilter),
+		// TODO add ruleBasedSegmentStorage, ruleBuilder
+		wrapped:      split.NewSplitUpdater(splitStorage, nil, splitFetcher, logger, runtimeTelemetry, appMonitor, flagSetsFilter, grammar.RuleBuilder{}, false, specs.FLAG_V1_3),
 		splitStorage: splitStorage,
 		cacheFlusher: cacheFlusher,
 	}
@@ -86,7 +88,8 @@ func NewCacheAwareSegmentSync(
 	appMonitor application.MonitorProducerInterface,
 ) *CacheAwareSegmentSynchronizer {
 	return &CacheAwareSegmentSynchronizer{
-		wrapped:        segment.NewSegmentUpdater(splitStorage, segmentStorage, segmentFetcher, logger, runtimeTelemetry, appMonitor),
+		// TODO add ruleBasedSegmentStorage
+		wrapped:        segment.NewSegmentUpdater(splitStorage, segmentStorage, nil, segmentFetcher, logger, runtimeTelemetry, appMonitor),
 		cacheFlusher:   cacheFlusher,
 		splitStorage:   splitStorage,
 		segmentStorage: segmentStorage,

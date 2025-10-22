@@ -2,16 +2,17 @@ package controllers
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
-
-	"github.com/gin-gonic/gin"
-	"github.com/splitio/go-split-commons/v6/dtos"
-	"github.com/splitio/go-toolkit/v5/logging"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/internal"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks"
+
+	"github.com/splitio/go-split-commons/v8/dtos"
+	"github.com/splitio/go-toolkit/v5/logging"
+
+	"github.com/gin-gonic/gin"
 )
 
 // EventsServerController bundles all request handler for sdk-server apis
@@ -66,7 +67,7 @@ func (c *EventsServerController) Register(regular gin.IRouter, beacon gin.IRoute
 func (c *EventsServerController) TestImpressionsBulk(ctx *gin.Context) {
 	metadata := metadataFromHeaders(ctx)
 	impressionsMode := parseImpressionsMode(ctx.Request.Header.Get("SplitSDKImpressionsMode"))
-	data, err := ioutil.ReadAll(ctx.Request.Body)
+	data, err := io.ReadAll(ctx.Request.Body)
 	if err != nil {
 		c.logger.Error(err)
 		ctx.JSON(http.StatusInternalServerError, nil)
@@ -99,7 +100,7 @@ func (c *EventsServerController) TestImpressionsBeacon(ctx *gin.Context) {
 		return
 	}
 
-	data, err := ioutil.ReadAll(ctx.Request.Body)
+	data, err := io.ReadAll(ctx.Request.Body)
 	if err != nil {
 		c.logger.Error("Error reading testImpressions/beacon request body: ", err)
 		ctx.JSON(http.StatusInternalServerError, nil)
@@ -135,7 +136,7 @@ func (c *EventsServerController) TestImpressionsBeacon(ctx *gin.Context) {
 func (c *EventsServerController) TestImpressionsCount(ctx *gin.Context) {
 
 	metadata := metadataFromHeaders(ctx)
-	data, err := ioutil.ReadAll(ctx.Request.Body)
+	data, err := io.ReadAll(ctx.Request.Body)
 	if err != nil {
 		c.logger.Error("Error reading request body in testImpressions/count endpoint: ", err)
 		ctx.JSON(http.StatusInternalServerError, nil)
@@ -162,7 +163,7 @@ func (c *EventsServerController) TestImpressionsCountBeacon(ctx *gin.Context) {
 		return
 	}
 
-	data, err := ioutil.ReadAll(ctx.Request.Body)
+	data, err := io.ReadAll(ctx.Request.Body)
 	if err != nil {
 		c.logger.Error(err)
 		ctx.JSON(http.StatusInternalServerError, nil)
@@ -199,7 +200,7 @@ func (c *EventsServerController) TestImpressionsCountBeacon(ctx *gin.Context) {
 // EventsBulk accepts incoming event bulks
 func (c *EventsServerController) EventsBulk(ctx *gin.Context) {
 	metadata := metadataFromHeaders(ctx)
-	data, err := ioutil.ReadAll(ctx.Request.Body)
+	data, err := io.ReadAll(ctx.Request.Body)
 	if err != nil {
 		c.logger.Error("Error reading request body when accepting an event bulk: ", err)
 		ctx.JSON(http.StatusInternalServerError, nil)
@@ -225,7 +226,7 @@ func (c *EventsServerController) EventsBulkBeacon(ctx *gin.Context) {
 		return
 	}
 
-	data, err := ioutil.ReadAll(ctx.Request.Body)
+	data, err := io.ReadAll(ctx.Request.Body)
 	if err != nil {
 		c.logger.Error(err)
 		ctx.JSON(http.StatusInternalServerError, nil)

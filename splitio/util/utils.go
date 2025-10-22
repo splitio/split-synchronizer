@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/splitio/go-split-commons/v6/dtos"
+	"github.com/splitio/split-synchronizer/v5/splitio"
+
+	"github.com/splitio/go-split-commons/v8/dtos"
 	"github.com/splitio/go-toolkit/v5/hasher"
 	"github.com/splitio/go-toolkit/v5/nethelpers"
-	"github.com/splitio/split-synchronizer/v5/splitio"
 )
 
 // HashAPIKey hashes apikey

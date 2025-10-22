@@ -1,9 +1,10 @@
 package controllers
 
 import (
+	"github.com/splitio/go-split-commons/v8/conf"
+	"github.com/splitio/go-split-commons/v8/dtos"
+
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/go-split-commons/v6/conf"
-	"github.com/splitio/go-split-commons/v6/dtos"
 )
 
 func metadataFromHeaders(ctx *gin.Context) dtos.Metadata {

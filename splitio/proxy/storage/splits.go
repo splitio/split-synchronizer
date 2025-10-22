@@ -5,16 +5,16 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/splitio/go-split-commons/v6/dtos"
-	"github.com/splitio/go-split-commons/v6/flagsets"
-	"github.com/splitio/go-split-commons/v6/storage"
-	"github.com/splitio/go-split-commons/v6/storage/inmemory/mutexmap"
-	"github.com/splitio/go-toolkit/v5/datastructures/set"
-	"github.com/splitio/go-toolkit/v5/logging"
-
 	"github.com/splitio/split-synchronizer/v5/splitio/provisional/observability"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/optimized"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/persistent"
+
+	"github.com/splitio/go-split-commons/v8/dtos"
+	"github.com/splitio/go-split-commons/v8/flagsets"
+	"github.com/splitio/go-split-commons/v8/storage"
+	"github.com/splitio/go-split-commons/v8/storage/inmemory/mutexmap"
+	"github.com/splitio/go-toolkit/v5/datastructures/set"
+	"github.com/splitio/go-toolkit/v5/logging"
 )
 
 const (
@@ -195,6 +195,14 @@ func (p *ProxySplitStorageImpl) setStartingPoint(cn int64) {
 		p.oldestKnownCN = cn
 	}
 	p.mtx.Unlock()
+}
+
+func (p *ProxySplitStorageImpl) ReplaceAll(splits []dtos.SplitDTO, changeNumber int64) error {
+	panic("not implemented")
+}
+
+func (p *ProxySplitStorageImpl) RuleBasedSegmentNames() *set.ThreadUnsafeSet {
+	panic("not implemented")
 }
 
 func (p *ProxySplitStorageImpl) sinceIsTooOld(since int64) bool {

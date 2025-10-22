@@ -2,15 +2,16 @@ package controllers
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
-
-	"github.com/gin-gonic/gin"
-	"github.com/splitio/go-split-commons/v6/dtos"
-	"github.com/splitio/go-toolkit/v5/logging"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/internal"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks"
+
+	"github.com/splitio/go-split-commons/v8/dtos"
+	"github.com/splitio/go-toolkit/v5/logging"
+
+	"github.com/gin-gonic/gin"
 )
 
 // TelemetryServerController bundles all request handler for sdk-server apis
@@ -63,7 +64,7 @@ func (c *TelemetryServerController) Register(router gin.IRouter, beacon gin.IRou
 // Config endpoint accepts telemtetry config objects
 func (c *TelemetryServerController) Config(ctx *gin.Context) {
 	metadata := metadataFromHeaders(ctx)
-	data, err := ioutil.ReadAll(ctx.Request.Body)
+	data, err := io.ReadAll(ctx.Request.Body)
 	if err != nil {
 		c.logger.Error(err)
 		ctx.JSON(http.StatusInternalServerError, nil)
@@ -85,7 +86,7 @@ func (c *TelemetryServerController) Config(ctx *gin.Context) {
 // Usage endpoint accepts telemtetry config objects
 func (c *TelemetryServerController) Usage(ctx *gin.Context) {
 	metadata := metadataFromHeaders(ctx)
-	data, err := ioutil.ReadAll(ctx.Request.Body)
+	data, err := io.ReadAll(ctx.Request.Body)
 	if err != nil {
 		c.logger.Error(err)
 		ctx.JSON(http.StatusInternalServerError, nil)
@@ -110,7 +111,7 @@ func (c *TelemetryServerController) UsageBeacon(ctx *gin.Context) {
 		return
 	}
 
-	data, err := ioutil.ReadAll(ctx.Request.Body)
+	data, err := io.ReadAll(ctx.Request.Body)
 	if err != nil {
 		c.logger.Error(err)
 		ctx.JSON(http.StatusInternalServerError, nil)
@@ -146,7 +147,7 @@ func (c *TelemetryServerController) UsageBeacon(ctx *gin.Context) {
 
 func (c *TelemetryServerController) keysClientSide(ctx *gin.Context) {
 	metadata := metadataFromHeaders(ctx)
-	data, err := ioutil.ReadAll(ctx.Request.Body)
+	data, err := io.ReadAll(ctx.Request.Body)
 	if err != nil {
 		c.logger.Error("Error reading request body in keys/cs endpoint: ", err)
 		ctx.JSON(http.StatusInternalServerError, nil)
@@ -172,7 +173,7 @@ func (c *TelemetryServerController) keysClientSideBeacon(ctx *gin.Context) {
 		return
 	}
 
-	data, err := ioutil.ReadAll(ctx.Request.Body)
+	data, err := io.ReadAll(ctx.Request.Body)
 	if err != nil {
 		c.logger.Error(err)
 		ctx.JSON(http.StatusInternalServerError, nil)
@@ -208,7 +209,7 @@ func (c *TelemetryServerController) keysClientSideBeacon(ctx *gin.Context) {
 
 func (c *TelemetryServerController) keysServerSide(ctx *gin.Context) {
 	metadata := metadataFromHeaders(ctx)
-	data, err := ioutil.ReadAll(ctx.Request.Body)
+	data, err := io.ReadAll(ctx.Request.Body)
 	if err != nil {
 		c.logger.Error("Error reading request body in keys/ss endpoint: ", err)
 		ctx.JSON(http.StatusInternalServerError, nil)

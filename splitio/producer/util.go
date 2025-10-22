@@ -5,25 +5,26 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
-	config "github.com/splitio/go-split-commons/v6/conf"
-	"github.com/splitio/go-split-commons/v6/provisional"
-	"github.com/splitio/go-split-commons/v6/provisional/strategy"
-	"github.com/splitio/go-split-commons/v6/service"
-	storageCommon "github.com/splitio/go-split-commons/v6/storage"
-	"github.com/splitio/go-split-commons/v6/storage/redis"
-	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
 	"github.com/splitio/split-synchronizer/v5/splitio/producer/conf"
 	hcAppCounter "github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/application/counter"
 	hcServicesCounter "github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/services/counter"
 	"github.com/splitio/split-synchronizer/v5/splitio/util"
+
+	config "github.com/splitio/go-split-commons/v8/conf"
+	"github.com/splitio/go-split-commons/v8/provisional"
+	"github.com/splitio/go-split-commons/v8/provisional/strategy"
+	"github.com/splitio/go-split-commons/v8/service"
+	storageCommon "github.com/splitio/go-split-commons/v8/storage"
+	"github.com/splitio/go-split-commons/v8/storage/redis"
+	"github.com/splitio/go-toolkit/v5/logging"
 )
 
 const (
@@ -44,7 +45,7 @@ func parseTLSConfig(opt *conf.Redis) (*tls.Config, error) {
 	if len(opt.TLSCACertificates) > 0 {
 		certPool := x509.NewCertPool()
 		for _, cacert := range opt.TLSCACertificates {
-			pemData, err := ioutil.ReadFile(cacert)
+			pemData, err := os.ReadFile(cacert)
 			if err != nil {
 				return nil, fmt.Errorf("failed to load root certificate: %w", err)
 			}

@@ -5,8 +5,10 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/splitio/go-split-commons/v8/dtos"
+
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/go-split-commons/v6/dtos"
+
 	"github.com/stretchr/testify/assert"
 )
 

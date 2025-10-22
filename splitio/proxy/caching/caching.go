@@ -3,9 +3,10 @@ package caching
 import (
 	"strings"
 
-	"github.com/gin-gonic/gin"
 	"github.com/splitio/gincache"
-	"github.com/splitio/go-split-commons/v6/dtos"
+	"github.com/splitio/go-split-commons/v8/dtos"
+
+	"github.com/gin-gonic/gin"
 )
 
 const (

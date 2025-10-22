@@ -4,14 +4,14 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/splitio/go-split-commons/v6/dtos"
-	"github.com/splitio/go-split-commons/v6/storage"
-	"github.com/splitio/go-toolkit/v5/datastructures/set"
-	"github.com/splitio/go-toolkit/v5/logging"
-
 	"github.com/splitio/split-synchronizer/v5/splitio/provisional/observability"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/optimized"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/persistent"
+
+	"github.com/splitio/go-split-commons/v8/dtos"
+	"github.com/splitio/go-split-commons/v8/storage"
+	"github.com/splitio/go-toolkit/v5/datastructures/set"
+	"github.com/splitio/go-toolkit/v5/logging"
 )
 
 // ErrSegmentNotFound is returned when the segment whose changes we're querying isn't cached

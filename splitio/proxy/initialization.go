@@ -5,19 +5,8 @@ import (
 	"fmt"
 	"log"
 	"net/url"
-	"time"
-
 	"strings"
-
-	"github.com/splitio/go-split-commons/v6/conf"
-	"github.com/splitio/go-split-commons/v6/flagsets"
-	"github.com/splitio/go-split-commons/v6/service/api"
-	inmemory "github.com/splitio/go-split-commons/v6/storage/inmemory/mutexmap"
-	"github.com/splitio/go-split-commons/v6/synchronizer"
-	"github.com/splitio/go-split-commons/v6/tasks"
-	"github.com/splitio/go-split-commons/v6/telemetry"
-	"github.com/splitio/go-toolkit/v5/backoff"
-	"github.com/splitio/go-toolkit/v5/logging"
+	"time"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/admin"
 	adminCommon "github.com/splitio/split-synchronizer/v5/splitio/admin/common"
@@ -35,6 +24,16 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/persistent"
 	pTasks "github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks"
 	"github.com/splitio/split-synchronizer/v5/splitio/util"
+
+	"github.com/splitio/go-split-commons/v8/conf"
+	"github.com/splitio/go-split-commons/v8/flagsets"
+	"github.com/splitio/go-split-commons/v8/service/api"
+	inmemory "github.com/splitio/go-split-commons/v8/storage/inmemory/mutexmap"
+	"github.com/splitio/go-split-commons/v8/synchronizer"
+	"github.com/splitio/go-split-commons/v8/tasks"
+	"github.com/splitio/go-split-commons/v8/telemetry"
+	"github.com/splitio/go-toolkit/v5/backoff"
+	"github.com/splitio/go-toolkit/v5/logging"
 )
 
 // Start initialize in proxy mode

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/splitio/go-split-commons/v6/synchronizer"
+	"github.com/splitio/go-split-commons/v8/synchronizer"
 )
 
 type syncManagerMock struct {
@@ -24,6 +24,10 @@ func (m *syncManagerMock) Start() {
 	}
 }
 func (m *syncManagerMock) Stop() { panic("unimplemented") }
+
+func (m *syncManagerMock) StartBGSyng(mstatus chan int, shouldRetry bool, onReady func()) error {
+	panic("unimplemented")
+}
 
 var _ synchronizer.Manager = (*syncManagerMock)(nil)
 

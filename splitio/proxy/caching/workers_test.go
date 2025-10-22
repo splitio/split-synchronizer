@@ -3,11 +3,13 @@ package caching
 import (
 	"testing"
 
-	"github.com/splitio/go-split-commons/v6/dtos"
-	"github.com/splitio/go-split-commons/v6/synchronizer/worker/segment"
-	"github.com/splitio/go-split-commons/v6/synchronizer/worker/split"
-	"github.com/splitio/go-toolkit/v5/datastructures/set"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/caching/mocks"
+
+	"github.com/splitio/go-split-commons/v8/dtos"
+	"github.com/splitio/go-split-commons/v8/synchronizer/worker/segment"
+	"github.com/splitio/go-split-commons/v8/synchronizer/worker/split"
+	"github.com/splitio/go-toolkit/v5/datastructures/set"
+
 	"github.com/stretchr/testify/assert"
 )
 
