@@ -69,7 +69,7 @@ func (p *ProxyRuleBasedSegmentsStorageImpl) ReplaceAll(rbs []dtos.RuleBasedSegme
 }
 
 // RuleBasedSegmentNames retrieves the names of all rule-based segments
-func (p *ProxyRuleBasedSegmentsStorageImpl) RuleBasedSegmentNames() []string {
+func (p *ProxyRuleBasedSegmentsStorageImpl) RuleBasedSegmentNames() ([]string, error) {
 	return p.snapshot.RuleBasedSegmentNames()
 }
 
@@ -84,7 +84,7 @@ func (p *ProxyRuleBasedSegmentsStorageImpl) SetChangeNumber(cn int64) error {
 }
 
 // Update
-func (p *ProxyRuleBasedSegmentsStorageImpl) Update(toAdd []dtos.RuleBasedSegmentDTO, toRemove []dtos.RuleBasedSegmentDTO, cn int64) {
+func (p *ProxyRuleBasedSegmentsStorageImpl) Update(toAdd []dtos.RuleBasedSegmentDTO, toRemove []dtos.RuleBasedSegmentDTO, cn int64) error {
 	// TODO Add the other logic
 	// 	p.setStartingPoint(changeNumber) // will be executed only the first time this method is called
 
@@ -99,6 +99,7 @@ func (p *ProxyRuleBasedSegmentsStorageImpl) Update(toAdd []dtos.RuleBasedSegment
 	// p.mtx.Unlock()
 
 	p.snapshot.Update(toAdd, toRemove, cn)
+	return nil
 }
 
 var _ ProxyRuleBasedSegmentsStorage = (*ProxyRuleBasedSegmentsStorageImpl)(nil)
