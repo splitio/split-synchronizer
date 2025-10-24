@@ -103,12 +103,13 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		return fmt.Errorf("error instantiating observable segment storage: %w", err)
 	}
 	storages := adminCommon.Storages{
-		SplitStorage:          splitStorage,
-		SegmentStorage:        segmentStorage,
-		LocalTelemetryStorage: syncTelemetryStorage,
-		ImpressionStorage:     redis.NewImpressionStorage(redisClient, dtos.Metadata{}, logger),
-		EventStorage:          redis.NewEventsStorage(redisClient, dtos.Metadata{}, logger),
-		UniqueKeysStorage:     redis.NewUniqueKeysMultiSdkConsumer(redisClient, logger),
+		SplitStorage:             splitStorage,
+		SegmentStorage:           segmentStorage,
+		LocalTelemetryStorage:    syncTelemetryStorage,
+		ImpressionStorage:        redis.NewImpressionStorage(redisClient, dtos.Metadata{}, logger),
+		EventStorage:             redis.NewEventsStorage(redisClient, dtos.Metadata{}, logger),
+		UniqueKeysStorage:        redis.NewUniqueKeysMultiSdkConsumer(redisClient, logger),
+		RuleBasedSegmentsStorage: redis.NewRuleBasedStorage(redisClient, logger),
 	}
 
 	// Healcheck Monitor
@@ -125,11 +126,19 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	// Creating Workers and Tasks
 	eventEvictionMonitor := evcalc.New(1)
 
+	ruleBuilder := grammar.NewRuleBuilder(
+		storages.SegmentStorage,
+		storages.RuleBasedSegmentsStorage,
+		storages.LargeSegmentStorage,
+		adminCommon.ProducerFeatureFlagsRules,
+		adminCommon.ProducerRuleBasedSegmentRules,
+		logger,
+		nil)
+
 	workers := synchronizer.Workers{
-		// TODO add ruleBasedSegmentStorage, ruleBuilder, sdkOverrides
-		SplitUpdater: split.NewSplitUpdater(storages.SplitStorage, nil, splitAPI.SplitFetcher, logger, syncTelemetryStorage, appMonitor, flagSetsFilter, grammar.RuleBuilder{}, false, cfg.FlagSpecVersion),
-		// TODO add ruleBasedSegmentStorage
-		SegmentUpdater: segment.NewSegmentUpdater(storages.SplitStorage, storages.SegmentStorage, nil, splitAPI.SegmentFetcher,
+		// TODO add sdkOverrides
+		SplitUpdater: split.NewSplitUpdater(storages.SplitStorage, storages.RuleBasedSegmentsStorage, splitAPI.SplitFetcher, logger, syncTelemetryStorage, appMonitor, flagSetsFilter, ruleBuilder, false, cfg.FlagSpecVersion),
+		SegmentUpdater: segment.NewSegmentUpdater(storages.SplitStorage, storages.SegmentStorage, storages.RuleBasedSegmentsStorage, splitAPI.SegmentFetcher,
 			logger, syncTelemetryStorage, appMonitor),
 		ImpressionsCountRecorder: impressionscount.NewRecorderSingle(impressionsCounter, splitAPI.ImpressionRecorder,
 			metadata, logger, syncTelemetryStorage),
