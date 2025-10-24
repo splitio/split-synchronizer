@@ -7,6 +7,12 @@ inputSet:
   pipeline:
     identifier: deploy_qos_v3
     stages:
+      - stage:
+          identifier: code_artifact
+          type: Deployment
+          spec:
+            service:
+              serviceRef: <+<+expression.isResolved(<+trigger.payload.repository.name>)>?<+trigger.payload.repository.name.replace("-", "")>:<+trigger.payload.artifacts[0].service.replace("-", "")>>
       - parallel:
           - stage:
               identifier: CI
@@ -78,6 +84,14 @@ inputSet:
                   fips_mode:
                     - enabled
                     - disabled
+      - stage:
+          identifier: deploy
+          type: Deployment
+          spec:
+            services:
+              values: <+input>
+              metadata:
+                parallel: <+input>
     properties:
       ci:
         codebase:
