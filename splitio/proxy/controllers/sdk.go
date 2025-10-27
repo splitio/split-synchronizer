@@ -127,10 +127,6 @@ func (c *SdkServerController) SplitChanges(ctx *gin.Context) {
 
 	sParam, _ := ctx.GetQuery("s")
 	spec, err := specs.ParseAndValidate(sParam)
-	if spec == "1.3" {
-		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "lala"})
-		return
-	}
 	if err != nil {
 		c.logger.Error(fmt.Sprintf("error parsing spec version: %s.", err))
 		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})

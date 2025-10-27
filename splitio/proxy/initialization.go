@@ -26,6 +26,7 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/util"
 
 	"github.com/splitio/go-split-commons/v8/conf"
+	"github.com/splitio/go-split-commons/v8/engine/grammar"
 	"github.com/splitio/go-split-commons/v8/flagsets"
 	"github.com/splitio/go-split-commons/v8/service/api"
 	inmemory "github.com/splitio/go-split-commons/v8/storage/inmemory/mutexmap"
@@ -118,9 +119,18 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	eventsRecorder := api.NewHTTPEventsRecorder(cfg.Apikey, *advanced, logger)
 	eventsTask := pTasks.NewEventsFlushTask(eventsRecorder, logger, 1, int(cfg.Sync.Advanced.EventsBuffer), int(cfg.Sync.Advanced.EventsWorkers))
 
+	ruleBuilder := grammar.NewRuleBuilder(
+		segmentStorage,
+		ruleBasedStorage,
+		largeSegmentStorage,
+		adminCommon.ProducerFeatureFlagsRules,
+		adminCommon.ProducerRuleBasedSegmentRules,
+		logger,
+		nil)
+
 	// setup feature flags, segments & local telemetry API interactions
 	workers := synchronizer.Workers{
-		SplitUpdater: caching.NewCacheAwareSplitSync(splitStorage, ruleBasedStorage, splitAPI.SplitFetcher, logger, localTelemetryStorage, httpCache, appMonitor, flagSetsFilter, advanced.FlagsSpecVersion),
+		SplitUpdater: caching.NewCacheAwareSplitSync(splitStorage, ruleBasedStorage, splitAPI.SplitFetcher, logger, localTelemetryStorage, httpCache, appMonitor, flagSetsFilter, advanced.FlagsSpecVersion, ruleBuilder),
 		SegmentUpdater: caching.NewCacheAwareSegmentSync(splitStorage, segmentStorage, ruleBasedStorage, splitAPI.SegmentFetcher, logger, localTelemetryStorage, httpCache,
 			appMonitor),
 		TelemetryRecorder: telemetry.NewTelemetrySynchronizer(localTelemetryStorage, telemetryRecorder, splitStorage, segmentStorage, logger,

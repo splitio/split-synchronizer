@@ -32,10 +32,11 @@ func NewCacheAwareSplitSync(
 	appMonitor application.MonitorProducerInterface,
 	flagSetsFilter flagsets.FlagSetFilter,
 	specVersion string,
+	ruleBuilder grammar.RuleBuilder,
 ) *CacheAwareSplitSynchronizer {
 	return &CacheAwareSplitSynchronizer{
 		// TODO add ruleBasedSegmentStorage, ruleBuilder, increase FLAG SPEC when we support RUleBased
-		wrapped:      split.NewSplitUpdater(splitStorage, ruleBasedStorage, splitFetcher, logger, runtimeTelemetry, appMonitor, flagSetsFilter, grammar.RuleBuilder{}, false, specVersion),
+		wrapped:      split.NewSplitUpdater(splitStorage, ruleBasedStorage, splitFetcher, logger, runtimeTelemetry, appMonitor, flagSetsFilter, ruleBuilder, false, specVersion),
 		splitStorage: splitStorage,
 		cacheFlusher: cacheFlusher,
 	}
