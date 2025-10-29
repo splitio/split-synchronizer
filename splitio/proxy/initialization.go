@@ -260,6 +260,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		SplitFetcher:                splitAPI.SplitFetcher,
 		ProxySplitStorage:           splitStorage,
 		ProxySegmentStorage:         segmentStorage,
+		ProxyRBSegmentStorage:       ruleBasedStorage,
 		ImpressionsSink:             impressionTask,
 		ImpressionCountSink:         impressionCountTask,
 		EventsSink:                  eventsTask,

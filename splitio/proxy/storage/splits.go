@@ -17,10 +17,6 @@ import (
 	"github.com/splitio/go-toolkit/v5/logging"
 )
 
-const (
-	maxRecipes = 1000
-)
-
 // ErrSinceParamTooOld is returned when a summary is not cached for a requested change number
 var ErrSinceParamTooOld = errors.New("summary for requested change number not cached")
 

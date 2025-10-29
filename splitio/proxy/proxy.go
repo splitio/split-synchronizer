@@ -51,6 +51,9 @@ type Options struct {
 	// used to resolve segmentChanges & mySegments requests
 	ProxySegmentStorage storage.ProxySegmentStorage
 
+	// used to resolve splitChanges with rule-based segments requests
+	ProxyRBSegmentStorage storage.ProxyRuleBasedSegmentsStorage
+
 	// ProxyLargeSegmentStorage
 	ProxyLargeSegmentStorage cmnStorage.LargeSegmentsStorage
 
@@ -165,6 +168,7 @@ func setupSdkController(options *Options) *controllers.SdkServerController {
 		options.SplitFetcher,
 		options.ProxySplitStorage,
 		options.ProxySegmentStorage,
+		options.ProxyRBSegmentStorage,
 		flagsets.NewMatcher(options.FlagSetsStrictMatching, options.FlagSets),
 		options.ProxyLargeSegmentStorage,
 		options.SpecVersion,

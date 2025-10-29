@@ -17,6 +17,7 @@ import (
 // CacheAwareSplitSynchronizer wraps a SplitSynchronizer and flushes cache when an update happens
 type CacheAwareSplitSynchronizer struct {
 	splitStorage storage.SplitStorage
+	rbStorage    storage.RuleBasedSegmentsStorage
 	wrapped      split.Updater
 	cacheFlusher gincache.CacheFlusher
 }
@@ -35,9 +36,9 @@ func NewCacheAwareSplitSync(
 	ruleBuilder grammar.RuleBuilder,
 ) *CacheAwareSplitSynchronizer {
 	return &CacheAwareSplitSynchronizer{
-		// TODO add ruleBasedSegmentStorage, ruleBuilder, increase FLAG SPEC when we support RUleBased
 		wrapped:      split.NewSplitUpdater(splitStorage, ruleBasedStorage, splitFetcher, logger, runtimeTelemetry, appMonitor, flagSetsFilter, ruleBuilder, false, specVersion),
 		splitStorage: splitStorage,
+		rbStorage:    ruleBasedStorage,
 		cacheFlusher: cacheFlusher,
 	}
 }
@@ -45,8 +46,12 @@ func NewCacheAwareSplitSync(
 // SynchronizeSplits synchronizes feature flags and if something changes, purges the cache appropriately
 func (c *CacheAwareSplitSynchronizer) SynchronizeSplits(till *int64) (*split.UpdateResult, error) {
 	previous, _ := c.splitStorage.ChangeNumber()
+	previousRB, _ := c.rbStorage.ChangeNumber()
+
 	result, err := c.wrapped.SynchronizeSplits(till)
-	if current, _ := c.splitStorage.ChangeNumber(); current > previous || (previous != -1 && current == -1) {
+	current, _ := c.splitStorage.ChangeNumber()
+	currentRB, _ := c.rbStorage.ChangeNumber()
+	if current > previous || (previous != -1 && current == -1) || currentRB > previousRB || (previousRB != -1 && currentRB == -1) {
 		// if the changenumber was updated, evict splitChanges responses from cache
 		c.cacheFlusher.EvictBySurrogate(SplitSurrogate)
 	}
@@ -63,8 +68,12 @@ func (c *CacheAwareSplitSynchronizer) LocalKill(splitName string, defaultTreatme
 // SynchronizeFeatureFlags synchronizes feature flags and if something changes, purges the cache appropriately
 func (c *CacheAwareSplitSynchronizer) SynchronizeFeatureFlags(ffChange *dtos.SplitChangeUpdate) (*split.UpdateResult, error) {
 	previous, _ := c.splitStorage.ChangeNumber()
+	previousRB, _ := c.rbStorage.ChangeNumber()
+
 	result, err := c.wrapped.SynchronizeFeatureFlags(ffChange)
-	if current, _ := c.splitStorage.ChangeNumber(); current > previous || (previous != -1 && current == -1) {
+	current, _ := c.splitStorage.ChangeNumber()
+	currentRB, _ := c.rbStorage.ChangeNumber()
+	if current > previous || (previous != -1 && current == -1) || currentRB > previousRB || (previousRB != -1 && currentRB == -1) {
 		// if the changenumber was updated, evict splitChanges responses from cache
 		c.cacheFlusher.EvictBySurrogate(SplitSurrogate)
 	}

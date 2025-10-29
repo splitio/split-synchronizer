@@ -34,6 +34,9 @@ func NewProxyRuleBasedSegmentsStorage(logger logging.LoggerInterface) *ProxyRule
 
 // ChangesSince retrieves the rule-based segments changes since the given change number
 func (p *ProxyRuleBasedSegmentsStorageImpl) ChangesSince(since int64) (*dtos.RuleBasedSegmentsDTO, error) {
+	if since > -1 {
+		return &dtos.RuleBasedSegmentsDTO{Since: since, Till: since, RuleBasedSegments: []dtos.RuleBasedSegmentDTO{}}, nil
+	}
 	cn, _ := p.snapshot.ChangeNumber()
 	return &dtos.RuleBasedSegmentsDTO{Since: since, Till: cn, RuleBasedSegments: p.snapshot.All()}, nil
 }

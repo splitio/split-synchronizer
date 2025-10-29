@@ -25,14 +25,15 @@ import (
 
 // SdkServerController bundles all request handler for sdk-server apis
 type SdkServerController struct {
-	logger              logging.LoggerInterface
-	fetcher             service.SplitFetcher
-	proxySplitStorage   storage.ProxySplitStorage
-	proxySegmentStorage storage.ProxySegmentStorage
-	fsmatcher           flagsets.FlagSetMatcher
-	versionFilter       specs.SplitVersionFilter
-	largeSegmentStorage cmnStorage.LargeSegmentsStorage
-	specVersion         string
+	logger                logging.LoggerInterface
+	fetcher               service.SplitFetcher
+	proxySplitStorage     storage.ProxySplitStorage
+	proxyRBSegmentStorage storage.ProxyRuleBasedSegmentsStorage
+	proxySegmentStorage   storage.ProxySegmentStorage
+	fsmatcher             flagsets.FlagSetMatcher
+	versionFilter         specs.SplitVersionFilter
+	largeSegmentStorage   cmnStorage.LargeSegmentsStorage
+	specVersion           string
 }
 
 // NewSdkServerController instantiates a new sdk server controller
@@ -41,19 +42,21 @@ func NewSdkServerController(
 	fetcher service.SplitFetcher,
 	proxySplitStorage storage.ProxySplitStorage,
 	proxySegmentStorage storage.ProxySegmentStorage,
+	proxyRBSegmentStorage storage.ProxyRuleBasedSegmentsStorage,
 	fsmatcher flagsets.FlagSetMatcher,
 	largeSegmentStorage cmnStorage.LargeSegmentsStorage,
 	specVersion string,
 ) *SdkServerController {
 	return &SdkServerController{
-		logger:              logger,
-		fetcher:             fetcher,
-		proxySplitStorage:   proxySplitStorage,
-		proxySegmentStorage: proxySegmentStorage,
-		fsmatcher:           fsmatcher,
-		versionFilter:       specs.NewSplitVersionFilter(),
-		largeSegmentStorage: largeSegmentStorage,
-		specVersion:         specVersion,
+		logger:                logger,
+		fetcher:               fetcher,
+		proxySplitStorage:     proxySplitStorage,
+		proxySegmentStorage:   proxySegmentStorage,
+		proxyRBSegmentStorage: proxyRBSegmentStorage,
+		fsmatcher:             fsmatcher,
+		versionFilter:         specs.NewSplitVersionFilter(),
+		largeSegmentStorage:   largeSegmentStorage,
+		specVersion:           specVersion,
 	}
 }
 
@@ -107,6 +110,11 @@ func (c *SdkServerController) SplitChanges(ctx *gin.Context) {
 		since = -1
 	}
 
+	rbsince, err := strconv.ParseInt(ctx.DefaultQuery("rbSince", "-1"), 10, 64)
+	if err != nil {
+		rbsince = -1
+	}
+
 	var rawSets []string
 	if fq, ok := ctx.GetQuery("sets"); ok {
 		rawSets = strings.Split(fq, ",")
@@ -116,9 +124,9 @@ func (c *SdkServerController) SplitChanges(ctx *gin.Context) {
 		c.logger.Warning(fmt.Sprintf("SDK [%s] is sending flagsets unordered or with duplicates.", ctx.Request.Header.Get("SplitSDKVersion")))
 	}
 
-	c.logger.Debug(fmt.Sprintf("SDK Fetches Feature Flags Since: %d", since))
+	c.logger.Debug(fmt.Sprintf("SDK Fetches Feature Flags Since: %d, RBSince: %d", since, rbsince))
 
-	splits, err := c.fetchSplitChangesSince(since, sets)
+	rules, err := c.fetchRulesSince(since, rbsince, sets)
 	if err != nil {
 		c.logger.Error("error fetching splitChanges payload from storage: ", err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -133,9 +141,23 @@ func (c *SdkServerController) SplitChanges(ctx *gin.Context) {
 		return
 	}
 
-	splits.Splits = c.patchUnsupportedMatchers(splits.Splits, spec)
+	rules.FeatureFlags.Splits = c.patchUnsupportedMatchers(rules.FeatureFlags.Splits, spec)
 
-	ctx.JSON(http.StatusOK, splits)
+	if spec == specs.FLAG_V1_3 {
+		fmt.Println("1.3 1.3 1.3 1.3 1.3 ")
+		fmt.Println("cantidad de ff:", len(rules.FeatureFlags.Splits), rules.FeatureFlags.Since, rules.FeatureFlags.Till)
+		fmt.Println("cantidad de rb:", len(rules.RuleBasedSegments.RuleBasedSegments), rules.RuleBasedSegments.Since, rules.RuleBasedSegments.Till)
+		ctx.JSON(http.StatusOK, rules)
+		ctx.Set(caching.SurrogateContextKey, []string{caching.SplitSurrogate})
+		ctx.Set(caching.StickyContextKey, true)
+		return
+	}
+	fmt.Println("otra otra otra otra")
+	ctx.JSON(http.StatusOK, dtos.SplitChangesDTO{
+		Splits: rules.FeatureFlags.Splits,
+		Since:  rules.FeatureFlags.Since,
+		Till:   rules.FeatureFlags.Till,
+	})
 	ctx.Set(caching.SurrogateContextKey, []string{caching.SplitSurrogate})
 	ctx.Set(caching.StickyContextKey, true)
 }
@@ -187,26 +209,49 @@ func (c *SdkServerController) MySegments(ctx *gin.Context) {
 	ctx.Set(caching.SurrogateContextKey, caching.MakeSurrogateForMySegments(mySegments))
 }
 
-func (c *SdkServerController) fetchSplitChangesSince(since int64, sets []string) (*dtos.SplitChangesDTO, error) {
+func (c *SdkServerController) fetchRulesSince(since int64, rbsince int64, sets []string) (*dtos.RuleChangesDTO, error) {
+	fmt.Println("split change since: ", since)
 	splits, err := c.proxySplitStorage.ChangesSince(since, sets)
-	if err == nil {
-		return splits, nil
+	fmt.Println("split result: ", splits, err)
+	fmt.Println("rule baseed since: ", rbsince)
+	rbs, rbsErr := c.proxyRBSegmentStorage.ChangesSince(rbsince)
+	fmt.Println("rulebased result: ", rbs, rbsErr)
+	if err == nil && rbsErr == nil {
+		return &dtos.RuleChangesDTO{
+			FeatureFlags: dtos.FeatureFlagsDTO{
+				Splits: splits.Splits,
+				Till:   splits.Till,
+				Since:  splits.Since,
+			},
+			RuleBasedSegments: *rbs,
+		}, err
 	}
-	if !errors.Is(err, storage.ErrSinceParamTooOld) {
+	if err != nil && !errors.Is(err, storage.ErrSinceParamTooOld) {
 		return nil, fmt.Errorf("unexpected error fetching feature flag changes from storage: %w", err)
+	}
+
+	if rbsErr != nil && !errors.Is(rbsErr, storage.ErrSinceParamTooOld) {
+		return nil, fmt.Errorf("unexpected error fetching rule-based segments changes from storage: %w", rbsErr)
 	}
 
 	// perform a fetch to the BE using the supplied `since`, have the storage process it's response &, retry
 	// TODO(mredolatti): implement basic collapsing here to avoid flooding the BE with requests
-	fetchOptions := service.MakeFlagRequestParams().WithSpecVersion(common.StringRef(c.specVersion)).WithChangeNumber(since).WithFlagSetsFilter(strings.Join(sets, ",")) // at this point the sets have been sanitized & sorted
+	fetchOptions := service.MakeFlagRequestParams().WithSpecVersion(common.StringRef(c.specVersion)).WithChangeNumber(since).WithChangeNumberRB(rbsince).WithFlagSetsFilter(strings.Join(sets, ",")) // at this point the sets have been sanitized & sorted
 	ruleChanges, err := c.fetcher.Fetch(fetchOptions)
 	if err != nil {
 		return nil, err
 	}
-	return &dtos.SplitChangesDTO{
-		Since:  ruleChanges.FFSince(),
-		Till:   ruleChanges.FFTill(),
-		Splits: ruleChanges.FeatureFlags(),
+	return &dtos.RuleChangesDTO{
+		FeatureFlags: dtos.FeatureFlagsDTO{
+			Splits: ruleChanges.FeatureFlags(),
+			Till:   ruleChanges.FFTill(),
+			Since:  ruleChanges.FFSince(),
+		},
+		RuleBasedSegments: dtos.RuleBasedSegmentsDTO{
+			RuleBasedSegments: ruleChanges.RuleBasedSegments(),
+			Till:              ruleChanges.RBTill(),
+			Since:             ruleChanges.RBSince(),
+		},
 	}, nil
 }
 
