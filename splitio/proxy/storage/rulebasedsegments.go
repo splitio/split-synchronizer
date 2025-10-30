@@ -183,5 +183,10 @@ func (p *ProxyRuleBasedSegmentsStorageImpl) setStartingPoint(cn int64) {
 	p.mtx.Unlock()
 }
 
+// FetchMany fetches rule-based segments in the storage and returns an array of rule-based segments dtos
+func (p *ProxyRuleBasedSegmentsStorageImpl) FetchMany(rbsNames []string) map[string]*dtos.RuleBasedSegmentDTO {
+	return p.snapshot.FetchMany(rbsNames)
+}
+
 var _ ProxyRuleBasedSegmentsStorage = (*ProxyRuleBasedSegmentsStorageImpl)(nil)
 var _ storage.RuleBasedSegmentsStorage = (*ProxyRuleBasedSegmentsStorageImpl)(nil)
