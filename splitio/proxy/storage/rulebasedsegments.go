@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/splitio/go-split-commons/v8/dtos"
+	"github.com/splitio/go-split-commons/v8/engine/grammar/constants"
 	"github.com/splitio/go-split-commons/v8/storage"
 	"github.com/splitio/go-split-commons/v8/storage/inmemory/mutexmap"
 	"github.com/splitio/go-toolkit/v5/datastructures/set"
@@ -56,8 +57,7 @@ func archivedRBDTOForView(view *optimized.RBView) dtos.RuleBasedSegmentDTO {
 	return dtos.RuleBasedSegmentDTO{
 		ChangeNumber: view.LastUpdated,
 		Name:         view.Name,
-		Status:       "ARCHIVED",
-		Conditions:   make([]dtos.RuleBasedConditionDTO, 0),
+		Status:       constants.SplitStatusActive,
 	}
 }
 

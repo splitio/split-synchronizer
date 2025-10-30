@@ -10,6 +10,7 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/persistent"
 
 	"github.com/splitio/go-split-commons/v8/dtos"
+	"github.com/splitio/go-split-commons/v8/engine/grammar/constants"
 	"github.com/splitio/go-split-commons/v8/flagsets"
 	"github.com/splitio/go-split-commons/v8/storage"
 	"github.com/splitio/go-split-commons/v8/storage/inmemory/mutexmap"
@@ -194,7 +195,7 @@ func (p *ProxySplitStorageImpl) setStartingPoint(cn int64) {
 }
 
 func (p *ProxySplitStorageImpl) ReplaceAll(splits []dtos.SplitDTO, changeNumber int64) error {
-	return p.snapshot.ReplaceAll(splits, changeNumber)
+	panic("not implemented")
 }
 
 func (p *ProxySplitStorageImpl) RuleBasedSegmentNames() *set.ThreadUnsafeSet {
@@ -249,7 +250,7 @@ func archivedDTOForView(view *optimized.FeatureView) dtos.SplitDTO {
 		TrafficAllocation:     100,
 		TrafficAllocationSeed: 0,
 		Seed:                  0,
-		Status:                "ARCHIVED",
+		Status:                constants.SplitStatusActive,
 		Killed:                false,
 		DefaultTreatment:      "off",
 		Algo:                  1,
