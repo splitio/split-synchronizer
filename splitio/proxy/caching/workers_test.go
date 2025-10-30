@@ -6,6 +6,7 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/caching/mocks"
 
 	"github.com/splitio/go-split-commons/v8/dtos"
+	commons "github.com/splitio/go-split-commons/v8/storage/mocks"
 	"github.com/splitio/go-split-commons/v8/synchronizer/worker/segment"
 	"github.com/splitio/go-split-commons/v8/synchronizer/worker/split"
 	"github.com/splitio/go-toolkit/v5/datastructures/set"
@@ -19,9 +20,12 @@ func TestCacheAwareSplitSyncNoChanges(t *testing.T) {
 	var cacheFlusherMock mocks.CacheFlusherMock
 	var storageMock mocks.SplitStorageMock
 	storageMock.On("ChangeNumber").Return(int64(-1), error(nil))
+	var rbsStorage commons.MockRuleBasedSegmentStorage
+	rbsStorage.On("ChangeNumber").Return(int64(-1), error(nil))
 
 	css := CacheAwareSplitSynchronizer{
 		splitStorage: &storageMock,
+		rbStorage:    &rbsStorage,
 		wrapped:      &splitSyncMock,
 		cacheFlusher: &cacheFlusherMock,
 	}
@@ -39,6 +43,9 @@ func TestCacheAwareSplitSyncChanges(t *testing.T) {
 	var splitSyncMock mocks.SplitUpdaterMock
 	splitSyncMock.On("SynchronizeSplits", (*int64)(nil)).Return((*split.UpdateResult)(nil), error(nil)).Times(2)
 
+	var rbsStorage commons.MockRuleBasedSegmentStorage
+	rbsStorage.On("ChangeNumber").Return(int64(-1), error(nil))
+
 	var cacheFlusherMock mocks.CacheFlusherMock
 	cacheFlusherMock.On("EvictBySurrogate", SplitSurrogate).Times(3)
 
@@ -49,6 +56,7 @@ func TestCacheAwareSplitSyncChanges(t *testing.T) {
 	css := CacheAwareSplitSynchronizer{
 		splitStorage: &storageMock,
 		wrapped:      &splitSyncMock,
+		rbStorage:    &rbsStorage,
 		cacheFlusher: &cacheFlusherMock,
 	}
 
@@ -78,6 +86,9 @@ func TestCacheAwareSplitSyncChangesNewMethod(t *testing.T) {
 	var splitSyncMock mocks.SplitUpdaterMock
 	splitSyncMock.On("SynchronizeFeatureFlags", (*dtos.SplitChangeUpdate)(nil)).Return((*split.UpdateResult)(nil), error(nil)).Times(2)
 
+	var rbsStorage commons.MockRuleBasedSegmentStorage
+	rbsStorage.On("ChangeNumber").Return(int64(-1), error(nil))
+
 	var cacheFlusherMock mocks.CacheFlusherMock
 	cacheFlusherMock.On("EvictBySurrogate", SplitSurrogate).Times(2)
 
@@ -87,6 +98,7 @@ func TestCacheAwareSplitSyncChangesNewMethod(t *testing.T) {
 
 	css := CacheAwareSplitSynchronizer{
 		splitStorage: &storageMock,
+		rbStorage:    &rbsStorage,
 		wrapped:      &splitSyncMock,
 		cacheFlusher: &cacheFlusherMock,
 	}

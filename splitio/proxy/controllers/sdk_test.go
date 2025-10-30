@@ -35,6 +35,8 @@ func TestSplitChangesImpressionsDisabled(t *testing.T) {
 	splitStorage.On("ChangesSince", int64(-1), []string(nil)).
 		Return(&dtos.SplitChangesDTO{Since: -1, Till: 1, Splits: []dtos.SplitDTO{{Name: "s1", Status: "ACTIVE", ImpressionsDisabled: true}, {Name: "s2", Status: "ACTIVE"}}}, nil).
 		Once()
+	var rbsStorage psmocks.MockProxyRuleBasedSegmentStorage
+	rbsStorage.On("ChangesSince", int64(-1)).Return(&dtos.RuleBasedSegmentsDTO{}).Once()
 
 	splitFetcher := &mocks.MockSplitFetcher{}
 	var largeSegmentStorageMock largeSegmentStorageMock
@@ -48,7 +50,7 @@ func TestSplitChangesImpressionsDisabled(t *testing.T) {
 		splitFetcher,
 		&splitStorage,
 		nil,
-		nil,
+		&rbsStorage,
 		flagsets.NewMatcher(false, nil),
 		&largeSegmentStorageMock,
 		specs.FLAG_V1_2,
@@ -88,6 +90,9 @@ func TestSplitChangesRecentSince(t *testing.T) {
 		Return(&dtos.SplitChangesDTO{Since: -1, Till: 1, Splits: []dtos.SplitDTO{{Name: "s1", Status: "ACTIVE"}, {Name: "s2", Status: "ACTIVE"}}}, nil).
 		Once()
 
+	var rbsStorage psmocks.MockProxyRuleBasedSegmentStorage
+	rbsStorage.On("ChangesSince", int64(-1)).Return(&dtos.RuleBasedSegmentsDTO{}).Once()
+
 	splitFetcher := &mocks.MockSplitFetcher{}
 	var largeSegmentStorageMock largeSegmentStorageMock
 
@@ -100,7 +105,7 @@ func TestSplitChangesRecentSince(t *testing.T) {
 		splitFetcher,
 		&splitStorage,
 		nil,
-		nil,
+		&rbsStorage,
 		flagsets.NewMatcher(false, nil),
 		&largeSegmentStorageMock,
 		specs.FLAG_V1_2,
@@ -137,9 +142,11 @@ func TestSplitChangesOlderSince(t *testing.T) {
 	splitStorage.On("ChangesSince", int64(-1), []string(nil)).
 		Return((*dtos.SplitChangesDTO)(nil), storage.ErrSinceParamTooOld).
 		Once()
+	var rbsStorage psmocks.MockProxyRuleBasedSegmentStorage
+	rbsStorage.On("ChangesSince", int64(-1)).Return(&dtos.RuleBasedSegmentsDTO{}).Once()
 
 	splitFetcher := &mocks.MockSplitFetcher{}
-	splitFetcher.On("Fetch", ref(*service.MakeFlagRequestParams().WithChangeNumber(-1).WithSpecVersion(common.StringRef(specs.FLAG_V1_2)))).Return(
+	splitFetcher.On("Fetch", ref(*service.MakeFlagRequestParams().WithChangeNumber(-1).WithChangeNumberRB(-1).WithSpecVersion(common.StringRef(specs.FLAG_V1_2)))).Return(
 		&dtos.FFResponseLegacy{
 			SplitChanges: dtos.SplitChangesDTO{
 				Since: -1, Till: 1, Splits: []dtos.SplitDTO{{Name: "s1", Status: "ACTIVE"}, {Name: "s2", Status: "ACTIVE"}},
@@ -159,7 +166,7 @@ func TestSplitChangesOlderSince(t *testing.T) {
 		splitFetcher,
 		&splitStorage,
 		nil,
-		nil,
+		&rbsStorage,
 		flagsets.NewMatcher(false, nil),
 		&largeSegmentStorageMock,
 		specs.FLAG_V1_2,
@@ -197,8 +204,11 @@ func TestSplitChangesOlderSinceFetchFails(t *testing.T) {
 		Return((*dtos.SplitChangesDTO)(nil), storage.ErrSinceParamTooOld).
 		Once()
 
+	var rbsStorage psmocks.MockProxyRuleBasedSegmentStorage
+	rbsStorage.On("ChangesSince", int64(-1)).Return(&dtos.RuleBasedSegmentsDTO{}).Once()
+
 	splitFetcher := &mocks.MockSplitFetcher{}
-	splitFetcher.On("Fetch", ref(*service.MakeFlagRequestParams().WithChangeNumber(-1).WithSpecVersion(common.StringRef(specs.FLAG_V1_2)))).
+	splitFetcher.On("Fetch", ref(*service.MakeFlagRequestParams().WithChangeNumber(-1).WithChangeNumberRB(-1).WithSpecVersion(common.StringRef(specs.FLAG_V1_2)))).
 		Return(nil, errors.New("something")).
 		Once()
 
@@ -215,7 +225,7 @@ func TestSplitChangesOlderSinceFetchFails(t *testing.T) {
 		splitFetcher,
 		&splitStorage,
 		nil,
-		nil,
+		&rbsStorage,
 		flagsets.NewMatcher(false, nil),
 		&largeSegmentStorageMock,
 		specs.FLAG_V1_2,
@@ -243,6 +253,9 @@ func TestSplitChangesWithFlagSets(t *testing.T) {
 		Return(&dtos.SplitChangesDTO{Since: -1, Till: 1, Splits: []dtos.SplitDTO{{Name: "s1", Status: "ACTIVE"}, {Name: "s2", Status: "ACTIVE"}}}, nil).
 		Once()
 
+	var rbsStorage psmocks.MockProxyRuleBasedSegmentStorage
+	rbsStorage.On("ChangesSince", int64(-1)).Return(&dtos.RuleBasedSegmentsDTO{}).Once()
+
 	splitFetcher := &mocks.MockSplitFetcher{}
 	var largeSegmentStorageMock largeSegmentStorageMock
 
@@ -257,7 +270,7 @@ func TestSplitChangesWithFlagSets(t *testing.T) {
 		splitFetcher,
 		&splitStorage,
 		nil,
-		nil,
+		&rbsStorage,
 		flagsets.NewMatcher(false, nil),
 		&largeSegmentStorageMock,
 		specs.FLAG_V1_2,
@@ -294,6 +307,9 @@ func TestSplitChangesWithFlagSetsStrict(t *testing.T) {
 		Return(&dtos.SplitChangesDTO{Since: -1, Till: 1, Splits: []dtos.SplitDTO{{Name: "s1", Status: "ACTIVE"}, {Name: "s2", Status: "ACTIVE"}}}, nil).
 		Once()
 
+	var rbsStorage psmocks.MockProxyRuleBasedSegmentStorage
+	rbsStorage.On("ChangesSince", int64(-1)).Return(&dtos.RuleBasedSegmentsDTO{}).Once()
+
 	splitFetcher := &mocks.MockSplitFetcher{}
 	var largeSegmentStorageMock largeSegmentStorageMock
 
@@ -308,7 +324,7 @@ func TestSplitChangesWithFlagSetsStrict(t *testing.T) {
 		splitFetcher,
 		&splitStorage,
 		nil,
-		nil,
+		&rbsStorage,
 		flagsets.NewMatcher(true, []string{"a", "c"}),
 		&largeSegmentStorageMock,
 		specs.FLAG_V1_2,
@@ -365,6 +381,9 @@ func TestSplitChangesNewMatcherOldSpec(t *testing.T) {
 		}, nil).
 		Once()
 
+	var rbsStorage psmocks.MockProxyRuleBasedSegmentStorage
+	rbsStorage.On("ChangesSince", int64(-1)).Return(&dtos.RuleBasedSegmentsDTO{}).Once()
+
 	splitFetcher := &mocks.MockSplitFetcher{}
 	var largeSegmentStorageMock largeSegmentStorageMock
 
@@ -377,7 +396,7 @@ func TestSplitChangesNewMatcherOldSpec(t *testing.T) {
 		splitFetcher,
 		&splitStorage,
 		nil,
-		nil,
+		&rbsStorage,
 		flagsets.NewMatcher(false, nil),
 		&largeSegmentStorageMock,
 		specs.FLAG_V1_2,
@@ -436,6 +455,8 @@ func TestSplitChangesNewMatcherNewSpec(t *testing.T) {
 			},
 		}, nil).
 		Once()
+	var rbsStorage psmocks.MockProxyRuleBasedSegmentStorage
+	rbsStorage.On("ChangesSince", int64(-1)).Return(&dtos.RuleBasedSegmentsDTO{}).Once()
 
 	splitFetcher := &mocks.MockSplitFetcher{}
 	var largeSegmentStorageMock largeSegmentStorageMock
@@ -449,7 +470,7 @@ func TestSplitChangesNewMatcherNewSpec(t *testing.T) {
 		splitFetcher,
 		&splitStorage,
 		nil,
-		nil,
+		&rbsStorage,
 		flagsets.NewMatcher(false, nil),
 		&largeSegmentStorageMock,
 		specs.FLAG_V1_2,
@@ -497,6 +518,9 @@ func TestSegmentChanges(t *testing.T) {
 		Return(&dtos.SegmentChangesDTO{Name: "someSegment", Added: []string{"k1", "k2"}, Removed: []string{}, Since: -1, Till: 1}, nil).
 		Once()
 
+	var rbsStorage psmocks.MockProxyRuleBasedSegmentStorage
+	rbsStorage.On("ChangesSince", int64(-1)).Return(&dtos.RuleBasedSegmentsDTO{}).Once()
+
 	var largeSegmentStorageMock largeSegmentStorageMock
 
 	resp := httptest.NewRecorder()
@@ -505,7 +529,7 @@ func TestSegmentChanges(t *testing.T) {
 	logger := logging.NewLogger(nil)
 
 	group := router.Group("/api")
-	controller := NewSdkServerController(logger, splitFetcher, &splitStorage, &segmentStorage, nil, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock, specs.FLAG_V1_2)
+	controller := NewSdkServerController(logger, splitFetcher, &splitStorage, &segmentStorage, &rbsStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock, specs.FLAG_V1_2)
 	controller.Register(group)
 
 	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/segmentChanges/someSegment?since=-1", nil)
@@ -540,6 +564,8 @@ func TestSegmentChangesNotFound(t *testing.T) {
 	segmentStorage.On("ChangesSince", "someSegment", int64(-1)).
 		Return((*dtos.SegmentChangesDTO)(nil), storage.ErrSegmentNotFound).
 		Once()
+	var rbsStorage psmocks.MockProxyRuleBasedSegmentStorage
+	rbsStorage.On("ChangesSince", int64(-1)).Return(&dtos.RuleBasedSegmentsDTO{}).Once()
 
 	var largeSegmentStorageMock largeSegmentStorageMock
 
@@ -549,7 +575,7 @@ func TestSegmentChangesNotFound(t *testing.T) {
 	logger := logging.NewLogger(nil)
 
 	group := router.Group("/api")
-	controller := NewSdkServerController(logger, splitFetcher, &splitStorage, &segmentStorage, nil, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock, specs.FLAG_V1_2)
+	controller := NewSdkServerController(logger, splitFetcher, &splitStorage, &segmentStorage, &rbsStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock, specs.FLAG_V1_2)
 	controller.Register(group)
 
 	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/segmentChanges/someSegment?since=-1", nil)
@@ -575,6 +601,9 @@ func TestMySegments(t *testing.T) {
 		Return([]string{"segment1", "segment2"}, nil).
 		Once()
 
+	var rbsStorage psmocks.MockProxyRuleBasedSegmentStorage
+	rbsStorage.On("ChangesSince", int64(-1)).Return(&dtos.RuleBasedSegmentsDTO{}).Once()
+
 	var largeSegmentStorageMock largeSegmentStorageMock
 
 	resp := httptest.NewRecorder()
@@ -583,7 +612,7 @@ func TestMySegments(t *testing.T) {
 	logger := logging.NewLogger(nil)
 
 	group := router.Group("/api")
-	controller := NewSdkServerController(logger, splitFetcher, &splitStorage, &segmentStorage, nil, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock, specs.FLAG_V1_2)
+	controller := NewSdkServerController(logger, splitFetcher, &splitStorage, &segmentStorage, &rbsStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock, specs.FLAG_V1_2)
 	controller.Register(group)
 
 	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/mySegments/someKey", nil)
@@ -618,6 +647,9 @@ func TestMySegmentsError(t *testing.T) {
 		Return([]string(nil), errors.New("something")).
 		Once()
 
+	var rbsStorage psmocks.MockProxyRuleBasedSegmentStorage
+	rbsStorage.On("ChangesSince", int64(-1)).Return(&dtos.RuleBasedSegmentsDTO{}).Once()
+
 	var largeSegmentStorageMock largeSegmentStorageMock
 
 	resp := httptest.NewRecorder()
@@ -626,7 +658,7 @@ func TestMySegmentsError(t *testing.T) {
 	logger := logging.NewLogger(nil)
 
 	group := router.Group("/api")
-	controller := NewSdkServerController(logger, splitFetcher, &splitStorage, &segmentStorage, nil, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock, specs.FLAG_V1_2)
+	controller := NewSdkServerController(logger, splitFetcher, &splitStorage, &segmentStorage, &rbsStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock, specs.FLAG_V1_2)
 	controller.Register(group)
 
 	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/mySegments/someKey", nil)
@@ -651,6 +683,8 @@ func TestMemberships(t *testing.T) {
 	segmentStorage.On("SegmentsFor", "keyTest").
 		Return([]string{"segment1", "segment2"}, nil).
 		Once()
+	var rbsStorage psmocks.MockProxyRuleBasedSegmentStorage
+	rbsStorage.On("ChangesSince", int64(-1)).Return(&dtos.RuleBasedSegmentsDTO{}).Once()
 
 	var largeSegmentStorageMock largeSegmentStorageMock
 	largeSegmentStorageMock.On("LargeSegmentsForUser", "keyTest").
@@ -663,7 +697,7 @@ func TestMemberships(t *testing.T) {
 	logger := logging.NewLogger(nil)
 
 	group := router.Group("/api")
-	controller := NewSdkServerController(logger, splitFetcher, &splitStorage, &segmentStorage, nil, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock, specs.FLAG_V1_2)
+	controller := NewSdkServerController(logger, splitFetcher, &splitStorage, &segmentStorage, &rbsStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock, specs.FLAG_V1_2)
 	controller.Register(group)
 
 	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/memberships/keyTest", nil)
@@ -706,6 +740,8 @@ func TestMembershipsError(t *testing.T) {
 	segmentStorage.On("SegmentsFor", "keyTest").
 		Return([]string{}, errors.New("error message.")).
 		Once()
+	var rbsStorage psmocks.MockProxyRuleBasedSegmentStorage
+	rbsStorage.On("ChangesSince", int64(-1)).Return(&dtos.RuleBasedSegmentsDTO{}).Once()
 
 	resp := httptest.NewRecorder()
 	ctx, router := gin.CreateTestContext(resp)
@@ -713,7 +749,7 @@ func TestMembershipsError(t *testing.T) {
 	logger := logging.NewLogger(nil)
 
 	group := router.Group("/api")
-	controller := NewSdkServerController(logger, splitFetcher, &splitStorage, &segmentStorage, nil, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock, specs.FLAG_V1_2)
+	controller := NewSdkServerController(logger, splitFetcher, &splitStorage, &segmentStorage, &rbsStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock, specs.FLAG_V1_2)
 	controller.Register(group)
 
 	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/memberships/keyTest", nil)

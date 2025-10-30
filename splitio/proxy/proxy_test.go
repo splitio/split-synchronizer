@@ -26,6 +26,8 @@ func TestSplitChangesEndpoints(t *testing.T) {
 	opts := makeOpts()
 	var splitStorage pstorageMocks.ProxySplitStorageMock
 	opts.ProxySplitStorage = &splitStorage
+	var rbsStorage pstorageMocks.MockProxyRuleBasedSegmentStorage
+	opts.ProxyRBSegmentStorage = &rbsStorage
 	proxy := New(opts)
 	go proxy.Start()
 	time.Sleep(1 * time.Second) // Let the scheduler switch the current thread/gr and start the server
@@ -37,6 +39,7 @@ func TestSplitChangesEndpoints(t *testing.T) {
 	splitStorage.On("ChangesSince", int64(-1), []string(nil)).
 		Return(&dtos.SplitChangesDTO{Since: -1, Till: 1, Splits: []dtos.SplitDTO{{Name: "split1", ImpressionsDisabled: true}}}, nil).
 		Once()
+	rbsStorage.On("ChangesSince", int64(-1)).Return(&dtos.RuleBasedSegmentsDTO{}).Once()
 
 	// Make a proper request
 	status, body, headers := get("splitChanges?since=-1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
@@ -65,6 +68,8 @@ func TestSplitChangesEndpoints(t *testing.T) {
 		Return(&dtos.SplitChangesDTO{Since: -1, Till: 2, Splits: []dtos.SplitDTO{{Name: "split2"}}}, nil).
 		Once()
 
+	rbsStorage.On("ChangesSince", int64(-1)).Return(&dtos.RuleBasedSegmentsDTO{}).Once()
+
 	opts.Cache.EvictBySurrogate(caching.SplitSurrogate)
 
 	_, body, headers = get("splitChanges?since=-1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
@@ -81,6 +86,8 @@ func TestSplitChangesWithFlagsetsCaching(t *testing.T) {
 	opts := makeOpts()
 	var splitStorage pstorageMocks.ProxySplitStorageMock
 	opts.ProxySplitStorage = &splitStorage
+	var rbsStorage pstorageMocks.MockProxyRuleBasedSegmentStorage
+	opts.ProxyRBSegmentStorage = &rbsStorage
 	proxy := New(opts)
 	go proxy.Start()
 	time.Sleep(1 * time.Second) // Let the scheduler switch the current thread/gr and start the server
@@ -88,6 +95,7 @@ func TestSplitChangesWithFlagsetsCaching(t *testing.T) {
 	splitStorage.On("ChangesSince", int64(-1), []string{"set1", "set2"}).
 		Return(&dtos.SplitChangesDTO{Since: -1, Till: 1, Splits: []dtos.SplitDTO{{Name: "split1"}}}, nil).
 		Once()
+	rbsStorage.On("ChangesSince", int64(-1)).Return(&dtos.RuleBasedSegmentsDTO{}).Once()
 
 	// Make a proper request
 	status, body, headers := get("splitChanges?since=-1&sets=set2,set1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
@@ -113,6 +121,7 @@ func TestSplitChangesWithFlagsetsCaching(t *testing.T) {
 	splitStorage.On("ChangesSince", int64(-1), []string{"set1", "set2", "set3"}).
 		Return(&dtos.SplitChangesDTO{Since: -1, Till: 1, Splits: []dtos.SplitDTO{{Name: "split1"}}}, nil).
 		Once()
+	rbsStorage.On("ChangesSince", int64(-1)).Return(&dtos.RuleBasedSegmentsDTO{}).Once()
 
 	status, body, headers = get("splitChanges?since=-1&sets=set2,set1,set3", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
 	assert.Equal(t, 200, status)
@@ -129,10 +138,12 @@ func TestSplitChangesWithFlagsetsCaching(t *testing.T) {
 	splitStorage.On("ChangesSince", int64(-1), []string{"set1", "set2"}).
 		Return(&dtos.SplitChangesDTO{Since: -1, Till: 1, Splits: []dtos.SplitDTO{{Name: "split1"}}}, nil).
 		Once()
+	rbsStorage.On("ChangesSince", int64(-1)).Return(&dtos.RuleBasedSegmentsDTO{}).Once()
 
 	splitStorage.On("ChangesSince", int64(-1), []string{"set1", "set2", "set3"}).
 		Return(&dtos.SplitChangesDTO{Since: -1, Till: 1, Splits: []dtos.SplitDTO{{Name: "split1"}}}, nil).
 		Once()
+	rbsStorage.On("ChangesSince", int64(-1)).Return(&dtos.RuleBasedSegmentsDTO{}).Once()
 
 	status, body, headers = get("splitChanges?since=-1&sets=set2,set1", opts.Port, map[string]string{"Authorization": "Bearer someApiKey"})
 	assert.Equal(t, 200, status)
