@@ -194,11 +194,11 @@ func (p *ProxySplitStorageImpl) setStartingPoint(cn int64) {
 }
 
 func (p *ProxySplitStorageImpl) ReplaceAll(splits []dtos.SplitDTO, changeNumber int64) error {
-	panic("not implemented")
+	return p.snapshot.ReplaceAll(splits, changeNumber)
 }
 
 func (p *ProxySplitStorageImpl) RuleBasedSegmentNames() *set.ThreadUnsafeSet {
-	panic("not implemented")
+	return p.snapshot.RuleBasedSegmentNames()
 }
 
 func (p *ProxySplitStorageImpl) sinceIsTooOld(since int64) bool {
