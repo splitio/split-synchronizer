@@ -144,15 +144,11 @@ func (c *SdkServerController) SplitChanges(ctx *gin.Context) {
 	rules.FeatureFlags.Splits = c.patchUnsupportedMatchers(rules.FeatureFlags.Splits, spec)
 
 	if spec == specs.FLAG_V1_3 {
-		fmt.Println("1.3 1.3 1.3 1.3 1.3 ")
-		fmt.Println("cantidad de ff:", len(rules.FeatureFlags.Splits), rules.FeatureFlags.Since, rules.FeatureFlags.Till)
-		fmt.Println("cantidad de rb:", len(rules.RuleBasedSegments.RuleBasedSegments), rules.RuleBasedSegments.Since, rules.RuleBasedSegments.Till)
 		ctx.JSON(http.StatusOK, rules)
 		ctx.Set(caching.SurrogateContextKey, []string{caching.SplitSurrogate})
 		ctx.Set(caching.StickyContextKey, true)
 		return
 	}
-	fmt.Println("otra otra otra otra")
 	ctx.JSON(http.StatusOK, dtos.SplitChangesDTO{
 		Splits: rules.FeatureFlags.Splits,
 		Since:  rules.FeatureFlags.Since,
@@ -210,12 +206,8 @@ func (c *SdkServerController) MySegments(ctx *gin.Context) {
 }
 
 func (c *SdkServerController) fetchRulesSince(since int64, rbsince int64, sets []string) (*dtos.RuleChangesDTO, error) {
-	fmt.Println("split change since: ", since)
 	splits, err := c.proxySplitStorage.ChangesSince(since, sets)
-	fmt.Println("split result: ", splits, err)
-	fmt.Println("rule baseed since: ", rbsince)
 	rbs, rbsErr := c.proxyRBSegmentStorage.ChangesSince(rbsince)
-	fmt.Println("rulebased result: ", rbs, rbsErr)
 	if err == nil && rbsErr == nil {
 		return &dtos.RuleChangesDTO{
 			FeatureFlags: dtos.FeatureFlagsDTO{
