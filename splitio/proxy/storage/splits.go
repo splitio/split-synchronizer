@@ -10,15 +10,12 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/persistent"
 
 	"github.com/splitio/go-split-commons/v8/dtos"
+	"github.com/splitio/go-split-commons/v8/engine/grammar/constants"
 	"github.com/splitio/go-split-commons/v8/flagsets"
 	"github.com/splitio/go-split-commons/v8/storage"
 	"github.com/splitio/go-split-commons/v8/storage/inmemory/mutexmap"
 	"github.com/splitio/go-toolkit/v5/datastructures/set"
 	"github.com/splitio/go-toolkit/v5/logging"
-)
-
-const (
-	maxRecipes = 1000
 )
 
 // ErrSinceParamTooOld is returned when a summary is not cached for a requested change number
@@ -202,7 +199,7 @@ func (p *ProxySplitStorageImpl) ReplaceAll(splits []dtos.SplitDTO, changeNumber 
 }
 
 func (p *ProxySplitStorageImpl) RuleBasedSegmentNames() *set.ThreadUnsafeSet {
-	panic("not implemented")
+	return p.snapshot.RuleBasedSegmentNames()
 }
 
 func (p *ProxySplitStorageImpl) sinceIsTooOld(since int64) bool {
@@ -253,7 +250,7 @@ func archivedDTOForView(view *optimized.FeatureView) dtos.SplitDTO {
 		TrafficAllocation:     100,
 		TrafficAllocationSeed: 0,
 		Seed:                  0,
-		Status:                "ARCHIVED",
+		Status:                constants.SplitStatusActive,
 		Killed:                false,
 		DefaultTreatment:      "off",
 		Algo:                  1,
