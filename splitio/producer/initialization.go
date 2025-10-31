@@ -135,9 +135,10 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 		logger,
 		nil)
 
+	isProxy := splitAPI.SplitFetcher.IsProxy()
+
 	workers := synchronizer.Workers{
-		// TODO add sdkOverrides
-		SplitUpdater: split.NewSplitUpdater(storages.SplitStorage, storages.RuleBasedSegmentsStorage, splitAPI.SplitFetcher, logger, syncTelemetryStorage, appMonitor, flagSetsFilter, ruleBuilder, false, cfg.FlagSpecVersion),
+		SplitUpdater: split.NewSplitUpdater(storages.SplitStorage, storages.RuleBasedSegmentsStorage, splitAPI.SplitFetcher, logger, syncTelemetryStorage, appMonitor, flagSetsFilter, ruleBuilder, isProxy, cfg.FlagSpecVersion),
 		SegmentUpdater: segment.NewSegmentUpdater(storages.SplitStorage, storages.SegmentStorage, storages.RuleBasedSegmentsStorage, splitAPI.SegmentFetcher,
 			logger, syncTelemetryStorage, appMonitor),
 		ImpressionsCountRecorder: impressionscount.NewRecorderSingle(impressionsCounter, splitAPI.ImpressionRecorder,
