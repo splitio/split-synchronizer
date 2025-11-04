@@ -109,7 +109,7 @@ func copyAndFilterRB(views []RBView, since int64) []RBView {
 }
 
 func featureShouldBeReturnedRB(view *RBView, since int64) bool {
-	// if fetching from sratch & the feature is not active,
+	// if fetching from sratch & the rule-based segment is not active,
 	// or it hasn't been updated since `since`, it shouldn't even be considered for being returned
 	if since == -1 && !view.Active || view.LastUpdated < since {
 		return false
