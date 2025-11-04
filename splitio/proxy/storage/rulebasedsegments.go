@@ -57,7 +57,7 @@ func archivedRBDTOForView(view *optimized.RBView) dtos.RuleBasedSegmentDTO {
 	return dtos.RuleBasedSegmentDTO{
 		ChangeNumber: view.LastUpdated,
 		Name:         view.Name,
-		Status:       constants.SplitStatusActive,
+		Status:       constants.SplitStatusArchived,
 	}
 }
 

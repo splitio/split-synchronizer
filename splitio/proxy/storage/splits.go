@@ -250,7 +250,7 @@ func archivedDTOForView(view *optimized.FeatureView) dtos.SplitDTO {
 		TrafficAllocation:     100,
 		TrafficAllocationSeed: 0,
 		Seed:                  0,
-		Status:                constants.SplitStatusActive,
+		Status:                constants.SplitStatusArchived,
 		Killed:                false,
 		DefaultTreatment:      "off",
 		Algo:                  1,
