@@ -166,5 +166,6 @@ func (c *DashboardController) gatherStats() *dashboard.GlobalStats {
 		LoggedMessages:         errorMessages,
 		Uptime:                 int64(c.runtime.Uptime().Seconds()),
 		FlagSets:               getFlagSetsInfo(c.storages.SplitStorage),
+		RuleBasedSegments:      bundleRBInfo(c.storages.RuleBasedSegmentsStorage),
 	}
 }

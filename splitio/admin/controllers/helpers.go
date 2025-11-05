@@ -316,3 +316,22 @@ func getProxyRequestCount(metrics storage.TelemetryRuntimeConsumer) (ok int64, e
 
 	return okCount, errorCount
 }
+
+func bundleRBInfo(rbStorage storage.RuleBasedSegmentsStorage) []dashboard.RBSummary {
+	all := rbStorage.All()
+	summaries := make([]dashboard.RBSummary, 0, len(all))
+	for _, segment := range all {
+		excludedSegments := make([]string, 0, len(segment.Excluded.Segments))
+		for _, seg := range segment.Excluded.Segments {
+			excludedSegments = append(excludedSegments, seg.Name)
+		}
+		summaries = append(summaries, dashboard.RBSummary{
+			Name:             segment.Name,
+			ChangeNumber:     segment.ChangeNumber,
+			Active:           segment.Status == "ACTIVE",
+			ExcludedKeys:     segment.Excluded.Keys,
+			ExcludedSegments: excludedSegments,
+		})
+	}
+	return summaries
+}

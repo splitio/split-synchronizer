@@ -108,6 +108,7 @@ type GlobalStats struct {
 	EventsLambda           float64               `json:"eventsLambda"`
 	Uptime                 int64                 `json:"uptime"`
 	FlagSets               []FlagSetsSummary     `json:"flagSets"`
+	RuleBasedSegments      []RBSummary           `json:"ruleBasedSegments"`
 }
 
 // SplitSummary encapsulates a minimalistic view of feature flag properties to be presented in the dashboard
@@ -149,6 +150,14 @@ type FlagSetsSummary struct {
 	Name                   string `json:"name"`
 	FeatureFlagsAssociated int64  `json:"featureFlagsAssociated"`
 	FeatureFlags           string `json:"featureFlags"`
+}
+
+type RBSummary struct {
+	Name             string   `json:"name"`
+	ChangeNumber     int64    `json:"cn"`
+	Active           bool     `json:"active"`
+	ExcludedKeys     []string `json:"excludedKeys"`
+	ExcludedSegments []string `json:"excludedSegments"`
 }
 
 // RGBA bundles input to CSS's rgba function
