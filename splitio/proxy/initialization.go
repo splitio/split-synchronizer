@@ -57,6 +57,10 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 			return fmt.Errorf("error writing temporary snapshot file: %w", err)
 		}
 
+		if snap.Meta().SpecVersion != cfg.FlagSpecVersion {
+			return common.NewInitError(fmt.Errorf("snapshot spec version %s does not match config spec version %s", snap.Meta().SpecVersion, cfg.FlagSpecVersion), common.ExitErrorDB)
+		}
+
 		logger.Debug("Database created from snapshot at", dbpath)
 	}
 
