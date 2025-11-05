@@ -12,31 +12,6 @@ import (
 
 const splitChangesCollectionName = "SPLIT_CHANGES_COLLECTION"
 
-// SplitChangesItem represents an SplitChanges service response
-type SplitChangesItem struct {
-	ChangeNumber int64  `json:"changeNumber"`
-	Name         string `json:"name"`
-	Status       string `json:"status"`
-	JSON         string
-}
-
-// SplitsChangesItems Sortable list
-type SplitsChangesItems []SplitChangesItem
-
-func (slice SplitsChangesItems) Len() int {
-	return len(slice)
-}
-
-func (slice SplitsChangesItems) Less(i, j int) bool {
-	return slice[i].ChangeNumber > slice[j].ChangeNumber
-}
-
-func (slice SplitsChangesItems) Swap(i, j int) {
-	slice[i], slice[j] = slice[j], slice[i]
-}
-
-//----------------------------------------------------
-
 // SplitChangesCollection represents a collection of SplitChangesItem
 type SplitChangesCollection struct {
 	collection   CollectionWrapper
@@ -54,15 +29,14 @@ func NewSplitChangesCollection(db DBWrapper, logger logging.LoggerInterface) *Sp
 
 // Update processes a set of feature flag changes items + a changeNumber bump atomically
 func (c *SplitChangesCollection) Update(toAdd []dtos.SplitDTO, toRemove []dtos.SplitDTO, cn int64) {
-
-	items := make(SplitsChangesItems, 0, len(toAdd)+len(toRemove))
+	items := NewChangesItems(len(toAdd) + len(toRemove))
 	process := func(split *dtos.SplitDTO) {
 		asJSON, err := json.Marshal(split)
 		if err != nil {
 			// This should not happen unless the DTO class is broken
 			return
 		}
-		items = append(items, SplitChangesItem{
+		items.Append(ChangesItem{
 			ChangeNumber: split.ChangeNumber,
 			Name:         split.Name,
 			Status:       split.Status,
@@ -80,8 +54,8 @@ func (c *SplitChangesCollection) Update(toAdd []dtos.SplitDTO, toRemove []dtos.S
 
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	for idx := range items {
-		err := c.collection.SaveAs([]byte(items[idx].Name), items[idx])
+	for idx := range items.items {
+		err := c.collection.SaveAs([]byte(items.items[idx].Name), items.items[idx])
 		if err != nil {
 			// TODO(mredolatti): log
 		}
@@ -102,7 +76,7 @@ func (c *SplitChangesCollection) FetchAll() ([]dtos.SplitDTO, error) {
 
 	var decodeBuffer bytes.Buffer
 	for _, v := range items {
-		var q SplitChangesItem
+		var q ChangesItem
 		// resets buffer data
 		decodeBuffer.Reset()
 		decodeBuffer.Write(v)

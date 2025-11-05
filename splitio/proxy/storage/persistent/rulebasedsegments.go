@@ -1,0 +1,3 @@
+package persistent
+
+const ruleBasedSegmentsChangesCollectionName = "RULE_BASED_SEGMENTS_CHANGES_COLLECTION"
