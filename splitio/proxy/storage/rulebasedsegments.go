@@ -103,12 +103,6 @@ func (p *ProxyRuleBasedSegmentsStorageImpl) ChangesSince(since int64) (*dtos.Rul
 		all = append(all, *rbSegments)
 	}
 	return &dtos.RuleBasedSegmentsDTO{Since: since, Till: till, RuleBasedSegments: all}, nil
-
-	// if since > -1 {
-	// 	return &dtos.RuleBasedSegmentsDTO{Since: since, Till: since, RuleBasedSegments: []dtos.RuleBasedSegmentDTO{}}, nil
-	// }
-	// cn, _ := p.snapshot.ChangeNumber()
-	// return &dtos.RuleBasedSegmentsDTO{Since: since, Till: cn, RuleBasedSegments: p.snapshot.All()}, nil
 }
 
 // All call is forwarded to the snapshot
