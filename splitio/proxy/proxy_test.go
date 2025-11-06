@@ -80,7 +80,7 @@ func TestSplitChangesEndpoints(t *testing.T) {
 	assert.Equal(t, "split2", changes.Splits[0].Name)
 	assert.False(t, changes.Splits[0].ImpressionsDisabled)
 	assert.Equal(t, "application/json; charset=utf-8", headers.Get("Content-Type"))
-	assert.Equal(t, opts.SpecVersion, headers.Get("Harness-FME-Proxy-FlagSpec"))
+	assert.Equal(t, opts.SpecVersion, headers.Get("Harness-FME-FlagSpec"))
 	assert.Equal(t, splitio.Version, headers.Get("Harness-FME-Proxy-Version"))
 }
 
@@ -162,7 +162,7 @@ func TestSplitChangesWithFlagsetsCaching(t *testing.T) {
 	assert.Equal(t, int64(1), changes.Till)
 	assert.Equal(t, "split1", changes.Splits[0].Name)
 	assert.Equal(t, "application/json; charset=utf-8", headers.Get("Content-Type"))
-	assert.Equal(t, opts.SpecVersion, headers.Get("Harness-FME-Proxy-FlagSpec"))
+	assert.Equal(t, opts.SpecVersion, headers.Get("Harness-FME-FlagSpec"))
 	assert.Equal(t, splitio.Version, headers.Get("Harness-FME-Proxy-Version"))
 }
 
@@ -253,7 +253,7 @@ func TestSegmentChangesAndMySegmentsEndpoints(t *testing.T) {
 	assert.Equal(t, 200, status)
 	assert.Equal(t, []dtos.MySegmentDTO{}, segments)
 	assert.Equal(t, "application/json; charset=utf-8", headers.Get("Content-Type"))
-	assert.Equal(t, opts.SpecVersion, headers.Get("Harness-FME-Proxy-FlagSpec"))
+	assert.Equal(t, opts.SpecVersion, headers.Get("Harness-FME-FlagSpec"))
 	assert.Equal(t, splitio.Version, headers.Get("Harness-FME-Proxy-Version"))
 }
 
@@ -290,7 +290,7 @@ func TestMembershipEndpoint(t *testing.T) {
 	assert.Equal(t, 200, status)
 	assert.Equal(t, expected, response)
 	assert.Equal(t, "application/json; charset=utf-8", headers.Get("Content-Type"))
-	assert.Equal(t, opts.SpecVersion, headers.Get("Harness-FME-Proxy-FlagSpec"))
+	assert.Equal(t, opts.SpecVersion, headers.Get("Harness-FME-FlagSpec"))
 	assert.Equal(t, splitio.Version, headers.Get("Harness-FME-Proxy-Version"))
 }
 

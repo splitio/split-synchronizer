@@ -148,7 +148,7 @@ func New(options *Options) *API {
 	}
 	cacheableRouter.Use(func(c *gin.Context) {
 		c.Header("Harness-FME-Proxy-Version", splitio.Version)
-		c.Header("Harness-FME-Proxy-FlagSpec", options.SpecVersion)
+		c.Header("Harness-FME-FlagSpec", options.SpecVersion)
 		c.Next()
 	})
 	authController.Register(cacheableRouter)
