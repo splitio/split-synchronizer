@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/splitio/split-synchronizer/v5/splitio"
 	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers/middleware"
@@ -145,6 +146,11 @@ func New(options *Options) *API {
 		cacheableRouter.Use(options.Cache.Handle)
 		cacheableRouter.Use(gzip.Gzip(gzip.DefaultCompression))
 	}
+	cacheableRouter.Use(func(c *gin.Context) {
+		c.Header("Harness-FME-Proxy-Version", splitio.Version)
+		c.Header("Harness-FME-Proxy-FlagSpec", options.SpecVersion)
+		c.Next()
+	})
 	authController.Register(cacheableRouter)
 	sdkController.Register(cacheableRouter)
 	eventsController.Register(regular, beacon)
