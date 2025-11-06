@@ -220,6 +220,130 @@ func TestGetNamesByFlagSets(t *testing.T) {
 	}
 }
 
+func TestChangesSince(t *testing.T) {
+	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
+	assert.Nil(t, err)
+	logger := logging.NewLogger(nil)
+
+	// Initialize storage with some test data
+	pss := NewProxySplitStorage(dbw, logger, flagsets.NewFlagSetFilter(nil), true)
+
+	// Test case 1: since == -1 and no flagSets
+	{
+		initialSplits := []dtos.SplitDTO{
+			{Name: "split1", ChangeNumber: 10, Status: "ACTIVE", TrafficTypeName: "user"},
+			{Name: "split2", ChangeNumber: 10, Status: "ACTIVE", TrafficTypeName: "user"},
+		}
+		pss.Update(initialSplits, nil, 10)
+
+		changes, err := pss.ChangesSince(-1, nil)
+		assert.Nil(t, err)
+		assert.Equal(t, int64(-1), changes.Since)
+		assert.Equal(t, int64(10), changes.Till)
+		assert.ElementsMatch(t, initialSplits, changes.Splits)
+	}
+
+	// Test case 2: Error when since is too old
+	{
+		// The storage was initialized with CN 10, so requesting CN 5 should fail
+		changes, err := pss.ChangesSince(5, nil)
+		assert.Equal(t, ErrSinceParamTooOld, err)
+		assert.Nil(t, changes)
+	}
+
+	// Test case 3: Active and archived splits
+	{
+		// Add a new split and archive an existing one
+		toAdd := []dtos.SplitDTO{{Name: "split3", ChangeNumber: 15, Status: "ACTIVE", TrafficTypeName: "user"}}
+		toRemove := []dtos.SplitDTO{
+			{
+				Name:                 "split2",
+				ChangeNumber:         15,
+				Status:              "ARCHIVED",
+				TrafficTypeName:      "user",
+				TrafficAllocation:    100,
+				Algo:                1,
+				DefaultTreatment:    "off",
+				Conditions:          []dtos.ConditionDTO{},
+				Sets:               []string{},
+			},
+		}
+
+		pss.Update(toAdd, toRemove, 15)
+
+		changes, err := pss.ChangesSince(10, nil)
+		assert.Nil(t, err)
+		assert.Equal(t, int64(10), changes.Since)
+		assert.Equal(t, int64(15), changes.Till)
+
+		// Should include both the new active split and the archived one
+		expectedSplits := []dtos.SplitDTO{
+			{
+				Name:                 "split3",
+				ChangeNumber:         15,
+				Status:              "ACTIVE",
+				TrafficTypeName:      "user",
+				TrafficAllocation:    0,
+				Algo:                0,
+				Conditions:          nil,
+				Sets:               nil,
+			},
+			{
+				Name:                 "split2",
+				ChangeNumber:         15,
+				Status:              "ARCHIVED",
+				TrafficTypeName:      "user",
+				TrafficAllocation:    100,
+				Algo:                1,
+				DefaultTreatment:    "off",
+				Conditions:          []dtos.ConditionDTO{},
+				Sets:               []string{},
+			},
+		}
+		assert.ElementsMatch(t, expectedSplits, changes.Splits)
+	}
+
+	// Test case 4: FlagSets filtering
+	{
+		// Add splits with flag sets
+		flagSetSplits := []dtos.SplitDTO{
+			{Name: "split4", ChangeNumber: 20, Status: "ACTIVE", Sets: []string{"set1"}, TrafficTypeName: "user"},
+			{Name: "split5", ChangeNumber: 20, Status: "ACTIVE", Sets: []string{"set2"}, TrafficTypeName: "user"},
+		}
+		pss.Update(flagSetSplits, nil, 20)
+
+		// Test filtering by set1
+		changes, err := pss.ChangesSince(15, []string{"set1"})
+		assert.Nil(t, err)
+		assert.Equal(t, int64(15), changes.Since)
+		assert.Equal(t, int64(20), changes.Till)
+		expectedSet1 := []dtos.SplitDTO{
+			{Name: "split4", ChangeNumber: 20, Status: "ACTIVE", Sets: []string{"set1"}, TrafficTypeName: "user"},
+		}
+		assert.ElementsMatch(t, expectedSet1, changes.Splits)
+	}
+
+	// Test case 5: Proper till calculation with multiple changes
+	{
+		// Add changes with different change numbers
+		changes1 := []dtos.SplitDTO{{Name: "split6", ChangeNumber: 25, Status: "ACTIVE", TrafficTypeName: "user"}}
+		changes2 := []dtos.SplitDTO{{Name: "split7", ChangeNumber: 30, Status: "ACTIVE", TrafficTypeName: "user"}}
+
+		pss.Update(changes1, nil, 25)
+		pss.Update(changes2, nil, 30)
+
+		changes, err := pss.ChangesSince(20, nil)
+		assert.Nil(t, err)
+		assert.Equal(t, int64(20), changes.Since)
+		assert.Equal(t, int64(30), changes.Till)
+		expectedChanges := []dtos.SplitDTO{
+			{Name: "split6", ChangeNumber: 25, Status: "ACTIVE", TrafficTypeName: "user"},
+			{Name: "split7", ChangeNumber: 30, Status: "ACTIVE", TrafficTypeName: "user"},
+		}
+		assert.ElementsMatch(t, expectedChanges, changes.Splits)
+	}
+}
+
 func TestGetAllFlagSetNames(t *testing.T) {
 	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
 	if err != nil {

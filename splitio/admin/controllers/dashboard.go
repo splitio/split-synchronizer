@@ -150,6 +150,7 @@ func (c *DashboardController) gatherStats() *dashboard.GlobalStats {
 		FeatureFlags:           bundleSplitInfo(c.storages.SplitStorage),
 		Segments:               bundleSegmentInfo(c.storages.SplitStorage, c.storages.SegmentStorage),
 		LargeSegments:          bundleLargeSegmentInfo(c.storages.SplitStorage, c.storages.LargeSegmentStorage),
+		RuleBasedSegments:      bundleRuleBasedInfo(c.storages.SplitStorage, c.storages.RuleBasedSegmentsStorage),
 		Latencies:              bundleProxyLatencies(c.storages.LocalTelemetryStorage),
 		BackendLatencies:       bundleLocalSyncLatencies(c.storages.LocalTelemetryStorage),
 		ImpressionsQueueSize:   getImpressionSize(c.storages.ImpressionStorage),

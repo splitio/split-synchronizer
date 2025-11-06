@@ -96,7 +96,7 @@ func NewServer(options *Options) (*AdminServer, error) {
 	observabilityController.Register(admin)
 
 	if options.Snapshotter != nil {
-		snapshotController := controllers.NewSnapshotController(options.Logger, options.Snapshotter)
+		snapshotController := controllers.NewSnapshotController(options.Logger, options.Snapshotter, options.FlagSpecVersion)
 		snapshotController.Register(admin)
 	}
 

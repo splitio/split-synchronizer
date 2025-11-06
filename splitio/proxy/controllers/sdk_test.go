@@ -53,7 +53,7 @@ func TestSplitChangesImpressionsDisabled(t *testing.T) {
 		&rbsStorage,
 		flagsets.NewMatcher(false, nil),
 		&largeSegmentStorageMock,
-		specs.FLAG_V1_2,
+		specs.FLAG_V1_3,
 	)
 	controller.Register(group)
 
