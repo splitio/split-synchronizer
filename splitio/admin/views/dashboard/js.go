@@ -401,6 +401,7 @@ const mainScript = `
     $('#feature_flags_number').html(stats.featureFlags.length);
     $('#segments_number').html(stats.segments.length);
     $('#large_segments_number').html(stats.largesegments.length);
+    $('#rule_based_segments_number').html(stats.rulebasedsegments.length);
     $('#flag_sets_number').html(stats.flagSets.length);
     $('#impressions_queue_value').html(stats.impressionsQueueSize);
     $('#events_queue_value').html(stats.eventsQueueSize);
