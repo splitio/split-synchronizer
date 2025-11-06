@@ -6,17 +6,79 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/persistent"
 
 	"github.com/splitio/go-split-commons/v8/dtos"
+	"github.com/splitio/go-toolkit/v5/datastructures/set"
 	"github.com/splitio/go-toolkit/v5/logging"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func TestRBStorage(t *testing.T) {
+	logger := logging.NewLogger(nil)
+
+	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
+	assert.Nil(t, err)
+	rbsStorage := NewProxyRuleBasedSegmentsStorage(dbw, logger, true)
+
+	rbs := []dtos.RuleBasedSegmentDTO{
+		{Name: "rbs1", ChangeNumber: 10, Status: "ACTIVE", TrafficTypeName: "user"},
+		{Name: "rbs2", ChangeNumber: 10, Status: "ACTIVE", TrafficTypeName: "user"},
+	}
+	rbsStorage.Update(rbs, nil, 10)
+
+	assert.ElementsMatch(t, rbs, rbsStorage.All())
+	cn, _ := rbsStorage.ChangeNumber()
+	assert.Equal(t, int64(10), cn)
+	assert.False(t, rbsStorage.Contains([]string{"rbs1", "rbs2", "rbs3"}))
+	assert.True(t, rbsStorage.Contains([]string{"rbs1", "rbs2"}))
+
+	fetchMany := rbsStorage.FetchMany([]string{"rbs1", "rbs2", "rbs3"})
+	assert.Equal(t, 3, len(fetchMany))
+	assert.Equal(t, "rbs1", fetchMany["rbs1"].Name)
+	assert.Equal(t, "rbs2", fetchMany["rbs2"].Name)
+	assert.Nil(t, fetchMany["rbs3"])
+
+	rbs1, _ := rbsStorage.GetRuleBasedSegmentByName("rbs1")
+	assert.Equal(t, rbs[0], *rbs1)
+	rbs2, _ := rbsStorage.GetRuleBasedSegmentByName("rbs2")
+	assert.Equal(t, rbs[1], *rbs2)
+	rbs3, _ := rbsStorage.GetRuleBasedSegmentByName("rbs3")
+	assert.Nil(t, rbs3)
+	assert.Equal(t, set.NewSet(), rbsStorage.LargeSegments())
+
+	newRBS := []dtos.RuleBasedSegmentDTO{
+		{Name: "rbs3", ChangeNumber: 15, Status: "ACTIVE", TrafficTypeName: "user"},
+		{Name: "rbs4", ChangeNumber: 15, Status: "ACTIVE", TrafficTypeName: "user"},
+	}
+	assert.Nil(t, rbsStorage.ReplaceAll(newRBS, 15))
+	names, _ := rbsStorage.RuleBasedSegmentNames()
+	assert.ElementsMatch(t, []string{"rbs3", "rbs4"}, names)
+	assert.Equal(t, set.NewSet(), rbsStorage.Segments())
+
+	rbsStorage.SetChangeNumber(20)
+	newCN, _ := rbsStorage.ChangeNumber()
+	assert.Equal(t, int64(20), newCN)
+
+	rbsToAdd := []dtos.RuleBasedSegmentDTO{
+		{Name: "rbs5", ChangeNumber: 25, Status: "ACTIVE", TrafficTypeName: "user"},
+	}
+	rbsToRemove := []dtos.RuleBasedSegmentDTO{
+		{Name: "rbs3", ChangeNumber: 25, Status: "ARCHIVED"},
+	}
+	assert.Nil(t, rbsStorage.Update(rbsToAdd, rbsToRemove, 25))
+	allRBS := rbsStorage.All()
+	expectedRBS := []dtos.RuleBasedSegmentDTO{
+		{Name: "rbs4", ChangeNumber: 15, Status: "ACTIVE", TrafficTypeName: "user"},
+		{Name: "rbs5", ChangeNumber: 25, Status: "ACTIVE", TrafficTypeName: "user"},
+	}
+	assert.ElementsMatch(t, expectedRBS, allRBS)
+}
 
 func TestRBSChangesSince(t *testing.T) {
 	logger := logging.NewLogger(nil)
 
 	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
 	assert.Nil(t, err)
-	pss := NewProxyRuleBasedSegmentsStorage(dbw, logger, false)
+	pss := NewProxyRuleBasedSegmentsStorage(dbw, logger, true)
 
 	// From -1
 	rbs := []dtos.RuleBasedSegmentDTO{
