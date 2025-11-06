@@ -108,6 +108,45 @@ func bundleSegmentInfo(splitStorage storage.SplitStorage, segmentStorage storage
 	return summaries
 }
 
+func bundleRuleBasedInfo(splitStorage storage.SplitStorage, ruleBasedSegmentStorage storage.RuleBasedSegmentStorageConsumer) []dashboard.RuleBasedSegmentSummary {
+	names := splitStorage.RuleBasedSegmentNames()
+	summaries := make([]dashboard.RuleBasedSegmentSummary, 0, names.Size())
+
+	for _, name := range names.List() {
+		strName, ok := name.(string)
+		if !ok {
+			continue
+		}
+
+		ruleBased, err := ruleBasedSegmentStorage.GetRuleBasedSegmentByName(strName)
+		if err != nil {
+			continue
+		}
+
+		excluededSegments := make([]dashboard.ExcludedSegments, 0, len(ruleBased.Excluded.Segments))
+		for _, excludedSegment := range ruleBased.Excluded.Segments {
+			excluededSegments = append(excluededSegments, dashboard.ExcludedSegments{
+				Name: excludedSegment.Name,
+				Type: excludedSegment.Type,
+			})
+		}
+
+		if ruleBased.Excluded.Keys == nil {
+			ruleBased.Excluded.Keys = make([]string, 0)
+		}
+
+		summaries = append(summaries, dashboard.RuleBasedSegmentSummary{
+			Name:             ruleBased.Name,
+			Active:           ruleBased.Status == "ACTIVE",
+			ExcludedKeys:     ruleBased.Excluded.Keys,
+			ExcludedSegments: excluededSegments,
+			LastModified:     time.Unix(0, ruleBased.ChangeNumber*int64(time.Millisecond)).UTC().Format(time.UnixDate),
+			ChangeNumber:     ruleBased.ChangeNumber,
+		})
+	}
+	return summaries
+}
+
 func bundleSegmentKeysInfo(name string, segmentStorage storage.SegmentStorageConsumer) []dashboard.SegmentKeySummary {
 
 	keys := segmentStorage.Keys(name)
@@ -315,23 +354,4 @@ func getProxyRequestCount(metrics storage.TelemetryRuntimeConsumer) (ok int64, e
 	}
 
 	return okCount, errorCount
-}
-
-func bundleRBInfo(rbStorage storage.RuleBasedSegmentsStorage) []dashboard.RBSummary {
-	all := rbStorage.All()
-	summaries := make([]dashboard.RBSummary, 0, len(all))
-	for _, segment := range all {
-		excludedSegments := make([]string, 0, len(segment.Excluded.Segments))
-		for _, seg := range segment.Excluded.Segments {
-			excludedSegments = append(excludedSegments, seg.Name)
-		}
-		summaries = append(summaries, dashboard.RBSummary{
-			Name:             segment.Name,
-			ChangeNumber:     segment.ChangeNumber,
-			Active:           segment.Status == "ACTIVE",
-			ExcludedKeys:     segment.Excluded.Keys,
-			ExcludedSegments: excludedSegments,
-		})
-	}
-	return summaries
 }
