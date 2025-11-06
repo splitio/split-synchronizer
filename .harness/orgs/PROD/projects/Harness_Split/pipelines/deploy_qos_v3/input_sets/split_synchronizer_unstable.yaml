@@ -1,0 +1,101 @@
+inputSet:
+  name: split_synchronizer_unstable
+  tags: {}
+  identifier: split_synchronizer_unstable
+  orgIdentifier: PROD
+  projectIdentifier: Harness_Split
+  pipeline:
+    identifier: deploy_qos_v3
+    stages:
+      - stage:
+          identifier: code_artifact
+          type: Deployment
+          spec:
+            service:
+              serviceRef: <+<+expression.isResolved(<+trigger.payload.repository.name>)>?<+trigger.payload.repository.name.replace("-", "")>:<+trigger.payload.artifacts[0].service.replace("-", "")>>
+      - parallel:
+          - stage:
+              identifier: CI
+              type: CI
+              spec:
+                execution:
+                  steps:
+                    - step:
+                        identifier: custom_tag
+                        type: Run
+                        spec:
+                          command: VERSION="$(git rev-parse --short HEAD)"
+                        when:
+                          condition: "true"
+                    - step:
+                        identifier: BuildAndPush
+                        type: BuildAndPushDockerRegistry
+                        spec:
+                          repo: split-<+matrix.app><+<+matrix.fips_mode>=="enabled"?"-fips":"">
+                          tags:
+                            - <+pipeline.stages.CI<+strategy.identifierPostFix>.spec.execution.steps.custom_tag.output.outputVariables.VERSION>
+                            - latest
+                          dockerfile: docker/Dockerfile.<+matrix.app>
+                          context: ""
+                          buildArgs:
+                            FIPS_MODE: <+matrix.fips_mode>
+                          envVariables:
+                            PLUGIN_PLATFORM: linux/amd64,linux/arm64
+              strategy:
+                matrix:
+                  app:
+                    - synchronizer
+                    - proxy
+                  fips_mode:
+                    - enabled
+                    - disabled
+          - stage:
+              identifier: ECR
+              type: CI
+              spec:
+                execution:
+                  steps:
+                    - step:
+                        identifier: custom_tag
+                        type: Run
+                        spec:
+                          command: VERSION="$(git rev-parse --short HEAD)"
+                        when:
+                          condition: "true"
+                    - step:
+                        identifier: BuildAndPushECR
+                        type: BuildAndPushECR
+                        spec:
+                          imageName: split-<+matrix.app><+<+matrix.fips_mode>=="enabled"?"-fips":"">
+                          tags:
+                            - <+pipeline.stages.ECR<+strategy.identifierPostFix>.spec.execution.steps.custom_tag.output.outputVariables.VERSION>
+                            - latest
+                          dockerfile: docker/Dockerfile.<+matrix.app>
+                          context: ""
+                          buildArgs:
+                            FIPS_MODE: <+matrix.fips_mode>
+                          envVariables:
+                            PLUGIN_PLATFORM: linux/amd64,linux/arm64
+              strategy:
+                matrix:
+                  app:
+                    - synchronizer
+                    - proxy
+                  fips_mode:
+                    - enabled
+                    - disabled
+      - stage:
+          identifier: deploy
+          type: Deployment
+          spec:
+            services:
+              values: <+input>
+              metadata:
+                parallel: <+input>
+    properties:
+      ci:
+        codebase:
+          build:
+            type: branch
+            spec:
+              branch: <+trigger.branch>

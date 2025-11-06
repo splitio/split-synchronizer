@@ -4,13 +4,15 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/optimized"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/persistent"
+
 	"github.com/splitio/go-split-commons/v8/dtos"
 	"github.com/splitio/go-split-commons/v8/engine/grammar/constants"
 	"github.com/splitio/go-split-commons/v8/storage"
 	"github.com/splitio/go-split-commons/v8/storage/inmemory/mutexmap"
 	"github.com/splitio/go-toolkit/v5/datastructures/set"
 	"github.com/splitio/go-toolkit/v5/logging"
-	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/optimized"
 )
 
 // ProxyRuleBasedSegmentsStorage defines the interface of a storage that can be used for serving payloads
@@ -22,6 +24,7 @@ type ProxyRuleBasedSegmentsStorage interface {
 // ProxyRuleBasedSegmentsStorageImpl implements the ProxyRuleBasedSegmentsStorage interface and the RuleBasedSegmentProducer interface
 type ProxyRuleBasedSegmentsStorageImpl struct {
 	snapshot      mutexmap.RuleBasedSegmentsStorageImpl
+	db            *persistent.RBChangesCollection
 	logger        logging.LoggerInterface
 	oldestKnownCN int64
 	mtx           sync.Mutex
@@ -30,16 +33,21 @@ type ProxyRuleBasedSegmentsStorageImpl struct {
 
 // NewProxyRuleBasedSegmentsStorage instantiates a new proxy storage that wraps an in-memory snapshot of the last known
 // flag configuration
-func NewProxyRuleBasedSegmentsStorage(logger logging.LoggerInterface) *ProxyRuleBasedSegmentsStorageImpl {
+func NewProxyRuleBasedSegmentsStorage(db persistent.DBWrapper, logger logging.LoggerInterface, restoreBackup bool) *ProxyRuleBasedSegmentsStorageImpl {
+	disk := persistent.NewRBChangesCollection(db, logger)
 	snapshot := mutexmap.NewRuleBasedSegmentsStorage()
 	historic := optimized.NewHistoricRBChanges(1000)
-	var initialCN int64 = -1
 
+	var initialCN int64 = -1
+	if restoreBackup {
+		initialCN = snapshotFromDiskRB(snapshot, historic, disk, logger)
+	}
 	return &ProxyRuleBasedSegmentsStorageImpl{
 		snapshot:      *snapshot,
+		db:            disk,
+		historic:      historic,
 		logger:        logger,
 		oldestKnownCN: initialCN,
-		historic:      historic,
 	}
 }
 
@@ -51,6 +59,36 @@ func (p *ProxyRuleBasedSegmentsStorageImpl) sinceIsTooOld(since int64) bool {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 	return since < p.oldestKnownCN
+}
+
+func snapshotFromDiskRB(
+	dst *mutexmap.RuleBasedSegmentsStorageImpl,
+	historic optimized.HistoricChangesRB,
+	src *persistent.RBChangesCollection,
+	logger logging.LoggerInterface,
+) int64 {
+	all, err := src.FetchAll()
+	if err != nil {
+		logger.Error("error parsing feature flags from snapshot. No data will be available!: ", err)
+		return -1
+	}
+
+	var filtered []dtos.RuleBasedSegmentDTO
+	var cn = src.ChangeNumber()
+	for idx := range all {
+
+		// Make sure the CN matches is at least large as the payloads' max.
+		if thisCN := all[idx].ChangeNumber; thisCN > cn {
+			cn = thisCN
+		}
+		if all[idx].Status == constants.SplitStatusActive {
+			filtered = append(filtered, all[idx])
+		}
+	}
+
+	dst.Update(filtered, nil, cn)
+	historic.Update(filtered, nil, cn)
+	return cn
 }
 
 func archivedRBDTOForView(view *optimized.RBView) dtos.RuleBasedSegmentDTO {
@@ -162,7 +200,7 @@ func (p *ProxyRuleBasedSegmentsStorageImpl) Update(toAdd []dtos.RuleBasedSegment
 	p.mtx.Lock()
 	p.snapshot.Update(toAdd, toRemove, changeNumber)
 	p.historic.Update(toAdd, toRemove, changeNumber)
-	// p.db.Update(toAdd, toRemove, changeNumber)
+	p.db.Update(toAdd, toRemove, changeNumber)
 	p.mtx.Unlock()
 	return nil
 }

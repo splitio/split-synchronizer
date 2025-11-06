@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,31 +13,23 @@ import (
 	"github.com/splitio/go-toolkit/v5/logging"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestDownloadProxySnapshot(t *testing.T) {
 	// Read DB snapshot for test
 	path := "../../../test/snapshot/proxy.snapshot"
 	snap, err := snapshot.DecodeFromFile(path)
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	assert.Nil(t, err)
 
 	tmpDataFile, err := snap.WriteDataToTmpFile()
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	assert.Nil(t, err)
 
 	// loading snapshot from disk
 	dbInstance, err := persistent.NewBoltWrapper(tmpDataFile, nil)
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	assert.Nil(t, err)
 
-	ctrl := NewSnapshotController(logging.NewLogger(nil), dbInstance)
+	ctrl := NewSnapshotController(logging.NewLogger(nil), dbInstance, "1.3")
 
 	resp := httptest.NewRecorder()
 	ctx, router := gin.CreateTestContext(resp)
@@ -46,35 +38,19 @@ func TestDownloadProxySnapshot(t *testing.T) {
 	ctx.Request, _ = http.NewRequest(http.MethodGet, "/snapshot", nil)
 	router.ServeHTTP(resp, ctx.Request)
 
-	responseBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	responseBody, err := io.ReadAll(resp.Body)
+	assert.Nil(t, err)
 
 	snapRes, err := snapshot.Decode(responseBody)
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	assert.Nil(t, err)
 
-	if snapRes.Meta().Version != 1 {
-		t.Error("Invalid Metadata version")
-	}
-
-	if snapRes.Meta().Storage != 1 {
-		t.Error("Invalid Metadata storage")
-	}
+	assert.Equal(t, uint64(1), snapRes.Meta().Version)
+	assert.Equal(t, uint64(1), snapRes.Meta().Storage)
+	assert.Equal(t, "1.3", snapRes.Meta().SpecVersion)
 
 	dat, err := snap.Data()
-	if err != nil {
-		t.Error(err)
-	}
+	assert.Nil(t, err)
 	resData, err := snapRes.Data()
-	if err != nil {
-		t.Error(err)
-	}
-	if bytes.Compare(dat, resData) != 0 {
-		t.Error("loaded snapshot is different to downloaded")
-	}
+	assert.Nil(t, err)
+	assert.Equal(t, 0, bytes.Compare(dat, resData))
 }
