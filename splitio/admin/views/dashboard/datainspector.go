@@ -39,6 +39,19 @@ const dataInspector = `
           </li>
           {{end}}
           <li role="presentation" class="">
+            <a href="#rule-based-segments-data" aria-controls="rule-based" role="tab" data-toggle="tab">
+              <span class="glyphicon" style="vertical-align:bottom" aria-hidden="true">
+                <svg fill="none" height="24" width="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path
+                    d="M6 4C5.44772 4 5 4.44772 5 5V9C5 9.55228 5.44772 10 6 10H10C10.5523 10 11 9.55228 11 9V8H13V11H10V13H13V16H11V15C11 14.4477 10.5523 14 10 14H6C5.44772 14 5 14.4477 5 15V19C5 19.5523 5.44772 20 6 20H10C10.5523 20 11 19.5523 11 19V18H13V20H18C18.5523 20 19 19.5523 19 19V15C19 14.4477 18.5523 14 18 14H15V10H18C18.5523 10 19 9.55228 19 9V5C19 4.44772 18.5523 4 18 4H13V6H11V5C11 4.44772 10.5523 4 10 4H6Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </span>
+              &nbsp;Rule-based Segments
+            </a>
+          </li>
+          <li role="presentation" class="">
             <a href="#flag-sets-data" aria-controls="profile" role="tab" data-toggle="tab">
               <span class="glyphicon" style="vertical-align:bottom" aria-hidden="true">
                 <svg fill="none" height="24" viewBox="0 0 25 24" width="25" xmlns="http://www.w3.org/2000/svg">
@@ -153,6 +166,50 @@ const dataInspector = `
         </div>
       </div>
       {{end}}
+
+      <!-- RULE-BASED SEGMENT DATA -->
+      <div role="tabpanel" class="tab-pane" id="rule-based-segments-data">
+        <div class="row">
+          <div class="col-md-12">
+            <div class="bg-primary metricBox">
+              <!-- <h4>Rule-based Segments in proxy</h4> -->
+              <div class="row">
+                <div class="col-md-4 col-md-offset-8">
+                  <div class="input-group">
+                    <input type="text" id="filterRuleBasedSegmentNameInput" class="form-control" placeholder="Filter by Rule-based Segment name">
+                    <span class="input-group-btn">
+                      <button class="btn btn-default" type="button" onclick="javascript:filterRuleBasedSegments();">
+                        <span class="glyphicon glyphicon-filter" aria-hidden="true"></span>
+                      </button>
+                      <button class="btn btn-default" type="button" onclick="javascript:resetFilterRuleBasedSegments();">
+                        <span class="glyphicon glyphicon-remove" aria-hidden="true"></span>
+                      </button>
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div class="row">
+                <div class="col-md-12">
+                  <table id="rule_based_segment_rows" class="table table-condensed table-hover">
+                    <thead>
+                      <tr>
+                        <th>Rule-based segment</th>
+                        <th>Status</th>
+                        <th>Excluded Keys</th>
+                        <th>Excluded segments</th>
+                        <th>Last Modified</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
 
       <!-- FLAG SETS DATA -->
       <div role="tabpanel" class="tab-pane" id="flag-sets-data">
