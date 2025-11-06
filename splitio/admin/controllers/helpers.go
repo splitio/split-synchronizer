@@ -109,7 +109,6 @@ func bundleSegmentInfo(splitStorage storage.SplitStorage, segmentStorage storage
 }
 
 func bundleRuleBasedInfo(splitStorage storage.SplitStorage, ruleBasedSegmentStorage storage.RuleBasedSegmentStorageConsumer) []dashboard.RuleBasedSegmentSummary {
-
 	names := splitStorage.RuleBasedSegmentNames()
 	summaries := make([]dashboard.RuleBasedSegmentSummary, 0, names.Size())
 
@@ -118,14 +117,15 @@ func bundleRuleBasedInfo(splitStorage storage.SplitStorage, ruleBasedSegmentStor
 		if !ok {
 			continue
 		}
-		ruleBased, err := ruleBasedSegmentStorage.GetRuleBasedSegmentByName(strName)
 
+		ruleBased, err := ruleBasedSegmentStorage.GetRuleBasedSegmentByName(strName)
 		if err != nil {
 			continue
 		}
-		excluededSegments := make([]dashboard.ExcluededSegments, 0, len(ruleBased.Excluded.Segments))
+
+		excluededSegments := make([]dashboard.ExcludedSegments, 0, len(ruleBased.Excluded.Segments))
 		for _, excludedSegment := range ruleBased.Excluded.Segments {
-			excluededSegments = append(excluededSegments, dashboard.ExcluededSegments{
+			excluededSegments = append(excluededSegments, dashboard.ExcludedSegments{
 				Name: excludedSegment.Name,
 				Type: excludedSegment.Type,
 			})
@@ -136,12 +136,12 @@ func bundleRuleBasedInfo(splitStorage storage.SplitStorage, ruleBasedSegmentStor
 		}
 
 		summaries = append(summaries, dashboard.RuleBasedSegmentSummary{
-			Name:              ruleBased.Name,
-			Active:            ruleBased.Status == "ACTIVE",
-			ExcludedKeys:      ruleBased.Excluded.Keys,
-			ExcluededSegments: excluededSegments,
-			LastModified:      time.Unix(0, ruleBased.ChangeNumber*int64(time.Millisecond)).UTC().Format(time.UnixDate),
-			ChangeNumber:      ruleBased.ChangeNumber,
+			Name:             ruleBased.Name,
+			Active:           ruleBased.Status == "ACTIVE",
+			ExcludedKeys:     ruleBased.Excluded.Keys,
+			ExcludedSegments: excluededSegments,
+			LastModified:     time.Unix(0, ruleBased.ChangeNumber*int64(time.Millisecond)).UTC().Format(time.UnixDate),
+			ChangeNumber:     ruleBased.ChangeNumber,
 		})
 	}
 	return summaries

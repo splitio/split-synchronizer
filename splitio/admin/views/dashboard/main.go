@@ -139,15 +139,15 @@ type LargeSegmentSummary struct {
 }
 
 type RuleBasedSegmentSummary struct {
-	Name              string              `json:"name"`
-	Active            bool                `json:"active"`
-	ExcludedKeys      []string            `json:"excludedKeys"`
-	ExcluededSegments []ExcluededSegments `json:"excludedSegments"`
-	LastModified      string              `json:"cn"`
-	ChangeNumber      int64               `json:"changeNumber"`
+	Name             string             `json:"name"`
+	Active           bool               `json:"active"`
+	ExcludedKeys     []string           `json:"excludedKeys"`
+	ExcludedSegments []ExcludedSegments `json:"excludedSegments"`
+	LastModified     string             `json:"cn"`
+	ChangeNumber     int64              `json:"changeNumber"`
 }
 
-type ExcluededSegments struct {
+type ExcludedSegments struct {
 	Name string `json:"name"`
 	Type string `json:"type"`
 }

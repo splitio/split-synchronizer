@@ -7,6 +7,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -38,8 +39,9 @@ var ErrMetadataRead = errors.New("snapshot metadata cannot be decoded")
 
 // Metadata represents the Snapshot metadata object
 type Metadata struct {
-	Version uint64
-	Storage uint64
+	Version     uint64
+	Storage     uint64
+	SpecVersion string
 }
 
 // Snapshot represents a snapshot struct with metadata and data
@@ -71,7 +73,7 @@ func (s *Snapshot) Meta() Metadata {
 func (s *Snapshot) Data() ([]byte, error) {
 	gz, err := gzip.NewReader(bytes.NewBuffer(s.data))
 	defer gz.Close()
-	data, err := ioutil.ReadAll(gz)
+	data, err := io.ReadAll(gz)
 	if err != nil {
 		return nil, fmt.Errorf("error reading gzip data: %w", err)
 	}
@@ -80,11 +82,12 @@ func (s *Snapshot) Data() ([]byte, error) {
 
 // Encode returns the bytes slice snapshot representation
 // Snapshot Layout:
-//			         |metadata-size|metadata|data|
 //
-//         metadata-size: uint64 (8 bytes) specifies the amount of metadata bytes
-//         metadata: Gob encoded of Metadata struct
-//         data: Proxy data, byte slice. The Metadata have information about it, Storage, Gzipped and version.
+//				         |metadata-size|metadata|data|
+//
+//	        metadata-size: uint64 (8 bytes) specifies the amount of metadata bytes
+//	        metadata: Gob encoded of Metadata struct
+//	        data: Proxy data, byte slice. The Metadata have information about it, Storage, Gzipped and version.
 func (s *Snapshot) Encode() ([]byte, error) {
 
 	metaBytes, err := metaToBytes(s.meta)

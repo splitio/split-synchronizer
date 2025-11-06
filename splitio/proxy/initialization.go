@@ -57,6 +57,10 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 			return fmt.Errorf("error writing temporary snapshot file: %w", err)
 		}
 
+		if snap.Meta().SpecVersion != cfg.FlagSpecVersion {
+			return common.NewInitError(fmt.Errorf("snapshot spec version %s does not match config spec version %s", snap.Meta().SpecVersion, cfg.FlagSpecVersion), common.ExitErrorDB)
+		}
+
 		logger.Debug("Database created from snapshot at", dbpath)
 	}
 
@@ -84,7 +88,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 
 	// Proxy storages already implement the observable interface, so no need to wrap them
 	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, flagsets.NewFlagSetFilter(cfg.FlagSetsFilter), cfg.Initialization.Snapshot != "")
-	ruleBasedStorage := storage.NewProxyRuleBasedSegmentsStorage(logger)
+	ruleBasedStorage := storage.NewProxyRuleBasedSegmentsStorage(dbInstance, logger, cfg.Initialization.Snapshot != "")
 	segmentStorage := storage.NewProxySegmentStorage(dbInstance, logger, cfg.Initialization.Snapshot != "")
 	largeSegmentStorage := inmemory.NewLargeSegmentsStorage()
 
