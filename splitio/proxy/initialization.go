@@ -208,10 +208,11 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 
 	rtm := common.NewRuntime(false, syncManager, logger, "Split Proxy", nil, nil, appMonitor, servicesMonitor)
 	storages := adminCommon.Storages{
-		SplitStorage:          splitStorage,
-		SegmentStorage:        segmentStorage,
-		LocalTelemetryStorage: localTelemetryStorage,
-		LargeSegmentStorage:   largeSegmentStorage,
+		SplitStorage:             splitStorage,
+		SegmentStorage:           segmentStorage,
+		LocalTelemetryStorage:    localTelemetryStorage,
+		LargeSegmentStorage:      largeSegmentStorage,
+		RuleBasedSegmentsStorage: ruleBasedStorage,
 	}
 
 	// --------------------------- ADMIN DASHBOARD ------------------------------
