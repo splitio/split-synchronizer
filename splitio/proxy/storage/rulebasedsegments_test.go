@@ -12,6 +12,23 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestRBFromDisk(t *testing.T) {
+	logger := logging.NewLogger(nil)
+
+	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
+	assert.Nil(t, err)
+
+	rbs := []dtos.RuleBasedSegmentDTO{
+		{Name: "rbs1", ChangeNumber: 10, Status: "ACTIVE", TrafficTypeName: "user"},
+		{Name: "rbs2", ChangeNumber: 10, Status: "ACTIVE", TrafficTypeName: "user"},
+	}
+
+	disk := persistent.NewRBChangesCollection(dbw, logger)
+	disk.Update(rbs, nil, 10)
+	rbsStorage := NewProxyRuleBasedSegmentsStorage(dbw, logger, true)
+	assert.ElementsMatch(t, rbs, rbsStorage.All())
+}
+
 func TestRBStorage(t *testing.T) {
 	logger := logging.NewLogger(nil)
 
