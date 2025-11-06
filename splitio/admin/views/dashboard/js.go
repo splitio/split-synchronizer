@@ -86,6 +86,23 @@ const mainScript = `
         }
       });
     }
+
+    function resetFilterRuleBasedSegments(){
+      $("tr.ruleBasedItem").removeClass("filterDisplayNone");
+      $("#filterRuleBasedSegmentNameInput").val("");
+    }
+
+    function filterRuleBasedSegments(){
+      $("tr.ruleBasedItem").removeClass("filterDisplayNone");
+      var filter = $("#filterRuleBasedSegmentNameInput").val();
+      $("tr.ruleBasedItem").each(function() {
+        $this = $(this);
+        var ruleBasedName = $this.find("span.ruleBasedItemName").html();
+        if (ruleBasedName.indexOf(filter.trim()) == -1) {
+          $this.addClass("filterDisplayNone");
+        }
+      });
+    }
   
     $(function () {
       $('[data-toggle="tooltip"]').tooltip()
@@ -252,6 +269,42 @@ const mainScript = `
     if (document.getElementById('filterFeatureFlagNameInput').value.length == 0) {
       $('#feature_flag_rows tbody').empty();
       $('#feature_flag_rows tbody').append(formatted);
+    }
+  };
+
+  function formatRuleBasedSegment(ruleBasedSegment) {
+    var excludedSegments = Array.isArray(ruleBasedSegment.excludedSegments)
+      ? ruleBasedSegment.excludedSegments
+      : [];
+
+    var excludedSegmentsHtml = excludedSegments.length
+      ? excludedSegments.map(function(seg, i) {
+          var segName = seg && seg.name ? seg.name : 'Unnamed';
+          var segType = seg && seg.type ? seg.type : 'Unknown';
+          var separator = i < excludedSegments.length - 1 ? ', ' : '';
+          return '<span>' + segName + ' (' + segType + ')</span>' + separator;
+        }).join('')
+      : '—';
+
+    return (
+      '<tr class="ruleBasedItem">' +
+        '<td><span class="ruleBasedItemName">' + ruleBasedSegment.name + '</span></td>' +
+        (ruleBasedSegment.active
+          ? '<td class="">ACTIVE</td>'
+          : '<td class="danger">ARCHIVED</td>') +
+        '<td>' + (ruleBasedSegment.excludedKeys || '') + '</td>' +
+        '<td>' + excludedSegmentsHtml + '</td>' +
+        '<td>' + (ruleBasedSegment.cn || '') + '</td>' +
+      '</tr>\n'
+    );
+  }
+
+  function updateRuleBasedSegments(ruleBasedSegments) {
+    ruleBasedSegments.sort((a, b) => parseFloat(b.changeNumber) - parseFloat(a.changeNumber));
+    const formatted = ruleBasedSegments.map(formatRuleBasedSegment).join('\n');
+    if (document.getElementById('filterRuleBasedSegmentNameInput').value.length == 0) {
+      $('#rule_based_segment_rows tbody').empty();
+      $('#rule_based_segment_rows tbody').append(formatted);
     }
   };
 
@@ -443,6 +496,7 @@ const mainScript = `
     updateFeatureFlags(stats.featureFlags);
     updateSegments(stats.segments);
     updateLargeSegments(stats.largesegments);
+    updateRuleBasedSegments(stats.rulebasedsegments)
     updateLogEntries(stats.loggedMessages);
     updateFlagSets(stats.flagSets)
 

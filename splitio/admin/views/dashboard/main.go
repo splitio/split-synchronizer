@@ -89,26 +89,26 @@ type RootObject struct {
 
 // GlobalStats runtime stats used to render the dashboard
 type GlobalStats struct {
-	BackendTotalRequests   int64                 `json:"backendTotalRequests"`
-	RequestsOk             int64                 `json:"requestsOk"`
-	RequestsErrored        int64                 `json:"requestsErrored"`
-	BackendRequestsOk      int64                 `json:"backendRequestsOk"`
-	BackendRequestsErrored int64                 `json:"backendRequestsErrored"`
-	SdksTotalRequests      int64                 `json:"sdksTotalRequests"`
-	LoggedErrors           int64                 `json:"loggedErrors"`
-	LoggedMessages         []string              `json:"loggedMessages"`
-	FeatureFlags           []SplitSummary        `json:"featureFlags"`
-	Segments               []SegmentSummary      `json:"segments"`
-	LargeSegments          []LargeSegmentSummary `json:"largesegments"`
-	Latencies              []ChartJSData         `json:"latencies"`
-	BackendLatencies       []ChartJSData         `json:"backendLatencies"`
-	ImpressionsQueueSize   int64                 `json:"impressionsQueueSize"`
-	ImpressionsLambda      float64               `json:"impressionsLambda"`
-	EventsQueueSize        int64                 `json:"eventsQueueSize"`
-	EventsLambda           float64               `json:"eventsLambda"`
-	Uptime                 int64                 `json:"uptime"`
-	FlagSets               []FlagSetsSummary     `json:"flagSets"`
-	RuleBasedSegments      []RBSummary           `json:"ruleBasedSegments"`
+	BackendTotalRequests   int64                     `json:"backendTotalRequests"`
+	RequestsOk             int64                     `json:"requestsOk"`
+	RequestsErrored        int64                     `json:"requestsErrored"`
+	BackendRequestsOk      int64                     `json:"backendRequestsOk"`
+	BackendRequestsErrored int64                     `json:"backendRequestsErrored"`
+	SdksTotalRequests      int64                     `json:"sdksTotalRequests"`
+	LoggedErrors           int64                     `json:"loggedErrors"`
+	LoggedMessages         []string                  `json:"loggedMessages"`
+	FeatureFlags           []SplitSummary            `json:"featureFlags"`
+	Segments               []SegmentSummary          `json:"segments"`
+	LargeSegments          []LargeSegmentSummary     `json:"largesegments"`
+	RuleBasedSegments      []RuleBasedSegmentSummary `json:"rulebasedsegments"`
+	Latencies              []ChartJSData             `json:"latencies"`
+	BackendLatencies       []ChartJSData             `json:"backendLatencies"`
+	ImpressionsQueueSize   int64                     `json:"impressionsQueueSize"`
+	ImpressionsLambda      float64                   `json:"impressionsLambda"`
+	EventsQueueSize        int64                     `json:"eventsQueueSize"`
+	EventsLambda           float64                   `json:"eventsLambda"`
+	Uptime                 int64                     `json:"uptime"`
+	FlagSets               []FlagSetsSummary         `json:"flagSets"`
 }
 
 // SplitSummary encapsulates a minimalistic view of feature flag properties to be presented in the dashboard
@@ -138,6 +138,20 @@ type LargeSegmentSummary struct {
 	LastModified string `json:"cn"`
 }
 
+type RuleBasedSegmentSummary struct {
+	Name             string             `json:"name"`
+	Active           bool               `json:"active"`
+	ExcludedKeys     []string           `json:"excludedKeys"`
+	ExcludedSegments []ExcludedSegments `json:"excludedSegments"`
+	LastModified     string             `json:"cn"`
+	ChangeNumber     int64              `json:"changeNumber"`
+}
+
+type ExcludedSegments struct {
+	Name string `json:"name"`
+	Type string `json:"type"`
+}
+
 // SegmentKeySummary encapsulates basic information associated to the key in proxy mode
 // (fields other than name are empty when running as producer
 type SegmentKeySummary struct {
@@ -150,14 +164,6 @@ type FlagSetsSummary struct {
 	Name                   string `json:"name"`
 	FeatureFlagsAssociated int64  `json:"featureFlagsAssociated"`
 	FeatureFlags           string `json:"featureFlags"`
-}
-
-type RBSummary struct {
-	Name             string   `json:"name"`
-	ChangeNumber     int64    `json:"cn"`
-	Active           bool     `json:"active"`
-	ExcludedKeys     []string `json:"excludedKeys"`
-	ExcludedSegments []string `json:"excludedSegments"`
 }
 
 // RGBA bundles input to CSS's rgba function
