@@ -41,6 +41,7 @@ type Options struct {
 	FullConfig          interface{}
 	FlagSpecVersion     string
 	LargeSegmentVersion string
+	Hash                string
 }
 
 type AdminServer struct {
@@ -96,7 +97,7 @@ func NewServer(options *Options) (*AdminServer, error) {
 	observabilityController.Register(admin)
 
 	if options.Snapshotter != nil {
-		snapshotController := controllers.NewSnapshotController(options.Logger, options.Snapshotter, options.FlagSpecVersion)
+		snapshotController := controllers.NewSnapshotController(options.Logger, options.Snapshotter, options.Hash)
 		snapshotController.Register(admin)
 	}
 

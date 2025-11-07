@@ -39,9 +39,9 @@ var ErrMetadataRead = errors.New("snapshot metadata cannot be decoded")
 
 // Metadata represents the Snapshot metadata object
 type Metadata struct {
-	Version     uint64
-	Storage     uint64
-	SpecVersion string
+	Version uint64
+	Storage uint64
+	Hash    string
 }
 
 // Snapshot represents a snapshot struct with metadata and data
