@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -57,8 +58,9 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 			return fmt.Errorf("error writing temporary snapshot file: %w", err)
 		}
 
-		if snap.Meta().SpecVersion != cfg.FlagSpecVersion {
-			return common.NewInitError(fmt.Errorf("snapshot spec version %s does not match config spec version %s", snap.Meta().SpecVersion, cfg.FlagSpecVersion), common.ExitErrorDB)
+		currentHash := util.HashAPIKey(cfg.Apikey + cfg.FlagSpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
+		if snap.Meta().Hash != strconv.Itoa(int(currentHash)) {
+			return common.NewInitError(errors.New("snapshot cfg (apikey, version, flagsets) does not match the provided one"), common.ExitErrorDB)
 		}
 
 		logger.Debug("Database created from snapshot at", dbpath)
@@ -221,6 +223,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 
 	// --------------------------- ADMIN DASHBOARD ------------------------------
 	cfgForAdmin := *cfg
+	hash := util.HashAPIKey(cfgForAdmin.Apikey + cfg.FlagSpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
 	cfgForAdmin.Apikey = logging.ObfuscateAPIKey(cfgForAdmin.Apikey)
 
 	adminTLSConfig, err := util.TLSConfigForServer(&cfg.Admin.TLS)
@@ -244,6 +247,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		FullConfig:        cfgForAdmin,
 		TLS:               adminTLSConfig,
 		FlagSpecVersion:   cfg.FlagSpecVersion,
+		Hash:              strconv.Itoa(int(hash)),
 	})
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error starting admin server: %w", err), common.ExitAdminError)
