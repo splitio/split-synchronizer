@@ -87,3 +87,5 @@ For a comprehensive list of open source projects visit our [Github page](https:/
 **Learn more about Split:**
 
 Visit [split.io/product](https://www.split.io/product) for an overview of Split, or visit our documentation at [help.split.io](http://help.split.io) for more detailed information.
+
+Testing Harness CI
