@@ -7,14 +7,16 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gin-gonic/gin"
-	"github.com/splitio/go-split-commons/v6/dtos"
-	"github.com/splitio/go-split-commons/v6/storage/mocks"
-	"github.com/splitio/go-toolkit/v5/datastructures/set"
-	"github.com/splitio/go-toolkit/v5/logging"
 	adminCommon "github.com/splitio/split-synchronizer/v5/splitio/admin/common"
 	"github.com/splitio/split-synchronizer/v5/splitio/provisional/observability"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
+
+	"github.com/splitio/go-split-commons/v8/dtos"
+	"github.com/splitio/go-split-commons/v8/storage/mocks"
+	"github.com/splitio/go-toolkit/v5/datastructures/set"
+	"github.com/splitio/go-toolkit/v5/logging"
+
+	"github.com/gin-gonic/gin"
 )
 
 func TestSyncObservabilityEndpoint(t *testing.T) {

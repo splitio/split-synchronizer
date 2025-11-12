@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/splitio/go-split-commons/v6/dtos"
+	"github.com/splitio/go-split-commons/v8/dtos"
+
 	"github.com/stretchr/testify/assert"
 )
 
 func TestHistoricSplitStorage(t *testing.T) {
-
 	var historic HistoricChangesImpl
 	historic.Update([]dtos.SplitDTO{
 		{Name: "f1", Sets: []string{"s1", "s2"}, Status: "ACTIVE", ChangeNumber: 1, TrafficTypeName: "tt1"},

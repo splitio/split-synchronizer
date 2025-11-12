@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/splitio/go-split-commons/v6/synchronizer"
+	"github.com/splitio/go-split-commons/v8/synchronizer"
 )
 
 type syncManagerMock struct {
@@ -25,6 +25,10 @@ func (m *syncManagerMock) Start() {
 }
 func (m *syncManagerMock) Stop() { panic("unimplemented") }
 
+func (m *syncManagerMock) StartBGSync(mstatus chan int, shouldRetry bool, onReady func()) error {
+	panic("unimplemented")
+}
+
 var _ synchronizer.Manager = (*syncManagerMock)(nil)
 
 func TestSyncManagerInitializationRetriesWithSnapshot(t *testing.T) {
@@ -33,7 +37,7 @@ func TestSyncManagerInitializationRetriesWithSnapshot(t *testing.T) {
 
 	// No snapshot and error
 	complete := make(chan struct{}, 1)
-	err := startBGSyng(sm, sm.c, false, func() { complete <- struct{}{} })
+	err := startBGSync(sm, sm.c, false, func() { complete <- struct{}{} })
 	if err != errUnrecoverable {
 		t.Error("should be an unrecoverable error. Got: ", err)
 	}
@@ -47,7 +51,7 @@ func TestSyncManagerInitializationRetriesWithSnapshot(t *testing.T) {
 
 	// Snapshot and error
 	atomic.StoreInt64(&sm.execCount, 0)
-	err = startBGSyng(sm, sm.c, true, func() { complete <- struct{}{} })
+	err = startBGSync(sm, sm.c, true, func() { complete <- struct{}{} })
 	if err != errRetrying {
 		t.Error("should be a retrying error. Got: ", err)
 	}

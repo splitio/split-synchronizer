@@ -1,3 +1,11 @@
+5.11.0 (Nov 12, 2025)
+- Split Proxy:
+   - Added support for rule-based segment. These segments determine membership at runtime by evaluating their configured rules against the user attributes provided to the SDK.
+- Split-Sync:
+   - Added support for rule-based segment. These segments determine membership at runtime by evaluating their configured rules against the user attributes provided to the SDK.
+- Fixed vulnerabilities:
+   - Updated golang image to 1.24.9
+
 5.10.4 (Oct 3, 2025)
 - Fixed vulnerabilities:
    - Updated golang image to 1.24.7

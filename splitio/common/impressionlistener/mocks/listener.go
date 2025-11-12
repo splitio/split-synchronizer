@@ -1,8 +1,9 @@
 package mocks
 
 import (
-	"github.com/splitio/go-split-commons/v6/dtos"
 	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
+
+	"github.com/splitio/go-split-commons/v8/dtos"
 )
 
 type ImpressionBulkListenerMock struct {

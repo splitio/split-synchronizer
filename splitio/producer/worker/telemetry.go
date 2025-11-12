@@ -3,10 +3,11 @@ package worker
 import (
 	"fmt"
 
-	"github.com/splitio/go-split-commons/v6/dtos"
-	"github.com/splitio/go-split-commons/v6/service"
-	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v5/splitio/producer/storage"
+
+	"github.com/splitio/go-split-commons/v8/dtos"
+	"github.com/splitio/go-split-commons/v8/service"
+	"github.com/splitio/go-toolkit/v5/logging"
 )
 
 const (

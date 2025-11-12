@@ -8,10 +8,9 @@ import (
 	"sync"
 	"time"
 
-	tsync "github.com/splitio/go-toolkit/v5/sync"
-
 	"github.com/splitio/go-toolkit/v5/common"
 	"github.com/splitio/go-toolkit/v5/logging"
+	tsync "github.com/splitio/go-toolkit/v5/sync"
 )
 
 const (

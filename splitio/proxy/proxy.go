@@ -5,10 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/splitio/go-split-commons/v6/service"
-	cmnStorage "github.com/splitio/go-split-commons/v6/storage"
-	"github.com/splitio/go-toolkit/v5/logging"
-
+	"github.com/splitio/split-synchronizer/v5/splitio"
 	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers/middleware"
@@ -16,10 +13,14 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks"
 
+	"github.com/splitio/gincache"
+	"github.com/splitio/go-split-commons/v8/service"
+	cmnStorage "github.com/splitio/go-split-commons/v8/storage"
+	"github.com/splitio/go-toolkit/v5/logging"
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
-	"github.com/splitio/gincache"
 )
 
 // Options struct to set options for Proxy mode.
@@ -50,6 +51,9 @@ type Options struct {
 
 	// used to resolve segmentChanges & mySegments requests
 	ProxySegmentStorage storage.ProxySegmentStorage
+
+	// used to resolve splitChanges with rule-based segments requests
+	ProxyRBSegmentStorage storage.ProxyRuleBasedSegmentsStorage
 
 	// ProxyLargeSegmentStorage
 	ProxyLargeSegmentStorage cmnStorage.LargeSegmentsStorage
@@ -87,6 +91,8 @@ type Options struct {
 	FlagSets []string
 
 	FlagSetsStrictMatching bool
+
+	SpecVersion string
 }
 
 // API bundles all components required to answer API calls from Split sdks
@@ -140,6 +146,11 @@ func New(options *Options) *API {
 		cacheableRouter.Use(options.Cache.Handle)
 		cacheableRouter.Use(gzip.Gzip(gzip.DefaultCompression))
 	}
+	cacheableRouter.Use(func(c *gin.Context) {
+		c.Header("Harness-FME-Proxy-Version", splitio.Version)
+		c.Header("Harness-FME-FlagSpec", options.SpecVersion)
+		c.Next()
+	})
 	authController.Register(cacheableRouter)
 	sdkController.Register(cacheableRouter)
 	eventsController.Register(regular, beacon)
@@ -163,8 +174,10 @@ func setupSdkController(options *Options) *controllers.SdkServerController {
 		options.SplitFetcher,
 		options.ProxySplitStorage,
 		options.ProxySegmentStorage,
+		options.ProxyRBSegmentStorage,
 		flagsets.NewMatcher(options.FlagSetsStrictMatching, options.FlagSets),
 		options.ProxyLargeSegmentStorage,
+		options.SpecVersion,
 	)
 }
 

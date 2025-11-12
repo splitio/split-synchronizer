@@ -10,46 +10,46 @@ import (
 	"github.com/splitio/go-toolkit/v5/logging"
 )
 
-const splitChangesCollectionName = "SPLIT_CHANGES_COLLECTION"
+const ruleBasedSegmentsChangesCollectionName = "RULE_BASED_SEGMENTS_CHANGES_COLLECTION"
 
-// SplitChangesCollection represents a collection of SplitChangesItem
-type SplitChangesCollection struct {
+// RBChangesCollection represents a collection of ChangesItem for rule-based segments
+type RBChangesCollection struct {
 	collection   CollectionWrapper
 	changeNumber int64
 	mutex        sync.RWMutex
 }
 
-// NewSplitChangesCollection returns an instance of SplitChangesCollection
-func NewSplitChangesCollection(db DBWrapper, logger logging.LoggerInterface) *SplitChangesCollection {
-	return &SplitChangesCollection{
-		collection:   &BoltDBCollectionWrapper{db: db, name: splitChangesCollectionName, logger: logger},
+// NewRBChangesCollection returns an instance of RBChangesCollection
+func NewRBChangesCollection(db DBWrapper, logger logging.LoggerInterface) *RBChangesCollection {
+	return &RBChangesCollection{
+		collection:   &BoltDBCollectionWrapper{db: db, name: ruleBasedSegmentsChangesCollectionName, logger: logger},
 		changeNumber: 0,
 	}
 }
 
-// Update processes a set of feature flag changes items + a changeNumber bump atomically
-func (c *SplitChangesCollection) Update(toAdd []dtos.SplitDTO, toRemove []dtos.SplitDTO, cn int64) {
+// Update processes a set of rule based changes items + a changeNumber bump atomically
+func (c *RBChangesCollection) Update(toAdd []dtos.RuleBasedSegmentDTO, toRemove []dtos.RuleBasedSegmentDTO, cn int64) {
 	items := NewChangesItems(len(toAdd) + len(toRemove))
-	process := func(split *dtos.SplitDTO) {
-		asJSON, err := json.Marshal(split)
+	process := func(rb *dtos.RuleBasedSegmentDTO) {
+		asJSON, err := json.Marshal(rb)
 		if err != nil {
 			// This should not happen unless the DTO class is broken
 			return
 		}
 		items.Append(ChangesItem{
-			ChangeNumber: split.ChangeNumber,
-			Name:         split.Name,
-			Status:       split.Status,
+			ChangeNumber: rb.ChangeNumber,
+			Name:         rb.Name,
+			Status:       rb.Status,
 			JSON:         string(asJSON),
 		})
 	}
 
-	for _, split := range toAdd {
-		process(&split)
+	for _, rb := range toAdd {
+		process(&rb)
 	}
 
-	for _, split := range toRemove {
-		process(&split)
+	for _, rb := range toRemove {
+		process(&rb)
 	}
 
 	c.mutex.Lock()
@@ -63,8 +63,8 @@ func (c *SplitChangesCollection) Update(toAdd []dtos.SplitDTO, toRemove []dtos.S
 	c.changeNumber = cn
 }
 
-// FetchAll return a SplitChangesItem
-func (c *SplitChangesCollection) FetchAll() ([]dtos.SplitDTO, error) {
+// FetchAll return a ChangesItem
+func (c *RBChangesCollection) FetchAll() ([]dtos.RuleBasedSegmentDTO, error) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 	items, err := c.collection.FetchAll()
@@ -72,7 +72,7 @@ func (c *SplitChangesCollection) FetchAll() ([]dtos.SplitDTO, error) {
 		return nil, err
 	}
 
-	toReturn := make([]dtos.SplitDTO, 0)
+	toReturn := make([]dtos.RuleBasedSegmentDTO, 0)
 
 	var decodeBuffer bytes.Buffer
 	for _, v := range items {
@@ -88,7 +88,7 @@ func (c *SplitChangesCollection) FetchAll() ([]dtos.SplitDTO, error) {
 			continue
 		}
 
-		var parsed dtos.SplitDTO
+		var parsed dtos.RuleBasedSegmentDTO
 		err := json.Unmarshal([]byte(q.JSON), &parsed)
 		if err != nil {
 			c.collection.Logger().Error("error decoding feature flag fetched from db: ", err, "|", q.JSON)
@@ -101,7 +101,7 @@ func (c *SplitChangesCollection) FetchAll() ([]dtos.SplitDTO, error) {
 }
 
 // ChangeNumber returns changeNumber
-func (c *SplitChangesCollection) ChangeNumber() int64 {
+func (c *RBChangesCollection) ChangeNumber() int64 {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 	return c.changeNumber

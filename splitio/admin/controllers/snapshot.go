@@ -16,11 +16,12 @@ import (
 type SnapshotController struct {
 	logger logging.LoggerInterface
 	db     storage.Snapshotter
+	hash   string
 }
 
 // NewSnapshotController constructs a new snapshot controller
-func NewSnapshotController(logger logging.LoggerInterface, db storage.Snapshotter) *SnapshotController {
-	return &SnapshotController{logger: logger, db: db}
+func NewSnapshotController(logger logging.LoggerInterface, db storage.Snapshotter, hash string) *SnapshotController {
+	return &SnapshotController{logger: logger, db: db, hash: hash}
 }
 
 // Register mounts the endpoints int he provided router
@@ -38,7 +39,7 @@ func (c *SnapshotController) downloadSnapshot(ctx *gin.Context) {
 		return
 	}
 
-	s, err := snapshot.New(snapshot.Metadata{Version: 1, Storage: snapshot.StorageBoltDB}, b)
+	s, err := snapshot.New(snapshot.Metadata{Version: 1, Storage: snapshot.StorageBoltDB, Hash: c.hash}, b)
 	if err != nil {
 		c.logger.Error("error building snapshot: ", err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "error building snapshot"})

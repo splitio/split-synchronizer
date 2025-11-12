@@ -4,9 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/splitio/go-split-commons/v6/healthcheck/application"
-	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/application/counter"
+
+	"github.com/splitio/go-split-commons/v8/healthcheck/application"
+	"github.com/splitio/go-toolkit/v5/logging"
 )
 
 func assertItemsHealthy(t *testing.T, items []ItemDto, splitsExpected bool, segmentsExpected bool, errorsExpected bool) {

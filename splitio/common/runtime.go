@@ -7,14 +7,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/splitio/go-split-commons/v6/synchronizer"
-	"github.com/splitio/go-toolkit/v5/logging"
-	"github.com/splitio/go-toolkit/v5/sync"
-
 	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
 	"github.com/splitio/split-synchronizer/v5/splitio/log"
 	"github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/application"
 	"github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/services"
+
+	"github.com/splitio/go-split-commons/v8/synchronizer"
+	"github.com/splitio/go-toolkit/v5/logging"
+	"github.com/splitio/go-toolkit/v5/sync"
 )
 
 // ErrShutdownAlreadyRegistered is returned when trying to register the shutdown handler more than once

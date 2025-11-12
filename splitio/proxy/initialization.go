@@ -5,19 +5,9 @@ import (
 	"fmt"
 	"log"
 	"net/url"
-	"time"
-
+	"strconv"
 	"strings"
-
-	"github.com/splitio/go-split-commons/v6/conf"
-	"github.com/splitio/go-split-commons/v6/flagsets"
-	"github.com/splitio/go-split-commons/v6/service/api"
-	inmemory "github.com/splitio/go-split-commons/v6/storage/inmemory/mutexmap"
-	"github.com/splitio/go-split-commons/v6/synchronizer"
-	"github.com/splitio/go-split-commons/v6/tasks"
-	"github.com/splitio/go-split-commons/v6/telemetry"
-	"github.com/splitio/go-toolkit/v5/backoff"
-	"github.com/splitio/go-toolkit/v5/logging"
+	"time"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/admin"
 	adminCommon "github.com/splitio/split-synchronizer/v5/splitio/admin/common"
@@ -35,6 +25,17 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/persistent"
 	pTasks "github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks"
 	"github.com/splitio/split-synchronizer/v5/splitio/util"
+
+	"github.com/splitio/go-split-commons/v8/conf"
+	"github.com/splitio/go-split-commons/v8/engine/grammar"
+	"github.com/splitio/go-split-commons/v8/flagsets"
+	"github.com/splitio/go-split-commons/v8/service/api"
+	inmemory "github.com/splitio/go-split-commons/v8/storage/inmemory/mutexmap"
+	"github.com/splitio/go-split-commons/v8/synchronizer"
+	"github.com/splitio/go-split-commons/v8/tasks"
+	"github.com/splitio/go-split-commons/v8/telemetry"
+	"github.com/splitio/go-toolkit/v5/backoff"
+	"github.com/splitio/go-toolkit/v5/logging"
 )
 
 // Start initialize in proxy mode
@@ -55,6 +56,11 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		dbpath, err = snap.WriteDataToTmpFile()
 		if err != nil {
 			return fmt.Errorf("error writing temporary snapshot file: %w", err)
+		}
+
+		currentHash := util.HashAPIKey(cfg.Apikey + cfg.FlagSpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
+		if snap.Meta().Hash != strconv.Itoa(int(currentHash)) {
+			return common.NewInitError(errors.New("snapshot cfg (apikey, version, flagsets) does not match the provided one"), common.ExitErrorDB)
 		}
 
 		logger.Debug("Database created from snapshot at", dbpath)
@@ -84,6 +90,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 
 	// Proxy storages already implement the observable interface, so no need to wrap them
 	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, flagsets.NewFlagSetFilter(cfg.FlagSetsFilter), cfg.Initialization.Snapshot != "")
+	ruleBasedStorage := storage.NewProxyRuleBasedSegmentsStorage(dbInstance, logger, cfg.Initialization.Snapshot != "")
 	segmentStorage := storage.NewProxySegmentStorage(dbInstance, logger, cfg.Initialization.Snapshot != "")
 	largeSegmentStorage := inmemory.NewLargeSegmentsStorage()
 
@@ -118,10 +125,19 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	eventsRecorder := api.NewHTTPEventsRecorder(cfg.Apikey, *advanced, logger)
 	eventsTask := pTasks.NewEventsFlushTask(eventsRecorder, logger, 1, int(cfg.Sync.Advanced.EventsBuffer), int(cfg.Sync.Advanced.EventsWorkers))
 
+	ruleBuilder := grammar.NewRuleBuilder(
+		segmentStorage,
+		ruleBasedStorage,
+		largeSegmentStorage,
+		adminCommon.ProducerFeatureFlagsRules,
+		adminCommon.ProducerRuleBasedSegmentRules,
+		logger,
+		nil)
+
 	// setup feature flags, segments & local telemetry API interactions
 	workers := synchronizer.Workers{
-		SplitUpdater: caching.NewCacheAwareSplitSync(splitStorage, splitAPI.SplitFetcher, logger, localTelemetryStorage, httpCache, appMonitor, flagSetsFilter),
-		SegmentUpdater: caching.NewCacheAwareSegmentSync(splitStorage, segmentStorage, splitAPI.SegmentFetcher, logger, localTelemetryStorage, httpCache,
+		SplitUpdater: caching.NewCacheAwareSplitSync(splitStorage, ruleBasedStorage, splitAPI.SplitFetcher, logger, localTelemetryStorage, httpCache, appMonitor, flagSetsFilter, advanced.FlagsSpecVersion, ruleBuilder),
+		SegmentUpdater: caching.NewCacheAwareSegmentSync(splitStorage, segmentStorage, ruleBasedStorage, splitAPI.SegmentFetcher, logger, localTelemetryStorage, httpCache,
 			appMonitor),
 		TelemetryRecorder: telemetry.NewTelemetrySynchronizer(localTelemetryStorage, telemetryRecorder, splitStorage, segmentStorage, logger,
 			metadata, localTelemetryStorage),
@@ -166,7 +182,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	// health monitors are only started after successful init (otherwise they'll fail if the app doesn't sync correctly within the
 	/// specified refresh period)
 	before := time.Now()
-	err = startBGSyng(syncManager, mstatus, cfg.Initialization.Snapshot != "", func() {
+	err = startBGSync(syncManager, mstatus, cfg.Initialization.Snapshot != "", func() {
 		logger.Info("Synchronizer tasks started")
 		appMonitor.Start()
 		servicesMonitor.Start()
@@ -198,14 +214,16 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 
 	rtm := common.NewRuntime(false, syncManager, logger, "Split Proxy", nil, nil, appMonitor, servicesMonitor)
 	storages := adminCommon.Storages{
-		SplitStorage:          splitStorage,
-		SegmentStorage:        segmentStorage,
-		LocalTelemetryStorage: localTelemetryStorage,
-		LargeSegmentStorage:   largeSegmentStorage,
+		SplitStorage:             splitStorage,
+		SegmentStorage:           segmentStorage,
+		LocalTelemetryStorage:    localTelemetryStorage,
+		LargeSegmentStorage:      largeSegmentStorage,
+		RuleBasedSegmentsStorage: ruleBasedStorage,
 	}
 
 	// --------------------------- ADMIN DASHBOARD ------------------------------
 	cfgForAdmin := *cfg
+	hash := util.HashAPIKey(cfgForAdmin.Apikey + cfg.FlagSpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
 	cfgForAdmin.Apikey = logging.ObfuscateAPIKey(cfgForAdmin.Apikey)
 
 	adminTLSConfig, err := util.TLSConfigForServer(&cfg.Admin.TLS)
@@ -229,6 +247,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		FullConfig:        cfgForAdmin,
 		TLS:               adminTLSConfig,
 		FlagSpecVersion:   cfg.FlagSpecVersion,
+		Hash:              strconv.Itoa(int(hash)),
 	})
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error starting admin server: %w", err), common.ExitAdminError)
@@ -250,6 +269,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		SplitFetcher:                splitAPI.SplitFetcher,
 		ProxySplitStorage:           splitStorage,
 		ProxySegmentStorage:         segmentStorage,
+		ProxyRBSegmentStorage:       ruleBasedStorage,
 		ImpressionsSink:             impressionTask,
 		ImpressionCountSink:         impressionCountTask,
 		EventsSink:                  eventsTask,
@@ -263,6 +283,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		FlagSets:                    cfg.FlagSetsFilter,
 		FlagSetsStrictMatching:      cfg.FlagSetStrictMatching,
 		ProxyLargeSegmentStorage:    largeSegmentStorage,
+		SpecVersion:                 cfg.FlagSpecVersion,
 	}
 
 	if ilcfg := cfg.Integrations.ImpressionListener; ilcfg.Endpoint != "" {
@@ -287,8 +308,7 @@ var (
 	errUnrecoverable = errors.New("error and no snapshot available")
 )
 
-func startBGSyng(m synchronizer.Manager, mstatus chan int, haveSnapshot bool, onReady func()) error {
-
+func startBGSync(m synchronizer.Manager, mstatus chan int, haveSnapshot bool, onReady func()) error {
 	attemptInit := func() bool {
 		go m.Start()
 		status := <-mstatus

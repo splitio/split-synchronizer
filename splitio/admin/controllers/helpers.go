@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/splitio/go-split-commons/v6/storage"
-	"github.com/splitio/go-split-commons/v6/telemetry"
+	"github.com/splitio/go-split-commons/v8/storage"
+	"github.com/splitio/go-split-commons/v8/telemetry"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/admin/views/dashboard"
 	"github.com/splitio/split-synchronizer/v5/splitio/producer/evcalc"
@@ -105,6 +105,45 @@ func bundleSegmentInfo(splitStorage storage.SplitStorage, segmentStorage storage
 		})
 	}
 
+	return summaries
+}
+
+func bundleRuleBasedInfo(splitStorage storage.SplitStorage, ruleBasedSegmentStorage storage.RuleBasedSegmentStorageConsumer) []dashboard.RuleBasedSegmentSummary {
+	names := splitStorage.RuleBasedSegmentNames()
+	summaries := make([]dashboard.RuleBasedSegmentSummary, 0, names.Size())
+
+	for _, name := range names.List() {
+		strName, ok := name.(string)
+		if !ok {
+			continue
+		}
+
+		ruleBased, err := ruleBasedSegmentStorage.GetRuleBasedSegmentByName(strName)
+		if err != nil {
+			continue
+		}
+
+		excluededSegments := make([]dashboard.ExcludedSegments, 0, len(ruleBased.Excluded.Segments))
+		for _, excludedSegment := range ruleBased.Excluded.Segments {
+			excluededSegments = append(excluededSegments, dashboard.ExcludedSegments{
+				Name: excludedSegment.Name,
+				Type: excludedSegment.Type,
+			})
+		}
+
+		if ruleBased.Excluded.Keys == nil {
+			ruleBased.Excluded.Keys = make([]string, 0)
+		}
+
+		summaries = append(summaries, dashboard.RuleBasedSegmentSummary{
+			Name:             ruleBased.Name,
+			Active:           ruleBased.Status == "ACTIVE",
+			ExcludedKeys:     ruleBased.Excluded.Keys,
+			ExcludedSegments: excluededSegments,
+			LastModified:     time.Unix(0, ruleBased.ChangeNumber*int64(time.Millisecond)).UTC().Format(time.UnixDate),
+			ChangeNumber:     ruleBased.ChangeNumber,
+		})
+	}
 	return summaries
 }
 

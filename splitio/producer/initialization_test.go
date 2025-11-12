@@ -10,15 +10,16 @@ import (
 	"strings"
 	"testing"
 
-	config "github.com/splitio/go-split-commons/v6/conf"
-	"github.com/splitio/go-split-commons/v6/dtos"
-	"github.com/splitio/go-split-commons/v6/service"
-	"github.com/splitio/go-split-commons/v6/service/mocks"
-	predis "github.com/splitio/go-split-commons/v6/storage/redis"
-	"github.com/splitio/go-toolkit/v5/logging"
 	cconf "github.com/splitio/split-synchronizer/v5/splitio/common/conf"
 	"github.com/splitio/split-synchronizer/v5/splitio/producer/conf"
 	"github.com/splitio/split-synchronizer/v5/splitio/util"
+
+	config "github.com/splitio/go-split-commons/v8/conf"
+	"github.com/splitio/go-split-commons/v8/service/mocks"
+	predis "github.com/splitio/go-split-commons/v8/storage/redis"
+	"github.com/splitio/go-toolkit/v5/logging"
+
+	"github.com/stretchr/testify/mock"
 )
 
 func TestHashApiKey(t *testing.T) {
@@ -47,11 +48,8 @@ func TestIsApikeyValidOk(t *testing.T) {
 	os.Setenv("SPLITIO_SDK_URL", ts.URL)
 	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
 
-	httpSplitFetcher := mocks.MockSplitFetcher{
-		FetchCall: func(fetchOptions *service.FlagRequestParams) (*dtos.SplitChangesDTO, error) {
-			return nil, nil
-		},
-	}
+	httpSplitFetcher := &mocks.MockSplitFetcher{}
+	httpSplitFetcher.On("Fetch", mock.Anything).Return(nil, nil)
 
 	if !isValidApikey(httpSplitFetcher) {
 		t.Error("APIKEY should be valid.")
@@ -67,11 +65,8 @@ func TestIsApikeyValidNotOk(t *testing.T) {
 	os.Setenv("SPLITIO_SDK_URL", ts.URL)
 	os.Setenv("SPLITIO_EVENTS_URL", ts.URL)
 
-	httpSplitFetcher := mocks.MockSplitFetcher{
-		FetchCall: func(fetchOptions *service.FlagRequestParams) (*dtos.SplitChangesDTO, error) {
-			return nil, errors.New("Some")
-		},
-	}
+	httpSplitFetcher := &mocks.MockSplitFetcher{}
+	httpSplitFetcher.On("Fetch", mock.Anything).Return(nil, errors.New("Some"))
 
 	if isValidApikey(httpSplitFetcher) {
 		t.Error("APIKEY should be invalid.")

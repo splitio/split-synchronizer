@@ -1,22 +1,23 @@
 package caching
 
 import (
-	"github.com/splitio/go-split-commons/v6/dtos"
-	"github.com/splitio/go-split-commons/v6/flagsets"
-	"github.com/splitio/go-split-commons/v6/healthcheck/application"
-	"github.com/splitio/go-split-commons/v6/service"
-	"github.com/splitio/go-split-commons/v6/storage"
-	"github.com/splitio/go-split-commons/v6/synchronizer/worker/largesegment"
-	"github.com/splitio/go-split-commons/v6/synchronizer/worker/segment"
-	"github.com/splitio/go-split-commons/v6/synchronizer/worker/split"
-	"github.com/splitio/go-toolkit/v5/logging"
-
 	"github.com/splitio/gincache"
+	"github.com/splitio/go-split-commons/v8/dtos"
+	"github.com/splitio/go-split-commons/v8/engine/grammar"
+	"github.com/splitio/go-split-commons/v8/flagsets"
+	"github.com/splitio/go-split-commons/v8/healthcheck/application"
+	"github.com/splitio/go-split-commons/v8/service"
+	"github.com/splitio/go-split-commons/v8/storage"
+	"github.com/splitio/go-split-commons/v8/synchronizer/worker/largesegment"
+	"github.com/splitio/go-split-commons/v8/synchronizer/worker/segment"
+	"github.com/splitio/go-split-commons/v8/synchronizer/worker/split"
+	"github.com/splitio/go-toolkit/v5/logging"
 )
 
 // CacheAwareSplitSynchronizer wraps a SplitSynchronizer and flushes cache when an update happens
 type CacheAwareSplitSynchronizer struct {
 	splitStorage storage.SplitStorage
+	rbStorage    storage.RuleBasedSegmentsStorage
 	wrapped      split.Updater
 	cacheFlusher gincache.CacheFlusher
 }
@@ -24,16 +25,20 @@ type CacheAwareSplitSynchronizer struct {
 // NewCacheAwareSplitSync constructs a split-sync wrapper that evicts cache on updates
 func NewCacheAwareSplitSync(
 	splitStorage storage.SplitStorage,
+	ruleBasedStorage storage.RuleBasedSegmentsStorage,
 	splitFetcher service.SplitFetcher,
 	logger logging.LoggerInterface,
 	runtimeTelemetry storage.TelemetryRuntimeProducer,
 	cacheFlusher gincache.CacheFlusher,
 	appMonitor application.MonitorProducerInterface,
 	flagSetsFilter flagsets.FlagSetFilter,
+	specVersion string,
+	ruleBuilder grammar.RuleBuilder,
 ) *CacheAwareSplitSynchronizer {
 	return &CacheAwareSplitSynchronizer{
-		wrapped:      split.NewSplitUpdater(splitStorage, splitFetcher, logger, runtimeTelemetry, appMonitor, flagSetsFilter),
+		wrapped:      split.NewSplitUpdater(splitStorage, ruleBasedStorage, splitFetcher, logger, runtimeTelemetry, appMonitor, flagSetsFilter, ruleBuilder, false, specVersion),
 		splitStorage: splitStorage,
+		rbStorage:    ruleBasedStorage,
 		cacheFlusher: cacheFlusher,
 	}
 }
@@ -41,8 +46,12 @@ func NewCacheAwareSplitSync(
 // SynchronizeSplits synchronizes feature flags and if something changes, purges the cache appropriately
 func (c *CacheAwareSplitSynchronizer) SynchronizeSplits(till *int64) (*split.UpdateResult, error) {
 	previous, _ := c.splitStorage.ChangeNumber()
+	previousRB, _ := c.rbStorage.ChangeNumber()
+
 	result, err := c.wrapped.SynchronizeSplits(till)
-	if current, _ := c.splitStorage.ChangeNumber(); current > previous || (previous != -1 && current == -1) {
+	current, _ := c.splitStorage.ChangeNumber()
+	currentRB, _ := c.rbStorage.ChangeNumber()
+	if current > previous || (previous != -1 && current == -1) || currentRB > previousRB || (previousRB != -1 && currentRB == -1) {
 		// if the changenumber was updated, evict splitChanges responses from cache
 		c.cacheFlusher.EvictBySurrogate(SplitSurrogate)
 	}
@@ -59,8 +68,12 @@ func (c *CacheAwareSplitSynchronizer) LocalKill(splitName string, defaultTreatme
 // SynchronizeFeatureFlags synchronizes feature flags and if something changes, purges the cache appropriately
 func (c *CacheAwareSplitSynchronizer) SynchronizeFeatureFlags(ffChange *dtos.SplitChangeUpdate) (*split.UpdateResult, error) {
 	previous, _ := c.splitStorage.ChangeNumber()
+	previousRB, _ := c.rbStorage.ChangeNumber()
+
 	result, err := c.wrapped.SynchronizeFeatureFlags(ffChange)
-	if current, _ := c.splitStorage.ChangeNumber(); current > previous || (previous != -1 && current == -1) {
+	current, _ := c.splitStorage.ChangeNumber()
+	currentRB, _ := c.rbStorage.ChangeNumber()
+	if current > previous || (previous != -1 && current == -1) || currentRB > previousRB || (previousRB != -1 && currentRB == -1) {
 		// if the changenumber was updated, evict splitChanges responses from cache
 		c.cacheFlusher.EvictBySurrogate(SplitSurrogate)
 	}
@@ -79,6 +92,7 @@ type CacheAwareSegmentSynchronizer struct {
 func NewCacheAwareSegmentSync(
 	splitStorage storage.SplitStorage,
 	segmentStorage storage.SegmentStorage,
+	ruleBasedStorage storage.RuleBasedSegmentsStorage,
 	segmentFetcher service.SegmentFetcher,
 	logger logging.LoggerInterface,
 	runtimeTelemetry storage.TelemetryRuntimeProducer,
@@ -86,7 +100,7 @@ func NewCacheAwareSegmentSync(
 	appMonitor application.MonitorProducerInterface,
 ) *CacheAwareSegmentSynchronizer {
 	return &CacheAwareSegmentSynchronizer{
-		wrapped:        segment.NewSegmentUpdater(splitStorage, segmentStorage, segmentFetcher, logger, runtimeTelemetry, appMonitor),
+		wrapped:        segment.NewSegmentUpdater(splitStorage, segmentStorage, ruleBasedStorage, segmentFetcher, logger, runtimeTelemetry, appMonitor),
 		cacheFlusher:   cacheFlusher,
 		splitStorage:   splitStorage,
 		segmentStorage: segmentStorage,

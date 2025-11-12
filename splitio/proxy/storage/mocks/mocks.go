@@ -1,7 +1,7 @@
 package mocks
 
 import (
-	"github.com/splitio/go-split-commons/v6/dtos"
+	"github.com/splitio/go-split-commons/v8/dtos"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -47,22 +47,27 @@ func (s *ProxyLargeSegmentStorageMock) SetChangeNumber(name string, till int64) 
 func (s *ProxyLargeSegmentStorageMock) Update(name string, userKeys []string, till int64) {
 	s.Called(name, userKeys, till)
 }
+
 func (s *ProxyLargeSegmentStorageMock) ChangeNumber(name string) int64 {
 	args := s.Called(name)
 	return args.Get(0).(int64)
 }
+
 func (s *ProxyLargeSegmentStorageMock) Count() int {
 	args := s.Called()
 	return args.Get(0).(int)
 }
+
 func (s *ProxyLargeSegmentStorageMock) LargeSegmentsForUser(userKey string) []string {
 	args := s.Called(userKey)
 	return args.Get(0).([]string)
 }
+
 func (s *ProxyLargeSegmentStorageMock) IsInLargeSegment(name string, key string) (bool, error) {
 	args := s.Called(name, key)
 	return args.Get(0).(bool), args.Error(1)
 }
+
 func (s *ProxyLargeSegmentStorageMock) TotalKeys(name string) int {
 	return s.Called(name).Get(0).(int)
 }

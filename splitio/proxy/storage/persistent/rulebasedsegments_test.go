@@ -7,21 +7,21 @@ import (
 	"github.com/splitio/go-toolkit/v5/logging"
 )
 
-func TestSplitPersistentStorage(t *testing.T) {
+func TestRBChangesCollection(t *testing.T) {
 	dbw, err := NewBoltWrapper(BoltInMemoryMode, nil)
 	if err != nil {
 		t.Error("error creating bolt wrapper: ", err)
 	}
 
 	logger := logging.NewLogger(nil)
-	splitC := NewSplitChangesCollection(dbw, logger)
+	rbChangesCollection := NewRBChangesCollection(dbw, logger)
 
-	splitC.Update([]dtos.SplitDTO{
-		{Name: "s1", ChangeNumber: 1, Status: "ACTIVE"},
-		{Name: "s2", ChangeNumber: 1, Status: "ACTIVE"},
+	rbChangesCollection.Update([]dtos.RuleBasedSegmentDTO{
+		{Name: "rb1", ChangeNumber: 1, Status: "ACTIVE"},
+		{Name: "rb2", ChangeNumber: 1, Status: "ACTIVE"},
 	}, nil, 1)
 
-	all, err := splitC.FetchAll()
+	all, err := rbChangesCollection.FetchAll()
 	if err != nil {
 		t.Error("FetchAll should not return an error. Got: ", err)
 	}
@@ -31,16 +31,16 @@ func TestSplitPersistentStorage(t *testing.T) {
 		return
 	}
 
-	if all[0].Name != "s1" || all[1].Name != "s2" {
+	if all[0].Name != "rb1" || all[1].Name != "rb2" {
 		t.Error("Invalid payload in fetched changes.")
 	}
 
-	if splitC.ChangeNumber() != 1 {
+	if rbChangesCollection.ChangeNumber() != 1 {
 		t.Error("CN should be 1.")
 	}
 
-	splitC.Update([]dtos.SplitDTO{{Name: "s1", ChangeNumber: 2, Status: "ARCHIVED"}}, nil, 2)
-	all, err = splitC.FetchAll()
+	rbChangesCollection.Update([]dtos.RuleBasedSegmentDTO{{Name: "rb1", ChangeNumber: 2, Status: "ARCHIVED"}}, nil, 2)
+	all, err = rbChangesCollection.FetchAll()
 	if err != nil {
 		t.Error("FetchAll should not return an error. Got: ", err)
 	}
@@ -50,11 +50,11 @@ func TestSplitPersistentStorage(t *testing.T) {
 		return
 	}
 
-	if all[0].Name != "s1" || all[0].Status != "ARCHIVED" {
-		t.Error("s1 should be archived.")
+	if all[0].Name != "rb1" || all[0].Status != "ARCHIVED" {
+		t.Error("rb1 should be archived.")
 	}
 
-	if splitC.ChangeNumber() != 2 {
+	if rbChangesCollection.ChangeNumber() != 2 {
 		t.Error("CN should be 2.")
 	}
 }
