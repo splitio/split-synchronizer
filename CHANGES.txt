@@ -1,4 +1,4 @@
-5.11.0 (Nov 11, 2025)
+5.11.0 (Nov 12, 2025)
 - Split Proxy:
    - Added support for rule-based segment. These segments determine membership at runtime by evaluating their configured rules against the user attributes provided to the SDK.
 - Split-Sync:
