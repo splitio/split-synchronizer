@@ -21,8 +21,14 @@ inputSet:
                           command: |-
                             VERSION="$(git rev-parse --short HEAD)"
 
+                            # Logging to DockeHub
+                            echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+
                             # Install the necessary QEMU binaries for multi-platform builds
                             docker run --privileged --rm tonistiigi/binfmt --install all
+                          envVariables:
+                            DOCKERHUB_USERNAME: infrasplit
+                            DOCKERHUB_TOKEN: <+secrets.getValue("dockerhub-infrasplit-token")>
                         when:
                           condition: "true"
                     - step:
@@ -60,8 +66,14 @@ inputSet:
                           command: |-
                             VERSION="$(git rev-parse --short HEAD)"
 
+                            # Logging to DockeHub
+                            echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+
                             # Install the necessary QEMU binaries for multi-platform builds
                             docker run --privileged --rm tonistiigi/binfmt --install all
+                          envVariables:
+                            DOCKERHUB_USERNAME: infrasplit
+                            DOCKERHUB_TOKEN: <+secrets.getValue("dockerhub-infrasplit-token")>
                         when:
                           condition: "true"
                     - step:
