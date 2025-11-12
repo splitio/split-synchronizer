@@ -7,12 +7,6 @@ inputSet:
   pipeline:
     identifier: deploy_qos_v3
     stages:
-      - stage:
-          identifier: code_artifact
-          type: Deployment
-          spec:
-            service:
-              serviceRef: <+<+expression.isResolved(<+trigger.payload.repository.name>)>?<+trigger.payload.repository.name.replace("-", "")>:<+trigger.payload.artifacts[0].service.replace("-", "")>>
       - parallel:
           - stage:
               identifier: CI
@@ -24,7 +18,12 @@ inputSet:
                         identifier: custom_tag
                         type: Run
                         spec:
-                          command: VERSION="$(awk '/^const Version/{gsub(/"/, "", $4); print $4}' splitio/version.go)"
+                          command: |-
+                            # Create custom tag
+                            VERSION="$(awk '/^const Version/{gsub(/"/, "", $4); print $4}' splitio/version.go)"
+
+                            # Install the necessary QEMU binaries for multi-platform builds
+                            docker run --privileged --rm tonistiigi/binfmt --install all
                         when:
                           condition: "true"
                     - step:
@@ -60,7 +59,12 @@ inputSet:
                         identifier: custom_tag
                         type: Run
                         spec:
-                          command: VERSION="$(awk '/^const Version/{gsub(/"/, "", $4); print $4}' splitio/version.go)"
+                          command: |-
+                            # Create custom tag
+                            VERSION="$(awk '/^const Version/{gsub(/"/, "", $4); print $4}' splitio/version.go)"
+
+                            # Install the necessary QEMU binaries for multi-platform builds
+                            docker run --privileged --rm tonistiigi/binfmt --install all
                         when:
                           condition: "true"
                     - step:
