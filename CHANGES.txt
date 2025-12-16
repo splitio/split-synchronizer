@@ -1,3 +1,14 @@
+5.11.1 (Dec 16, 2025)
+- Fixed vulnerabilities:
+   - Updated golang image to 1.24.11
+   - Updated debian image to 13.2
+   - Updated golang.org/x/arch to 0.23.0
+   - Updated golang.org/x/crypto to 0.46.0
+   - Updated golang.org/x/net to 0.48.0
+   - Updated golang.org/x/sync to 0.19.0
+   - Updated golang.org/x/sys to 0.39.0
+   - Updated golang.org/x/text to 0.32.0
+
 5.11.0 (Nov 12, 2025)
 - Split Proxy:
    - Added support for rule-based segment. These segments determine membership at runtime by evaluating their configured rules against the user attributes provided to the SDK.
