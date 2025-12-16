@@ -1,4 +1,4 @@
-5.11.1 (Dec 9, 2025)
+5.11.1 (Dec 16, 2025)
 - Fixed vulnerabilities:
    - Updated golang image to 1.24.11
    - Updated debian image to 13.2
