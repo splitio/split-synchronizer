@@ -1,9 +1,9 @@
 package sync
 
 import (
-	"github.com/splitio/go-split-commons/v8/conf"
-	"github.com/splitio/go-split-commons/v8/synchronizer"
-	"github.com/splitio/go-split-commons/v8/tasks"
+	"github.com/splitio/go-split-commons/v9/conf"
+	"github.com/splitio/go-split-commons/v9/synchronizer"
+	"github.com/splitio/go-split-commons/v9/tasks"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
 

@@ -2,11 +2,11 @@ package mocks
 
 import (
 	"github.com/splitio/gincache"
-	"github.com/splitio/go-split-commons/v8/dtos"
-	"github.com/splitio/go-split-commons/v8/storage"
-	"github.com/splitio/go-split-commons/v8/synchronizer/worker/largesegment"
-	"github.com/splitio/go-split-commons/v8/synchronizer/worker/segment"
-	"github.com/splitio/go-split-commons/v8/synchronizer/worker/split"
+	"github.com/splitio/go-split-commons/v9/dtos"
+	"github.com/splitio/go-split-commons/v9/storage"
+	"github.com/splitio/go-split-commons/v9/synchronizer/worker/largesegment"
+	"github.com/splitio/go-split-commons/v9/synchronizer/worker/segment"
+	"github.com/splitio/go-split-commons/v9/synchronizer/worker/split"
 	"github.com/splitio/go-toolkit/v5/datastructures/set"
 
 	"github.com/stretchr/testify/mock"

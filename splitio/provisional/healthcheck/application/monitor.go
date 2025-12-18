@@ -7,7 +7,7 @@ import (
 
 	"github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/application/counter"
 
-	hc "github.com/splitio/go-split-commons/v8/healthcheck/application"
+	hc "github.com/splitio/go-split-commons/v9/healthcheck/application"
 	"github.com/splitio/go-toolkit/v5/logging"
 	toolkitsync "github.com/splitio/go-toolkit/v5/sync"
 )

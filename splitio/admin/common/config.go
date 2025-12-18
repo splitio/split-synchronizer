@@ -1,8 +1,8 @@
 package common
 
 import (
-	"github.com/splitio/go-split-commons/v8/engine/grammar/constants"
-	"github.com/splitio/go-split-commons/v8/storage"
+	"github.com/splitio/go-split-commons/v9/engine/grammar/constants"
+	"github.com/splitio/go-split-commons/v9/storage"
 )
 
 var ProducerFeatureFlagsRules = []string{constants.MatcherTypeAllKeys, constants.MatcherTypeInSegment, constants.MatcherTypeWhitelist, constants.MatcherTypeEqualTo, constants.MatcherTypeGreaterThanOrEqualTo, constants.MatcherTypeLessThanOrEqualTo, constants.MatcherTypeBetween,

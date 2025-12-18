@@ -5,10 +5,10 @@ import (
 
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/caching/mocks"
 
-	"github.com/splitio/go-split-commons/v8/dtos"
-	commons "github.com/splitio/go-split-commons/v8/storage/mocks"
-	"github.com/splitio/go-split-commons/v8/synchronizer/worker/segment"
-	"github.com/splitio/go-split-commons/v8/synchronizer/worker/split"
+	"github.com/splitio/go-split-commons/v9/dtos"
+	commons "github.com/splitio/go-split-commons/v9/storage/mocks"
+	"github.com/splitio/go-split-commons/v9/synchronizer/worker/segment"
+	"github.com/splitio/go-split-commons/v9/synchronizer/worker/split"
 	"github.com/splitio/go-toolkit/v5/datastructures/set"
 
 	"github.com/stretchr/testify/assert"

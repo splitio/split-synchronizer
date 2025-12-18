@@ -3,7 +3,7 @@ package mocks
 import (
 	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
 
-	"github.com/splitio/go-split-commons/v8/dtos"
+	"github.com/splitio/go-split-commons/v9/dtos"
 )
 
 type ImpressionBulkListenerMock struct {

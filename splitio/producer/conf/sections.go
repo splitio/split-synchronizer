@@ -3,7 +3,7 @@ package conf
 import (
 	"github.com/splitio/split-synchronizer/v5/splitio/common/conf"
 
-	cconf "github.com/splitio/go-split-commons/v8/conf"
+	cconf "github.com/splitio/go-split-commons/v9/conf"
 )
 
 // Main configuration options

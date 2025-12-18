@@ -8,7 +8,7 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/internal"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks"
 
-	"github.com/splitio/go-split-commons/v8/dtos"
+	"github.com/splitio/go-split-commons/v9/dtos"
 	"github.com/splitio/go-toolkit/v5/logging"
 
 	"github.com/gin-gonic/gin"
