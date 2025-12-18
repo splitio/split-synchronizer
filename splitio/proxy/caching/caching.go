@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/splitio/gincache"
-	"github.com/splitio/go-split-commons/v8/dtos"
+	"github.com/splitio/go-split-commons/v9/dtos"
 
 	"github.com/gin-gonic/gin"
 )

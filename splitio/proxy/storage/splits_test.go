@@ -7,8 +7,8 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/optimized/mocks"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/persistent"
 
-	"github.com/splitio/go-split-commons/v8/dtos"
-	"github.com/splitio/go-split-commons/v8/flagsets"
+	"github.com/splitio/go-split-commons/v9/dtos"
+	"github.com/splitio/go-split-commons/v9/flagsets"
 	"github.com/splitio/go-toolkit/v5/logging"
 
 	"github.com/stretchr/testify/assert"
@@ -257,15 +257,15 @@ func TestChangesSince(t *testing.T) {
 		toAdd := []dtos.SplitDTO{{Name: "split3", ChangeNumber: 15, Status: "ACTIVE", TrafficTypeName: "user"}}
 		toRemove := []dtos.SplitDTO{
 			{
-				Name:                 "split2",
-				ChangeNumber:         15,
-				Status:              "ARCHIVED",
-				TrafficTypeName:      "user",
-				TrafficAllocation:    100,
-				Algo:                1,
-				DefaultTreatment:    "off",
-				Conditions:          []dtos.ConditionDTO{},
-				Sets:               []string{},
+				Name:              "split2",
+				ChangeNumber:      15,
+				Status:            "ARCHIVED",
+				TrafficTypeName:   "user",
+				TrafficAllocation: 100,
+				Algo:              1,
+				DefaultTreatment:  "off",
+				Conditions:        []dtos.ConditionDTO{},
+				Sets:              []string{},
 			},
 		}
 
@@ -279,25 +279,25 @@ func TestChangesSince(t *testing.T) {
 		// Should include both the new active split and the archived one
 		expectedSplits := []dtos.SplitDTO{
 			{
-				Name:                 "split3",
-				ChangeNumber:         15,
-				Status:              "ACTIVE",
-				TrafficTypeName:      "user",
-				TrafficAllocation:    0,
-				Algo:                0,
-				Conditions:          nil,
-				Sets:               nil,
+				Name:              "split3",
+				ChangeNumber:      15,
+				Status:            "ACTIVE",
+				TrafficTypeName:   "user",
+				TrafficAllocation: 0,
+				Algo:              0,
+				Conditions:        nil,
+				Sets:              nil,
 			},
 			{
-				Name:                 "split2",
-				ChangeNumber:         15,
-				Status:              "ARCHIVED",
-				TrafficTypeName:      "user",
-				TrafficAllocation:    100,
-				Algo:                1,
-				DefaultTreatment:    "off",
-				Conditions:          []dtos.ConditionDTO{},
-				Sets:               []string{},
+				Name:              "split2",
+				ChangeNumber:      15,
+				Status:            "ARCHIVED",
+				TrafficTypeName:   "user",
+				TrafficAllocation: 100,
+				Algo:              1,
+				DefaultTreatment:  "off",
+				Conditions:        []dtos.ConditionDTO{},
+				Sets:              []string{},
 			},
 		}
 		assert.ElementsMatch(t, expectedSplits, changes.Splits)

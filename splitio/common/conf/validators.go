@@ -3,7 +3,7 @@ package conf
 import (
 	"strings"
 
-	"github.com/splitio/go-split-commons/v8/flagsets"
+	"github.com/splitio/go-split-commons/v9/flagsets"
 )
 
 type FlagSetValidationError struct {

@@ -6,9 +6,9 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/producer/storage"
 	storageMocks "github.com/splitio/split-synchronizer/v5/splitio/producer/storage/mocks"
 
-	"github.com/splitio/go-split-commons/v8/dtos"
-	serviceMocks "github.com/splitio/go-split-commons/v8/service/mocks"
-	"github.com/splitio/go-split-commons/v8/telemetry"
+	"github.com/splitio/go-split-commons/v9/dtos"
+	serviceMocks "github.com/splitio/go-split-commons/v9/service/mocks"
+	"github.com/splitio/go-split-commons/v9/telemetry"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
 

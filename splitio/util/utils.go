@@ -7,7 +7,7 @@ import (
 
 	"github.com/splitio/split-synchronizer/v5/splitio"
 
-	"github.com/splitio/go-split-commons/v8/dtos"
+	"github.com/splitio/go-split-commons/v9/dtos"
 	"github.com/splitio/go-toolkit/v5/hasher"
 	"github.com/splitio/go-toolkit/v5/nethelpers"
 )
