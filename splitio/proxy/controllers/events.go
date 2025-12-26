@@ -281,6 +281,7 @@ func (c *EventsServerController) submitImpressionsToListener(raw []byte, metadat
 				Label:        ki.Label,
 				BucketingKey: ki.BucketingKey,
 				Pt:           ki.Pt,
+				Properties:   ki.Properties,
 			})
 		}
 		forListener = append(forListener, impressionlistener.ImpressionsForListener{

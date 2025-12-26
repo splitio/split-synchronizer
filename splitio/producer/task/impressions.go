@@ -165,6 +165,7 @@ func (i *ImpressionsPipelineWorker) sendImpressionsToListener(b *impBatches) {
 					Label:        ki.Label,
 					BucketingKey: ki.BucketingKey,
 					Pt:           ki.Pt,
+					Properties:   ki.Properties,
 				})
 			}
 			payload = append(payload, forTest)
@@ -268,6 +269,7 @@ func (s *impsWithMetadata) add(i *dtos.Impression) {
 		Label:        i.Label,
 		BucketingKey: i.BucketingKey,
 		Pt:           i.Pt,
+		Properties:   i.Properties,
 	})
 	s.count++
 }
