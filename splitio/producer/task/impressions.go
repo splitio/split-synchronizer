@@ -269,6 +269,7 @@ func (s *impsWithMetadata) add(i *dtos.Impression) {
 		Label:        i.Label,
 		BucketingKey: i.BucketingKey,
 		Pt:           i.Pt,
+		Properties:   i.Properties,
 	})
 	s.count++
 }

@@ -19,6 +19,7 @@ import (
 	"github.com/splitio/go-split-commons/v9/storage/inmemory"
 	"github.com/splitio/go-split-commons/v9/storage/mocks"
 	"github.com/splitio/go-toolkit/v5/logging"
+	"github.com/stretchr/testify/assert"
 )
 
 type trackingAllocator struct {
@@ -108,6 +109,10 @@ func newTrackingAllocator() *trackingAllocator {
 }
 
 func makeSerializedImpressions(metadatas int, features int, keys int) [][]byte {
+	return makeSerializedImpressionsWithProperties(metadatas, features, keys, false)
+}
+
+func makeSerializedImpressionsWithProperties(metadatas int, features int, keys int, withProperties bool) [][]byte {
 	result := func(r []byte, _ error) []byte { return r }
 	imps := make([][]byte, 0, metadatas*features*keys)
 	for mindex := 0; mindex < metadatas; mindex++ {
@@ -115,9 +120,17 @@ func makeSerializedImpressions(metadatas int, features int, keys int) [][]byte {
 		for findex := 0; findex < features; findex++ {
 			feature := "feat_" + strconv.Itoa(findex)
 			for kindex := 0; kindex < keys; kindex++ {
+				imp := dtos.Impression{
+					FeatureName: feature,
+					KeyName:     "key_" + strconv.Itoa(kindex),
+					Time:        int64(1 + mindex*findex*kindex),
+				}
+				if withProperties {
+					imp.Properties = "{'prop':'val'}"
+				}
 				imps = append(imps, result(json.Marshal(&dtos.ImpressionQueueObject{
 					Metadata:   metadata,
-					Impression: dtos.Impression{FeatureName: feature, KeyName: "key_" + strconv.Itoa(kindex), Time: int64(1 + mindex*findex*kindex)},
+					Impression: imp,
 				})))
 			}
 		}
@@ -164,6 +177,97 @@ func TestMemoryIsProperlyReturned(t *testing.T) {
 		}
 	}
 	poolWrapper.validate(t)
+}
+
+func TestImpressionsWithPropertiesIntegration(t *testing.T) {
+
+	var mtx sync.Mutex
+	impsByMachineName := make(map[string]int, 3)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			t.Error("error reading body")
+		}
+
+		var ti []dtos.ImpressionsDTO
+		if err := json.Unmarshal(body, &ti); err != nil {
+			t.Error("error deserializing body: ", err)
+		}
+
+		impressionCount := 0
+		for _, feature := range ti {
+			for _, imp := range feature.KeyImpressions {
+				impressionCount++
+				assert.Equal(t, "{'prop':'val'}", imp.Properties, "Impression should have properties")
+			}
+		}
+
+		machine := r.Header.Get("SplitSDKMachineName")
+		mtx.Lock()
+		impsByMachineName[machine] = impsByMachineName[machine] + impressionCount
+		mtx.Unlock()
+	}))
+	defer server.Close()
+
+	imps := makeSerializedImpressionsWithProperties(3, 4, 20, true)
+	var calls int64
+	st := &mocks.MockImpressionStorage{
+		PopNRawCall: func(int64) ([]string, int64, error) {
+			atomic.AddInt64(&calls, 1)
+			return []string{}, 0, nil
+		},
+	}
+
+	impressionCounter := strategy.NewImpressionsCounter()
+	impressionObserver, _ := strategy.NewImpressionObserver(500)
+	strategy := strategy.NewOptimizedImpl(impressionObserver, impressionCounter, &inmemory.TelemetryStorage{}, false)
+
+	w, err := NewImpressionWorker(&ImpressionWorkerConfig{
+		EvictionMonitor:     evcalc.New(1),
+		Logger:              logging.NewLogger(nil),
+		ImpressionsListener: nil,
+		Storage:             st,
+		URL:                 server.URL,
+		Apikey:              "someApikey",
+		FetchSize:           100,
+		ImpressionManager:   provisional.NewImpressionManager(strategy),
+	})
+	if err != nil {
+		t.Error("there should be no error. Got: ", err)
+	}
+
+	sinker := make(chan interface{}, 100)
+	w.Process(imps, sinker)
+
+	for i := 0; i < 3; i++ {
+		i := <-sinker
+		req, err := w.BuildRequest(i)
+		if err != nil {
+			t.Error("there should be no error. Got: ", err)
+		}
+
+		// Make the actual HTTP request
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Error("error making request: ", err)
+		}
+		resp.Body.Close()
+
+		if asRecyclable, ok := i.(recyclable); ok {
+			asRecyclable.recycle()
+		}
+	}
+
+	if len(impsByMachineName) != 3 {
+		t.Error("wrong number of machines reporting impressions")
+	}
+
+	for _, count := range impsByMachineName {
+		if count != 80 {
+			t.Error("wrong number of impressions per machine")
+		}
+	}
 }
 
 func TestImpressionsIntegration(t *testing.T) {

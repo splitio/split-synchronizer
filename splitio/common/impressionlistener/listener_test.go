@@ -39,16 +39,11 @@ func TestImpressionListener(t *testing.T) {
 
 		// Verify impressions
 		imps := all.Impressions
-		assert.False(t, len(imps) != 2, "invalid number of impression groups received")
-		if len(imps) != 2 {
-			return
-		}
+		assert.Equal(t, 2, len(imps), "Should have 2 impression groups")
 
 		// Verify first impression group (t1)
-		assert.False(t, imps[0].TestName != "t1" || len(imps[0].KeyImpressions) != 2, "invalid ipmressions for t1")
-		if imps[0].TestName != "t1" || len(imps[0].KeyImpressions) != 2 {
-			return
-		}
+		assert.Equal(t, "t1", imps[0].TestName, "First group should be t1")
+		assert.Equal(t, 2, len(imps[0].KeyImpressions), "t1 should have 2 impressions")
 
 		// Verify first impression of t1
 		assert.Equal(t, "k1", imps[0].KeyImpressions[0].KeyName, "t1 first impression should have correct key name")
@@ -69,10 +64,8 @@ func TestImpressionListener(t *testing.T) {
 		assert.Equal(t, int64(1), imps[0].KeyImpressions[1].Pt, "t1 second impression should have correct pt")
 
 		// Verify second impression group (t2)
-		assert.False(t, imps[1].TestName != "t2" || len(imps[1].KeyImpressions) != 2, "invalid ipmressions for t2")
-		if imps[1].TestName != "t2" || len(imps[1].KeyImpressions) != 2 {
-			return
-		}
+		assert.Equal(t, "t2", imps[1].TestName, "Second group should be t2")
+		assert.Equal(t, 2, len(imps[1].KeyImpressions), "t2 should have 2 impressions")
 
 		// Verify first impression of t2
 		assert.Equal(t, "k1", imps[1].KeyImpressions[0].KeyName, "t2 first impression should have correct key name")
@@ -181,16 +174,11 @@ func TestImpressionListenerWithProperties(t *testing.T) {
 
 		// Verify impressions
 		imps := all.Impressions
-		assert.False(t, len(imps) != 2, "invalid number of impression groups received")
-		if len(imps) != 2 {
-			return
-		}
+		assert.Equal(t, 2, len(imps), "Should have 2 impression groups")
 
 		// Verify first impression group (t1)
-		assert.False(t, imps[0].TestName != "t1" || len(imps[0].KeyImpressions) != 2, "invalid ipmressions for t1")
-		if imps[0].TestName != "t1" || len(imps[0].KeyImpressions) != 2 {
-			return
-		}
+		assert.Equal(t, "t1", imps[0].TestName, "First group should be t1")
+		assert.Equal(t, 2, len(imps[0].KeyImpressions), "t1 should have 2 impressions")
 
 		// Verify first impression of t1
 		assert.Equal(t, "k1", imps[0].KeyImpressions[0].KeyName, "t1 first impression should have correct key name")
@@ -214,10 +202,8 @@ func TestImpressionListenerWithProperties(t *testing.T) {
 		assert.Empty(t, imps[0].KeyImpressions[1].Properties, "Second impression of t1 should not have properties")
 
 		// Verify second impression group (t2)
-		assert.False(t, imps[1].TestName != "t2" || len(imps[1].KeyImpressions) != 2, "invalid ipmressions for t2")
-		if imps[1].TestName != "t2" || len(imps[1].KeyImpressions) != 2 {
-			return
-		}
+		assert.Equal(t, "t2", imps[1].TestName, "Second group should be t2")
+		assert.Equal(t, 2, len(imps[1].KeyImpressions), "t2 should have 2 impressions")
 
 		// Verify first impression of t2
 		assert.Equal(t, "k1", imps[1].KeyImpressions[0].KeyName, "t2 first impression should have correct key name")
