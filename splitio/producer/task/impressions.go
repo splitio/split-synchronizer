@@ -165,6 +165,7 @@ func (i *ImpressionsPipelineWorker) sendImpressionsToListener(b *impBatches) {
 					Label:        ki.Label,
 					BucketingKey: ki.BucketingKey,
 					Pt:           ki.Pt,
+					Properties:   ki.Properties,
 				})
 			}
 			payload = append(payload, forTest)

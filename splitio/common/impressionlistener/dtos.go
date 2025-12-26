@@ -9,6 +9,7 @@ type ImpressionForListener struct {
 	Label        string `json:"label"`
 	BucketingKey string `json:"bucketingKey,omitempty"`
 	Pt           int64  `json:"pt,omitempty"`
+	Properties   string `json:"properties,omitempty"`
 }
 
 // ImpressionsForListener struct for payload
