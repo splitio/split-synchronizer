@@ -11,11 +11,11 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/flagsets"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 
-	"github.com/splitio/go-split-commons/v8/dtos"
-	"github.com/splitio/go-split-commons/v8/engine/validator"
-	"github.com/splitio/go-split-commons/v8/service"
-	"github.com/splitio/go-split-commons/v8/service/api/specs"
-	cmnStorage "github.com/splitio/go-split-commons/v8/storage"
+	"github.com/splitio/go-split-commons/v9/dtos"
+	"github.com/splitio/go-split-commons/v9/engine/validator"
+	"github.com/splitio/go-split-commons/v9/service"
+	"github.com/splitio/go-split-commons/v9/service/api/specs"
+	cmnStorage "github.com/splitio/go-split-commons/v9/storage"
 	"github.com/splitio/go-toolkit/v5/common"
 	"github.com/splitio/go-toolkit/v5/logging"
 

@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/splitio/go-split-commons/v8/dtos"
-	redisSt "github.com/splitio/go-split-commons/v8/storage/redis"
-	"github.com/splitio/go-split-commons/v8/telemetry"
+	"github.com/splitio/go-split-commons/v9/dtos"
+	redisSt "github.com/splitio/go-split-commons/v9/storage/redis"
+	"github.com/splitio/go-split-commons/v9/telemetry"
 	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/go-toolkit/v5/redis"
 )

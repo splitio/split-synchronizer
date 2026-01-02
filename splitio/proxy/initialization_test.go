@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/splitio/go-split-commons/v8/synchronizer"
+	"github.com/splitio/go-split-commons/v9/synchronizer"
 )
 
 type syncManagerMock struct {

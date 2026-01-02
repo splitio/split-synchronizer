@@ -11,9 +11,9 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
 	"github.com/splitio/split-synchronizer/v5/splitio/producer/evcalc"
 
-	"github.com/splitio/go-split-commons/v8/dtos"
-	"github.com/splitio/go-split-commons/v8/provisional"
-	"github.com/splitio/go-split-commons/v8/storage"
+	"github.com/splitio/go-split-commons/v9/dtos"
+	"github.com/splitio/go-split-commons/v9/provisional"
+	"github.com/splitio/go-split-commons/v9/storage"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
 
@@ -165,6 +165,7 @@ func (i *ImpressionsPipelineWorker) sendImpressionsToListener(b *impBatches) {
 					Label:        ki.Label,
 					BucketingKey: ki.BucketingKey,
 					Pt:           ki.Pt,
+					Properties:   ki.Properties,
 				})
 			}
 			payload = append(payload, forTest)
@@ -268,6 +269,7 @@ func (s *impsWithMetadata) add(i *dtos.Impression) {
 		Label:        i.Label,
 		BucketingKey: i.BucketingKey,
 		Pt:           i.Pt,
+		Properties:   i.Properties,
 	})
 	s.count++
 }

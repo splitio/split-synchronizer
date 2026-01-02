@@ -4,7 +4,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/splitio/go-split-commons/v8/dtos"
+	"github.com/splitio/go-split-commons/v9/dtos"
 )
 
 type HistoricChangesRB interface {

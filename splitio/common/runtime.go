@@ -12,7 +12,7 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/application"
 	"github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/services"
 
-	"github.com/splitio/go-split-commons/v8/synchronizer"
+	"github.com/splitio/go-split-commons/v9/synchronizer"
 	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/go-toolkit/v5/sync"
 )
