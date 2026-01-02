@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/splitio/go-split-commons/v8/storage"
+	"github.com/splitio/go-split-commons/v9/storage"
 )
 
 // Granularity selection constants to be used upon component instantiation

@@ -5,7 +5,7 @@ import (
 
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/internal"
 
-	"github.com/splitio/go-split-commons/v8/service/api"
+	"github.com/splitio/go-split-commons/v9/service/api"
 	"github.com/splitio/go-toolkit/v5/common"
 	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/go-toolkit/v5/workerpool"
