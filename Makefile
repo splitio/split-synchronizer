@@ -74,7 +74,7 @@ test: $(sources) go.sum
 
 ### Run unit tests and generate coverage output
 test_coverage: $(sources) go.sum
-	$(GO) test -v -cover -coverprofile=coverage.out $(ARGS) ./...
+	GOTOOLCHAIN=auto $(GO) test -v -cover -coverprofile=coverage.out $(ARGS) ./...
 
 ## display unit test coverage derived from last test run (use `make test display-coverage` for up-to-date results)
 display-coverage: coverage.out
