@@ -238,8 +238,10 @@ $(addprefix $(BUILD_FIPS)/,$(windows_execs)): $(BUILD_FIPS)/split_%: $(sources) 
 	cp $(BUILD_FIPS_WIN_TMP)/$(shell basename $@) $(BUILD_FIPS)
 else
 $(addprefix $(BUILD_FIPS)/,$(windows_execs)): $(BUILD_FIPS)/split_%: $(sources) go.sum
-	mkdir -p $(BUILD_FIPS) # we're on linux, we can build natively
-	$(MAKE) -f Makefile -C ./windows setup_ms_go binaries
+	mkdir -p $(BUILD_FIPS)
+	GOOS=windows GOARCH=$(ARCH) GOEXPERIMENT=boringcrypto CGO_ENABLED=0 $(GO) build $(ENFORCE_FIPS) \
+		-o $(BUILD_FIPS_WIN_TMP)/$(shell basename $@) \
+		cmd/$(call cmdfolder_from_bin,$@)/main.go
 	cp $(BUILD_FIPS_WIN_TMP)/$(shell basename $@) $(BUILD_FIPS)
 endif
 # @}
