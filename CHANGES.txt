@@ -1,3 +1,12 @@
+5.12.2 (Apr 1, 2026)
+- Updated golang image to 1.26.1
+- Updated golang.org/x/arch to v0.25.0
+- Updated golang.org/x/crypto to v0.49.0
+- Updated golang.org/x/net to 0.52.0
+- Updated golang.org/x/sync to 0.20.0
+- Updated golang.org/x/sys to 0.42.0
+- Updated golang.org/x/text to 0.35.0
+
 5.12.1 (Feb 19, 2026)
 - Updated docker images and dependencies for vulnerability fixes.
 
