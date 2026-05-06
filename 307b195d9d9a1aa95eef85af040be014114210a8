@@ -1,0 +1,84 @@
+docker/Dockerfile.proxy
+  human 2,20
+go.mod
+  human 3,47-49,51-52
+docker/Dockerfile.synchronizer
+  human 2,21
+go.sum
+  human 102-103,106-107,114-115,122-123,126-127
+---
+{
+  "attestations": [
+    {
+      "entries": [
+        {
+          "accepted_lines": 2,
+          "added_lines": 2,
+          "deleted_lines": 0,
+          "hash": "human",
+          "lines": "2,20",
+          "overridden_lines": 0
+        }
+      ],
+      "file": "docker/Dockerfile.proxy"
+    },
+    {
+      "entries": [
+        {
+          "accepted_lines": 6,
+          "added_lines": 6,
+          "deleted_lines": 0,
+          "hash": "human",
+          "lines": "3,47-49,51-52",
+          "overridden_lines": 0
+        }
+      ],
+      "file": "go.mod"
+    },
+    {
+      "entries": [
+        {
+          "accepted_lines": 2,
+          "added_lines": 2,
+          "deleted_lines": 0,
+          "hash": "human",
+          "lines": "2,21",
+          "overridden_lines": 0
+        }
+      ],
+      "file": "docker/Dockerfile.synchronizer"
+    },
+    {
+      "entries": [
+        {
+          "accepted_lines": 10,
+          "added_lines": 10,
+          "deleted_lines": 0,
+          "hash": "human",
+          "lines": "102-103,106-107,114-115,122-123,126-127",
+          "overridden_lines": 0
+        }
+      ],
+      "file": "go.sum"
+    }
+  ],
+  "base_commit_sha": "a1154abc12d8106b45b80a508cd22ec2873e1a2e",
+  "branch": "fix/vulnerabilities",
+  "commit_sha": "307b195d9d9a1aa95eef85af040be014114210a8",
+  "commit_time": "2026-05-06T10:23:15-03:00",
+  "commit_type": "direct_commit",
+  "git_ai_version": "1.4.2",
+  "prompts": {
+    "human": {
+      "accepted_lines": 20,
+      "agent_id": null,
+      "human_author": "Mauro Antonio Sanz <mauro.sanz@split.io>",
+      "messages": [],
+      "overriden_lines": 0,
+      "total_additions": 20,
+      "total_deletions": 0
+    }
+  },
+  "repo": "https://github.com/splitio/split-synchronizer.git",
+  "schema_version": "authorship/3.0.0"
+}
