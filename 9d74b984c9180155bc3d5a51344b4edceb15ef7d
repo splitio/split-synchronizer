@@ -1,0 +1,54 @@
+.github/workflows/s3.yml
+  human 28
+.github/workflows/test.yml
+  human 32
+---
+{
+  "attestations": [
+    {
+      "entries": [
+        {
+          "accepted_lines": 1,
+          "added_lines": 1,
+          "deleted_lines": 0,
+          "hash": "human",
+          "lines": "28",
+          "overridden_lines": 0
+        }
+      ],
+      "file": ".github/workflows/s3.yml"
+    },
+    {
+      "entries": [
+        {
+          "accepted_lines": 1,
+          "added_lines": 1,
+          "deleted_lines": 0,
+          "hash": "human",
+          "lines": "32",
+          "overridden_lines": 0
+        }
+      ],
+      "file": ".github/workflows/test.yml"
+    }
+  ],
+  "base_commit_sha": "fecae55c08fabd52c0acc04ee942445f1627c409",
+  "branch": "fix/vulnerabilities",
+  "commit_sha": "9d74b984c9180155bc3d5a51344b4edceb15ef7d",
+  "commit_time": "2026-05-06T11:37:21-03:00",
+  "commit_type": "direct_commit",
+  "git_ai_version": "1.4.2",
+  "prompts": {
+    "human": {
+      "accepted_lines": 2,
+      "agent_id": null,
+      "human_author": "Mauro Antonio Sanz <mauro.sanz@split.io>",
+      "messages": [],
+      "overriden_lines": 0,
+      "total_additions": 2,
+      "total_deletions": 0
+    }
+  },
+  "repo": "https://github.com/splitio/split-synchronizer.git",
+  "schema_version": "authorship/3.0.0"
+}
