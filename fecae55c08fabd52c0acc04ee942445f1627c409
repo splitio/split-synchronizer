@@ -1,0 +1,48 @@
+CHANGES.txt
+  human 2
+  human 1-6
+---
+{
+  "attestations": [
+    {
+      "entries": [
+        {
+          "accepted_lines": 1,
+          "added_lines": 1,
+          "deleted_lines": 0,
+          "hash": "human",
+          "lines": "2",
+          "overridden_lines": 0
+        },
+        {
+          "accepted_lines": 5,
+          "added_lines": 0,
+          "deleted_lines": 1,
+          "hash": "human",
+          "lines": "1-6",
+          "overridden_lines": 0
+        }
+      ],
+      "file": "CHANGES.txt"
+    }
+  ],
+  "base_commit_sha": "f573954dd46509957a6396ebd2a6e5c4f28d281c",
+  "branch": "fix/vulnerabilities",
+  "commit_sha": "fecae55c08fabd52c0acc04ee942445f1627c409",
+  "commit_time": "2026-05-06T11:30:10-03:00",
+  "commit_type": "direct_commit",
+  "git_ai_version": "1.4.2",
+  "prompts": {
+    "human": {
+      "accepted_lines": 1,
+      "agent_id": null,
+      "human_author": "Mauro Antonio Sanz <mauro.sanz@split.io>",
+      "messages": [],
+      "overriden_lines": 0,
+      "total_additions": 1,
+      "total_deletions": 0
+    }
+  },
+  "repo": "https://github.com/splitio/split-synchronizer.git",
+  "schema_version": "authorship/3.0.0"
+}
