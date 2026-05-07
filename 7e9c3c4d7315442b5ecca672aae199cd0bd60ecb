@@ -1,0 +1,54 @@
+splitio/commitversion.go
+  human 8
+splitio/version.go
+  human 5
+---
+{
+  "attestations": [
+    {
+      "entries": [
+        {
+          "accepted_lines": 1,
+          "added_lines": 1,
+          "deleted_lines": 0,
+          "hash": "human",
+          "lines": "8",
+          "overridden_lines": 0
+        }
+      ],
+      "file": "splitio/commitversion.go"
+    },
+    {
+      "entries": [
+        {
+          "accepted_lines": 1,
+          "added_lines": 1,
+          "deleted_lines": 0,
+          "hash": "human",
+          "lines": "5",
+          "overridden_lines": 0
+        }
+      ],
+      "file": "splitio/version.go"
+    }
+  ],
+  "base_commit_sha": "9d74b984c9180155bc3d5a51344b4edceb15ef7d",
+  "branch": "fix/vulnerabilities",
+  "commit_sha": "7e9c3c4d7315442b5ecca672aae199cd0bd60ecb",
+  "commit_time": "2026-05-07T16:49:46-03:00",
+  "commit_type": "direct_commit",
+  "git_ai_version": "1.4.2",
+  "prompts": {
+    "human": {
+      "accepted_lines": 2,
+      "agent_id": null,
+      "human_author": "Mauro Antonio Sanz <mauro.sanz@split.io>",
+      "messages": [],
+      "overriden_lines": 0,
+      "total_additions": 2,
+      "total_deletions": 0
+    }
+  },
+  "repo": "https://github.com/splitio/split-synchronizer.git",
+  "schema_version": "authorship/3.0.0"
+}
