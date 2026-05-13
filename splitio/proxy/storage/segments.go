@@ -148,7 +148,18 @@ func (s *ProxySegmentStorageImpl) Update(name string, toAdd *set.ThreadUnsafeSet
 		return nil
 	}
 
-	return fmt.Errorf("errors updating cache: %s || errors updating db: %s", errCache.Error(), errDB.Error())
+	var cacheErrMsg, dbErrMsg string
+	if errCache != nil {
+		cacheErrMsg = errCache.Error()
+	} else {
+		cacheErrMsg = "nil"
+	}
+	if errDB != nil {
+		dbErrMsg = errDB.Error()
+	} else {
+		dbErrMsg = "nil"
+	}
+	return fmt.Errorf("errors updating cache: %s || errors updating db: %s", cacheErrMsg, dbErrMsg)
 }
 
 // CountRemovedKeys method

@@ -3,7 +3,9 @@ package storage
 import (
 	"testing"
 
+	"github.com/splitio/go-toolkit/v5/datastructures/set"
 	"github.com/splitio/go-toolkit/v5/logging"
+	"github.com/splitio/split-synchronizer/v5/splitio/provisional/observability"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/optimized"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/persistent"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/persistent/mocks"
@@ -72,4 +74,43 @@ func TestSegmentStorage(t *testing.T) {
 	assert.Equal(t, int64(4), changes.Since)
 	assert.Equal(t, int64(4), changes.Till)
 
+}
+
+type mockMySegmentsCache struct {
+	updateErr error
+}
+
+func (m *mockMySegmentsCache) Update(name string, toAdd *set.ThreadUnsafeSet, toRemove *set.ThreadUnsafeSet) error {
+	return m.updateErr
+}
+
+func (m *mockMySegmentsCache) SegmentsForUser(key string) []string {
+	return []string{}
+}
+
+func (m *mockMySegmentsCache) KeyCount() int {
+	return 0
+}
+
+func TestSegmentStorageUpdateErrorHandling(t *testing.T) {
+	t.Run("db error only", func(t *testing.T) {
+		psm := &mocks.SegmentChangesCollectionMock{}
+		dbErr := assert.AnError
+		psm.On("Update", "segment1", (*set.ThreadUnsafeSet)(nil), (*set.ThreadUnsafeSet)(nil), int64(1)).Return(dbErr)
+
+		mySegments := &mockMySegmentsCache{updateErr: nil}
+
+		ss := ProxySegmentStorageImpl{
+			logger:         logging.NewLogger(nil),
+			db:             psm,
+			mysegments:     mySegments,
+			nameCountCache: observability.NewActiveSegmentTracker(10),
+		}
+
+		err := ss.Update("segment1", nil, nil, 1)
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "errors updating db")
+		assert.Contains(t, err.Error(), "errors updating cache: nil")
+		psm.AssertExpectations(t)
+	})
 }

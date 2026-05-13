@@ -49,6 +49,9 @@ func (c *CacheAwareSplitSynchronizer) SynchronizeSplits(till *int64) (*split.Upd
 	previousRB, _ := c.rbStorage.ChangeNumber()
 
 	result, err := c.wrapped.SynchronizeSplits(till)
+	if err != nil {
+		return nil, err
+	}
 	current, _ := c.splitStorage.ChangeNumber()
 	currentRB, _ := c.rbStorage.ChangeNumber()
 	if current > previous || (previous != -1 && current == -1) || currentRB > previousRB || (previousRB != -1 && currentRB == -1) {
@@ -71,6 +74,9 @@ func (c *CacheAwareSplitSynchronizer) SynchronizeFeatureFlags(ffChange *dtos.Spl
 	previousRB, _ := c.rbStorage.ChangeNumber()
 
 	result, err := c.wrapped.SynchronizeFeatureFlags(ffChange)
+	if err != nil {
+		return nil, err
+	}
 	current, _ := c.splitStorage.ChangeNumber()
 	currentRB, _ := c.rbStorage.ChangeNumber()
 	if current > previous || (previous != -1 && current == -1) || currentRB > previousRB || (previousRB != -1 && currentRB == -1) {
@@ -111,6 +117,9 @@ func NewCacheAwareSegmentSync(
 func (c *CacheAwareSegmentSynchronizer) SynchronizeSegment(name string, till *int64) (*segment.UpdateResult, error) {
 	previous, _ := c.segmentStorage.ChangeNumber(name)
 	result, err := c.wrapped.SynchronizeSegment(name, till)
+	if err != nil {
+		return nil, err
+	}
 	if current := result.NewChangeNumber; current > previous || (previous != -1 && current == -1) {
 		c.cacheFlusher.EvictBySurrogate(MakeSurrogateForSegmentChanges(name))
 		c.cacheFlusher.EvictBySurrogate(MembershipsSurrogate)
@@ -139,6 +148,9 @@ func (c *CacheAwareSegmentSynchronizer) SynchronizeSegments() (map[string]segmen
 	}
 
 	results, err := c.wrapped.SynchronizeSegments()
+	if err != nil {
+		return nil, err
+	}
 	for segmentName := range results {
 		result := results[segmentName]
 		ccn := result.NewChangeNumber
@@ -197,6 +209,9 @@ func NewCacheAwareLargeSegmentSync(
 func (c *CacheAwareLargeSegmentSynchronizer) SynchronizeLargeSegment(name string, till *int64) (*int64, error) {
 	previous := c.largeSegmentStorage.ChangeNumber(name)
 	newCN, err := c.wrapped.SynchronizeLargeSegment(name, till)
+	if err != nil {
+		return nil, err
+	}
 
 	c.evictByLargeSegmentSurrogate(previous, *newCN)
 
@@ -214,6 +229,9 @@ func (c *CacheAwareLargeSegmentSynchronizer) SynchronizeLargeSegments() (map[str
 	}
 
 	results, err := c.wrapped.SynchronizeLargeSegments()
+	if err != nil {
+		return nil, err
+	}
 	for name, currentCN := range results {
 		c.evictByLargeSegmentSurrogate(previousCNs[name], *currentCN)
 	}
@@ -228,6 +246,9 @@ func (c *CacheAwareLargeSegmentSynchronizer) IsCached(name string) bool {
 func (c *CacheAwareLargeSegmentSynchronizer) SynchronizeLargeSegmentUpdate(lsRFDResponseDTO *dtos.LargeSegmentRFDResponseDTO) (*int64, error) {
 	previous := c.largeSegmentStorage.ChangeNumber(lsRFDResponseDTO.Name)
 	newCN, err := c.wrapped.SynchronizeLargeSegmentUpdate(lsRFDResponseDTO)
+	if err != nil {
+		return nil, err
+	}
 
 	c.evictByLargeSegmentSurrogate(previous, *newCN)
 
