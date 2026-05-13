@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.26.2-trixie AS builder
+FROM golang:1.26.3-trixie AS builder
 
 ARG EXTRA_BUILD_ARGS
 ARG FIPS_MODE
@@ -20,9 +20,10 @@ RUN bash -c 'if [[ "${FIPS_MODE}" = "enabled" ]]; \
 # Runner stage
 FROM debian:13.4 AS runner
 
-RUN apt update -y
-RUN apt upgrade -y
-RUN apt install -y bash ca-certificates
+RUN apt update -y && \
+    apt upgrade -y && \
+    apt install -y bash ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 RUN groupadd -g 1000 split-synchronizer
 RUN useradd -r -u 1000 -g split-synchronizer -s /usr/sbin/nologin split-synchronizer
 
