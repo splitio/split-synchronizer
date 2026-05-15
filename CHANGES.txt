@@ -1,3 +1,9 @@
+5.12.4 (May 15, 2026)
+- Fixed vulnerabilities:
+   - Updated Go runtime to 1.26.3.
+   - Refreshed Docker base images and OS packages with latest security patches.
+   - Hardened container builds by reducing unnecessary packages and cleaning APT metadata.
+- Added defensive validations to prevent crashes during network failures, ensuring continuous flag delivery from cache when the control plane is unavailable.
 
 5.12.3 (May 7, 2026)
 - Fixed vulnerabilities:
