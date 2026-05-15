@@ -1,3 +1,8 @@
+5.12.4 (May 15, 2026)
+- Fixed vulnerabilities:
+   - H: CVE-2026-39820, CVE-2026-42499, CVE-2026-33811, CVE-2026-33814, CVE-2026-39836
+   - M: CVE-2026-39826, CVE-2026-3982, CVE-2026-39825
+- Added defensive validations to prevent crashes during network failures, ensuring continuous flag delivery from cache when the control plane is unavailable.
 
 5.12.3 (May 7, 2026)
 - Fixed vulnerabilities:
