@@ -79,6 +79,35 @@ func TestCacheAwareSplitSyncChanges(t *testing.T) {
 	storageMock.AssertExpectations(t)
 }
 
+func TestCacheAwareSplitSyncError(t *testing.T) {
+	var splitSyncMock mocks.SplitUpdaterMock
+	expectedErr := assert.AnError
+	splitSyncMock.On("SynchronizeSplits", (*int64)(nil)).Return((*split.UpdateResult)(nil), expectedErr).Once()
+
+	var rbsStorage commons.MockRuleBasedSegmentStorage
+	rbsStorage.On("ChangeNumber").Return(int64(-1), error(nil))
+
+	var cacheFlusherMock mocks.CacheFlusherMock
+
+	var storageMock mocks.SplitStorageMock
+	storageMock.On("ChangeNumber").Return(int64(-1), error(nil)).Once()
+
+	css := CacheAwareSplitSynchronizer{
+		splitStorage: &storageMock,
+		wrapped:      &splitSyncMock,
+		rbStorage:    &rbsStorage,
+		cacheFlusher: &cacheFlusherMock,
+	}
+
+	res, err := css.SynchronizeSplits(nil)
+	assert.Equal(t, expectedErr, err)
+	assert.Nil(t, res)
+
+	splitSyncMock.AssertExpectations(t)
+	cacheFlusherMock.AssertExpectations(t)
+	storageMock.AssertExpectations(t)
+}
+
 func TestCacheAwareSplitSyncChangesNewMethod(t *testing.T) {
 
 	// This test is used to test the new method. Eventually commons should be cleaned in order to have a single method for split-synchronization.
@@ -112,6 +141,35 @@ func TestCacheAwareSplitSyncChangesNewMethod(t *testing.T) {
 	storageMock.On("ChangeNumber").Return(int64(-1), error(nil)).Once()
 	res, err = css.SynchronizeFeatureFlags(nil)
 	assert.Nil(t, err)
+	assert.Nil(t, res)
+
+	splitSyncMock.AssertExpectations(t)
+	cacheFlusherMock.AssertExpectations(t)
+	storageMock.AssertExpectations(t)
+}
+
+func TestCacheAwareSplitSyncFeatureFlagsError(t *testing.T) {
+	var splitSyncMock mocks.SplitUpdaterMock
+	expectedErr := assert.AnError
+	splitSyncMock.On("SynchronizeFeatureFlags", (*dtos.SplitChangeUpdate)(nil)).Return((*split.UpdateResult)(nil), expectedErr).Once()
+
+	var rbsStorage commons.MockRuleBasedSegmentStorage
+	rbsStorage.On("ChangeNumber").Return(int64(-1), error(nil))
+
+	var cacheFlusherMock mocks.CacheFlusherMock
+
+	var storageMock mocks.SplitStorageMock
+	storageMock.On("ChangeNumber").Return(int64(-1), error(nil)).Once()
+
+	css := CacheAwareSplitSynchronizer{
+		splitStorage: &storageMock,
+		rbStorage:    &rbsStorage,
+		wrapped:      &splitSyncMock,
+		cacheFlusher: &cacheFlusherMock,
+	}
+
+	res, err := css.SynchronizeFeatureFlags(nil)
+	assert.Equal(t, expectedErr, err)
 	assert.Nil(t, res)
 
 	splitSyncMock.AssertExpectations(t)
@@ -190,6 +248,33 @@ func TestCacheAwareSegmentSyncSingle(t *testing.T) {
 	cacheFlusher.AssertExpectations(t)
 }
 
+func TestCacheAwareSegmentSyncSingleError(t *testing.T) {
+	var segmentUpdater mocks.SegmentUpdaterMock
+	expectedErr := assert.AnError
+	segmentUpdater.On("SynchronizeSegment", "segment1", (*int64)(nil)).Return((*segment.UpdateResult)(nil), expectedErr).Once()
+
+	var splitStorage mocks.SplitStorageMock
+	var cacheFlusher mocks.CacheFlusherMock
+	var segmentStorage mocks.SegmentStorageMock
+	segmentStorage.On("ChangeNumber", "segment1").Return(int64(0), nil).Once()
+
+	css := CacheAwareSegmentSynchronizer{
+		splitStorage:   &splitStorage,
+		segmentStorage: &segmentStorage,
+		wrapped:        &segmentUpdater,
+		cacheFlusher:   &cacheFlusher,
+	}
+
+	res, err := css.SynchronizeSegment("segment1", nil)
+	assert.Equal(t, expectedErr, err)
+	assert.Nil(t, res)
+
+	segmentUpdater.AssertExpectations(t)
+	segmentStorage.AssertExpectations(t)
+	splitStorage.AssertExpectations(t)
+	cacheFlusher.AssertExpectations(t)
+}
+
 func TestCacheAwareSegmentSyncAllSegments(t *testing.T) {
 	var segmentUpdater mocks.SegmentUpdaterMock
 	segmentUpdater.On("SynchronizeSegments").Return(map[string]segment.UpdateResult{"segment2": {
@@ -243,6 +328,36 @@ func TestCacheAwareSegmentSyncAllSegments(t *testing.T) {
 	res, err = css.SynchronizeSegments()
 	assert.Nil(t, err)
 	assert.Equal(t, map[string]segment.UpdateResult{"segment3": {UpdatedKeys: []string{"k1"}, NewChangeNumber: -1}}, res)
+
+	segmentUpdater.AssertExpectations(t)
+	segmentStorage.AssertExpectations(t)
+	splitStorage.AssertExpectations(t)
+	cacheFlusher.AssertExpectations(t)
+}
+
+func TestCacheAwareSegmentSyncAllSegmentsError(t *testing.T) {
+	var segmentUpdater mocks.SegmentUpdaterMock
+	expectedErr := assert.AnError
+	segmentUpdater.On("SynchronizeSegments").Return((map[string]segment.UpdateResult)(nil), expectedErr).Once()
+
+	var splitStorage mocks.SplitStorageMock
+	splitStorage.On("SegmentNames").Return(set.NewSet("segment2")).Once()
+
+	var cacheFlusher mocks.CacheFlusherMock
+
+	var segmentStorage mocks.SegmentStorageMock
+	segmentStorage.On("ChangeNumber", "segment2").Return(int64(0), nil).Once()
+
+	css := CacheAwareSegmentSynchronizer{
+		splitStorage:   &splitStorage,
+		segmentStorage: &segmentStorage,
+		wrapped:        &segmentUpdater,
+		cacheFlusher:   &cacheFlusher,
+	}
+
+	res, err := css.SynchronizeSegments()
+	assert.Equal(t, expectedErr, err)
+	assert.Nil(t, res)
 
 	segmentUpdater.AssertExpectations(t)
 	segmentStorage.AssertExpectations(t)
@@ -362,6 +477,96 @@ func TestSynchronizeLargeSegments(t *testing.T) {
 	}
 
 	splitStorage.AssertExpectations(t)
+	cacheFlusher.AssertExpectations(t)
+	largeSegmentStorage.AssertExpectations(t)
+	lsUpdater.AssertExpectations(t)
+}
+
+func TestSynchronizeLargeSegmentError(t *testing.T) {
+	lsName := "largeSegment1"
+
+	var splitStorage mocks.SplitStorageMock
+	var cacheFlusher mocks.CacheFlusherMock
+
+	var largeSegmentStorage mocks.LargeSegmentStorageMock
+	largeSegmentStorage.On("ChangeNumber", lsName).Return(int64(-1)).Once()
+
+	var lsUpdater mocks.LargeSegmentUpdaterMock
+	expectedErr := assert.AnError
+	lsUpdater.On("SynchronizeLargeSegment", lsName, (*int64)(nil)).Return((*int64)(nil), expectedErr).Once()
+
+	clsSync := CacheAwareLargeSegmentSynchronizer{
+		wrapped:             &lsUpdater,
+		cacheFlusher:        &cacheFlusher,
+		largeSegmentStorage: &largeSegmentStorage,
+		splitStorage:        &splitStorage,
+	}
+
+	cn, err := clsSync.SynchronizeLargeSegment(lsName, nil)
+	assert.Equal(t, expectedErr, err)
+	assert.Nil(t, cn)
+
+	cacheFlusher.AssertExpectations(t)
+	largeSegmentStorage.AssertExpectations(t)
+	lsUpdater.AssertExpectations(t)
+}
+
+func TestSynchronizeLargeSegmentsError(t *testing.T) {
+	var splitStorage mocks.SplitStorageMock
+	splitStorage.On("LargeSegmentNames").Return(set.NewSet("ls1", "ls2"))
+
+	var cacheFlusher mocks.CacheFlusherMock
+
+	var largeSegmentStorage mocks.LargeSegmentStorageMock
+	largeSegmentStorage.On("ChangeNumber", "ls1").Return(int64(50)).Once()
+	largeSegmentStorage.On("ChangeNumber", "ls2").Return(int64(150)).Once()
+
+	var lsUpdater mocks.LargeSegmentUpdaterMock
+	expectedErr := assert.AnError
+	lsUpdater.On("SynchronizeLargeSegments").Return((map[string]*int64)(nil), expectedErr).Once()
+
+	clsSync := CacheAwareLargeSegmentSynchronizer{
+		wrapped:             &lsUpdater,
+		cacheFlusher:        &cacheFlusher,
+		largeSegmentStorage: &largeSegmentStorage,
+		splitStorage:        &splitStorage,
+	}
+
+	cn, err := clsSync.SynchronizeLargeSegments()
+	assert.Equal(t, expectedErr, err)
+	assert.Nil(t, cn)
+
+	splitStorage.AssertExpectations(t)
+	cacheFlusher.AssertExpectations(t)
+	largeSegmentStorage.AssertExpectations(t)
+	lsUpdater.AssertExpectations(t)
+}
+
+func TestSynchronizeLargeSegmentUpdateError(t *testing.T) {
+	lsName := "largeSegment1"
+	lsRFDResponseDTO := &dtos.LargeSegmentRFDResponseDTO{Name: lsName}
+
+	var splitStorage mocks.SplitStorageMock
+	var cacheFlusher mocks.CacheFlusherMock
+
+	var largeSegmentStorage mocks.LargeSegmentStorageMock
+	largeSegmentStorage.On("ChangeNumber", lsName).Return(int64(-1)).Once()
+
+	var lsUpdater mocks.LargeSegmentUpdaterMock
+	expectedErr := assert.AnError
+	lsUpdater.On("SynchronizeLargeSegmentUpdate", lsRFDResponseDTO).Return((*int64)(nil), expectedErr).Once()
+
+	clsSync := CacheAwareLargeSegmentSynchronizer{
+		wrapped:             &lsUpdater,
+		cacheFlusher:        &cacheFlusher,
+		largeSegmentStorage: &largeSegmentStorage,
+		splitStorage:        &splitStorage,
+	}
+
+	cn, err := clsSync.SynchronizeLargeSegmentUpdate(lsRFDResponseDTO)
+	assert.Equal(t, expectedErr, err)
+	assert.Nil(t, cn)
+
 	cacheFlusher.AssertExpectations(t)
 	largeSegmentStorage.AssertExpectations(t)
 	lsUpdater.AssertExpectations(t)

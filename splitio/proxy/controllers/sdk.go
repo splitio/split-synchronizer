@@ -208,6 +208,14 @@ func (c *SdkServerController) MySegments(ctx *gin.Context) {
 func (c *SdkServerController) fetchRulesSince(since int64, rbsince int64, sets []string) (*dtos.RuleChangesDTO, error) {
 	splits, err := c.proxySplitStorage.ChangesSince(since, sets)
 	rbs, rbsErr := c.proxyRBSegmentStorage.ChangesSince(rbsince)
+	if err != nil && !errors.Is(err, storage.ErrSinceParamTooOld) {
+		return nil, fmt.Errorf("unexpected error fetching feature flag changes from storage: %w", err)
+	}
+
+	if rbsErr != nil && !errors.Is(rbsErr, storage.ErrSinceParamTooOld) {
+		return nil, fmt.Errorf("unexpected error fetching rule-based segments changes from storage: %w", rbsErr)
+	}
+
 	if err == nil && rbsErr == nil {
 		return &dtos.RuleChangesDTO{
 			FeatureFlags: dtos.FeatureFlagsDTO{
@@ -216,14 +224,7 @@ func (c *SdkServerController) fetchRulesSince(since int64, rbsince int64, sets [
 				Since:  splits.Since,
 			},
 			RuleBasedSegments: *rbs,
-		}, err
-	}
-	if err != nil && !errors.Is(err, storage.ErrSinceParamTooOld) {
-		return nil, fmt.Errorf("unexpected error fetching feature flag changes from storage: %w", err)
-	}
-
-	if rbsErr != nil && !errors.Is(rbsErr, storage.ErrSinceParamTooOld) {
-		return nil, fmt.Errorf("unexpected error fetching rule-based segments changes from storage: %w", rbsErr)
+		}, nil
 	}
 
 	// perform a fetch to the BE using the supplied `since`, have the storage process it's response &, retry
