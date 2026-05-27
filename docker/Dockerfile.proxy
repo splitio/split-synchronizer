@@ -18,7 +18,7 @@ RUN bash -c 'if [[ "${FIPS_MODE}" = "enabled" ]]; \
     fi'
 
 # Runner stage
-FROM debian:13.4 AS runner
+FROM debian:13 AS runner
 
 RUN apt update -y && \
     apt upgrade -y && \

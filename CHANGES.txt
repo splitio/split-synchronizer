@@ -1,3 +1,16 @@
+5.12.5 (May 27, 2026)
+- Fixed vulnerabilities (8 Critical, 3 High, 5 Medium, 3 Low):
+   - C: CVE-2026-39830, CVE-2026-39831, CVE-2026-39832, CVE-2026-39833, CVE-2026-39834, CVE-2026-42508, CVE-2026-39821
+   - H: CVE-2026-4878, CVE-2026-4046, CVE-2026-4437
+   - M: CVE-2026-4105, CVE-2026-40225, CVE-2026-40226, CVE-2026-4438, CVE-2026-29111
+   - L: 3 low-severity vulnerabilities from debian base image update
+   - Updated golang.org/x/crypto to v0.52.0
+   - Updated golang.org/x/net to v0.55.0
+   - Updated golang.org/x/sys to v0.45.0
+   - Updated golang.org/x/text to v0.37.0
+   - Updated debian base image to debian:13
+- Fixed segment initialization issue where segments were fetched from -1 when starting proxy with snapshot file
+
 5.12.4 (May 15, 2026)
 - Fixed vulnerabilities:
    - H: CVE-2026-39820, CVE-2026-42499, CVE-2026-33811, CVE-2026-33814, CVE-2026-39836
