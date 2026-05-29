@@ -40,13 +40,37 @@ type SegmentChangesCollectionImpl struct {
 	mutex        sync.RWMutex
 }
 
+func (c *SegmentChangesCollectionImpl) initialize() error {
+	all, err := c.FetchAll()
+	if err != nil {
+		// TODO
+		return err
+	}
+
+	tills := make(map[string]int64)
+	for _, segment := range all {
+		var cn int64 // 0
+		for _, key := range segment.Keys {
+			if key.ChangeNumber > cn {
+				cn = key.ChangeNumber
+			}
+		}
+		tills[segment.Name] = cn
+	}
+
+	c.segmentsTill = tills
+	return nil
+}
+
 // NewSegmentChangesCollection returns an instance of SegmentChangesCollection
 func NewSegmentChangesCollection(db DBWrapper, logger logging.LoggerInterface) *SegmentChangesCollectionImpl {
-	return &SegmentChangesCollectionImpl{
+	collection := &SegmentChangesCollectionImpl{
 		collection:   &BoltDBCollectionWrapper{db: db, name: segmentChangesCollectionName, logger: logger},
 		segmentsTill: make(map[string]int64, 0),
 		logger:       logger,
 	}
+	collection.initialize()
+	return collection
 }
 
 // Update persists a segmentChanges update
