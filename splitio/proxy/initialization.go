@@ -60,7 +60,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 
 		currentHash := util.HashAPIKey(cfg.Apikey + cfg.FlagSpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
 		if snap.Meta().Hash != strconv.Itoa(int(currentHash)) {
-			return common.NewInitError(errors.New("snapshot cfg (apikey, version, flagsets) does not match the provided one"), common.ExitErrorDB)
+			logger.Warning("snapshot cfg (apikey, version, flagsets) does not match the provided one")
 		}
 
 		logger.Debug("Database created from snapshot at", dbpath)
