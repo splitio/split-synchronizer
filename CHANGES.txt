@@ -1,3 +1,6 @@
+5.12.6 (Jun 18, 2026)
+- Updated snapshot validation to warn on configuration mismatches instead of blocking proxy initialization.
+
 5.12.5 (May 29, 2026)
 - Fixed vulnerabilities (8 Critical, 3 High, 5 Medium, 3 Low):
    - C: CVE-2026-39830, CVE-2026-39831, CVE-2026-39832, CVE-2026-39833, CVE-2026-39834, CVE-2026-42508, CVE-2026-39821
