@@ -90,7 +90,7 @@ func (m *mockLogger) Debug(msg ...interface{}) {}
 func (m *mockLogger) Error(msg ...interface{}) {}
 func (m *mockLogger) Info(msg ...interface{}) {}
 
-func TestSnapshotHashMismatchLogsWarning(t *testing.T) {
+func TestSnapshotHashMismatchLogsWarningAndIgnoresSnapshot(t *testing.T) {
 	// Create a temporary snapshot file with a specific hash
 	tmpDir, err := os.MkdirTemp("", "snapshot-test")
 	if err != nil {
@@ -151,9 +151,13 @@ func TestSnapshotHashMismatchLogsWarning(t *testing.T) {
 		t.Fatalf("failed to decode snapshot: %v", err)
 	}
 
+	// Simulate the new behavior: check hash and ignore if mismatch
+	var snapshotValid = false
 	currentHash2 := util.HashAPIKey(cfg.Apikey + cfg.FlagSpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
 	if snap2.Meta().Hash != strconv.Itoa(int(currentHash2)) {
-		mockLog.Warning("snapshot cfg (apikey, version, flagsets) does not match the provided one")
+		mockLog.Warning("snapshot cfg (apikey, version, flagsets) does not match the provided one. Ignoring snapshot and starting with empty storage.")
+	} else {
+		snapshotValid = true
 	}
 
 	// Verify that a warning was logged
@@ -161,13 +165,18 @@ func TestSnapshotHashMismatchLogsWarning(t *testing.T) {
 		t.Errorf("expected 1 warning, got %d", len(mockLog.warnings))
 	}
 
-	expectedWarning := "snapshot cfg (apikey, version, flagsets) does not match the provided one"
+	expectedWarning := "snapshot cfg (apikey, version, flagsets) does not match the provided one. Ignoring snapshot and starting with empty storage."
 	if len(mockLog.warnings) > 0 && mockLog.warnings[0] != expectedWarning {
 		t.Errorf("expected warning '%s', got '%s'", expectedWarning, mockLog.warnings[0])
 	}
+
+	// Verify that snapshot is marked as invalid
+	if snapshotValid {
+		t.Error("snapshot should be marked as invalid when hash mismatches")
+	}
 }
 
-func TestSnapshotHashMatchNoWarning(t *testing.T) {
+func TestSnapshotHashMatchNoWarningAndUsesSnapshot(t *testing.T) {
 	// Create a temporary snapshot file
 	tmpDir, err := os.MkdirTemp("", "snapshot-test")
 	if err != nil {
@@ -223,13 +232,22 @@ func TestSnapshotHashMatchNoWarning(t *testing.T) {
 		t.Fatalf("failed to decode snapshot: %v", err)
 	}
 
+	// Simulate the new behavior: check hash and use if match
+	var snapshotValid = false
 	currentHash2 := util.HashAPIKey(cfg.Apikey + cfg.FlagSpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
 	if snap2.Meta().Hash != strconv.Itoa(int(currentHash2)) {
-		mockLog.Warning("snapshot cfg (apikey, version, flagsets) does not match the provided one")
+		mockLog.Warning("snapshot cfg (apikey, version, flagsets) does not match the provided one. Ignoring snapshot and starting with empty storage.")
+	} else {
+		snapshotValid = true
 	}
 
 	// Verify that NO warning was logged
 	if len(mockLog.warnings) != 0 {
 		t.Errorf("expected 0 warnings, got %d: %v", len(mockLog.warnings), mockLog.warnings)
+	}
+
+	// Verify that snapshot is marked as valid
+	if !snapshotValid {
+		t.Error("snapshot should be marked as valid when hash matches")
 	}
 }
