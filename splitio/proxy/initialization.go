@@ -47,23 +47,25 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 
 	// Initialization of DB
 	var dbpath = persistent.BoltInMemoryMode
+	var snapshotValid = false
 	if snapFile := cfg.Initialization.Snapshot; snapFile != "" {
 		snap, err := snapshot.DecodeFromFile(snapFile)
 		if err != nil {
 			return fmt.Errorf("error parsing snapshot file: %w", err)
 		}
 
-		dbpath, err = snap.WriteDataToTmpFile()
-		if err != nil {
-			return fmt.Errorf("error writing temporary snapshot file: %w", err)
-		}
-
 		currentHash := util.HashAPIKey(cfg.Apikey + cfg.FlagSpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
 		if snap.Meta().Hash != strconv.Itoa(int(currentHash)) {
-			return common.NewInitError(errors.New("snapshot cfg (apikey, version, flagsets) does not match the provided one"), common.ExitErrorDB)
+			logger.Warning("snapshot cfg (apikey, version, flagsets) does not match the provided one. Ignoring snapshot and starting with empty storage.")
+		} else {
+			// Hash matches - use the snapshot
+			dbpath, err = snap.WriteDataToTmpFile()
+			if err != nil {
+				return fmt.Errorf("error writing temporary snapshot file: %w", err)
+			}
+			snapshotValid = true
+			logger.Debug("Database created from snapshot at", dbpath)
 		}
-
-		logger.Debug("Database created from snapshot at", dbpath)
 	}
 
 	dbInstance, err := persistent.NewBoltWrapper(dbpath, nil)
@@ -89,9 +91,9 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	splitAPI := api.NewSplitAPI(cfg.Apikey, *advanced, logger, metadata)
 
 	// Proxy storages already implement the observable interface, so no need to wrap them
-	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, flagsets.NewFlagSetFilter(cfg.FlagSetsFilter), cfg.Initialization.Snapshot != "")
-	ruleBasedStorage := storage.NewProxyRuleBasedSegmentsStorage(dbInstance, logger, cfg.Initialization.Snapshot != "")
-	segmentStorage := storage.NewProxySegmentStorage(dbInstance, logger, cfg.Initialization.Snapshot != "")
+	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, flagsets.NewFlagSetFilter(cfg.FlagSetsFilter), snapshotValid)
+	ruleBasedStorage := storage.NewProxyRuleBasedSegmentsStorage(dbInstance, logger, snapshotValid)
+	segmentStorage := storage.NewProxySegmentStorage(dbInstance, logger, snapshotValid)
 	largeSegmentStorage := inmemory.NewLargeSegmentsStorage()
 
 	// Local telemetry
@@ -176,13 +178,13 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		return common.NewInitError(fmt.Errorf("error instantiating sync manager: %w", err), common.ExitTaskInitialization)
 	}
 
-	// Try to start bg sync in BG with unlimited retries (when a snapshot is provided),
+	// Try to start bg sync in BG with unlimited retries (when a valid snapshot is provided),
 	// the passed function is invoked upon initialization completion
-	// If no snapshot is provided and init fails, `errUnrecoverable` is returned and application execution is aborted
+	// If no valid snapshot is provided and init fails, `errUnrecoverable` is returned and application execution is aborted
 	// health monitors are only started after successful init (otherwise they'll fail if the app doesn't sync correctly within the
 	/// specified refresh period)
 	before := time.Now()
-	err = startBGSync(syncManager, mstatus, cfg.Initialization.Snapshot != "", func() {
+	err = startBGSync(syncManager, mstatus, snapshotValid, func() {
 		logger.Info("Synchronizer tasks started")
 		appMonitor.Start()
 		servicesMonitor.Start()
