@@ -1,4 +1,4 @@
-5.12.6 (Jun 18, 2026)
+5.12.6 (Jun 19, 2026)
 - Updated snapshot validation to warn on configuration mismatches instead of blocking proxy initialization.
 
 5.12.5 (May 29, 2026)
