@@ -69,7 +69,7 @@ func snapshotFromDiskRB(
 ) int64 {
 	all, err := src.FetchAll()
 	if err != nil {
-		logger.Error("error parsing feature flags from snapshot. No data will be available!: ", err)
+		logger.Info("error parsing rule-based segments from snapshot. No data will be available!: ", err)
 		return -1
 	}
 

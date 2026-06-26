@@ -197,7 +197,7 @@ func populateCachesFromDisk(
 ) {
 	all, err := src.FetchAll()
 	if err != nil {
-		logger.Error("error popoulating segment cache from disk. Cache will be empty!: ", err)
+		logger.Info("error popoulating segment cache from disk. Cache will be empty!: ", err)
 		return
 	}
 
