@@ -197,7 +197,12 @@ func populateCachesFromDisk(
 ) {
 	all, err := src.FetchAll()
 	if err != nil {
-		logger.Info("error popoulating segment cache from disk. Cache will be empty!: ", err)
+		if err.Error() == "Bucket not found" {
+			logger.Warning("Segment cache could not be restored from disk; proceeding with an empty cache: ", err)
+		} else {
+			logger.Error("Segment cache could not be restored from disk; proceeding with an empty cache: ", err)
+		}
+
 		return
 	}
 
