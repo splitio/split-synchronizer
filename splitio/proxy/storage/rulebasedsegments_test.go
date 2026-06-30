@@ -151,3 +151,33 @@ func TestRBSChangesSince(t *testing.T) {
 	}
 	assert.ElementsMatch(t, expectedChanges, changes.RuleBasedSegments)
 }
+
+func TestRBSnapshotFromDiskWithBucketNotFoundError(t *testing.T) {
+	logger := logging.NewLogger(nil)
+
+	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
+	assert.Nil(t, err)
+
+	rbsStorage := NewProxyRuleBasedSegmentsStorage(dbw, logger, true)
+
+	assert.Empty(t, rbsStorage.All())
+	assert.Equal(t, int64(-1), rbsStorage.oldestKnownCN)
+}
+
+func TestRBSnapshotFromDiskWithOtherError(t *testing.T) {
+	logger := logging.NewLogger(nil)
+
+	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
+	assert.Nil(t, err)
+
+	disk := persistent.NewRBChangesCollection(dbw, logger)
+	disk.Update([]dtos.RuleBasedSegmentDTO{
+		{Name: "rbs1", ChangeNumber: 10, Status: "ACTIVE", TrafficTypeName: "user"},
+	}, nil, 10)
+
+	rbsStorage := NewProxyRuleBasedSegmentsStorage(dbw, logger, true)
+
+	assert.NotEmpty(t, rbsStorage.All())
+	assert.Equal(t, int64(10), rbsStorage.oldestKnownCN)
+}
+

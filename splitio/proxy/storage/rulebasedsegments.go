@@ -69,7 +69,11 @@ func snapshotFromDiskRB(
 ) int64 {
 	all, err := src.FetchAll()
 	if err != nil {
-		logger.Error("error parsing feature flags from snapshot. No data will be available!: ", err)
+		if err.Error() == "Bucket not found" {
+			logger.Warning("Rule-based segments snapshot could not be loaded; proceeding with an empty cache: ", err)
+		} else {
+			logger.Error("error parsing rule-based segments from snapshot. No data will be available!: ", err)
+		}
 		return -1
 	}
 
