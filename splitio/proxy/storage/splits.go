@@ -220,7 +220,7 @@ func snapshotFromDisk(
 ) int64 {
 	all, err := src.FetchAll()
 	if err != nil {
-		if err.Error() == "Bucket not found" {
+		if err.Error() == persistent.ErrorBucketNotFound.Error() {
 			logger.Warning("Feature flags snapshot could not be loaded; proceeding without preloaded feature flags: ", err)
 		} else {
 			logger.Error("error parsing feature flags from snapshot. No data will be available!: ", err)
