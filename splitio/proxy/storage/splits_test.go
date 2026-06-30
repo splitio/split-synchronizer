@@ -371,3 +371,34 @@ func TestGetAllFlagSetNames(t *testing.T) {
 		t.Errorf("setNames len should be 4. Actual %v", len(setNames))
 	}
 }
+
+func TestSplitSnapshotFromDiskWithBucketNotFoundError(t *testing.T) {
+	logger := logging.NewLogger(nil)
+
+	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
+	assert.Nil(t, err)
+
+	splitStorage := NewProxySplitStorage(dbw, logger, flagsets.NewFlagSetFilter(nil), true)
+
+	assert.Empty(t, splitStorage.All())
+	assert.Equal(t, int64(-1), splitStorage.oldestKnownCN)
+}
+
+func TestSplitSnapshotFromDiskWithSuccess(t *testing.T) {
+	logger := logging.NewLogger(nil)
+
+	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
+	assert.Nil(t, err)
+
+	disk := persistent.NewSplitChangesCollection(dbw, logger)
+	splits := []dtos.SplitDTO{
+		{Name: "split1", ChangeNumber: 10, Status: "ACTIVE", TrafficTypeName: "user"},
+		{Name: "split2", ChangeNumber: 10, Status: "ACTIVE", TrafficTypeName: "user"},
+	}
+	disk.Update(splits, nil, 10)
+
+	splitStorage := NewProxySplitStorage(dbw, logger, flagsets.NewFlagSetFilter(nil), true)
+
+	assert.ElementsMatch(t, splits, splitStorage.All())
+	assert.Equal(t, int64(10), splitStorage.oldestKnownCN)
+}

@@ -114,3 +114,31 @@ func TestSegmentStorageUpdateErrorHandling(t *testing.T) {
 		psm.AssertExpectations(t)
 	})
 }
+
+func TestSegmentSnapshotFromDiskWithBucketNotFoundError(t *testing.T) {
+	logger := logging.NewLogger(nil)
+
+	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
+	assert.Nil(t, err)
+
+	segmentStorage := NewProxySegmentStorage(dbw, logger, true)
+
+	namesAndCount := segmentStorage.NamesAndCount()
+	assert.Empty(t, namesAndCount)
+}
+
+func TestSegmentSnapshotFromDiskWithSuccess(t *testing.T) {
+	logger := logging.NewLogger(nil)
+
+	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
+	assert.Nil(t, err)
+
+	disk := persistent.NewSegmentChangesCollection(dbw, logger)
+	disk.Update("segment1", set.NewSet("key1", "key2"), set.NewSet(), 10)
+
+	segmentStorage := NewProxySegmentStorage(dbw, logger, true)
+
+	namesAndCount := segmentStorage.NamesAndCount()
+	assert.Contains(t, namesAndCount, "segment1")
+	assert.Equal(t, 2, namesAndCount["segment1"])
+}
