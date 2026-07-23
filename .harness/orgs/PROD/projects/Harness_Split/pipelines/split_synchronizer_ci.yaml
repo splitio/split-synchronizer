@@ -26,8 +26,7 @@ pipeline:
             arch: Amd64
           runtime:
             type: Cloud
-            spec:
-              size: flex
+            spec: {}
           execution:
             steps:
               - step:
