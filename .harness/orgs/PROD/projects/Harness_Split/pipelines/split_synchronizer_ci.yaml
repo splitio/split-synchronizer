@@ -30,16 +30,6 @@ pipeline:
           execution:
             steps:
               - step:
-                  type: Background
-                  name: redis
-                  identifier: redis
-                  spec:
-                    connectorRef: dockerhub
-                    image: redis:latest
-                    shell: Sh
-                    portBindings:
-                      "6379": "6379"
-              - step:
                   type: Run
                   name: Run Tests
                   identifier: Run_Tests
@@ -48,13 +38,23 @@ pipeline:
                     image: golang:1.26.3
                     shell: Bash
                     command: |-
-                      # Wait for the Redis background service to accept connections.
-                      # Harness Background steps start concurrently with the Run step
-                      # and provide no readiness gate (unlike GitHub Actions `services:`),
-                      # so tests can hit localhost:6379 before Redis is up -> connection refused.
+                      # Start Redis INSIDE the test container so the tests reach it at
+                      # localhost:6379, matching the GitHub Actions `services: redis`
+                      # behavior without modifying the Go tests (which hardcode
+                      # localhost:6379).
+                      #
+                      # NOTE: a Harness `Background` step is NOT used here. On Harness
+                      # Cloud infra a Background step runs as a SEPARATE container,
+                      # reachable only at `redis:6379` (its step id) -- never localhost.
+                      # Running redis-server in-container keeps it on the same network
+                      # namespace so localhost:6379 resolves, as it did on GHA.
+                      apt-get update && apt-get install -y redis-server
+                      redis-server --daemonize yes
+
+                      # Wait until Redis accepts connections before running tests.
                       for i in $(seq 1 30); do
-                        if (exec 3<>/dev/tcp/127.0.0.1/6379) 2>/dev/null; then
-                          echo "Redis is up"; exec 3>&-; break
+                        if redis-cli ping 2>/dev/null | grep -q PONG; then
+                          echo "Redis is up"; break
                         fi
                         echo "Waiting for Redis... ($i/30)"; sleep 1
                       done
