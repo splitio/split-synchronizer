@@ -47,8 +47,19 @@ pipeline:
                   spec:
                     connectorRef: dockerhub
                     image: golang:1.26.3
-                    shell: Sh
+                    shell: Bash
                     command: |-
+                      # Wait for the Redis background service to accept connections.
+                      # Harness Background steps start concurrently with the Run step
+                      # and provide no readiness gate (unlike GitHub Actions `services:`),
+                      # so tests can hit localhost:6379 before Redis is up -> connection refused.
+                      for i in $(seq 1 30); do
+                        if (exec 3<>/dev/tcp/127.0.0.1/6379) 2>/dev/null; then
+                          echo "Redis is up"; exec 3>&-; break
+                        fi
+                        echo "Waiting for Redis... ($i/30)"; sleep 1
+                      done
+
                       make test_coverage
                     envVariables:
                       GOFLAGS: "-v"
