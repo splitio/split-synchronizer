@@ -30,7 +30,7 @@ pipeline:
                     image: golang:1.26.3
                     shell: Bash
                     command: |-
-                      pip install packaging --quiet
+                      apt-get update -qq && apt-get install -y -qq python3-packaging
                       mkdir -p build
                       make release_assets
               - step:
