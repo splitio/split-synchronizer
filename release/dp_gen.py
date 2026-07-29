@@ -18,7 +18,7 @@ import sys
 from argparse import ArgumentParser
 from typing import List, Dict
 from os import path
-from distutils.version import StrictVersion
+from packaging.version import Version as StrictVersion
 
 # regex to filter rcs/betas/etc
 _VALID_TAG_REGEX = re.compile(r'^v{0,1}\d{1,2}\.\d{1,2}\.\d{1,2}$')
