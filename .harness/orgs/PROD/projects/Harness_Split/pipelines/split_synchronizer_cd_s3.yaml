@@ -51,7 +51,7 @@ pipeline:
             spec:
               connectorRef: use1prod1cd
               namespace: harness-delegate
-              serviceAccountName: use1-prod-1-gha-downloads
+              serviceAccountName: use1-prod-1-split-synchronizer-downloads
               automountServiceAccountToken: false
               nodeSelector: {}
               os: Linux
