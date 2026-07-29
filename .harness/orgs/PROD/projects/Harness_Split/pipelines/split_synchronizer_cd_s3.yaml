@@ -29,6 +29,10 @@ pipeline:
                     connectorRef: dockerhub
                     image: golang:1.26.3
                     shell: Bash
+                    resources:
+                      limits:
+                        memory: 2Gi
+                        cpu: "1"
                     command: |-
                       apt-get update -qq && apt-get install -y -qq python3-packaging
                       mkdir -p build
