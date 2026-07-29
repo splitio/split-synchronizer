@@ -19,6 +19,8 @@ pipeline:
         type: CI
         spec:
           cloneCodebase: true
+          buildIntelligence:
+            enabled: false
           execution:
             steps:
               - step:
@@ -31,8 +33,8 @@ pipeline:
                     shell: Bash
                     resources:
                       limits:
-                        memory: 2Gi
-                        cpu: "1"
+                        memory: 4Gi
+                        cpu: "2"
                     command: |-
                       apt-get update -qq && apt-get install -y -qq python3-packaging
                       mkdir -p build
