@@ -36,7 +36,7 @@ pipeline:
                         memory: 4Gi
                         cpu: "2"
                     command: |-
-                      apt-get update -qq && apt-get install -y -qq python3-packaging
+                      apt-get update -qq && apt-get install -y -qq python3-packaging zip
                       mkdir -p build
                       make release_assets
               - step:
