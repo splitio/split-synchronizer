@@ -60,8 +60,7 @@ pipeline:
               namespace: harness-delegate
               serviceAccountName: use1-prod-1-split-synchronizer-downloads
               automountServiceAccountToken: false
-              nodeSelector:
-                kubernetes.io/arch: amd64
+              nodeSelector: {}
               os: Linux
         delegateSelectors:
           - use1-prod-1-cd
