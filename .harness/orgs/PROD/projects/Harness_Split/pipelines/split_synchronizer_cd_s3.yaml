@@ -36,7 +36,7 @@ pipeline:
                         memory: 4Gi
                         cpu: "2"
                     command: |-
-                      apt-get update -qq && apt-get install -y -qq python3-packaging zip
+                      apt-get update -qq && apt-get install -y -qq python3-packaging zip wget
                       mkdir -p build
                       make release_assets
               - step:
@@ -60,7 +60,8 @@ pipeline:
               namespace: harness-delegate
               serviceAccountName: use1-prod-1-split-synchronizer-downloads
               automountServiceAccountToken: false
-              nodeSelector: {}
+              nodeSelector:
+                kubernetes.io/arch: amd64
               os: Linux
         delegateSelectors:
           - use1-prod-1-cd
