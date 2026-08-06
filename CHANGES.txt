@@ -1,3 +1,7 @@
+5.12.8 (Aug 6, 2026)
+- Fixed vulnerabilities:
+   - Updated golang builder image to 1.26.5-trixie, resolving CVE-2026-42504, CVE-2026-42507, CVE-2026-27145
+
 5.12.7 (Jun 30, 2026)
 - Fixed vulnerabilities (4 High, 35 Low):
    - H: CVE-2026-45447, CVE-2026-7383, CVE-2026-9076, CVE-2026-34180
