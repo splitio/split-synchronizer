@@ -1,0 +1,39 @@
+# Build stage
+FROM golang:1.26.3-trixie AS builder
+
+ARG EXTRA_BUILD_ARGS
+ARG FIPS_MODE
+
+RUN apt update && \
+    apt install -y --no-install-recommends build-essential ca-certificates python3 git && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /code
+
+COPY . .
+
+RUN bash -c 'if [[ "${FIPS_MODE}" = "enabled" ]]; \
+    then echo "building in fips mode"; make clean split-proxy-fips entrypoints EXTRA_BUILD_ARGS="${EXTRA_BUILD_ARGS}"; mv split-proxy-fips split-proxy; \
+    else echo "building in standard mode"; make clean split-proxy entrypoints EXTRA_BUILD_ARGS="${EXTRA_BUILD_ARGS}"; \
+    fi'
+
+# Runner stage
+FROM debian:trixie-20260623-slim AS runner
+
+RUN apt update -y && \
+    apt upgrade -y && \
+    apt install -y bash ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+RUN groupadd -g 1000 split-proxy
+RUN useradd -r -u 1000 -g split-proxy -s /usr/sbin/nologin split-proxy
+
+COPY docker/functions.sh .
+
+COPY --from=builder /code/split-proxy /usr/bin/
+COPY --from=builder /code/entrypoint.proxy.sh .
+
+EXPOSE 3000 3010
+
+USER 'split-proxy'
+
+ENTRYPOINT ["bash", "entrypoint.proxy.sh"]

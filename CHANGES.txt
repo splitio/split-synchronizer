@@ -1,0 +1,452 @@
+5.12.7 (Jun 30, 2026)
+- Fixed vulnerabilities (4 High, 35 Low):
+   - H: CVE-2026-45447, CVE-2026-7383, CVE-2026-9076, CVE-2026-34180
+   - L: CVE-2026-45446, CVE-2026-45445, CVE-2026-42770, CVE-2026-42769, CVE-2026-42768, CVE-2026-42767, CVE-2026-42764, CVE-2026-34183, CVE-2026-34182, CVE-2026-34181, CVE-2010-0928, CVE-2019-9192, CVE-2019-1010025, CVE-2019-1010024, CVE-2019-1010023, CVE-2019-1010022, CVE-2018-20796, CVE-2010-4756, CVE-2026-53614, CVE-2026-53612, CVE-2025-14104, CVE-2022-0563, CVE-2023-31439, CVE-2023-31438, CVE-2023-31437, CVE-2013-4392, CVE-2025-70873, CVE-2021-45346, CVE-2026-48961, CVE-2011-4116, CVE-2025-5278, CVE-2017-18018, CVE-2005-2541, CVE-2007-5686, CVE-2011-3374
+   - Updated Docker base image from debian:13 to debian:trixie-20260623-slim
+- Updated log level from error to info when reading snapshots to populate caches for splits, segments, and rule-based segments
+
+5.12.6 (Jun 19, 2026)
+- Updated snapshot validation to warn on configuration mismatches instead of blocking proxy initialization.
+
+5.12.5 (May 29, 2026)
+- Fixed vulnerabilities (8 Critical, 3 High, 5 Medium, 3 Low):
+   - C: CVE-2026-39830, CVE-2026-39831, CVE-2026-39832, CVE-2026-39833, CVE-2026-39834, CVE-2026-42508, CVE-2026-39821
+   - H: CVE-2026-4878, CVE-2026-4046, CVE-2026-4437
+   - M: CVE-2026-4105, CVE-2026-40225, CVE-2026-40226, CVE-2026-4438, CVE-2026-29111
+   - L: 3 low-severity vulnerabilities from debian base image update
+   - Updated golang.org/x/crypto to v0.52.0
+   - Updated golang.org/x/net to v0.55.0
+   - Updated golang.org/x/sys to v0.45.0
+   - Updated golang.org/x/text to v0.37.0
+   - Updated debian base image to debian:13
+- Fixed segment initialization issue where segments were fetched from -1 when starting proxy with snapshot file
+
+5.12.4 (May 15, 2026)
+- Fixed vulnerabilities:
+   - H: CVE-2026-39820, CVE-2026-42499, CVE-2026-33811, CVE-2026-33814, CVE-2026-39836
+   - M: CVE-2026-39826, CVE-2026-3982, CVE-2026-39825
+- Added defensive validations to prevent crashes during network failures, ensuring continuous flag delivery from cache when the control plane is unavailable.
+
+5.12.3 (May 7, 2026)
+- Fixed vulnerabilities:
+   - H: CVE-2026-33810, CVE-2026-32283, CVE-2026-32281, CVE-2026-32280
+   - M: CVE-2026-32282, CVE-2026-32289, CVE-2026-32288
+
+5.12.2 (Apr 7, 2026)
+- Updated golang image to 1.26.1
+- Updated golang.org/x/arch to v0.25.0
+- Updated golang.org/x/crypto to v0.49.0
+- Updated golang.org/x/net to 0.52.0
+- Updated golang.org/x/sync to 0.20.0
+- Updated golang.org/x/sys to 0.42.0
+- Updated golang.org/x/text to 0.35.0
+
+5.12.1 (Feb 19, 2026)
+- Updated docker images and dependencies for vulnerability fixes.
+
+5.12.0 (Jan 2, 2025)
+- Split Proxy:
+   - Added support for new impression properties to be appended to the impressions sent to the Split backend. Read more in our docs.
+- Split-Sync:
+   - Added support for new impression properties to be appended to the impressions sent to the Split backend. Read more in our docs.
+
+5.11.1 (Dec 16, 2025)
+- Fixed vulnerabilities:
+   - Updated golang image to 1.24.11
+   - Updated debian image to 13.2
+   - Updated golang.org/x/arch to 0.23.0
+   - Updated golang.org/x/crypto to 0.46.0
+   - Updated golang.org/x/net to 0.48.0
+   - Updated golang.org/x/sync to 0.19.0
+   - Updated golang.org/x/sys to 0.39.0
+   - Updated golang.org/x/text to 0.32.0
+
+5.11.0 (Nov 12, 2025)
+- Split Proxy:
+   - Added support for rule-based segment. These segments determine membership at runtime by evaluating their configured rules against the user attributes provided to the SDK.
+- Split-Sync:
+   - Added support for rule-based segment. These segments determine membership at runtime by evaluating their configured rules against the user attributes provided to the SDK.
+- Fixed vulnerabilities:
+   - Updated golang image to 1.24.9
+
+5.10.4 (Oct 3, 2025)
+- Fixed vulnerabilities:
+   - Updated golang image to 1.24.7
+   - Updated debian image to 13.1
+
+5.10.3 (Sep 5, 2025)
+- Fixed vulnerabilities:
+   - Updated golang image to 1.24.6
+   - Updated debian image to 13.0
+   - Updated gin-contrib/gzip to 1.2.3
+   - Updated gin-gonic/gin 1.10.1
+   - Updated stretchr/testify 1.10.0
+   - Updated golang.org/x/arch 0.20.0
+	- Updated golang.org/x/crypto 0.41.0
+	- Updated golang.org/x/net 0.43.0
+	- Updated golang.org/x/sync 0.16.0
+	- Updated golang.org/x/sys 0.35.0
+	- Updated golang.org/x/text 0.28.0
+	- Updated google.golang.org/protobuf 1.36.8
+
+5.10.2 (May 29, 2025)
+- Fixed vulnerabilities:
+   - Updated golang image to 1.23.9
+   - Updated debian image to 12.11
+   - Updated golang.org/x/arch to 0.17.0
+   - Updated golang.org/x/crypto to 0.38.0
+   - Updated golang.org/x/net to 0.40.0
+   - Updated golang.org/x/sync to 0.14.0
+   - Updated golang.org/x/sys to 0.33.0
+   - Updated golang.org/x/text to 0.25.0
+
+5.10.1 (Apr 23, 2025)
+- Fixed vulnerabilities:
+   - Updated golang image to 1.23.8
+   - Updated debian image to 12.10
+   - Updated golang.org/x/net to 0.39.0
+   - Updated golang.org/x/crypto to 0.37.0
+   - Updated golang.org/x/sync to 0.13.0
+   - Updated golang.org/x/sys to 0.32.0
+   - Updated golang.org/x/text to 0.24.0
+   - Updated go-redis to 9.7.3 
+
+5.10.0 (Jan 23, 2025)
+- Added support for the new impressions tracking toggle available on feature flags, both respecting the setting. Read more in our docs.
+- Added support for arm64 in docker images.
+- Fixed vulnerabilities:
+   - Updated golang image to 1.23.5
+   - Updated debian image to 12.9
+   - Updated golang.org/x/net to 0.33.0
+   - Updated golang.org/x/crypto to 0.31.0
+
+5.9.0 (Dec 2, 2024)
+- Split Proxy:
+   - Added support for targeting rules based on large segments.
+   - Added `/memberships` endpoint to support SDKs running with large segments.
+
+5.8.3 (Nov 22, 2024)
+- Fixed vulnerabilities:
+   - Updated debian image to 12.8
+   - Updated golang image to 1.23.3
+
+5.8.2 (Sep 17, 2024)
+- Fixed healthcheck monitor for cases with no segments.
+- Updated go-split-commons version to v6.0.1.
+
+5.8.1 (Jul 12, 2024)
+- Fixed vulnerabilities:
+   - Updated debian image to 12.6
+   - Updated gin-contrib/cors to 1.6.0
+   - Updated golang image to 1.22.5
+
+5.8.0 (May 14, 2024)
+ - Added support for targeting rules based on semantic versions (https://semver.org/).
+ - Added special impression label "targeting rule type unsupported by sdk" when the matcher type is not supported by the SDK, which returns 'control' treatment.
+ - Forward TLS server name when in redis-sentinel & redis-cluster
+ - Fixed vulnerabilities:
+   - Updated debian image to 12.5
+   - Updated golang image to 1.21.10
+   - Updated gin/gonic to 1.10
+ - Updated go-split-commons to v6
+
+5.7.0 (Feb 22, 2024)
+ - Add support for FIPS-compliant binaries & docker images
+
+5.6.1 (Jan 29, 2024)
+- Fixed Data Inspector view.
+- Updated docker images for vulnerability fixes.
+- Updated dependencies for vulnerability fixes.
+
+5.6.0 (Jan 23, 2024)
+- Replaced redis KEYS operation in favor of SCAN.
+- Added FlagSets stats into Split dashboard.
+
+5.5.1 (Dec 21, 2023)
+- Updated docker images for vulnerability fixes.
+- Updated go-split-commons version.
+- Updated how redis data is displayed in /info/configs.
+
+
+5.5.0 (Dec 12, 2023)
+ - Added support for Flag Sets on Split Proxy and Synchronizer, which enables SDKs to interacting with the flag sets features (more details in our documentation):
+    - Updated Proxy endpoints used by SDKs to fetch flags have been updated to handle any SDKs downloading flags in certain flag sets.
+    - Updated Syncrhonizer to properly handle flagsets in redis.
+    - Added configuration options to specify which flagsets to use as a filter when downloading flag definitions. Please refer to our docs to learn more
+
+5.4.2 (Nov 7, 2023)
+- Updated docker images for vulnerability fixes.
+- Updated dependencies for vulnerability fixes.
+
+5.4.1 (Oct 31, 2023)
+- Fix issue in split proxy where removed segment keys would be returned as active at startup
+
+5.4.0 (July 18, 2023)
+- Improved streaming architecture implementation to apply feature flag updates from the notification received which is now enhanced, improving efficiency and reliability of the whole update system.
+- Fixed possible edge case issue where deleting a feature flag doesn’t propagate immediately.
+- Updated docker images for vulnerability fixes.
+
+5.3.2 (June 21, 2023)
+- Updated dependency of gin to v1.9.1 for vulnerability fixes.
+- Updated docker images for vulnerability fixes.
+
+5.3.1 (May 15, 2023)
+- Fixed issue that caused newer redis versions & dragonfly authentication to fail in some scenarios
+- Updated terminology on the Sync codebase to be more aligned with current standard without causing a breaking change. The core change is the term `split` for `feature flag` on things like logs and godoc comments.
+- Updated dashboard logo and styles.
+
+5.3.0 (Apr 24, 2023)
+- Updated ready-to-download binaries to be built without depending on shared libc
+- Updated go-split-commons to v4.3.0 for vulnerability fixes.
+- Added support for onboard TLS encryption in both proxy & admin APIs
+- go-commons bump to use updated MySegments DTO with empty ID to match sdk server
+
+5.2.3 (Jan 6, 2023)
+- Split-Sync:
+   - Updated unique keys parser to support single and array of keys.
+
+5.2.2 (Dec 1, 2022)
+- Split-Sync:
+   - Fixed error when retrying POST requests in pipelined tasks (impressions, events, mtks).
+   - Fixed redis fresh startup when no prefix is supplied
+   - Fixed warning when fetching new feature flags
+
+5.2.1 (Nov 28, 2022)
+- Replaced IAM Role used for uploading binaries.
+
+5.2.0 (Oct 14, 2022)
+- Split Sync:
+   - Added support for SDKs that use Redis and set impressions mode to NONE. Split Sync will capture unique keys evaluated from the different SDKs from Redis and send to Split Servers.
+   - Added user to redis config (ACL for Redis > 6).
+- Split Proxy:
+   - Added `/api/keys/ss`, `/api/v1/keys/cs` and beacon apis into telemetry for supporting SDKs running with impressions mode NONE.
+
+5.1.1 (Sep 8, 2022)
+- Updated gin and docker images for vulnerabilities fixes.
+
+5.1.0 (Aug 04, 2022)
+- Update docker image & makefile to accept EXTRA_BUILD_ARGS argument. To be forwarded to the `go build` statement
+
+5.0.10 (Jul 18, 2022)
+- Fixed auth healthcheck
+
+5.0.9 (Jul 13, 2022)
+- Updated docker image for vulnerabilities fixes
+
+5.0.8 (Jun 21, 2022)
+- Updated the synchronization flow to be more reliable in the event of an edge case generating delay in cache purge propagation, keeping the SDK cache properly synced
+
+5.0.7 (Jun 06, 2022)
+ - Updated segments and feature flags storage to return -1 as default changeNumber instead of zero
+
+5.0.6 (May 27, 2022)
+ - Fixed TLS Server config forwarding config for cluster and sentinel modes
+
+5.0.5 (May 5, 2022)
+ - Added missing mySegments endpoint to timesliced observability
+ - Added total stats to observability endpoint
+ - Fixed debug log message in healthcheck logic
+
+5.0.4 (Apr 20, 2022)
+ - Exposed some internal metrics in observability endpoint
+ - Fix dashboard in proxy mode
+ - Fetch telemetry from redis keys in both old & new formats
+
+5.0.3 (Apr 18, 2022)
+ - Fix logging config
+
+5.0.2 (Jan 12, 2021)
+ - Fix issue with healthcheck returning spurious errors
+ - Fix HTTP_PROXY behaviour on SSE connection
+ - Fix some typos in log messages
+
+5.0.1 (Dec 22,2021)
+ - Fixed CORS issues in proxy mode
+ - Fixed healthcheck in polling mode (both)
+ - Fixed app healthcheck endpoint status code when the monitor isn't healthy (both)
+ - Fixed feature flags & segments metrics in dashboard when running in redis-cluster mode (split-sync)
+
+5.0.0 (Nov 1, 2021)
+ - BREAKING CHANGE: Split the project to produce two different binaries for syncrhonizer & proxy tools
+ - BREAKING CHANGE: Config options cleanup
+ - BREAKING CHANGE: Docker images entrypoint update
+ - Full refactor of components & general structure
+ - Migrate to `BBolt` for persistent storage (an actively maintained fork of boltd by by etcd)
+ - Add optimized storages for feature flags & mysegments
+ - Added an http cache with purgeable surrogate keys for split-proxy
+ - Fixed issue that caused eviction calculations to be off
+ - Fixed issue with erroneous logs when initializing on an empty redis
+
+4.0.5 (Sep 23, 2021)
+ - Updated docker base image to patch security vulnerabilities.
+ - Updated gin to 1.7.0
+
+4.0.4 (Sep 22, 2021)
+ - Added /v2/auth endpoint for proxy mode.
+ - Updated docker base image to patch security vulnerabilities.
+
+4.0.3 (Jun 28, 2021)
+ - Added dial timeout for Streaming to fallback into Polling.
+
+4.0.2 (Feb 26, 2021)
+- Streaming revamp
+   - Fixed race condition on certain Streaming errors in order to properly fallback to Streaming.
+   - Added few improvements in Synchronization cycle.
+- Added Cache control headers to on-demand requests.
+- Added logic to sync new segments if referenced in a segment notification.
+- Set gin to release mode unless debug logging is enabled.
+
+4.0.1 (Dic 22, 2020)
+- Fixed entrypoint handling of boolean parameters.
+- Removed confusing log message in token renewal process.
+
+4.0.0 (Oct 6, 2020)
+- BREAKING CHANGE (only when sync is used by source code, not binary or Docker versions): Migrated to go modules (dep & bare-bones go-dep no longer supported)
+- Added impressions dedupe logic to avoid sending duplicated impressions:
+   - Added `OPTIMIZED` and `DEBUG` modes in order to enabling/disabling how impressions are going to be sent into Split servers,
+        - `OPTIMIZED`: will send unique impressions in a timeframe in order to reduce how many times impressions are posted to Split.
+        - `DEBUG`: will send every impression generated to Split.
+
+3.0.1 (Sep 10, 2020)
+ - Upgraded split-commons to fix high cpu usage issue
+
+3.0.0 (Aug, 31, 2020)
+ - Added split-commons library.
+ - Added Streaming support.
+ - Bugfixing - Fixed an issue for proxy mode where sdkAPIKeys, proxy-apikeys or SPLIT_SYNC_PROXY_SDK_APIKEYS were not being validated if set
+ - BREAKING CHANGES:
+      - Removed support for legacy impressions (only stored in queue now) as well the config for enabling/disabling it (listed below)
+      - Removed deprecated configs:
+         - 'disableLegacyImpressions', 'redis-disable-legacy-impressions' and 'SPLIT_SYNC_REDIS_DISABLE_LEGACY_IMPRESSIONS'
+         - 'impressions-consumer-threads'
+         - 'eventsConsumerReadSize' and 'events-consumer-read-size'
+         - 'eventsPushRate', 'events-push-rate' and 'SPLIT_SYNC_EVENTS_REFRESH_RATE'
+         - 'impressionsRefreshRate' and 'SPLIT_SYNC_IMPRESSIONS_REFRESH_RATE'
+         - 'eventsConsumerThreads'
+         - 'SPLIT_SYNC_METRICS_REFRESH_RATE'
+
+2.6.3 (Aug 13, 2020)
+ - Added lastSeen timestamp hint to impressions
+
+2.6.2 (May 8, 2020)
+ - Fixed warnings fetching segments.
+ - Added no-op auth for proxy.
+
+2.6.1 (Nov 27, 2019)
+ - Pin gin-gonic framework version to remain compatible with go <= 1.9.
+
+2.6.0 (Nov 1, 2019)
+ - Cleanup redis before initialization if apikey differs
+    * If the apikey supplied is incorrect the synchronizer will now fail-fast, letting the user know about the issue.
+    * If the apikey is valid, but no registry exists in redis, or the one existing registry doesn't match the current apikey, all data related to Split (subject to the supplied db & prefix) will be wiped, and the synchronizer will start in a clean redis space.
+    * If the apikey is valid and matches the registry in redis, such information will be used a starting point, and the syncrhonizer will start normally.
+ - Allow the user to force redis cleanup with a cli/json/env-var option
+ - Several misc code cleanup/reordering.
+ - Added support for Beacon API for Events and Impressions.
+ - Added flag `IPAddressesEnabled` into config to enable/disable sending machineName and machineIp when data is posted in headers.
+
+2.5.2 (September 25, 2019)
+ - Update docker base image to patch security vulnerabilities.
+
+2.5.1 (September 9, 2019)
+ - Fixed issue with metrics keys not properly deleted.
+
+2.5.0 (August 14, 2019)
+ - Added lambda calculation for Events and Impressions.
+ - Added lambda metric in Dashboard when Sync is running as Producer mode.
+ - Moved Sync version to the top-right and removed card that displayed it.
+ - Added slack notification when Sync is started.
+
+2.4.1 (July 25, 2019)
+ - Removed '@here' in slack messages.
+
+2.4.0 (July 23, 2019)
+ - Added support for TLS connections to redis.
+ - Updated config parameters to have consistency between them. Several parameters will be deprecated in future versions.
+ - Accept true, "on" and "yes" as values for enabling options in docker environment variables.
+ - Merged controllers for web admin dashboard.
+ - Added label in Sync Dashboard to indicate on which mode it started (Synchronizer or Proxy).
+ - Added task to check Sync environment and added healthySince property to healtheck endpoint.
+ - Added healthcheck into Sync Dashboard.
+ - Added logic to refresh all the metrics in Dashboard without loading again it.
+ - Fixed counter for trafficTypes when a particular feature flag is updated.
+
+2.3.0 (May 30, 2019)
+ - Added support for track properties.
+ - Added cache overlay on top of redis for fetching events.
+
+2.2.1 (May 2, 2019)
+ - Fixed possible (but unlikely) issue when expiring traffic type.
+
+2.2.0 (April 30, 2019)
+ - Added logic to store Dynamic Configurations when splitChanges is called in redis mode.
+ - Added logic to store TrafficTypeNames when splitChanges is called in redis mode.
+
+2.1.2 (March 27, 2019)
+ - Fixed healthcheck status.
+
+2.1.1 (March 8, 2019)
+ - Updated Feature flags refreshing rate.
+
+2.1.0 (Jan 31, 2019)
+ - Added endpoints for flushing and dropping Impressions/Events mannually.
+ - Added new metrics on Synchronizer Dashboard in Producer Mode to reflect the queue size of Events and Impressions.
+ - Added buttons to execute flushing and dropping for Impressions/Events.
+ - Added validator to inform error when some property is wrong in json config.
+
+2.0.0 (Dec 21, 2018)
+ - Migrated impressions to use a single queue approach.
+
+1.8.0 (Nov 14, 2018)
+ - Added support for redis cluster.
+ - Migrated to dep.
+ - Removed vendor folder.
+
+1.7.2 (Oct 4, 2018)
+ - Fix bug that cased synchronizer to crash with malformed impressions & metrics keys.
+ - Improved impressions posting strategy to maximize throughput.
+ - Updated defaults to send more impressions per unit of time.
+
+1.7.1 (Sep 7, 2018)
+ - Fix variable in dockerfile entrypoint.
+
+1.7.0 (Aug 29, 2018)
+ - Add support for redis sentinel.
+
+1.6.0 (Apr 3, 2018)
+ - Graceful shutdown producer/proxy.
+ - Web dashboard in producer mode has been added.
+
+1.5.0 (Feb 19, 2018)
+ - Event support in proxy mode.
+
+1.4.0 (Feb 8, 2018)
+ - Events storage/recorder to support .track method from SDKs.
+
+1.3.1 (Dec 15, 2017)
+ - Adding metrics counter and latencies in feature flag fetcher, segment fetcher and post impressions.
+
+1.3.0 (Oct 9, 2017)
+ - Update entry-point for docker.
+ - Add admin healthcheck endpoints for proxy & producer modes.
+
+1.2.1 (Sep 13, 2017)
+ - Update configuration file structure for impression listener.
+
+1.2.0 (Sep 6, 2017)
+ - Added HTTP Impression Listener.
+
+1.1.1 (Aug 28, 2017)
+ - Fixed concurrency issue fetching Segments in parallel.
+
+1.1.0 (Aug 21, 2017)
+ - Proxy mode for SDKs local connections.
+ - Proxy admin endpoints and dashboard monitoring tool.
+ - Log rotation.
+
+1.0.1 (Jun 29, 2017)
+ - Removing fixed json schema and saving the raw feature flag JSON into Redis.
+
+1.0.0 (Jun 16, 2017)
+ - Fetch Feature flags and Segments from server and saving it into Redis.
+ - Redis spec supported by SDKs: PHP, Python, Ruby, Nodejs, .NET, .NET-CORE.

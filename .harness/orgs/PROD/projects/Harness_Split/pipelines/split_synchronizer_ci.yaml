@@ -1,0 +1,171 @@
+pipeline:
+  name: split_synchronizer_ci
+  identifier: split_synchronizer_ci
+  projectIdentifier: Harness_Split
+  orgIdentifier: PROD
+  tags: {}
+  properties:
+    ci:
+      codebase:
+        connectorRef: fmegithubrunnersci
+        repoName: split-synchronizer
+        build: <+input>
+        depth: 0
+        sparseCheckout: []
+  stages:
+    - stage:
+        name: Build and Test
+        identifier: Build_and_Test
+        type: CI
+        spec:
+          cloneCodebase: true
+          caching:
+            enabled: true
+          platform:
+            os: Linux
+            arch: Amd64
+          runtime:
+            type: Cloud
+            spec: {}
+          execution:
+            steps:
+              - step:
+                  type: Run
+                  name: Run Tests
+                  identifier: Run_Tests
+                  spec:
+                    connectorRef: dockerhub
+                    image: golang:1.26.3
+                    shell: Bash
+                    command: |-
+                      # Start Redis INSIDE the test container so the tests reach it at
+                      # localhost:6379, matching the GitHub Actions `services: redis`
+                      # behavior without modifying the Go tests (which hardcode
+                      # localhost:6379).
+                      #
+                      # NOTE: a Harness `Background` step is NOT used here. On Harness
+                      # Cloud infra a Background step runs as a SEPARATE container,
+                      # reachable only at `redis:6379` (its step id) -- never localhost.
+                      # Running redis-server in-container keeps it on the same network
+                      # namespace so localhost:6379 resolves, as it did on GHA.
+                      apt-get update && apt-get install -y redis-server
+                      redis-server --daemonize yes
+
+                      # Wait until Redis accepts connections before running tests.
+                      for i in $(seq 1 30); do
+                        if redis-cli ping 2>/dev/null | grep -q PONG; then
+                          echo "Redis is up"; break
+                        fi
+                        echo "Waiting for Redis... ($i/30)"; sleep 1
+                      done
+
+                      make test_coverage
+                    envVariables:
+                      GOFLAGS: "-v"
+              - step:
+                  type: Run
+                  name: SonarQube Analysis
+                  identifier: SonarQube_Analysis
+                  spec:
+                    shell: Sh
+                    command: |
+                      export SONAR_SCANNER_VERSION=6.2.1.4610
+                      curl -sSLo sonar-scanner.zip "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SONAR_SCANNER_VERSION}-linux-x64.zip"
+                      unzip -q sonar-scanner.zip
+                      export PATH="$(pwd)/sonar-scanner-${SONAR_SCANNER_VERSION}-linux-x64/bin:$PATH"
+
+                      # Project version (preserves test.yml behavior)
+                      VERSION="$(awk '/^const Version/{gsub(/"/, "", $4); print $4}' splitio/version.go)"
+
+                      # Build branch/PR params
+                      SONAR_EXTRA_ARGS=""
+                      if [ "<+codebase.build.type>" = "PR" ]; then
+                        SONAR_EXTRA_ARGS="-Dsonar.pullrequest.key=<+codebase.prNumber> \
+                          -Dsonar.pullrequest.branch=<+codebase.sourceBranch> \
+                          -Dsonar.pullrequest.base=<+codebase.targetBranch>"
+                      elif [ "<+codebase.branch>" != "main" ]; then
+                        SONAR_EXTRA_ARGS="-Dsonar.branch.name=<+codebase.branch>"
+                      fi
+
+                      sonar-scanner \
+                        -Dsonar.host.url="https://sonar.harness.io/" \
+                        -Dsonar.token="${SONAR_TOKEN}" \
+                        -Dsonar.projectVersion="${VERSION}" \
+                        $SONAR_EXTRA_ARGS
+                    envVariables:
+                      SONAR_TOKEN: <+secrets.getValue("sonarqube-token")>
+                      SONAR_HOST_URL: https://sonar.harness.io
+              - step:
+                  type: Run
+                  name: Post Quality Gate
+                  identifier: Post_Quality_Gate
+                  spec:
+                    shell: Sh
+                    command: |
+                      # Use the task report from sonar-scanner to get the correct analysis ID
+                      REPORT_FILE=".scannerwork/report-task.txt"
+
+                      if [ ! -f "$REPORT_FILE" ]; then
+                        echo "ERROR: $REPORT_FILE not found. Ensure this step runs in the same workspace as sonar-scanner."
+                        exit 1
+                      fi
+
+                      cat "$REPORT_FILE"
+
+                      CE_TASK_URL=$(grep "ceTaskUrl" "$REPORT_FILE" | cut -d'=' -f2-)
+
+                      # Poll until the background task is finished (max 5 min)
+                      MAX_RETRIES=30
+                      RETRY_INTERVAL=10
+                      TASK_STATUS="PENDING"
+
+                      for i in $(seq 1 $MAX_RETRIES); do
+                        echo "Attempt $i/$MAX_RETRIES - Checking analysis task..."
+                        TASK_RESPONSE=$(curl -s -u "${SONAR_TOKEN}:" "$CE_TASK_URL")
+                        TASK_STATUS=$(echo "$TASK_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['task']['status'])" 2>/dev/null || echo "UNKNOWN")
+
+                        echo "Task status: $TASK_STATUS"
+
+                        if [ "$TASK_STATUS" = "SUCCESS" ] || [ "$TASK_STATUS" = "FAILED" ] || [ "$TASK_STATUS" = "CANCELLED" ]; then
+                          break
+                        fi
+                        sleep $RETRY_INTERVAL
+                      done
+
+                      if [ "$TASK_STATUS" != "SUCCESS" ]; then
+                        echo "Analysis task did not complete successfully: $TASK_STATUS"
+                        exit 1
+                      fi
+
+                      # Get the analysis ID from the completed task
+                      ANALYSIS_ID=$(echo "$TASK_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['task']['analysisId'])")
+
+                      # Query quality gate using the analysis ID (works for any branch/PR)
+                      QG_RESPONSE=$(curl -s -u "${SONAR_TOKEN}:" \
+                        "https://sonar.harness.io/api/qualitygates/project_status?analysisId=${ANALYSIS_ID}")
+
+                      echo "Quality Gate response: $QG_RESPONSE"
+
+                      QG_STATUS=$(echo "$QG_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['projectStatus']['status'])")
+
+                      echo "Quality Gate Status: $QG_STATUS"
+
+                      case "$QG_STATUS" in
+                        OK)    GH_STATE="success"; DESC="Quality gate passed" ;;
+                        ERROR) GH_STATE="failure"; DESC="Quality gate failed" ;;
+                        WARN)  GH_STATE="success"; DESC="Quality gate passed with warnings" ;;
+                        *)     GH_STATE="failure"; DESC="Quality gate status: $QG_STATUS" ;;
+                      esac
+
+                      curl -s -X POST \
+                        -H "Authorization: token ${GITHUB_TOKEN}" \
+                        -H "Accept: application/vnd.github.v3+json" \
+                        "https://api.github.com/repos/splitio/<+pipeline.properties.ci.codebase.repoName>/statuses/<+codebase.commitSha>" \
+                        -d "{\"state\":\"${GH_STATE}\",\"description\":\"${DESC}\",\"context\":\"sonarqube/quality-gate\",\"target_url\":\"https://sonar.harness.io/dashboard?id=${SONAR_PROJECT_KEY}\"}"
+
+                      echo "Posted GitHub status: $GH_STATE - $DESC"
+                    envVariables:
+                      SONAR_TOKEN: <+secrets.getValue("sonarqube-token")>
+                      SONAR_HOST_URL: https://sonar.harness.io
+                      GITHUB_TOKEN: <+secrets.getValue("fme-github-netrc-token")>
+                      SONAR_PROJECT_KEY: <+pipeline.properties.ci.codebase.repoName>

@@ -1,0 +1,15 @@
+inputSet:
+  name: split_synchronizer_ci_push
+  identifier: split_synchronizer_ci_push
+  orgIdentifier: PROD
+  projectIdentifier: Harness_Split
+  tags: {}
+  pipeline:
+    identifier: split_synchronizer_ci
+    properties:
+      ci:
+        codebase:
+          build:
+            type: branch
+            spec:
+              branch: <+trigger.branch>

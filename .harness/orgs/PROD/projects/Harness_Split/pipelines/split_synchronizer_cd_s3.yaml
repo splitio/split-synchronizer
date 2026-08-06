@@ -1,0 +1,66 @@
+pipeline:
+  name: split_synchronizer_cd_s3
+  identifier: split_synchronizer_cd_s3
+  projectIdentifier: Harness_Split
+  orgIdentifier: PROD
+  tags: {}
+  properties:
+    ci:
+      codebase:
+        connectorRef: fmegithubrunnersci
+        repoName: split-synchronizer
+        build: <+input>
+        depth: 0
+        sparseCheckout: []
+  stages:
+    - stage:
+        name: Build and Deploy to S3
+        identifier: Build_and_Deploy_to_S3
+        type: CI
+        spec:
+          cloneCodebase: true
+          buildIntelligence:
+            enabled: false
+          execution:
+            steps:
+              - step:
+                  type: Run
+                  name: Build Release Assets
+                  identifier: Build_Release_Assets
+                  spec:
+                    connectorRef: dockerhub
+                    image: golang:1.26.3
+                    shell: Bash
+                    resources:
+                      limits:
+                        memory: 4Gi
+                        cpu: "2"
+                    command: |-
+                      apt-get update -qq && apt-get install -y -qq python3-packaging zip wget
+                      mkdir -p build
+                      make release_assets
+              - step:
+                  type: Run
+                  name: Deploy to S3
+                  identifier: Deploy_to_S3
+                  when:
+                    stageStatus: Success
+                    condition: <+trigger.event> == "PUSH"
+                  spec:
+                    connectorRef: dockerhub
+                    image: amazon/aws-cli:2.31.5
+                    shell: Bash
+                    command: aws s3 sync ./build s3://downloads.split.io
+                    envVariables:
+                      AWS_DEFAULT_REGION: us-east-1
+          infrastructure:
+            type: KubernetesDirect
+            spec:
+              connectorRef: use1prod1cd
+              namespace: harness-delegate
+              serviceAccountName: use1-prod-1-split-synchronizer-downloads
+              automountServiceAccountToken: false
+              nodeSelector: {}
+              os: Linux
+        delegateSelectors:
+          - use1-prod-1-cd

@@ -1,7 +1,19 @@
 #Project files
-go-agent
+split-sync
+split-proxy
+split-sync-fips
+split-proxy-fips
+proxy-opts.md
+sync-opts.md
+
+coverage.out
+entrypoint.proxy.sh
+entrypoint.sync.sh
+entrypoint.synchronizer.sh
 run.sh
 bin/*
+*.yaml
+/vendor
 
 # Compiled Object files, Static and Dynamic libs (Shared Objects)
 *.o
@@ -30,3 +42,36 @@ _testmain.go
 
 .DS_Store
 *.json
+!/test/dataset/test.conf.json
+!/test/dataset/test.conf.error1.json
+!/test/dataset/test.conf.error2.json
+!/test/dataset/test.conf.error3.json
+!/test/dataset/test.conf.error4.json
+!/test/dataset/test.conf.error5.json
+!/test/dataset/test.conf.json
+!/test/dataset/test.conf.warning1.json
+!/test/dataset/test.conf.warning2.json
+!/test/dataset/test.conf.warning3.json
+!/test/dataset/test.conf.warning4.json
+!/test/dataset/test.conf.warning5.json
+
+# vim backup files
+*.swp
+
+# Release files
+release/*.bin
+release/*.zip
+release/versions.html
+
+Gopkg.lock
+
+.vscode/*
+
+build/*
+split-proxy
+split-sync
+/clilist
+
+windows/downloads
+windows/unpacked
+windows/build
