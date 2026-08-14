@@ -4,7 +4,7 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/splitio/go-split-commons/v9/dtos"
+	"github.com/splitio/go-split-commons/v10/dtos"
 )
 
 type ImpressionBulkListenerMock struct {

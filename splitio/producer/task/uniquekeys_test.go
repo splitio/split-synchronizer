@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/splitio/go-split-commons/v9/dtos"
-	"github.com/splitio/go-split-commons/v9/provisional/strategy"
-	"github.com/splitio/go-split-commons/v9/storage/mocks"
+	"github.com/splitio/go-split-commons/v10/dtos"
+	"github.com/splitio/go-split-commons/v10/provisional/strategy"
+	"github.com/splitio/go-split-commons/v10/storage/mocks"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
 

@@ -14,11 +14,11 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/producer/evcalc"
 	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
 
-	"github.com/splitio/go-split-commons/v9/dtos"
-	"github.com/splitio/go-split-commons/v9/provisional"
-	"github.com/splitio/go-split-commons/v9/provisional/strategy"
-	"github.com/splitio/go-split-commons/v9/storage/inmemory"
-	"github.com/splitio/go-split-commons/v9/storage/mocks"
+	"github.com/splitio/go-split-commons/v10/dtos"
+	"github.com/splitio/go-split-commons/v10/provisional"
+	"github.com/splitio/go-split-commons/v10/provisional/strategy"
+	"github.com/splitio/go-split-commons/v10/storage/inmemory"
+	"github.com/splitio/go-split-commons/v10/storage/mocks"
 	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -123,9 +123,9 @@ func makeSerializedImpressionsWithProperties(metadatas int, features int, keys i
 			feature := "feat_" + strconv.Itoa(findex)
 			for kindex := 0; kindex < keys; kindex++ {
 				imp := dtos.Impression{
-					FeatureName: feature,
-					KeyName:     "key_" + strconv.Itoa(kindex),
-					Time:        int64(1 + mindex*findex*kindex),
+					DefinitionName: feature,
+					KeyName:        "key_" + strconv.Itoa(kindex),
+					Time:           int64(1 + mindex*findex*kindex),
 				}
 				if withProperties {
 					imp.Properties = "{'prop':'val'}"
@@ -343,8 +343,8 @@ func TestSendImpressionsToListener(t *testing.T) {
 			MachineName: "test-machine",
 		},
 		Impression: dtos.Impression{
-			FeatureName:  "test-feature",
-			KeyName:      "test-key",
+			DefinitionName: "test-feature",
+			KeyName:        "test-key",
 			Treatment:    "on",
 			Time:         123,
 			Properties:   "{'prop':'val'}",
