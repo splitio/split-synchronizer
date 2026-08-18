@@ -2,15 +2,15 @@ package caching
 
 import (
 	"github.com/splitio/gincache"
-	"github.com/splitio/go-split-commons/v9/dtos"
-	"github.com/splitio/go-split-commons/v9/engine/grammar"
-	"github.com/splitio/go-split-commons/v9/flagsets"
-	"github.com/splitio/go-split-commons/v9/healthcheck/application"
-	"github.com/splitio/go-split-commons/v9/service"
-	"github.com/splitio/go-split-commons/v9/storage"
-	"github.com/splitio/go-split-commons/v9/synchronizer/worker/largesegment"
-	"github.com/splitio/go-split-commons/v9/synchronizer/worker/segment"
-	"github.com/splitio/go-split-commons/v9/synchronizer/worker/split"
+	"github.com/splitio/go-split-commons/v10/dtos"
+	"github.com/splitio/go-split-commons/v10/engine/grammar"
+	"github.com/splitio/go-split-commons/v10/flagsets"
+	"github.com/splitio/go-split-commons/v10/healthcheck/application"
+	"github.com/splitio/go-split-commons/v10/service"
+	"github.com/splitio/go-split-commons/v10/storage"
+	"github.com/splitio/go-split-commons/v10/synchronizer/worker/largesegment"
+	"github.com/splitio/go-split-commons/v10/synchronizer/worker/segment"
+	"github.com/splitio/go-split-commons/v10/synchronizer/worker/split"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
 

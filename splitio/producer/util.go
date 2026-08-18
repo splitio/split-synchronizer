@@ -18,12 +18,12 @@ import (
 	hcServicesCounter "github.com/splitio/split-synchronizer/v5/splitio/provisional/healthcheck/services/counter"
 	"github.com/splitio/split-synchronizer/v5/splitio/util"
 
-	config "github.com/splitio/go-split-commons/v9/conf"
-	"github.com/splitio/go-split-commons/v9/provisional"
-	"github.com/splitio/go-split-commons/v9/provisional/strategy"
-	"github.com/splitio/go-split-commons/v9/service"
-	storageCommon "github.com/splitio/go-split-commons/v9/storage"
-	"github.com/splitio/go-split-commons/v9/storage/redis"
+	config "github.com/splitio/go-split-commons/v10/conf"
+	"github.com/splitio/go-split-commons/v10/provisional"
+	"github.com/splitio/go-split-commons/v10/provisional/strategy"
+	"github.com/splitio/go-split-commons/v10/service"
+	storageCommon "github.com/splitio/go-split-commons/v10/storage"
+	"github.com/splitio/go-split-commons/v10/storage/redis"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
 
