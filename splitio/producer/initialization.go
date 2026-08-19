@@ -51,6 +51,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	advanced.AuthSpecVersion = cfg.FlagSpecVersion
 	advanced.FlagsSpecVersion = cfg.FlagSpecVersion
 	advanced.FlagSetsFilter = cfg.FlagSetsFilter
+	common.LogStreamingProtocol(logger, advanced.StreamingEnabled, advanced.StreamingForceHTTP1)
 	metadata := util.GetMetadata(false, cfg.IPAddressEnabled)
 
 	clientKey, err := util.GetClientKey(cfg.Apikey)
