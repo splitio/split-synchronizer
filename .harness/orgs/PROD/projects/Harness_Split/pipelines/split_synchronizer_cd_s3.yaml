@@ -29,7 +29,7 @@ pipeline:
                   identifier: Build_Release_Assets
                   spec:
                     connectorRef: dockerhub
-                    image: golang:1.26.3
+                    image: golang:1.26.7
                     shell: Bash
                     resources:
                       limits:

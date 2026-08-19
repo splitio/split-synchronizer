@@ -35,7 +35,7 @@ pipeline:
                   identifier: Run_Tests
                   spec:
                     connectorRef: dockerhub
-                    image: golang:1.26.3
+                    image: golang:1.26.7
                     shell: Bash
                     command: |-
                       # Start Redis INSIDE the test container so the tests reach it at

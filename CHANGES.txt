@@ -1,7 +1,7 @@
 5.13.0 (Aug 19, 2026)
 - Added streaming-force-http1 option (CLI flag -streaming-force-http1, config key streamingForceHttp1, default false) to pin the streaming (SSE) connection to HTTP/1.1.
 - Fixed vulnerabilities:
-   - Updated golang builder image to 1.26.5-trixie, resolving CVE-2026-42504, CVE-2026-42507, CVE-2026-27145
+   - Updated golang builder image to 1.26.7-trixie, resolving CVE-2026-42504, CVE-2026-42507, CVE-2026-27145
 
 5.12.7 (Jun 30, 2026)
 - Fixed vulnerabilities (4 High, 35 Low):
