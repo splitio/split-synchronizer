@@ -32,6 +32,7 @@ func (m *Main) BuildAdvancedConfig() *cconf.AdvancedConfig {
 	tmp.ImpressionsQueueSize = int(m.Sync.Advanced.ImpressionsBuffer / 1000)
 	tmp.EventsQueueSize = int(m.Sync.Advanced.EventsBuffer)
 	tmp.StreamingEnabled = m.Sync.Advanced.StreamingEnabled
+	tmp.StreamingForceHTTP1 = m.Sync.Advanced.StreamingForceHTTP1
 	tmp.SplitsRefreshRate = int(m.Sync.SplitRefreshRateMs / 1000)
 	tmp.SegmentsRefreshRate = int(m.Sync.SegmentRefreshRateMs / 1000)
 	tmp.LargeSegment.LazyLoad = m.Sync.Advanced.LargeSegmentLazyLoad
@@ -82,6 +83,7 @@ type Sync struct {
 // AdvancedSync configuration options
 type AdvancedSync struct {
 	StreamingEnabled      bool  `json:"streamingEnabled" s-cli:"streaming-enabled" s-def:"true" s-desc:"Enable/disable streaming functionality"`
+	StreamingForceHTTP1   bool  `json:"streamingForceHttp1" s-cli:"streaming-force-http1" s-def:"false" s-desc:"Pin the streaming (SSE) connection to HTTP/1.1 (default is HTTP/2)"`
 	HTTPTimeoutMs         int64 `json:"httpTimeoutMs" s-cli:"http-timeout-ms" s-def:"30000" s-desc:"Total http request timeout"`
 	ImpressionsBuffer     int64 `json:"impressionsBufferSize" s-cli:"impressions-buffer-size" s-def:"500" s-dec:"How many impressions bulks to keep in memory"`
 	EventsBuffer          int64 `json:"eventsBufferSize" s-cli:"events-buffer-size" s-def:"500" s-dec:"How many events bulks to keep in memory"`
