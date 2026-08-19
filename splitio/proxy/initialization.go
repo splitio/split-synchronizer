@@ -82,7 +82,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	advanced.FlagSetsFilter = cfg.FlagSetsFilter
 	advanced.AuthSpecVersion = cfg.FlagSpecVersion
 	advanced.FlagsSpecVersion = cfg.FlagSpecVersion
-	common.LogStreamingProtocol(logger, advanced.StreamingEnabled, advanced.StreamingForceHTTP1)
+	common.LogStreamingForceHTTP1(logger, advanced.StreamingEnabled, advanced.StreamingForceHTTP1)
 	metadata := util.GetMetadata(cfg.IPAddressEnabled, true)
 
 	// FlagSetsFilter
