@@ -74,10 +74,10 @@ github.com/rogpeppe/go-internal v1.8.0 h1:FCbCCtXNOY3UtUuHUYaghJg4y7Fd14rXifAYUA
 github.com/rogpeppe/go-internal v1.8.0/go.mod h1:WmiCO8CzOY8rg0OYDC4/i/2WRWAB6poM+XZ2dLUbcbE=
 github.com/splitio/gincache v1.0.1 h1:dLYdANY/BqH4KcUMCe/LluLyV5WtuE/LEdQWRE06IXU=
 github.com/splitio/gincache v1.0.1/go.mod h1:CcgJDSM9Af75kyBH0724v55URVwMBuSj5x1eCWIOECY=
-github.com/splitio/go-split-commons/v10 v10.0.0 h1:W2j9OJaghOzX9hI7hlrregLygAjF//JghY8VNvZEw3k=
-github.com/splitio/go-split-commons/v10 v10.0.0/go.mod h1:/gEHK8JR4FudvLcAYp4gaMMejmzt1NKhap/0lIhjkIw=
-github.com/splitio/go-toolkit/v5 v5.4.1 h1:srTyvDBJZMUcJ/KiiQDMyjCuELVgTBh2TGRVn0sOXEE=
-github.com/splitio/go-toolkit/v5 v5.4.1/go.mod h1:SifzysrOVDbzMcOE8zjX02+FG5az4FrR3Us/i5SeStw=
+github.com/splitio/go-split-commons/v10 v10.1.0 h1:mB1yOiC/hG3KU9rkn4iQdgLLnM/pute7Lg/RD6HEi6s=
+github.com/splitio/go-split-commons/v10 v10.1.0/go.mod h1:IyvyjqD91g6ba1uWnC3Ww/o5c/Xt31swlVT1g3+jmGw=
+github.com/splitio/go-toolkit/v5 v5.5.0 h1:+Dn3WxAL9If88F3E0HVLHHc+Vkci9CQPIq4vlqhqE8E=
+github.com/splitio/go-toolkit/v5 v5.5.0/go.mod h1:SifzysrOVDbzMcOE8zjX02+FG5az4FrR3Us/i5SeStw=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.4.0/go.mod h1:YvHI0jy2hoMjB+UWwv71VJQ9isScKT/TqJzVSSt89Yw=
 github.com/stretchr/objx v0.5.0/go.mod h1:Yh+to48EsGEfYuaHDzXPcE3xhTkx73EhmCGUpEOglKo=
