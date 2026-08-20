@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/splitio/go-split-commons/v9/dtos"
+	"github.com/splitio/go-split-commons/v10/dtos"
 )
 
 type HistoricChanges interface {

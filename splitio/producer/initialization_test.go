@@ -14,9 +14,9 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/producer/conf"
 	"github.com/splitio/split-synchronizer/v5/splitio/util"
 
-	config "github.com/splitio/go-split-commons/v9/conf"
-	"github.com/splitio/go-split-commons/v9/service/mocks"
-	predis "github.com/splitio/go-split-commons/v9/storage/redis"
+	config "github.com/splitio/go-split-commons/v10/conf"
+	"github.com/splitio/go-split-commons/v10/service/mocks"
+	predis "github.com/splitio/go-split-commons/v10/storage/redis"
 	"github.com/splitio/go-toolkit/v5/logging"
 
 	"github.com/stretchr/testify/mock"

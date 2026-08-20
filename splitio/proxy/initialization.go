@@ -26,14 +26,14 @@ import (
 	pTasks "github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks"
 	"github.com/splitio/split-synchronizer/v5/splitio/util"
 
-	"github.com/splitio/go-split-commons/v9/conf"
-	"github.com/splitio/go-split-commons/v9/engine/grammar"
-	"github.com/splitio/go-split-commons/v9/flagsets"
-	"github.com/splitio/go-split-commons/v9/service/api"
-	inmemory "github.com/splitio/go-split-commons/v9/storage/inmemory/mutexmap"
-	"github.com/splitio/go-split-commons/v9/synchronizer"
-	"github.com/splitio/go-split-commons/v9/tasks"
-	"github.com/splitio/go-split-commons/v9/telemetry"
+	"github.com/splitio/go-split-commons/v10/conf"
+	"github.com/splitio/go-split-commons/v10/engine/grammar"
+	"github.com/splitio/go-split-commons/v10/flagsets"
+	"github.com/splitio/go-split-commons/v10/service/api"
+	inmemory "github.com/splitio/go-split-commons/v10/storage/inmemory/mutexmap"
+	"github.com/splitio/go-split-commons/v10/synchronizer"
+	"github.com/splitio/go-split-commons/v10/tasks"
+	"github.com/splitio/go-split-commons/v10/telemetry"
 	"github.com/splitio/go-toolkit/v5/backoff"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
@@ -82,6 +82,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	advanced.FlagSetsFilter = cfg.FlagSetsFilter
 	advanced.AuthSpecVersion = cfg.FlagSpecVersion
 	advanced.FlagsSpecVersion = cfg.FlagSpecVersion
+	common.LogStreamingForceHTTP1(logger, advanced.StreamingEnabled, advanced.StreamingForceHTTP1)
 	metadata := util.GetMetadata(cfg.IPAddressEnabled, true)
 
 	// FlagSetsFilter

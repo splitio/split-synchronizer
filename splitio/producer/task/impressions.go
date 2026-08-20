@@ -11,9 +11,9 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener"
 	"github.com/splitio/split-synchronizer/v5/splitio/producer/evcalc"
 
-	"github.com/splitio/go-split-commons/v9/dtos"
-	"github.com/splitio/go-split-commons/v9/provisional"
-	"github.com/splitio/go-split-commons/v9/storage"
+	"github.com/splitio/go-split-commons/v10/dtos"
+	"github.com/splitio/go-split-commons/v10/provisional"
+	"github.com/splitio/go-split-commons/v10/storage"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
 
@@ -252,14 +252,14 @@ func (s *impsWithMetadata) add(i *dtos.Impression) {
 		// TODO: Log? (this should not happen)
 		return
 	}
-	idx, ok := s.nindex[i.FeatureName]
+	idx, ok := s.nindex[i.DefinitionName]
 	if !ok {
 		s.imps = append(s.imps, dtos.ImpressionsDTO{
-			TestName:       i.FeatureName,
+			TestName:       i.DefinitionName,
 			KeyImpressions: s.pool.acquireKeyImpressions(),
 		})
 		idx = len(s.imps) - 1
-		s.nindex[i.FeatureName] = idx
+		s.nindex[i.DefinitionName] = idx
 	}
 	s.imps[idx].KeyImpressions = append(s.imps[idx].KeyImpressions, dtos.ImpressionDTO{
 		KeyName:      i.KeyName,

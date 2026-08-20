@@ -20,21 +20,21 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/provisional/observability"
 	"github.com/splitio/split-synchronizer/v5/splitio/util"
 
-	cconf "github.com/splitio/go-split-commons/v9/conf"
-	"github.com/splitio/go-split-commons/v9/dtos"
-	"github.com/splitio/go-split-commons/v9/engine/grammar"
-	"github.com/splitio/go-split-commons/v9/flagsets"
-	"github.com/splitio/go-split-commons/v9/provisional/strategy"
-	"github.com/splitio/go-split-commons/v9/service/api"
-	"github.com/splitio/go-split-commons/v9/storage/filter"
-	"github.com/splitio/go-split-commons/v9/storage/inmemory"
-	"github.com/splitio/go-split-commons/v9/storage/redis"
-	"github.com/splitio/go-split-commons/v9/synchronizer"
-	"github.com/splitio/go-split-commons/v9/synchronizer/worker/impressionscount"
-	"github.com/splitio/go-split-commons/v9/synchronizer/worker/segment"
-	"github.com/splitio/go-split-commons/v9/synchronizer/worker/split"
-	"github.com/splitio/go-split-commons/v9/tasks"
-	"github.com/splitio/go-split-commons/v9/telemetry"
+	cconf "github.com/splitio/go-split-commons/v10/conf"
+	"github.com/splitio/go-split-commons/v10/dtos"
+	"github.com/splitio/go-split-commons/v10/engine/grammar"
+	"github.com/splitio/go-split-commons/v10/flagsets"
+	"github.com/splitio/go-split-commons/v10/provisional/strategy"
+	"github.com/splitio/go-split-commons/v10/service/api"
+	"github.com/splitio/go-split-commons/v10/storage/filter"
+	"github.com/splitio/go-split-commons/v10/storage/inmemory"
+	"github.com/splitio/go-split-commons/v10/storage/redis"
+	"github.com/splitio/go-split-commons/v10/synchronizer"
+	"github.com/splitio/go-split-commons/v10/synchronizer/worker/impressionscount"
+	"github.com/splitio/go-split-commons/v10/synchronizer/worker/segment"
+	"github.com/splitio/go-split-commons/v10/synchronizer/worker/split"
+	"github.com/splitio/go-split-commons/v10/tasks"
+	"github.com/splitio/go-split-commons/v10/telemetry"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
 
@@ -51,6 +51,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	advanced.AuthSpecVersion = cfg.FlagSpecVersion
 	advanced.FlagsSpecVersion = cfg.FlagSpecVersion
 	advanced.FlagSetsFilter = cfg.FlagSetsFilter
+	common.LogStreamingForceHTTP1(logger, advanced.StreamingEnabled, advanced.StreamingForceHTTP1)
 	metadata := util.GetMetadata(false, cfg.IPAddressEnabled)
 
 	clientKey, err := util.GetClientKey(cfg.Apikey)

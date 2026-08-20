@@ -3,7 +3,7 @@ package conf
 import (
 	"github.com/splitio/split-synchronizer/v5/splitio/common/conf"
 
-	cconf "github.com/splitio/go-split-commons/v9/conf"
+	cconf "github.com/splitio/go-split-commons/v10/conf"
 )
 
 // Main configuration options
@@ -26,6 +26,7 @@ func (m *Main) BuildAdvancedConfig() *cconf.AdvancedConfig {
 	tmp := conf.InitAdvancedOptions(false) // defaults + url overrides
 	tmp.HTTPTimeout = int(m.Sync.Advanced.HTTPTimeoutMs / 1000)
 	tmp.StreamingEnabled = m.Sync.Advanced.StreamingEnabled
+	tmp.StreamingForceHTTP1 = m.Sync.Advanced.StreamingForceHTTP1
 	tmp.SplitsRefreshRate = int(m.Sync.SplitRefreshRateMs / 1000)
 	tmp.SegmentsRefreshRate = int(m.Sync.SegmentRefreshRateMs / 1000)
 	return tmp
@@ -56,6 +57,7 @@ type Sync struct {
 // AdvancedSync configuration options
 type AdvancedSync struct {
 	StreamingEnabled                 bool  `json:"streamingEnabled" s-cli:"streaming-enabled" s-def:"true" s-desc:"Enable/disable streaming functionality"`
+	StreamingForceHTTP1              bool  `json:"streamingForceHttp1" s-cli:"streaming-force-http1" s-def:"false" s-desc:"Pin the streaming (SSE) connection to HTTP/1.1 (default is HTTP/2)"`
 	HTTPTimeoutMs                    int64 `json:"httpTimeoutMs" s-cli:"http-timeout-ms" s-def:"30000" s-desc:"Total http request timeout"`
 	InternalMetricsRateMs            int64 `json:"internalTelemetryRateMs" s-cli:"internal-metrics-rate-ms" s-def:"3600000" s-desc:"How often to send internal metrics"`
 	TelemetryPushRateMs              int64 `json:"telemetryPushRateMs" s-cli:"telemetry-push-rate-ms" s-def:"60000" s-desc:"how often to flush sdk telemetry"`

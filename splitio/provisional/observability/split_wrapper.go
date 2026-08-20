@@ -4,9 +4,9 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/splitio/go-split-commons/v9/dtos"
-	"github.com/splitio/go-split-commons/v9/storage"
-	"github.com/splitio/go-split-commons/v9/storage/redis"
+	"github.com/splitio/go-split-commons/v10/dtos"
+	"github.com/splitio/go-split-commons/v10/storage"
+	"github.com/splitio/go-split-commons/v10/storage/redis"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
 

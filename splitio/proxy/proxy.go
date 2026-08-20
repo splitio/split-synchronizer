@@ -14,8 +14,8 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks"
 
 	"github.com/splitio/gincache"
-	"github.com/splitio/go-split-commons/v9/service"
-	cmnStorage "github.com/splitio/go-split-commons/v9/storage"
+	"github.com/splitio/go-split-commons/v10/service"
+	cmnStorage "github.com/splitio/go-split-commons/v10/storage"
 	"github.com/splitio/go-toolkit/v5/logging"
 
 	"github.com/gin-contrib/cors"

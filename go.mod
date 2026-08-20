@@ -1,6 +1,6 @@
 module github.com/splitio/split-synchronizer/v5
 
-go 1.26.3
+go 1.26.7
 
 require (
 	github.com/gin-contrib/cors v1.6.0
@@ -8,8 +8,8 @@ require (
 	github.com/gin-gonic/gin v1.10.1
 	github.com/google/uuid v1.3.0
 	github.com/splitio/gincache v1.0.1
-	github.com/splitio/go-split-commons/v9 v9.1.0
-	github.com/splitio/go-toolkit/v5 v5.4.1
+	github.com/splitio/go-split-commons/v10 v10.1.0
+	github.com/splitio/go-toolkit/v5 v5.5.0
 	github.com/stretchr/testify v1.11.1
 	go.etcd.io/bbolt v1.3.6
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
@@ -44,12 +44,12 @@ require (
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.0 // indirect
-	golang.org/x/arch v0.26.0 // indirect
-	golang.org/x/crypto v0.52.0 // indirect
-	golang.org/x/net v0.55.0 // indirect
-	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.45.0 // indirect
-	golang.org/x/text v0.37.0 // indirect
+	golang.org/x/arch v0.30.0 // indirect
+	golang.org/x/crypto v0.55.0 // indirect
+	golang.org/x/net v0.58.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/text v0.41.0 // indirect
 	google.golang.org/protobuf v1.36.8 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

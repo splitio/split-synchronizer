@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/splitio/go-split-commons/v9/synchronizer"
+	"github.com/splitio/go-split-commons/v10/synchronizer"
 	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v5/splitio/common/snapshot"
 	pconf "github.com/splitio/split-synchronizer/v5/splitio/proxy/conf"
