@@ -3,8 +3,10 @@ package snapshot
 import (
 	"bytes"
 	"compress/gzip"
+	"crypto/sha256"
 	"encoding/binary"
 	"encoding/gob"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -37,11 +39,20 @@ var ErrMetadataSizeRead = errors.New("snapshot metadata size cannot be decoded")
 // ErrMetadataRead represents an error when metadata cannot be decoded
 var ErrMetadataRead = errors.New("snapshot metadata cannot be decoded")
 
-// Metadata represents the Snapshot metadata object
+// Metadata represents the Snapshot metadata object.
+// Checksum and FlagSpecVersion were added after Hash. Older files decode with those fields empty.
 type Metadata struct {
-	Version uint64
-	Storage uint64
-	Hash    string
+	Version         uint64
+	Storage         uint64
+	Hash            string
+	Checksum        string
+	FlagSpecVersion string
+}
+
+// PayloadChecksum is the SHA-256 hex digest of uncompressed snapshot bytes.
+func PayloadChecksum(uncompressed []byte) string {
+	sum := sha256.Sum256(uncompressed)
+	return hex.EncodeToString(sum[:])
 }
 
 // Snapshot represents a snapshot struct with metadata and data
@@ -72,6 +83,9 @@ func (s *Snapshot) Meta() Metadata {
 // Data returns the unzipped Snapshot data
 func (s *Snapshot) Data() ([]byte, error) {
 	gz, err := gzip.NewReader(bytes.NewBuffer(s.data))
+	if err != nil {
+		return nil, fmt.Errorf("error opening gzip data: %w", err)
+	}
 	defer gz.Close()
 	data, err := io.ReadAll(gz)
 	if err != nil {
@@ -125,13 +139,22 @@ func (s *Snapshot) Encode() ([]byte, error) {
 
 // WriteDataToTmpFile writes the data field (unzipped) to a temporal file
 func (s *Snapshot) WriteDataToTmpFile() (string, error) {
+	path := tmpDataPath()
+	return path, s.WriteDataToFile(path)
+}
+
+// WritePayloadToTmpFile writes an already decompressed payload to a temporary file and returns the path
+func WritePayloadToTmpFile(payload []byte) (string, error) {
+	path := tmpDataPath()
+	return path, ioutil.WriteFile(path, payload, 0644)
+}
+
+func tmpDataPath() string {
 	tmpDir := os.TempDir()
 	if !strings.HasSuffix(tmpDir, "/") {
 		tmpDir = tmpDir + "/"
 	}
-
-	path := fmt.Sprintf("%ssplit.proxy.%s.data", tmpDir, strings.ReplaceAll(uuid.NewString(), "-", ""))
-	return path, s.WriteDataToFile(path)
+	return fmt.Sprintf("%ssplit.proxy.%s.data", tmpDir, strings.ReplaceAll(uuid.NewString(), "-", ""))
 }
 
 // WriteDataToFile writes the data field (unzipped) to a given file path
