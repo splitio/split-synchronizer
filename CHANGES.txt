@@ -2,6 +2,10 @@
 - Added proxy offline mode (CLI flag -offline, config key offline, env SPLIT_PROXY_OFFLINE, default false). The proxy serves SDKs from a snapshot and makes no calls to FME. Offline mode requires a snapshot with a checksum and flag spec version, and an empty SDK key. Impressions, events, and telemetry are dropped locally.
 - Added a checksum and the flag spec version to snapshot metadata. Snapshots from older proxies still load in connected mode, and older proxies ignore the new fields.
 
+5.13.1 (Sep 22, 2026)
+- Fixed vulnerabilities:
+   - Updated Debian base image to debian:trixie-20260918-slim, resolving CVE-2026-53612, CVE-2026-53614, CVE-2026-53615 (util-linux)
+
 5.13.0 (Aug 19, 2026)
 - Added streaming-force-http1 option (CLI flag -streaming-force-http1, config key streamingForceHttp1, default false) to pin the streaming (SSE) connection to HTTP/1.1.
 - Fixed vulnerabilities:
