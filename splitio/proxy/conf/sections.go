@@ -23,6 +23,7 @@ type Main struct {
 	Healthcheck           Healthcheck       `json:"healthcheck" s-nested:"true"`
 	Observability         Observability     `json:"observability" s-nested:"true"`
 	FlagSpecVersion       string            `json:"flagSpecVersion" s-cli:"flag-spec-version" s-def:"1.3" s-desc:"Spec version for flags"`
+	Offline               bool              `json:"offline" s-cli:"offline" s-def:"false" s-desc:"Serve a snapshot without contacting FME. Requires a snapshot and an empty SDK key"`
 }
 
 // BuildAdvancedConfig generates a commons-compatible advancedconfig with default + overriden parameters

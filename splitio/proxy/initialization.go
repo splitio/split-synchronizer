@@ -40,6 +40,10 @@ import (
 
 // Start initialize in proxy mode
 func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
+	if cfg.Offline {
+		return startOffline(logger, cfg)
+	}
+
 	clientKey, err := util.GetClientKey(cfg.Apikey)
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error parsing client key from provided apikey: %w", err), common.ExitInvalidApikey)
@@ -58,8 +62,15 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		if snap.Meta().Hash != strconv.Itoa(int(currentHash)) {
 			logger.Warning("snapshot cfg (apikey, version, flagsets) does not match the provided one. Ignoring snapshot and starting with empty storage.")
 		} else {
+			payload, err := snap.Data()
+			if err != nil {
+				return fmt.Errorf("error reading snapshot payload: %w", err)
+			}
+			if err := checkSnapshot(snap.Meta(), payload, cfg.FlagSpecVersion, false); err != nil {
+				return common.NewInitError(err, common.ExitInvalidConfiguration)
+			}
 			// Hash matches - use the snapshot
-			dbpath, err = snap.WriteDataToTmpFile()
+			dbpath, err = snapshot.WritePayloadToTmpFile(payload)
 			if err != nil {
 				return fmt.Errorf("error writing temporary snapshot file: %w", err)
 			}

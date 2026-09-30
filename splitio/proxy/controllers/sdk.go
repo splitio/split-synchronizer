@@ -34,6 +34,9 @@ type SdkServerController struct {
 	versionFilter         specs.SplitVersionFilter
 	largeSegmentStorage   cmnStorage.LargeSegmentsStorage
 	specVersion           string
+	// localWhenSinceTooOld answers a since outside the cached window from storage.
+	// The cloud fetcher is not called.
+	localWhenSinceTooOld bool
 }
 
 // NewSdkServerController instantiates a new sdk server controller
@@ -58,6 +61,11 @@ func NewSdkServerController(
 		largeSegmentStorage:   largeSegmentStorage,
 		specVersion:           specVersion,
 	}
+}
+
+// ServeSnapshotWhenSinceTooOld answers a since outside the cached window from local storage.
+func (c *SdkServerController) ServeSnapshotWhenSinceTooOld() {
+	c.localWhenSinceTooOld = true
 }
 
 // Register mounts the sdk-server endpoints onto the supplied router
@@ -216,6 +224,21 @@ func (c *SdkServerController) fetchRulesSince(since int64, rbsince int64, sets [
 		return nil, fmt.Errorf("unexpected error fetching rule-based segments changes from storage: %w", rbsErr)
 	}
 
+	if c.localWhenSinceTooOld && (errors.Is(err, storage.ErrSinceParamTooOld) || errors.Is(rbsErr, storage.ErrSinceParamTooOld)) {
+		if errors.Is(err, storage.ErrSinceParamTooOld) {
+			splits, err = c.fullSplitChanges(since, sets)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if errors.Is(rbsErr, storage.ErrSinceParamTooOld) {
+			rbs, rbsErr = c.fullRuleBasedChanges(rbsince)
+			if rbsErr != nil {
+				return nil, rbsErr
+			}
+		}
+	}
+
 	if err == nil && rbsErr == nil {
 		return &dtos.RuleChangesDTO{
 			FeatureFlags: dtos.FeatureFlagsDTO{
@@ -246,6 +269,35 @@ func (c *SdkServerController) fetchRulesSince(since int64, rbsince int64, sets [
 			Since:             ruleChanges.RBSince(),
 		},
 	}, nil
+}
+
+type changeNumberReader interface {
+	ChangeNumber() (int64, error)
+}
+
+// fullSplitChanges returns every stored flag matching sets. Till is the storage change number so it never drops below since.
+func (c *SdkServerController) fullSplitChanges(since int64, sets []string) (*dtos.SplitChangesDTO, error) {
+	reader, ok := c.proxySplitStorage.(changeNumberReader)
+	if !ok {
+		return nil, fmt.Errorf("split storage cannot report its change number")
+	}
+	cn, err := reader.ChangeNumber()
+	if err != nil {
+		return nil, fmt.Errorf("error fetching feature flag change number: %w", err)
+	}
+	full, err := c.proxySplitStorage.ChangesSince(-1, sets)
+	if err != nil {
+		return nil, fmt.Errorf("error fetching feature flags from storage: %w", err)
+	}
+	return &dtos.SplitChangesDTO{Since: since, Till: cn, Splits: full.Splits}, nil
+}
+
+func (c *SdkServerController) fullRuleBasedChanges(since int64) (*dtos.RuleBasedSegmentsDTO, error) {
+	full, err := c.proxyRBSegmentStorage.ChangesSince(-1)
+	if err != nil {
+		return nil, fmt.Errorf("error fetching rule-based segments from storage: %w", err)
+	}
+	return &dtos.RuleBasedSegmentsDTO{Since: since, Till: full.Till, RuleBasedSegments: full.RuleBasedSegments}, nil
 }
 
 func (c *SdkServerController) shouldOverrideSplitCondition(split *dtos.SplitDTO, version string) bool {

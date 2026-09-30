@@ -93,6 +93,9 @@ type Options struct {
 	FlagSetsStrictMatching bool
 
 	SpecVersion string
+
+	// Offline serves a since outside the cached window from local storage.
+	Offline bool
 }
 
 // API bundles all components required to answer API calls from Split sdks
@@ -169,7 +172,7 @@ func New(options *Options) *API {
 }
 
 func setupSdkController(options *Options) *controllers.SdkServerController {
-	return controllers.NewSdkServerController(
+	controller := controllers.NewSdkServerController(
 		options.Logger,
 		options.SplitFetcher,
 		options.ProxySplitStorage,
@@ -179,6 +182,10 @@ func setupSdkController(options *Options) *controllers.SdkServerController {
 		options.ProxyLargeSegmentStorage,
 		options.SpecVersion,
 	)
+	if options.Offline {
+		controller.ServeSnapshotWhenSinceTooOld()
+	}
+	return controller
 }
 
 func setupEventsController(options *Options, apikeyValidator *middleware.APIKeyValidator) *controllers.EventsServerController {
