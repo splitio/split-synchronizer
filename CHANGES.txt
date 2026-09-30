@@ -1,4 +1,4 @@
-5.13.1 (Sep 22, 2026)
+5.13.1 (Sep 30, 2026)
 - Fixed vulnerabilities:
    - Updated Debian base image to debian:trixie-20260918-slim, resolving CVE-2026-53612, CVE-2026-53614, CVE-2026-53615 (util-linux)
 
