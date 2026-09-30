@@ -13,7 +13,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	go.etcd.io/bbolt v1.3.6
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
-	golang.org/x/net v0.59.0
+	golang.org/x/net v0.58.0
 )
 
 require (
@@ -53,5 +53,3 @@ require (
 	google.golang.org/protobuf v1.36.8 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/splitio/go-split-commons/v10 => ../go-split-commons
