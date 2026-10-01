@@ -571,3 +571,29 @@ func TestSynchronizeLargeSegmentUpdateError(t *testing.T) {
 	largeSegmentStorage.AssertExpectations(t)
 	lsUpdater.AssertExpectations(t)
 }
+
+func TestCacheAwareSplitSyncFeatureFlagsErrorKeepsResult(t *testing.T) {
+	var splitSyncMock mocks.SplitUpdaterMock
+	expectedErr := assert.AnError
+	expectedResult := &split.UpdateResult{}
+	splitSyncMock.On("SynchronizeFeatureFlags", (*dtos.SplitChangeUpdate)(nil)).Return(expectedResult, expectedErr).Once()
+
+	var rbsStorage commons.MockRuleBasedSegmentStorage
+	rbsStorage.On("ChangeNumber").Return(int64(-1), error(nil))
+
+	var cacheFlusherMock mocks.CacheFlusherMock
+
+	var storageMock mocks.SplitStorageMock
+	storageMock.On("ChangeNumber").Return(int64(-1), error(nil)).Once()
+
+	css := CacheAwareSplitSynchronizer{
+		splitStorage: &storageMock,
+		rbStorage:    &rbsStorage,
+		wrapped:      &splitSyncMock,
+		cacheFlusher: &cacheFlusherMock,
+	}
+
+	res, err := css.SynchronizeFeatureFlags(nil)
+	assert.Equal(t, expectedErr, err)
+	assert.Same(t, expectedResult, res)
+}
