@@ -75,7 +75,8 @@ func (c *CacheAwareSplitSynchronizer) SynchronizeFeatureFlags(ffChange *dtos.Spl
 
 	result, err := c.wrapped.SynchronizeFeatureFlags(ffChange)
 	if err != nil {
-		return nil, err
+		// keep the wrapped result: callers read it even when err != nil
+		return result, err
 	}
 	current, _ := c.splitStorage.ChangeNumber()
 	currentRB, _ := c.rbStorage.ChangeNumber()
