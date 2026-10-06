@@ -1,3 +1,8 @@
+5.13.2 (Oct 6, 2026)
+- Fixed the Split Proxy and Synchronizer not shutting down gracefully while waiting to retry the streaming connection after a retryable error. A shutdown requested during the retry backoff (up to 30 minutes) no longer blocks until the backoff expires.
+- Fixed a duration overflow in the retry backoff that turned long waits into zero or negative waits.
+- Updated go-split-commons to v10.2.1 and go-toolkit to v5.5.1.
+
 5.13.1 (Sep 30, 2026)
 - Fixed vulnerabilities:
    - Updated Debian base image to debian:trixie-20260918-slim, resolving CVE-2026-53612, CVE-2026-53614, CVE-2026-53615 (util-linux)
