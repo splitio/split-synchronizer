@@ -10,6 +10,7 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers/middleware"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/flagsets"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/overrides"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks"
 
@@ -96,6 +97,10 @@ type Options struct {
 
 	// Offline serves a since outside the cached window from local storage.
 	Offline bool
+
+	// Overrides, when set, is applied to every flags response, which then follows OverridesStamp.
+	Overrides      *overrides.Overrides
+	OverridesStamp int64
 }
 
 // API bundles all components required to answer API calls from Split sdks
@@ -184,6 +189,9 @@ func setupSdkController(options *Options) *controllers.SdkServerController {
 	)
 	if options.Offline {
 		controller.ServeSnapshotWhenSinceTooOld()
+	}
+	if options.Overrides != nil {
+		controller.SetOverrides(options.Overrides, options.OverridesStamp)
 	}
 	return controller
 }
