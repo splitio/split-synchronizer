@@ -84,6 +84,13 @@ func TestLoadOfflineSnapshot(t *testing.T) {
 		assertInvalidConfiguration(t, err)
 	})
 
+	t.Run("unsupported configured spec is rejected", func(t *testing.T) {
+		cfg := &pconf.Main{FlagSpecVersion: "9.9"}
+		cfg.Initialization.Snapshot = writeTestSnapshot(t, validMeta, payload)
+		_, _, err := loadOfflineSnapshot(cfg)
+		assertInvalidConfiguration(t, err)
+	})
+
 	t.Run("checksum mismatch is rejected", func(t *testing.T) {
 		meta := validMeta
 		meta.Checksum = snapshot.PayloadChecksum([]byte("other-bytes"))

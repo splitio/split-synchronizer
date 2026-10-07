@@ -18,6 +18,7 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/util"
 
 	commonsflagsets "github.com/splitio/go-split-commons/v10/flagsets"
+	"github.com/splitio/go-split-commons/v10/service/api/specs"
 	inmemory "github.com/splitio/go-split-commons/v10/storage/inmemory/mutexmap"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
@@ -29,6 +30,9 @@ func loadOfflineSnapshot(cfg *pconf.Main) (*snapshot.Snapshot, []byte, error) {
 	}
 	if cfg.Initialization.Snapshot == "" {
 		return nil, nil, common.NewInitError(errors.New("offline mode requires a snapshot"), common.ExitInvalidConfiguration)
+	}
+	if specs.Match(cfg.FlagSpecVersion) == nil {
+		return nil, nil, common.NewInitError(fmt.Errorf("flag spec version %q is not supported", cfg.FlagSpecVersion), common.ExitInvalidConfiguration)
 	}
 
 	snap, err := snapshot.DecodeFromFile(cfg.Initialization.Snapshot)
