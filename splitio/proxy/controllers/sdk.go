@@ -37,6 +37,14 @@ type SdkServerController struct {
 	// localWhenSinceTooOld answers a since outside the cached window from storage.
 	// The cloud fetcher is not called.
 	localWhenSinceTooOld bool
+	// overlay and overlayStamp, when set, make the flags part of every response follow the startup stamp.
+	overlay      flagOverlay
+	overlayStamp int64
+}
+
+// flagOverlay rewrites a flag before it is served.
+type flagOverlay interface {
+	Apply(dtos.SplitDTO) dtos.SplitDTO
 }
 
 // NewSdkServerController instantiates a new sdk server controller
@@ -66,6 +74,13 @@ func NewSdkServerController(
 // ServeSnapshotWhenSinceTooOld answers a since outside the cached window from local storage.
 func (c *SdkServerController) ServeSnapshotWhenSinceTooOld() {
 	c.localWhenSinceTooOld = true
+}
+
+// SetOverrides applies overlay to every flag served and makes the flags part of each response follow the startup
+// stamp: a since below stamp gets every requested flag with till=stamp, anything else gets an empty change.
+// The responses never come from the windowed storage lookup, so no flag can be served without the overlay.
+func (c *SdkServerController) SetOverrides(overlay flagOverlay, stamp int64) {
+	c.overlay, c.overlayStamp = overlay, stamp
 }
 
 // Register mounts the sdk-server endpoints onto the supplied router
@@ -214,6 +229,10 @@ func (c *SdkServerController) MySegments(ctx *gin.Context) {
 }
 
 func (c *SdkServerController) fetchRulesSince(since int64, rbsince int64, sets []string) (*dtos.RuleChangesDTO, error) {
+	if c.overlay != nil {
+		return c.fetchOverriddenRules(since, rbsince, sets)
+	}
+
 	splits, err := c.proxySplitStorage.ChangesSince(since, sets)
 	rbs, rbsErr := c.proxyRBSegmentStorage.ChangesSince(rbsince)
 	if err != nil && !errors.Is(err, storage.ErrSinceParamTooOld) {
@@ -269,6 +288,32 @@ func (c *SdkServerController) fetchRulesSince(since int64, rbsince int64, sets [
 			Since:             ruleChanges.RBSince(),
 		},
 	}, nil
+}
+
+// fetchOverriddenRules builds a response for a proxy running with an overrides file.
+// Feature flags follow the startup stamp. Rule-based segments are not overridden and keep their own window.
+func (c *SdkServerController) fetchOverriddenRules(since int64, rbsince int64, sets []string) (*dtos.RuleChangesDTO, error) {
+	flags := dtos.FeatureFlagsDTO{Splits: []dtos.SplitDTO{}, Since: since, Till: since}
+	if since < c.overlayStamp {
+		full, err := c.proxySplitStorage.ChangesSince(-1, sets)
+		if err != nil {
+			return nil, fmt.Errorf("error fetching feature flags from storage: %w", err)
+		}
+		flags.Splits = make([]dtos.SplitDTO, len(full.Splits))
+		for i := range full.Splits {
+			flags.Splits[i] = c.overlay.Apply(full.Splits[i])
+		}
+		flags.Till = c.overlayStamp
+	}
+
+	rbs, err := c.proxyRBSegmentStorage.ChangesSince(rbsince)
+	if errors.Is(err, storage.ErrSinceParamTooOld) {
+		rbs, err = c.fullRuleBasedChanges(rbsince)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("unexpected error fetching rule-based segments changes from storage: %w", err)
+	}
+	return &dtos.RuleChangesDTO{FeatureFlags: flags, RuleBasedSegments: *rbs}, nil
 }
 
 type changeNumberReader interface {
