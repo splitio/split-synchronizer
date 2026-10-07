@@ -121,3 +121,37 @@ func TestOfflineLoadPreservesExportChecksum(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, snapshot.PayloadChecksum(exported), snapshot.PayloadChecksum(reexported))
 }
+
+func TestStartRejectsOverridesFileOutsideOfflineMode(t *testing.T) {
+	logger := logging.NewLogger(nil)
+	const wantMsg = "treatment overrides require offline mode in this version"
+
+	t.Run("fails without offline mode", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "overrides.yaml")
+		assert.Nil(t, os.WriteFile(path, []byte(`new_checkout: "off"`), 0644))
+		cfg := &pconf.Main{Apikey: "someKey", FlagSpecVersion: "1.3"}
+		cfg.Initialization.OverridesFile = path
+
+		err := Start(logger, cfg)
+		assertInvalidConfiguration(t, err)
+		assert.Contains(t, err.Error(), wantMsg)
+	})
+
+	t.Run("fails without offline mode even when the file is empty", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "overrides.yaml")
+		assert.Nil(t, os.WriteFile(path, nil, 0644))
+		cfg := &pconf.Main{Apikey: "someKey", FlagSpecVersion: "1.3"}
+		cfg.Initialization.OverridesFile = path
+
+		err := Start(logger, cfg)
+		assertInvalidConfiguration(t, err)
+		assert.Contains(t, err.Error(), wantMsg)
+	})
+
+	t.Run("unset option does not trigger the check", func(t *testing.T) {
+		err := Start(logger, &pconf.Main{FlagSpecVersion: "1.3"})
+		if assert.NotNil(t, err) {
+			assert.NotContains(t, err.Error(), wantMsg)
+		}
+	})
+}

@@ -40,6 +40,10 @@ import (
 
 // Start initialize in proxy mode
 func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
+	if cfg.Initialization.OverridesFile != "" && !cfg.Offline {
+		return common.NewInitError(errors.New("treatment overrides require offline mode in this version"), common.ExitInvalidConfiguration)
+	}
+
 	if cfg.Offline {
 		return startOffline(logger, cfg)
 	}
