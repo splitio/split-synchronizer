@@ -2,6 +2,11 @@
 - Added proxy offline mode (CLI flag -offline, config key offline, env SPLIT_PROXY_OFFLINE, default false). The proxy serves SDKs from a snapshot and makes no calls to FME. Offline mode requires a snapshot with a checksum and flag spec version, and an empty SDK key. Impressions, events, and telemetry are dropped locally.
 - Added a checksum and the flag spec version to snapshot metadata. Snapshots from older proxies still load in connected mode, and older proxies ignore the new fields.
 
+5.13.2 (Oct 6, 2026)
+- Fixed the Split Proxy and Synchronizer not shutting down gracefully while waiting to retry the streaming connection after a retryable error. A shutdown requested during the retry backoff (up to 30 minutes) no longer blocks until the backoff expires.
+- Fixed a duration overflow in the retry backoff that turned long waits into zero or negative waits.
+- Updated go-split-commons to v10.2.1 and go-toolkit to v5.5.1.
+
 5.13.1 (Sep 30, 2026)
 - Fixed vulnerabilities:
    - Updated Debian base image to debian:trixie-20260918-slim, resolving CVE-2026-53612, CVE-2026-53614, CVE-2026-53615 (util-linux)
