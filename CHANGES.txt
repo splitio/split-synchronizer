@@ -1,6 +1,7 @@
 5.14.0 (Unreleased)
 - Added proxy offline mode (CLI flag -offline, config key offline, env SPLIT_PROXY_OFFLINE, default false). The proxy serves SDKs from a snapshot and makes no calls to FME. Offline mode requires a snapshot with a checksum and flag spec version, and an empty SDK key. Impressions, events, and telemetry are dropped locally.
 - Added a checksum and the flag spec version to snapshot metadata. Snapshots from older proxies still load in connected mode, and older proxies ignore the new fields.
+- Added treatment overrides for proxy offline mode (CLI flag -overrides-file, config key overridesFile, env SPLIT_PROXY_OVERRIDES_FILE, default empty). A YAML file maps flag names to a treatment, with an optional config, served to every SDK key regardless of targeting. Overrides are applied in memory and are never written to the snapshot or to /admin/snapshot exports. The option requires offline mode and fails startup otherwise.
 
 5.13.1 (Sep 30, 2026)
 - Fixed vulnerabilities:
