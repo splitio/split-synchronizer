@@ -40,4 +40,29 @@ func TestSnapshot(t *testing.T) {
 		t.Error("invalid decoded data")
 	}
 
+	if decodedSnapshot.Meta().Checksum != "" || decodedSnapshot.Meta().FlagSpecVersion != "" {
+		t.Error("new metadata fields should be empty when they were not set")
+	}
+
+	withChecksum := Metadata{
+		Storage:         storage4Test,
+		Version:         version4Test,
+		Checksum:        PayloadChecksum(data4Test),
+		FlagSpecVersion: "1.3",
+	}
+	encodedNew, err := New(withChecksum, data4Test)
+	if err != nil {
+		t.Error(err)
+	}
+	raw, err := encodedNew.Encode()
+	if err != nil {
+		t.Error(err)
+	}
+	decodedNew, err := Decode(raw)
+	if err != nil {
+		t.Error(err)
+	}
+	if decodedNew.Meta().Checksum != withChecksum.Checksum || decodedNew.Meta().FlagSpecVersion != "1.3" {
+		t.Error("checksum and flag spec version were not preserved")
+	}
 }

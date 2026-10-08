@@ -29,7 +29,7 @@ func TestDownloadProxySnapshot(t *testing.T) {
 	dbInstance, err := persistent.NewBoltWrapper(tmpDataFile, nil)
 	assert.Nil(t, err)
 
-	ctrl := NewSnapshotController(logging.NewLogger(nil), dbInstance, "123456")
+	ctrl := NewSnapshotController(logging.NewLogger(nil), dbInstance, "123456", "1.3")
 
 	resp := httptest.NewRecorder()
 	ctx, router := gin.CreateTestContext(resp)
@@ -47,10 +47,12 @@ func TestDownloadProxySnapshot(t *testing.T) {
 	assert.Equal(t, uint64(1), snapRes.Meta().Version)
 	assert.Equal(t, uint64(1), snapRes.Meta().Storage)
 	assert.Equal(t, "123456", snapRes.Meta().Hash)
+	assert.Equal(t, "1.3", snapRes.Meta().FlagSpecVersion)
 
 	dat, err := snap.Data()
 	assert.Nil(t, err)
 	resData, err := snapRes.Data()
 	assert.Nil(t, err)
 	assert.Equal(t, 0, bytes.Compare(dat, resData))
+	assert.Equal(t, snapshot.PayloadChecksum(resData), snapRes.Meta().Checksum)
 }

@@ -196,6 +196,68 @@ func TestSplitChangesOlderSince(t *testing.T) {
 	splitFetcher.AssertExpectations(t)
 }
 
+func TestSplitChangesOlderSinceOfflineServesSnapshot(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	var splitStorage psmocks.ProxySplitStorageMock
+	splitStorage.On("ChangesSince", int64(4), []string{"set1"}).
+		Return((*dtos.SplitChangesDTO)(nil), storage.ErrSinceParamTooOld).
+		Once()
+	splitStorage.On("ChangesSince", int64(-1), []string{"set1"}).
+		Return(&dtos.SplitChangesDTO{Since: -1, Till: 15, Splits: []dtos.SplitDTO{{Name: "s1", Status: "ACTIVE"}}}, nil).
+		Once()
+	splitStorage.On("ChangeNumber").Return(int64(20), nil).Once()
+
+	var rbsStorage psmocks.MockProxyRuleBasedSegmentStorage
+	rbsStorage.On("ChangesSince", int64(3)).
+		Return((*dtos.RuleBasedSegmentsDTO)(nil), storage.ErrSinceParamTooOld).
+		Once()
+	rbsStorage.On("ChangesSince", int64(-1)).
+		Return(&dtos.RuleBasedSegmentsDTO{Since: -1, Till: 9, RuleBasedSegments: []dtos.RuleBasedSegmentDTO{{Name: "r1"}}}, nil).
+		Once()
+
+	splitFetcher := &mocks.MockSplitFetcher{}
+	var largeSegmentStorageMock largeSegmentStorageMock
+
+	resp := httptest.NewRecorder()
+	ctx, router := gin.CreateTestContext(resp)
+	logger := logging.NewLogger(nil)
+	group := router.Group("/api")
+	controller := NewSdkServerController(
+		logger,
+		splitFetcher,
+		&splitStorage,
+		nil,
+		&rbsStorage,
+		flagsets.NewMatcher(false, nil),
+		&largeSegmentStorageMock,
+		specs.FLAG_V1_2,
+	)
+	controller.ServeSnapshotWhenSinceTooOld()
+	controller.Register(group)
+
+	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/splitChanges?since=4&rbSince=3&sets=set1&s=1.3", nil)
+	ctx.Request.Header.Set("Authorization", "Bearer someApiKey")
+	router.ServeHTTP(resp, ctx.Request)
+
+	assert.Equal(t, 200, resp.Code)
+	body, err := io.ReadAll(resp.Body)
+	assert.Nil(t, err)
+
+	var rules dtos.RuleChangesDTO
+	err = json.Unmarshal(body, &rules)
+	assert.Nil(t, err)
+	assert.Equal(t, int64(4), rules.FeatureFlags.Since)
+	assert.Equal(t, int64(20), rules.FeatureFlags.Till)
+	assert.Equal(t, 1, len(rules.FeatureFlags.Splits))
+	assert.Equal(t, int64(3), rules.RuleBasedSegments.Since)
+	assert.Equal(t, int64(9), rules.RuleBasedSegments.Till)
+	assert.Equal(t, 1, len(rules.RuleBasedSegments.RuleBasedSegments))
+	splitFetcher.AssertNotCalled(t, "Fetch", mock.Anything)
+	splitStorage.AssertExpectations(t)
+	rbsStorage.AssertExpectations(t)
+}
+
 func TestSplitChangesOlderSinceFetchFails(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
