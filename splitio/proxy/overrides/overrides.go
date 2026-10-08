@@ -9,7 +9,6 @@ import (
 	"os"
 
 	"github.com/splitio/go-split-commons/v10/dtos"
-	"github.com/splitio/go-toolkit/v5/logging"
 	"gopkg.in/yaml.v3"
 )
 
@@ -144,8 +143,8 @@ func treatmentFrom(path, flag string, node *yaml.Node) (string, error) {
 }
 
 // Validate checks the entries against the flags the proxy serves. A treatment that the flag does not have is an
-// error. An entry for a flag that is not in flags is dropped with a warning.
-func Validate(o *Overrides, flags []dtos.SplitDTO, logger logging.LoggerInterface) error {
+// error. An entry for a flag that is not in flags is dropped, and its name is returned so the caller can warn.
+func Validate(o *Overrides, flags []dtos.SplitDTO) (skipped []string, err error) {
 	treatments := make(map[string]map[string]struct{}, len(flags))
 	for i := range flags {
 		set := map[string]struct{}{flags[i].DefaultTreatment: {}}
@@ -161,15 +160,15 @@ func Validate(o *Overrides, flags []dtos.SplitDTO, logger logging.LoggerInterfac
 	for _, name := range o.order {
 		set, present := treatments[name]
 		if !present {
-			logger.Warning(fmt.Sprintf("Override for '%s' skipped: flag not present in proxy data", name))
+			skipped = append(skipped, name)
 			delete(o.Entries, name)
 			continue
 		}
 		if _, ok := set[o.Entries[name].Treatment]; !ok {
-			return entryErr(o.Path, name, fieldTreatment, "%q is not one of the flag's treatments", o.Entries[name].Treatment)
+			return nil, entryErr(o.Path, name, fieldTreatment, "%q is not one of the flag's treatments", o.Entries[name].Treatment)
 		}
 		kept = append(kept, name)
 	}
 	o.order = kept
-	return nil
+	return skipped, nil
 }

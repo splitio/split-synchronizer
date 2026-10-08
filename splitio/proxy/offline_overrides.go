@@ -32,17 +32,18 @@ func setupOverrides(
 	if err != nil {
 		return nil, 0, fmt.Errorf("error reading feature flags to validate overrides: %w", err)
 	}
-	if err := overrides.Validate(o, all.Splits, logger); err != nil {
+	skipped, err := overrides.Validate(o, all.Splits)
+	if err != nil {
 		return nil, 0, common.NewInitError(err, common.ExitInvalidConfiguration)
 	}
 
 	stamp := overrides.Stamp(now().UnixMilli(), all.Till)
-	logOverrides(logger, o, stamp)
+	logOverrides(logger, o, stamp, skipped)
 	return o, stamp, nil
 }
 
 // logOverrides tells support which overrides are in place. Only flags named in the file are logged.
-func logOverrides(logger logging.LoggerInterface, o *overrides.Overrides, stamp int64) {
+func logOverrides(logger logging.LoggerInterface, o *overrides.Overrides, stamp int64, skipped []string) {
 	logger.Info(fmt.Sprintf("Overrides loaded from %s (%d entries, sha256:%s); flag change number stamped at %d",
 		o.Path, len(o.Entries), o.SHA256, stamp))
 	for _, flag := range o.Flags() {
@@ -52,5 +53,8 @@ func logOverrides(logger logging.LoggerInterface, o *overrides.Overrides, stamp 
 			msg += ", config replaced"
 		}
 		logger.Info(msg)
+	}
+	for _, flag := range skipped {
+		logger.Warning(fmt.Sprintf("Override for '%s' skipped: flag not present in proxy data", flag))
 	}
 }

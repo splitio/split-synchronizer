@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/splitio/go-split-commons/v10/dtos"
-	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -154,8 +153,14 @@ func flagWith(name, def string, treatments ...string) dtos.SplitDTO {
 	}
 }
 
+func mustValidate(t *testing.T, o *Overrides, flags []dtos.SplitDTO) []string {
+	t.Helper()
+	skipped, err := Validate(o, flags)
+	assert.Nil(t, err)
+	return skipped
+}
+
 func TestValidate(t *testing.T) {
-	logger := logging.NewLogger(nil)
 	flags := []dtos.SplitDTO{
 		flagWith("new_checkout", "off", "on", "off"),
 		flagWith("search_rerank", "v1", "v1", "v2"),
@@ -165,7 +170,7 @@ func TestValidate(t *testing.T) {
 		path := writeFile(t, "new_checkout: \"on\"\nsearch_rerank: v2\n")
 		o, err := Load(path)
 		assert.Nil(t, err)
-		assert.Nil(t, Validate(o, flags, logger))
+		mustValidate(t, o, flags)
 		assert.Len(t, o.Entries, 2)
 	})
 
@@ -173,14 +178,14 @@ func TestValidate(t *testing.T) {
 		path := writeFile(t, "f: fallback\n")
 		o, err := Load(path)
 		assert.Nil(t, err)
-		assert.Nil(t, Validate(o, []dtos.SplitDTO{flagWith("f", "fallback", "a", "b")}, logger))
+		mustValidate(t, o, []dtos.SplitDTO{flagWith("f", "fallback", "a", "b")})
 	})
 
 	t.Run("treatment the flag does not have fails", func(t *testing.T) {
 		path := writeFile(t, "new_checkout: maybe\n")
 		o, err := Load(path)
 		assert.Nil(t, err)
-		err = Validate(o, flags, logger)
+		_, err = Validate(o, flags)
 		if assert.NotNil(t, err) {
 			assert.Contains(t, err.Error(), path)
 			assert.Contains(t, err.Error(), "new_checkout")
@@ -193,7 +198,7 @@ func TestValidate(t *testing.T) {
 		path := writeFile(t, "old_flag: x\nnew_checkout: \"on\"\n")
 		o, err := Load(path)
 		assert.Nil(t, err)
-		assert.Nil(t, Validate(o, flags, logger))
+		assert.Equal(t, []string{"old_flag"}, mustValidate(t, o, flags))
 		assert.Len(t, o.Entries, 1)
 		assert.Contains(t, o.Entries, "new_checkout")
 		assert.Equal(t, []string{"new_checkout"}, o.Flags())
@@ -202,6 +207,6 @@ func TestValidate(t *testing.T) {
 	t.Run("empty overrides validate", func(t *testing.T) {
 		o, err := Load(writeFile(t, ""))
 		assert.Nil(t, err)
-		assert.Nil(t, Validate(o, flags, logger))
+		mustValidate(t, o, flags)
 	})
 }
