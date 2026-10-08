@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/admin"
 	adminCommon "github.com/splitio/split-synchronizer/v5/splitio/admin/common"
@@ -81,6 +82,12 @@ func startOffline(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		int(cfg.Observability.MaxTimeSliceCount),
 	)
 	httpCache := caching.MakeProxyCache()
+
+	// Load and validate before anything starts, so a bad overrides file exits with nothing running.
+	flagOverrides, overridesStamp, err := setupOverrides(logger, cfg.Initialization.OverridesFile, splitStorage, time.Now)
+	if err != nil {
+		return err
+	}
 
 	appMonitor := newStaticAppMonitor()
 	servicesMonitor := newStaticServicesMonitor()
@@ -160,6 +167,8 @@ func startOffline(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		ProxyLargeSegmentStorage:    largeSegmentStorage,
 		SpecVersion:                 cfg.FlagSpecVersion,
 		Offline:                     true,
+		Overrides:                   flagOverrides,
+		OverridesStamp:              overridesStamp,
 	})
 	go proxyAPI.Start()
 
