@@ -31,6 +31,20 @@ func TestLoadValid(t *testing.T) {
 		assert.Empty(t, o.Entries)
 	})
 
+	for name, content := range map[string]string{
+		"document separator only": "---\n",
+		"explicit null":           "null\n",
+		"tilde":                   "~\n",
+		"separator and comment":   "---\n# rendered to nothing\n",
+	} {
+		t.Run("null root has no entries: "+name, func(t *testing.T) {
+			o, err := Load(writeFile(t, content))
+			assert.Nil(t, err)
+			assert.Empty(t, o.Entries)
+			assert.Empty(t, o.Flags())
+		})
+	}
+
 	t.Run("comments only has no entries", func(t *testing.T) {
 		o, err := Load(writeFile(t, "# INC-1: nothing yet\n"))
 		assert.Nil(t, err)

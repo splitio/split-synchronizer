@@ -40,7 +40,7 @@ func (o *Overrides) Flags() []string {
 	return append([]string(nil), o.order...)
 }
 
-// Load reads and parses an overrides file. An empty file, or one with only comments or `{}`, has no entries.
+// Load reads and parses an overrides file. An empty file, or one with only comments, `{}` or a null document (`---`, `null`, `~`), has no entries.
 func Load(path string) (*Overrides, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -57,6 +57,9 @@ func Load(path string) (*Overrides, error) {
 		return o, nil
 	}
 	root := doc.Content[0]
+	if root.Kind == yaml.ScalarNode && root.ShortTag() == "!!null" { // `---`, `null` or `~`, e.g. a template that rendered to nothing
+		return o, nil
+	}
 	if root.Kind != yaml.MappingNode {
 		return nil, fmt.Errorf("overrides file %s: line %d: the root must be a map from flag key to override", path, root.Line)
 	}
