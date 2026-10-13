@@ -44,8 +44,8 @@ func setupOverrides(
 
 // logOverrides tells support which overrides are in place. Only flags named in the file are logged.
 func logOverrides(logger logging.LoggerInterface, o *overrides.Overrides, stamp int64, skipped []string) {
-	logger.Info(fmt.Sprintf("Overrides loaded from %s (%d entries, sha256:%s); flag change number stamped at %d",
-		o.Path, len(o.Entries), o.SHA256, stamp))
+	logger.Info(fmt.Sprintf("Overrides loaded from %s (%d entries, %d applied, %d skipped, sha256:%s); flag change number stamped at %d",
+		o.Path, len(o.Entries)+len(skipped), len(o.Entries), len(skipped), o.SHA256, stamp))
 	for _, flag := range o.Flags() {
 		entry := o.Entries[flag]
 		msg := fmt.Sprintf("Override: %s -> %q for all keys (targeting ignored)", flag, entry.Treatment)

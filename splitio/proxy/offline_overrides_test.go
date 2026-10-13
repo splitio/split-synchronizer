@@ -160,7 +160,7 @@ func TestSetupOverridesLogs(t *testing.T) {
 	assert.Nil(t, err)
 
 	info := logs.info.String()
-	assert.Contains(t, info, fmt.Sprintf("Overrides loaded from %s (2 entries, sha256:%s); flag change number stamped at 1790712345678", path, o.SHA256))
+	assert.Contains(t, info, fmt.Sprintf("Overrides loaded from %s (3 entries, 2 applied, 1 skipped, sha256:%s); flag change number stamped at 1790712345678", path, o.SHA256))
 	assert.Contains(t, info, `Override: new_checkout -> "off" for all keys (targeting ignored)`)
 	assert.Contains(t, info, `Override: search_rerank -> "on" for all keys (targeting ignored), config replaced`)
 	assert.NotContains(t, info, "old_flag")
