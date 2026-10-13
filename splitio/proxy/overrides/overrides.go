@@ -108,8 +108,15 @@ func parseEntry(path, flag string, node *yaml.Node) (Entry, error) {
 func parseLongForm(path, flag string, node *yaml.Node) (Entry, error) {
 	entry := Entry{Flag: flag}
 	var haveTreatment bool
+	seen := map[string]int{} // field -> line of its first occurrence
 	for i := 0; i+1 < len(node.Content); i += 2 {
 		field, val := node.Content[i].Value, node.Content[i+1]
+		if field == fieldTreatment || field == fieldConfig {
+			if first, dup := seen[field]; dup {
+				return Entry{}, entryErr(path, flag, field, "duplicate key (lines %d and %d)", first, node.Content[i].Line)
+			}
+			seen[field] = node.Content[i].Line
+		}
 		switch field {
 		case fieldTreatment:
 			t, err := treatmentFrom(path, flag, val)
