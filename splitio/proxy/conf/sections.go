@@ -47,6 +47,7 @@ type Initialization struct {
 	TimeoutMs         int64  `json:"timeoutMS" s-cli:"timeout-ms" s-def:"10000" s-desc:"How long to wait until the synchronizer is ready"`
 	Snapshot          string `json:"snapshot" s-cli:"snapshot" s-def:"" s-desc:"Snapshot file to use as a starting point"`
 	ForceFreshStartup bool   `json:"forceFreshStartup" s-cli:"force-fresh-startup" s-def:"false" s-desc:"Wipe storage before starting the synchronizer"`
+	OverridesFile     string `json:"overridesFile" s-cli:"overrides-file" s-def:"" s-desc:"YAML file of treatment overrides (offline mode only)"`
 }
 
 // Server configuration options
