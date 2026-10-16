@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.26.7-trixie AS builder
+FROM golang:1.26.9-trixie AS builder
 
 ARG EXTRA_BUILD_ARGS
 ARG FIPS_MODE
