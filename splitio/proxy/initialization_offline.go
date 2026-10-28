@@ -130,6 +130,7 @@ func startOffline(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		TLS:               adminTLSConfig,
 		FlagSpecVersion:   cfg.FlagSpecVersion,
 		SnapshotFlagSpec:  snap.Meta().FlagSpecVersion,
+		FlagSetsFilter:    cfg.FlagSetsFilter,
 		Hash:              strconv.Itoa(int(hash)),
 	})
 	if err != nil {

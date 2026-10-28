@@ -44,6 +44,8 @@ type Options struct {
 	Hash                string
 	// SnapshotFlagSpec is written into exported snapshots. When empty, FlagSpecVersion is used.
 	SnapshotFlagSpec string
+	// FlagSetsFilter is the flag sets filter the proxy runs with, used to compute snapshot content ids.
+	FlagSetsFilter []string
 }
 
 type AdminServer struct {
@@ -103,7 +105,7 @@ func NewServer(options *Options) (*AdminServer, error) {
 		if snapshotFlagSpec == "" {
 			snapshotFlagSpec = options.FlagSpecVersion
 		}
-		snapshotController := controllers.NewSnapshotController(options.Logger, options.Snapshotter, options.Hash, snapshotFlagSpec)
+		snapshotController := controllers.NewSnapshotController(options.Logger, options.Snapshotter, options.Hash, snapshotFlagSpec, options.FlagSetsFilter)
 		snapshotController.Register(admin)
 	}
 
