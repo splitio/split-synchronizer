@@ -3,6 +3,14 @@
 - Added a checksum and the flag spec version to snapshot metadata. Snapshots from older proxies still load in connected mode, and older proxies ignore the new fields.
 - Added treatment overrides for proxy offline mode (CLI flag -overrides-file, config key overridesFile, env SPLIT_PROXY_OVERRIDES_FILE, default empty). A YAML file maps flag names to a treatment, with an optional config, served to every SDK key regardless of targeting. Overrides are applied in memory and are never written to the snapshot or to /admin/snapshot exports. The option requires offline mode and fails startup otherwise.
 - Added a stable content identifier to GET /admin/snapshot, returned in the X-Snapshot-Content-Id response header. It is a sha256 over the decoded logical data (active flags, active rule-based segments, segments with their non-removed keys, flag spec version and flag-set filter), computed in the same read as the exported bytes, so proxies with the same data return the same value regardless of sync order or start time. The snapshot file format and metadata are unchanged. Segments that were synced once but are no longer referenced still count, as the proxy does not remove them.
+- Fixed large segment matching in feature flag rules. Rules now keep the IN_LARGE_SEGMENT matcher in the proxy, so SDKs get correct targeting.
+- Fixed offline mode silently accepting flag sets filters. The proxy now logs a warning at startup when a flag sets filter is set in offline mode, and offline static health monitors report healthy.
+- Offline mode loads a snapshot even when its flag spec version differs from the configured spec. The proxy does not warn in this case yet.
+- Fixed a silent failure when a connected proxy starts with a corrupt snapshot file. The proxy now logs the reason before exiting. Exit code changes from 8 to 2 (invalid configuration), matching offline mode.
+- Added a startup warning in offline mode when the snapshot references large segments. Large-segment keys are not stored in snapshots, so flags that use them return the default treatment.
+- Documented: flags deleted after a newer snapshot loads can still be served by SDKs that keep an older local cache. Restart SDKs or clear their cache after loading a new snapshot.
+- Documented: the -flag-sets-filter option and CLI values that equal a default are ignored in some cases. Use the JSON config file to set them.
+- Documented: offline mode and treatment overrides run without a persisted cache. Overrides never enter snapshots or snapshot exports.
 - Fixed vulnerabilities:
    - Updated golang builder image to 1.26.9-trixie, resolving CVE-2026-78667, CVE-2026-78669, CVE-2026-97031 (stdlib)
    - Updated golang.org/x/net to v0.60.0, resolving CVE-2026-78669

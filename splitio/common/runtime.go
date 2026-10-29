@@ -135,8 +135,6 @@ func buildSlackShutdownMessage(title string, kill bool) ([]byte, []log.SlackMess
 
 	var attach []log.SlackMessageAttachment
 	if title != "" {
-		fields := make([]log.SlackMessageAttachmentFields, 0)
-		fields = append(fields)
 		attach = []log.SlackMessageAttachment{log.SlackMessageAttachment{
 			Fallback: "Shutting Split-Sync down",
 			Color:    color,

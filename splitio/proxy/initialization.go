@@ -59,7 +59,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	if snapFile := cfg.Initialization.Snapshot; snapFile != "" {
 		snap, err := snapshot.DecodeFromFile(snapFile)
 		if err != nil {
-			return fmt.Errorf("error parsing snapshot file: %w", err)
+			return common.NewInitError(fmt.Errorf("error parsing snapshot file: %w", err), common.ExitInvalidConfiguration)
 		}
 
 		currentHash := util.HashAPIKey(cfg.Apikey + cfg.FlagSpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
@@ -68,7 +68,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		} else {
 			payload, err := snap.Data()
 			if err != nil {
-				return fmt.Errorf("error reading snapshot payload: %w", err)
+				return common.NewInitError(fmt.Errorf("error reading snapshot payload: %w", err), common.ExitInvalidConfiguration)
 			}
 			if err := checkSnapshot(snap.Meta(), payload, cfg.FlagSpecVersion, false); err != nil {
 				return common.NewInitError(err, common.ExitInvalidConfiguration)
@@ -147,7 +147,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		segmentStorage,
 		ruleBasedStorage,
 		largeSegmentStorage,
-		adminCommon.ProducerFeatureFlagsRules,
+		adminCommon.ProxyFeatureFlagsRules,
 		adminCommon.ProducerRuleBasedSegmentRules,
 		logger,
 		nil)
