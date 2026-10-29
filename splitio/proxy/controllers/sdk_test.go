@@ -20,6 +20,7 @@ import (
 	"github.com/splitio/go-split-commons/v10/service/api/specs"
 	"github.com/splitio/go-split-commons/v10/service/mocks"
 	cmnStorage "github.com/splitio/go-split-commons/v10/storage"
+	inmemory "github.com/splitio/go-split-commons/v10/storage/inmemory/mutexmap"
 	"github.com/splitio/go-toolkit/v5/common"
 	"github.com/splitio/go-toolkit/v5/logging"
 
@@ -790,6 +791,33 @@ func TestMemberships(t *testing.T) {
 	splitStorage.AssertExpectations(t)
 	splitFetcher.AssertExpectations(t)
 	segmentStorage.AssertExpectations(t)
+}
+
+// Offline mode serves an empty large segment store: segments are returned, large segments never (G6).
+func TestMembershipsOfflineHasNoLargeSegments(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	var segmentStorage psmocks.ProxySegmentStorageMock
+	segmentStorage.On("SegmentsFor", "keyTest").Return([]string{"segment1"}, nil).Once()
+	var rbsStorage psmocks.MockProxyRuleBasedSegmentStorage
+	rbsStorage.On("ChangesSince", int64(-1)).Return(&dtos.RuleBasedSegmentsDTO{}).Once()
+	var splitStorage psmocks.ProxySplitStorageMock
+
+	resp := httptest.NewRecorder()
+	ctx, router := gin.CreateTestContext(resp)
+	group := router.Group("/api")
+	controller := NewSdkServerController(logging.NewLogger(nil), &mocks.MockSplitFetcher{}, &splitStorage, &segmentStorage, &rbsStorage, flagsets.NewMatcher(false, nil), inmemory.NewLargeSegmentsStorage(), specs.FLAG_V1_2)
+	controller.Register(group)
+
+	ctx.Request, _ = http.NewRequest(http.MethodGet, "/api/memberships/keyTest", nil)
+	ctx.Request.Header.Set("Authorization", "Bearer someApiKey")
+	router.ServeHTTP(resp, ctx.Request)
+	assert.Equal(t, 200, resp.Code)
+
+	var actual dtos.MembershipsResponseDTO
+	assert.Nil(t, json.Unmarshal(resp.Body.Bytes(), &actual))
+	assert.Equal(t, []dtos.Segment{{Name: "segment1"}}, actual.MySegments.Segments)
+	assert.Empty(t, actual.MyLargeSegments.Segments)
 }
 
 func TestMembershipsError(t *testing.T) {
