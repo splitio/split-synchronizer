@@ -21,6 +21,7 @@ import (
 	commonsflagsets "github.com/splitio/go-split-commons/v10/flagsets"
 	"github.com/splitio/go-split-commons/v10/service/api/specs"
 	inmemory "github.com/splitio/go-split-commons/v10/storage/inmemory/mutexmap"
+	"github.com/splitio/go-toolkit/v5/datastructures/set"
 	"github.com/splitio/go-toolkit/v5/logging"
 )
 
@@ -50,6 +51,27 @@ func loadOfflineSnapshot(cfg *pconf.Main) (*snapshot.Snapshot, []byte, error) {
 	return snap, payload, nil
 }
 
+// warnOfflineFlagSetsFilter tells the operator that a configured flag sets filter has no effect offline.
+func warnOfflineFlagSetsFilter(logger logging.LoggerInterface, filter []string) {
+	if len(filter) == 0 {
+		return
+	}
+	logger.Warning("Split Proxy offline mode: the flag sets filter [" + strings.Join(filter, ",") + "] is ignored. The snapshot is served as stored.")
+}
+
+// warnOfflineLargeSegments tells the operator that flags referencing large segments will return the default treatment,
+// because large-segment keys are never stored in a snapshot.
+func warnOfflineLargeSegments(logger logging.LoggerInterface, names *set.ThreadUnsafeSet) {
+	if names == nil || names.IsEmpty() {
+		return
+	}
+	items := make([]string, 0, names.Size())
+	for _, name := range names.List() {
+		items = append(items, fmt.Sprint(name))
+	}
+	logger.Warning("Split Proxy offline mode: the snapshot references large segments [" + strings.Join(items, ",") + "] but large-segment keys are not stored in snapshots. Flags that use them return the default treatment.")
+}
+
 func startOffline(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	snap, payload, err := loadOfflineSnapshot(cfg)
 	if err != nil {
@@ -58,6 +80,7 @@ func startOffline(logger logging.LoggerInterface, cfg *pconf.Main) error {
 
 	cfg.Sync.Advanced.StreamingEnabled = false
 	logger.Info("Split Proxy offline mode: serving snapshot ", cfg.Initialization.Snapshot)
+	warnOfflineFlagSetsFilter(logger, cfg.FlagSetsFilter)
 
 	dbpath, err := snapshot.WritePayloadToTmpFile(payload)
 	if err != nil {
@@ -73,6 +96,7 @@ func startOffline(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	// Flag-set filtering of a loaded snapshot is a follow-up. Serve the file as stored.
 	emptyFilter := commonsflagsets.NewFlagSetFilter(nil)
 	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, emptyFilter, true)
+	warnOfflineLargeSegments(logger, splitStorage.LargeSegmentNames())
 	ruleBasedStorage := storage.NewProxyRuleBasedSegmentsStorage(dbInstance, logger, true)
 	segmentStorage := storage.NewProxySegmentStorage(dbInstance, logger, true)
 	largeSegmentStorage := inmemory.NewLargeSegmentsStorage()

@@ -4,8 +4,10 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/splitio/go-toolkit/v5/datastructures/set"
 	"github.com/splitio/split-synchronizer/v5/splitio/common"
 	"github.com/splitio/split-synchronizer/v5/splitio/common/snapshot"
 	pconf "github.com/splitio/split-synchronizer/v5/splitio/proxy/conf"
@@ -161,4 +163,69 @@ func TestStartRejectsOverridesFileOutsideOfflineMode(t *testing.T) {
 			assert.NotContains(t, err.Error(), wantMsg)
 		}
 	})
+}
+
+func TestOfflineWarnsWhenFlagSetsFilterIsConfigured(t *testing.T) {
+	logger := &mockLogger{}
+	warnOfflineFlagSetsFilter(logger, nil)
+	warnOfflineFlagSetsFilter(logger, []string{})
+	if len(logger.warnings) != 0 {
+		t.Errorf("no warning expected without a filter, got %v", logger.warnings)
+	}
+
+	warnOfflineFlagSetsFilter(logger, []string{"set_a", "set_b"})
+	if len(logger.warnings) != 1 {
+		t.Fatalf("expected exactly one warning, got %v", logger.warnings)
+	}
+	if !strings.Contains(logger.warnings[0], "set_a,set_b") || !strings.Contains(logger.warnings[0], "ignored") {
+		t.Errorf("warning should name the filter and say it is ignored: %q", logger.warnings[0])
+	}
+}
+
+// The offline health endpoints dereference these monitors, so they must exist and report healthy (G5).
+func TestOfflineStaticMonitorsReportHealthy(t *testing.T) {
+	app := newStaticAppMonitor()
+	services := newStaticServicesMonitor()
+
+	app.Start()
+	services.Start()
+	app.NotifyEvent(0)
+	app.Reset(0, 0)
+
+	appStatus := app.GetHealthStatus()
+	assert.True(t, appStatus.Healthy)
+	assert.NotNil(t, appStatus.HealthySince)
+	assert.NotNil(t, appStatus.Items)
+	assert.Empty(t, appStatus.Items)
+
+	svcStatus := services.GetHealthStatus()
+	assert.Equal(t, "healthy", svcStatus.Status)
+	if assert.Len(t, svcStatus.Items, 1) {
+		assert.True(t, svcStatus.Items[0].Healthy)
+		assert.Equal(t, "cloud checks disabled", svcStatus.Items[0].Message)
+	}
+
+	app.Stop()
+	services.Stop()
+}
+
+func TestOfflineWarnsWhenSnapshotReferencesLargeSegments(t *testing.T) {
+	logger := &mockLogger{}
+	warnOfflineLargeSegments(logger, nil)
+	warnOfflineLargeSegments(logger, set.NewSet())
+	if len(logger.warnings) != 0 {
+		t.Fatalf("no warning expected without large segments, got %v", logger.warnings)
+	}
+
+	warnOfflineLargeSegments(logger, set.NewSet("seg_a", "seg_b"))
+	if len(logger.warnings) != 1 {
+		t.Fatalf("expected exactly one warning, got %v", logger.warnings)
+	}
+	msg := logger.warnings[0]
+	if !strings.Contains(msg, "seg_a") || !strings.Contains(msg, "seg_b") {
+		t.Errorf("warning should name the large segments: %q", msg)
+	}
+	if !strings.Contains(msg, "default treatment") {
+		t.Errorf("warning should say flags return the default treatment: %q", msg)
+	}
 }
