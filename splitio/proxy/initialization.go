@@ -265,6 +265,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		FullConfig:        cfgForAdmin,
 		TLS:               adminTLSConfig,
 		FlagSpecVersion:   cfg.FlagSpecVersion,
+		FlagSetsFilter:    cfg.FlagSetsFilter,
 		Hash:              strconv.Itoa(int(hash)),
 	})
 	if err != nil {
