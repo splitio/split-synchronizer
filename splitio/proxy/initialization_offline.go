@@ -3,7 +3,6 @@ package proxy
 import (
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -128,9 +127,8 @@ func startOffline(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		RuleBasedSegmentsStorage: ruleBasedStorage,
 	}
 
-	cfgForAdmin := *cfg
-	hash := util.HashAPIKey(cfgForAdmin.Apikey + cfg.FlagSpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
-	cfgForAdmin.Apikey = logging.ObfuscateAPIKey(cfgForAdmin.Apikey)
+	hash := adminSnapshotHash(cfg)
+	cfgForAdmin := adminConfigView(cfg)
 
 	adminTLSConfig, err := util.TLSConfigForServer(&cfg.Admin.TLS)
 	if err != nil {
@@ -155,7 +153,7 @@ func startOffline(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		FlagSpecVersion:   cfg.FlagSpecVersion,
 		SnapshotFlagSpec:  snap.Meta().FlagSpecVersion,
 		FlagSetsFilter:    cfg.FlagSetsFilter,
-		Hash:              strconv.Itoa(int(hash)),
+		Hash:              hash,
 	})
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error starting admin server: %w", err), common.ExitAdminError)
