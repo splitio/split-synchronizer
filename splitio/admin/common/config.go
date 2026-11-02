@@ -10,6 +10,10 @@ var ProducerFeatureFlagsRules = []string{constants.MatcherTypeAllKeys, constants
 	constants.MatcherTypeEqualToBoolean, constants.MatcherTypeMatchesString, constants.MatcherEqualToSemver, constants.MatcherTypeGreaterThanOrEqualToSemver, constants.MatcherTypeLessThanOrEqualToSemver, constants.MatcherTypeBetweenSemver, constants.MatcherTypeInListSemver,
 	constants.MatcherTypeInRuleBasedSegment}
 
+// ProxyFeatureFlagsRules adds IN_LARGE_SEGMENT, which the proxy serves to client-side SDKs.
+// The synchronizer keeps ProducerFeatureFlagsRules: it does not sync large segments.
+var ProxyFeatureFlagsRules = append(append([]string{}, ProducerFeatureFlagsRules...), constants.MatcherTypeInLargeSegment)
+
 var ProducerRuleBasedSegmentRules = []string{constants.MatcherTypeAllKeys, constants.MatcherTypeInSegment, constants.MatcherTypeWhitelist, constants.MatcherTypeEqualTo, constants.MatcherTypeGreaterThanOrEqualTo, constants.MatcherTypeLessThanOrEqualTo, constants.MatcherTypeBetween,
 	constants.MatcherTypeEqualToSet, constants.MatcherTypePartOfSet, constants.MatcherTypeContainsAllOfSet, constants.MatcherTypeContainsAnyOfSet, constants.MatcherTypeStartsWith, constants.MatcherTypeEndsWith, constants.MatcherTypeContainsString,
 	constants.MatcherTypeEqualToBoolean, constants.MatcherTypeMatchesString, constants.MatcherEqualToSemver, constants.MatcherTypeGreaterThanOrEqualToSemver, constants.MatcherTypeLessThanOrEqualToSemver, constants.MatcherTypeBetweenSemver, constants.MatcherTypeInListSemver,

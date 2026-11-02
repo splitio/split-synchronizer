@@ -40,6 +40,14 @@ import (
 
 // Start initialize in proxy mode
 func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
+	if cfg.Initialization.OverridesFile != "" && !cfg.Offline {
+		return common.NewInitError(errors.New("treatment overrides require offline mode in this version"), common.ExitInvalidConfiguration)
+	}
+
+	if cfg.Offline {
+		return startOffline(logger, cfg)
+	}
+
 	clientKey, err := util.GetClientKey(cfg.Apikey)
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error parsing client key from provided apikey: %w", err), common.ExitInvalidApikey)
@@ -51,15 +59,22 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	if snapFile := cfg.Initialization.Snapshot; snapFile != "" {
 		snap, err := snapshot.DecodeFromFile(snapFile)
 		if err != nil {
-			return fmt.Errorf("error parsing snapshot file: %w", err)
+			return common.NewInitError(fmt.Errorf("error parsing snapshot file: %w", err), common.ExitInvalidConfiguration)
 		}
 
 		currentHash := util.HashAPIKey(cfg.Apikey + cfg.FlagSpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
 		if snap.Meta().Hash != strconv.Itoa(int(currentHash)) {
 			logger.Warning("snapshot cfg (apikey, version, flagsets) does not match the provided one. Ignoring snapshot and starting with empty storage.")
 		} else {
+			payload, err := snap.Data()
+			if err != nil {
+				return common.NewInitError(fmt.Errorf("error reading snapshot payload: %w", err), common.ExitInvalidConfiguration)
+			}
+			if err := checkSnapshot(snap.Meta(), payload, cfg.FlagSpecVersion, false); err != nil {
+				return common.NewInitError(err, common.ExitInvalidConfiguration)
+			}
 			// Hash matches - use the snapshot
-			dbpath, err = snap.WriteDataToTmpFile()
+			dbpath, err = snapshot.WritePayloadToTmpFile(payload)
 			if err != nil {
 				return fmt.Errorf("error writing temporary snapshot file: %w", err)
 			}
@@ -132,7 +147,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		segmentStorage,
 		ruleBasedStorage,
 		largeSegmentStorage,
-		adminCommon.ProducerFeatureFlagsRules,
+		adminCommon.ProxyFeatureFlagsRules,
 		adminCommon.ProducerRuleBasedSegmentRules,
 		logger,
 		nil)
@@ -250,6 +265,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		FullConfig:        cfgForAdmin,
 		TLS:               adminTLSConfig,
 		FlagSpecVersion:   cfg.FlagSpecVersion,
+		FlagSetsFilter:    cfg.FlagSetsFilter,
 		Hash:              strconv.Itoa(int(hash)),
 	})
 	if err != nil {

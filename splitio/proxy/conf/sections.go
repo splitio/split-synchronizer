@@ -23,6 +23,7 @@ type Main struct {
 	Healthcheck           Healthcheck       `json:"healthcheck" s-nested:"true"`
 	Observability         Observability     `json:"observability" s-nested:"true"`
 	FlagSpecVersion       string            `json:"flagSpecVersion" s-cli:"flag-spec-version" s-def:"1.3" s-desc:"Spec version for flags"`
+	Offline               bool              `json:"offline" s-cli:"offline" s-def:"false" s-desc:"Serve a snapshot without contacting FME. Requires a snapshot and an empty SDK key"`
 }
 
 // BuildAdvancedConfig generates a commons-compatible advancedconfig with default + overriden parameters
@@ -46,6 +47,7 @@ type Initialization struct {
 	TimeoutMs         int64  `json:"timeoutMS" s-cli:"timeout-ms" s-def:"10000" s-desc:"How long to wait until the synchronizer is ready"`
 	Snapshot          string `json:"snapshot" s-cli:"snapshot" s-def:"" s-desc:"Snapshot file to use as a starting point"`
 	ForceFreshStartup bool   `json:"forceFreshStartup" s-cli:"force-fresh-startup" s-def:"false" s-desc:"Wipe storage before starting the synchronizer"`
+	OverridesFile     string `json:"overridesFile" s-cli:"overrides-file" s-def:"" s-desc:"YAML file of treatment overrides (offline mode only)"`
 }
 
 // Server configuration options

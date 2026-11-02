@@ -12,6 +12,7 @@ import (
 	ilMock "github.com/splitio/split-synchronizer/v5/splitio/common/impressionlistener/mocks"
 	mw "github.com/splitio/split-synchronizer/v5/splitio/proxy/controllers/middleware"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/internal"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -626,5 +627,41 @@ func TestPostBeaconImpressionsCounts(t *testing.T) {
 	router.ServeHTTP(resp, ctx.Request)
 	if resp.Code != 204 {
 		t.Error("Status code should be 200 and is ", resp.Code)
+	}
+}
+
+// Offline mode drops events, impressions and counts with no-op sinks and no impression listener (G3, G4).
+func TestOfflineNoopSinksAcceptPostsWithoutListener(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	_, router := gin.CreateTestContext(httptest.NewRecorder())
+
+	drop := tasks.NewNoopRecordingTask()
+	apikeyValidator := mw.NewAPIKeyValidator([]string{"someApiKey"})
+	group := router.Group("/api")
+	controller := NewEventsServerController(logging.NewLogger(nil), drop, drop, drop, nil, apikeyValidator.IsValid)
+	controller.Register(group, group)
+
+	impressions, _ := json.Marshal([]dtos.ImpressionsDTO{{
+		TestName:       "test1",
+		KeyImpressions: []dtos.ImpressionDTO{{KeyName: "k1", Treatment: "on", Time: 1, ChangeNumber: 2, Label: "l1"}},
+	}})
+	counts, _ := json.Marshal(dtos.ImpressionsCountDTO{
+		PerFeature: []dtos.ImpressionsInTimeFrameDTO{{FeatureName: "f1", TimeFrame: 1, RawCount: 1}},
+	})
+	events, _ := json.Marshal([]dtos.EventDTO{{Key: "k1", TrafficTypeName: "tt1", EventTypeID: "e1", Value: 1, Timestamp: 123}})
+
+	for path, body := range map[string][]byte{
+		"/api/testImpressions/bulk":  impressions,
+		"/api/testImpressions/count": counts,
+		"/api/events/bulk":           events,
+	} {
+		rec := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost, path, bytes.NewBuffer(body))
+		req.Header.Set("Authorization", "Bearer someApiKey")
+		req.Header.Set("SplitSDKVersion", "go-1.1.1")
+		req.Header.Set("SplitSDKMachineIp", "1.2.3.4")
+		req.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
+		router.ServeHTTP(rec, req)
+		assert.Equal(t, 200, rec.Code, path)
 	}
 }

@@ -9,8 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/splitio/go-split-commons/v10/engine/grammar/constants"
 	"github.com/splitio/go-split-commons/v10/synchronizer"
 	"github.com/splitio/go-toolkit/v5/logging"
+	adminCommon "github.com/splitio/split-synchronizer/v5/splitio/admin/common"
 	"github.com/splitio/split-synchronizer/v5/splitio/common/snapshot"
 	pconf "github.com/splitio/split-synchronizer/v5/splitio/proxy/conf"
 	"github.com/splitio/split-synchronizer/v5/splitio/util"
@@ -249,5 +251,31 @@ func TestSnapshotHashMatchNoWarningAndUsesSnapshot(t *testing.T) {
 	// Verify that snapshot is marked as valid
 	if !snapshotValid {
 		t.Error("snapshot should be marked as valid when hash matches")
+	}
+}
+
+func TestFeatureFlagRulesKeepLargeSegmentMatcher(t *testing.T) {
+	has := func(rules []string, m string) bool {
+		for _, r := range rules {
+			if r == m {
+				return true
+			}
+		}
+		return false
+	}
+	// Without this matcher the proxy rewrites flag conditions to "unsupported" before storage,
+	// so large segments are never fetched (F10).
+	if !has(adminCommon.ProxyFeatureFlagsRules, constants.MatcherTypeInLargeSegment) {
+		t.Error("proxy feature flag rules must accept IN_LARGE_SEGMENT")
+	}
+	// The synchronizer does not sync large segments and keeps its list unchanged.
+	if has(adminCommon.ProducerFeatureFlagsRules, constants.MatcherTypeInLargeSegment) {
+		t.Error("producer feature flag rules must not accept IN_LARGE_SEGMENT")
+	}
+	if has(adminCommon.ProducerRuleBasedSegmentRules, constants.MatcherTypeInLargeSegment) {
+		t.Error("rule-based segment rules must not accept IN_LARGE_SEGMENT")
+	}
+	if len(adminCommon.ProxyFeatureFlagsRules) != len(adminCommon.ProducerFeatureFlagsRules)+1 {
+		t.Error("proxy rules must be the producer rules plus IN_LARGE_SEGMENT only")
 	}
 }

@@ -18,6 +18,11 @@ func (p *ProxySplitStorageMock) RegisterOlderCn(payload *dtos.SplitChangesDTO) {
 	p.Called(payload)
 }
 
+func (p *ProxySplitStorageMock) ChangeNumber() (int64, error) {
+	args := p.Called()
+	return args.Get(0).(int64), args.Error(1)
+}
+
 type ProxySegmentStorageMock struct {
 	mock.Mock
 }

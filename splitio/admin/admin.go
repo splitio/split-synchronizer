@@ -42,6 +42,10 @@ type Options struct {
 	FlagSpecVersion     string
 	LargeSegmentVersion string
 	Hash                string
+	// SnapshotFlagSpec is written into exported snapshots. When empty, FlagSpecVersion is used.
+	SnapshotFlagSpec string
+	// FlagSetsFilter is the flag sets filter the proxy runs with, used to compute snapshot content ids.
+	FlagSetsFilter []string
 }
 
 type AdminServer struct {
@@ -97,7 +101,11 @@ func NewServer(options *Options) (*AdminServer, error) {
 	observabilityController.Register(admin)
 
 	if options.Snapshotter != nil {
-		snapshotController := controllers.NewSnapshotController(options.Logger, options.Snapshotter, options.Hash)
+		snapshotFlagSpec := options.SnapshotFlagSpec
+		if snapshotFlagSpec == "" {
+			snapshotFlagSpec = options.FlagSpecVersion
+		}
+		snapshotController := controllers.NewSnapshotController(options.Logger, options.Snapshotter, options.Hash, snapshotFlagSpec, options.FlagSetsFilter)
 		snapshotController.Register(admin)
 	}
 

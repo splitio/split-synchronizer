@@ -75,6 +75,28 @@ func (b *BoltDBWrapper) GetRawSnapshot() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
+// GetRawSnapshotWithContentID dumps all the contents of the db into a raw byte buffer and computes its
+// content identifier. Both are produced from the same read transaction.
+func (b *BoltDBWrapper) GetRawSnapshotWithContentID(flagSpecVersion string, flagSets []string) ([]byte, string, error) {
+	var buffer bytes.Buffer
+	var contentID string
+	err := b.View(func(tx *bolt.Tx) error {
+		if _, err := tx.WriteTo(&buffer); err != nil {
+			return fmt.Errorf("error reading whole db: %w", err)
+		}
+
+		var err error
+		contentID, err = computeContentID(tx, flagSpecVersion, flagSets)
+		return err
+	})
+
+	if err != nil {
+		return nil, "", err
+	}
+
+	return buffer.Bytes(), contentID, nil
+}
+
 // CollectionItem is the item into a collection
 type CollectionItem interface {
 	SetID(id uint64)
