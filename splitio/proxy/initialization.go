@@ -167,7 +167,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		SplitSyncTask: tasks.NewFetchSplitsTask(workers.SplitUpdater, int(cfg.Sync.SplitRefreshRateMs/1000), logger),
 		SegmentSyncTask: tasks.NewFetchSegmentsTask(workers.SegmentUpdater, int(cfg.Sync.SegmentRefreshRateMs/1000), advanced.SegmentWorkers,
 			advanced.SegmentQueueSize, logger, appMonitor),
-		TelemetrySyncTask:        tasks.NewRecordTelemetryTask(workers.TelemetryRecorder, int(cfg.Sync.Advanced.InternalMetricsRateMs), logger),
+		TelemetrySyncTask:        tasks.NewRecordTelemetryTask(workers.TelemetryRecorder, telemetryPeriodSeconds(cfg.Sync.Advanced.InternalMetricsRateMs), logger),
 		ImpressionSyncTask:       impressionTask,
 		ImpressionsCountSyncTask: impressionCountTask,
 		EventSyncTask:            eventsTask,
@@ -357,6 +357,15 @@ func startBGSync(m synchronizer.Manager, mstatus chan int, haveSnapshot bool, on
 
 	return errRetrying
 
+}
+
+// telemetryPeriodSeconds converts the internal metrics rate from milliseconds to the seconds the task period expects.
+// Rates below one second are clamped to one second so the task never gets a zero or negative period.
+func telemetryPeriodSeconds(rateMs int64) int {
+	if seconds := rateMs / 1000; seconds >= 1 {
+		return int(seconds)
+	}
+	return 1
 }
 
 func getAppCounterConfigs() (hcAppCounter.ThresholdConfig, hcAppCounter.ThresholdConfig, hcAppCounter.ThresholdConfig) {
