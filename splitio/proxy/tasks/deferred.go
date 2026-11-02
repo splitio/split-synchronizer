@@ -2,7 +2,9 @@ package tasks
 
 import (
 	"errors"
+	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/splitio/go-split-commons/v10/tasks"
 	"github.com/splitio/go-toolkit/v5/asynctask"
@@ -43,35 +45,54 @@ type DeferredRecordingTaskImpl struct {
 	pool            *workerpool.WorkerAdmin
 	queue           genericQueue
 	mutex           sync.Mutex
+	dropped         atomic.Int64
 }
 
 func newDeferredFlushTask(logger logging.LoggerInterface, wfactory WorkerFactory, period int, queueSize int, threads int) *DeferredRecordingTaskImpl {
 	drainFlag := gtSync.NewAtomicBool(false)
 	queue := make(genericQueue, queueSize)
 	pool := workerpool.NewWorkerAdmin(queueSize, logger)
-	trigger := func(loger logging.LoggerInterface) error {
-		if !drainFlag.TestAndSet() {
-			logger.Warning("Impressions flush requested while another one is in progress. Ignoring.")
-			return nil
-		}
-		defer drainFlag.Unset() // clear the flag after we're done
-		for len(queue) > 0 {
-			pool.QueueMessage(<-queue)
-		}
-		return nil
-	}
 
 	for i := 0; i < threads; i++ {
 		pool.AddWorker(wfactory())
 	}
 
-	return &DeferredRecordingTaskImpl{
+	t := &DeferredRecordingTaskImpl{
 		logger:          logger,
-		task:            asynctask.NewAsyncTask("impressions-recorder", trigger, period, nil, nil, logger),
 		drainInProgress: drainFlag,
 		pool:            pool,
 		queue:           queue,
 	}
+	t.task = asynctask.NewAsyncTask("impressions-recorder", t.flush, period, nil, nil, logger)
+	return t
+}
+
+// flush moves queued messages into the worker pool. The pool rejects a message when its queue is full;
+// rejected messages are counted in dropped and reported with one warning per flush.
+func (t *DeferredRecordingTaskImpl) flush(_ logging.LoggerInterface) error {
+	if !t.drainInProgress.TestAndSet() {
+		t.logger.Warning("Impressions flush requested while another one is in progress. Ignoring.")
+		return nil
+	}
+	defer t.drainInProgress.Unset()
+
+	dropped := 0
+	for len(t.queue) > 0 {
+		if !t.pool.QueueMessage(<-t.queue) {
+			dropped++
+		}
+	}
+
+	if dropped > 0 {
+		total := t.dropped.Add(int64(dropped))
+		t.logger.Warning(fmt.Sprintf("Deferred flush dropped %d message(s) because the worker queue was full (total dropped: %d)", dropped, total))
+	}
+	return nil
+}
+
+// Dropped returns the number of messages discarded by flush since the task was created
+func (t *DeferredRecordingTaskImpl) Dropped() int64 {
+	return t.dropped.Load()
 }
 
 // Stage queues impressions to be sent when the timer expires or the queue is filled.

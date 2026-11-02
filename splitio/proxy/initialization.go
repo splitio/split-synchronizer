@@ -167,7 +167,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		SplitSyncTask: tasks.NewFetchSplitsTask(workers.SplitUpdater, int(cfg.Sync.SplitRefreshRateMs/1000), logger),
 		SegmentSyncTask: tasks.NewFetchSegmentsTask(workers.SegmentUpdater, int(cfg.Sync.SegmentRefreshRateMs/1000), advanced.SegmentWorkers,
 			advanced.SegmentQueueSize, logger, appMonitor),
-		TelemetrySyncTask:        tasks.NewRecordTelemetryTask(workers.TelemetryRecorder, int(cfg.Sync.Advanced.InternalMetricsRateMs), logger),
+		TelemetrySyncTask:        tasks.NewRecordTelemetryTask(workers.TelemetryRecorder, telemetryPeriodSeconds(cfg.Sync.Advanced.InternalMetricsRateMs), logger),
 		ImpressionSyncTask:       impressionTask,
 		ImpressionsCountSyncTask: impressionCountTask,
 		EventSyncTask:            eventsTask,
@@ -240,9 +240,8 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	}
 
 	// --------------------------- ADMIN DASHBOARD ------------------------------
-	cfgForAdmin := *cfg
-	hash := util.HashAPIKey(cfgForAdmin.Apikey + cfg.FlagSpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
-	cfgForAdmin.Apikey = logging.ObfuscateAPIKey(cfgForAdmin.Apikey)
+	hash := adminSnapshotHash(cfg)
+	cfgForAdmin := adminConfigView(cfg)
 
 	adminTLSConfig, err := util.TLSConfigForServer(&cfg.Admin.TLS)
 	if err != nil {
@@ -266,12 +265,11 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		TLS:               adminTLSConfig,
 		FlagSpecVersion:   cfg.FlagSpecVersion,
 		FlagSetsFilter:    cfg.FlagSetsFilter,
-		Hash:              strconv.Itoa(int(hash)),
+		Hash:              hash,
 	})
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error starting admin server: %w", err), common.ExitAdminError)
 	}
-	go adminServer.Start()
 
 	tlsConfig, err := util.TLSConfigForServer(&cfg.Server.TLS)
 	if err != nil {
@@ -315,11 +313,12 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	}
 
 	proxyAPI := New(proxyOptions)
-	go proxyAPI.Start()
 
 	rtm.RegisterShutdownHandler()
-	rtm.Block()
-	return nil
+	return serveUntilShutdown(rtm.Block,
+		serverSpec{name: "admin server", addr: serverAddr(cfg.Admin.Host, int(cfg.Admin.Port)), start: adminServer.Start, exitCode: common.ExitAdminError},
+		serverSpec{name: "proxy API", addr: serverAddr("0.0.0.0", int(cfg.Server.Port)), start: proxyAPI.Start, exitCode: common.ExitTaskInitialization},
+	)
 }
 
 var (
@@ -358,6 +357,14 @@ func startBGSync(m synchronizer.Manager, mstatus chan int, haveSnapshot bool, on
 
 	return errRetrying
 
+}
+
+// telemetryPeriodSeconds clamps to at least 1s so the task never gets a zero period.
+func telemetryPeriodSeconds(rateMs int64) int {
+	if seconds := rateMs / 1000; seconds >= 1 {
+		return int(seconds)
+	}
+	return 1
 }
 
 func getAppCounterConfigs() (hcAppCounter.ThresholdConfig, hcAppCounter.ThresholdConfig, hcAppCounter.ThresholdConfig) {

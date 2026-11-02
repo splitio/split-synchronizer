@@ -3,7 +3,6 @@ package proxy
 import (
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -128,9 +127,8 @@ func startOffline(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		RuleBasedSegmentsStorage: ruleBasedStorage,
 	}
 
-	cfgForAdmin := *cfg
-	hash := util.HashAPIKey(cfgForAdmin.Apikey + cfg.FlagSpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
-	cfgForAdmin.Apikey = logging.ObfuscateAPIKey(cfgForAdmin.Apikey)
+	hash := adminSnapshotHash(cfg)
+	cfgForAdmin := adminConfigView(cfg)
 
 	adminTLSConfig, err := util.TLSConfigForServer(&cfg.Admin.TLS)
 	if err != nil {
@@ -155,12 +153,11 @@ func startOffline(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		FlagSpecVersion:   cfg.FlagSpecVersion,
 		SnapshotFlagSpec:  snap.Meta().FlagSpecVersion,
 		FlagSetsFilter:    cfg.FlagSetsFilter,
-		Hash:              strconv.Itoa(int(hash)),
+		Hash:              hash,
 	})
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error starting admin server: %w", err), common.ExitAdminError)
 	}
-	go adminServer.Start()
 
 	tlsConfig, err := util.TLSConfigForServer(&cfg.Server.TLS)
 	if err != nil {
@@ -195,9 +192,10 @@ func startOffline(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		Overrides:                   flagOverrides,
 		OverridesStamp:              overridesStamp,
 	})
-	go proxyAPI.Start()
 
 	rtm.RegisterShutdownHandler()
-	rtm.Block()
-	return nil
+	return serveUntilShutdown(rtm.Block,
+		serverSpec{name: "admin server", addr: serverAddr(cfg.Admin.Host, int(cfg.Admin.Port)), start: adminServer.Start, exitCode: common.ExitAdminError},
+		serverSpec{name: "proxy API", addr: serverAddr("0.0.0.0", int(cfg.Server.Port)), start: proxyAPI.Start, exitCode: common.ExitTaskInitialization},
+	)
 }
