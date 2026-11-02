@@ -18,6 +18,13 @@ func adminConfigView(cfg *pconf.Main) pconf.Main {
 	if view.Apikey != "" {
 		view.Apikey = logging.ObfuscateAPIKey(cfg.Apikey)
 	}
+	if len(cfg.Server.ClientApikeys) > 0 {
+		// Fresh slice: view is a shallow copy and must not alias (or mutate) cfg's keys.
+		view.Server.ClientApikeys = make([]string, len(cfg.Server.ClientApikeys))
+		for i, k := range cfg.Server.ClientApikeys {
+			view.Server.ClientApikeys[i] = logging.ObfuscateAPIKey(k)
+		}
+	}
 	if view.Admin.Password != "" {
 		view.Admin.Password = maskedSecret
 	}

@@ -113,7 +113,19 @@ func TestAdminConfigViewKeepsNonSecretFields(t *testing.T) {
 	assert.Equal(t, cfg.Server.Port, view.Server.Port)
 	assert.Equal(t, cfg.FlagSpecVersion, view.FlagSpecVersion)
 	assert.Equal(t, cfg.FlagSetsFilter, view.FlagSetsFilter)
-	assert.Equal(t, cfg.Server.ClientApikeys, view.Server.ClientApikeys)
+}
+
+func TestAdminConfigViewObfuscatesClientApikeys(t *testing.T) {
+	cfg := newAdminConfigFixture()
+	cfg.Server.ClientApikeys = []string{fixtureClientKey, "fixture-client-key-0002"}
+
+	view := adminConfigView(cfg)
+
+	assert.Equal(t, []string{
+		logging.ObfuscateAPIKey(fixtureClientKey),
+		logging.ObfuscateAPIKey("fixture-client-key-0002"),
+	}, view.Server.ClientApikeys)
+	assert.Equal(t, []string{fixtureClientKey, "fixture-client-key-0002"}, cfg.Server.ClientApikeys, "input must not be mutated")
 }
 
 func TestAdminConfigViewJSONHasNoSecrets(t *testing.T) {
@@ -126,7 +138,7 @@ func TestAdminConfigViewJSONHasNoSecrets(t *testing.T) {
 	assert.NotContains(t, body, fixtureAdminPassword)
 	assert.NotContains(t, body, fixtureSlackWebhook)
 	assert.NotContains(t, body, fixtureAPIKey)
-	assert.Contains(t, body, fixtureClientKey)
+	assert.NotContains(t, body, fixtureClientKey)
 }
 
 func TestInfoConfigEndpointDoesNotExposeSecrets(t *testing.T) {
@@ -144,6 +156,7 @@ func TestInfoConfigEndpointDoesNotExposeSecrets(t *testing.T) {
 	assert.NotContains(t, body, fixtureAdminPassword)
 	assert.NotContains(t, body, fixtureSlackWebhook)
 	assert.NotContains(t, body, fixtureAPIKey)
+	assert.NotContains(t, body, fixtureClientKey)
 	assert.Contains(t, body, maskedSecret)
 }
 
