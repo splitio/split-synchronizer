@@ -160,7 +160,6 @@ func startOffline(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error starting admin server: %w", err), common.ExitAdminError)
 	}
-	go adminServer.Start()
 
 	tlsConfig, err := util.TLSConfigForServer(&cfg.Server.TLS)
 	if err != nil {
@@ -195,9 +194,10 @@ func startOffline(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		Overrides:                   flagOverrides,
 		OverridesStamp:              overridesStamp,
 	})
-	go proxyAPI.Start()
 
 	rtm.RegisterShutdownHandler()
-	rtm.Block()
-	return nil
+	return serveUntilShutdown(rtm.Block,
+		serverSpec{name: "admin server", addr: serverAddr(cfg.Admin.Host, int(cfg.Admin.Port)), start: adminServer.Start, exitCode: common.ExitAdminError},
+		serverSpec{name: "proxy API", addr: serverAddr(cfg.Server.Host, int(cfg.Server.Port)), start: proxyAPI.Start, exitCode: common.ExitTaskInitialization},
+	)
 }
