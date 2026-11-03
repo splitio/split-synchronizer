@@ -52,8 +52,23 @@ type AdminServer struct {
 	server *http.Server
 }
 
+// warnIfAdminUnauthenticated logs a single warning when basic auth for the admin
+// endpoints is not fully configured. It never logs the credential values.
+func warnIfAdminUnauthenticated(logger logging.LoggerInterface, host string, port int, username, password string) {
+	if logger == nil || (username != "" && password != "") {
+		return
+	}
+	logger.Warning(fmt.Sprintf(
+		"Admin endpoints %s, %s and %s are exposed without authentication on %s:%d. "+
+			"Set both admin-username and admin-password to require HTTP basic auth.",
+		baseAdminPath, baseInfoPath, baseShutdownPath, host, port,
+	))
+}
+
 // NewServer instantiates a new admin server
 func NewServer(options *Options) (*AdminServer, error) {
+	warnIfAdminUnauthenticated(options.Logger, options.Host, options.Port, options.Username, options.Password)
+
 	router := gin.New()
 	admin := router.Group(baseAdminPath)
 	info := router.Group(baseInfoPath)

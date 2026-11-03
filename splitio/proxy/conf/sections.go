@@ -87,9 +87,9 @@ type AdvancedSync struct {
 	StreamingEnabled      bool  `json:"streamingEnabled" s-cli:"streaming-enabled" s-def:"true" s-desc:"Enable/disable streaming functionality"`
 	StreamingForceHTTP1   bool  `json:"streamingForceHttp1" s-cli:"streaming-force-http1" s-def:"false" s-desc:"Pin the streaming (SSE) connection to HTTP/1.1 (default is HTTP/2)"`
 	HTTPTimeoutMs         int64 `json:"httpTimeoutMs" s-cli:"http-timeout-ms" s-def:"30000" s-desc:"Total http request timeout"`
-	ImpressionsBuffer     int64 `json:"impressionsBufferSize" s-cli:"impressions-buffer-size" s-def:"500" s-dec:"How many impressions bulks to keep in memory"`
-	EventsBuffer          int64 `json:"eventsBufferSize" s-cli:"events-buffer-size" s-def:"500" s-dec:"How many events bulks to keep in memory"`
-	TelemetryBuffer       int64 `json:"telemetryBufferSize" s-cli:"telemetry-buffer-size" s-def:"500" s-dec:"How many telemetry bulks to keep in memory"`
+	ImpressionsBuffer     int64 `json:"impressionsBufferSize" s-cli:"impressions-buffer-size" s-def:"500" s-desc:"How many impressions bulks to keep in memory"`
+	EventsBuffer          int64 `json:"eventsBufferSize" s-cli:"events-buffer-size" s-def:"500" s-desc:"How many events bulks to keep in memory"`
+	TelemetryBuffer       int64 `json:"telemetryBufferSize" s-cli:"telemetry-buffer-size" s-def:"500" s-desc:"How many telemetry bulks to keep in memory"`
 	ImpressionsWorkers    int64 `json:"impressionsWorkers" s-cli:"impressions-workers" s-def:"10" s-desc:"#workers to forward impressions to Split servers"`
 	EventsWorkers         int64 `json:"eventsWorkers" s-cli:"events-workers" s-def:"10" s-desc:"#workers to forward events to Split servers"`
 	TelemetryWorkers      int64 `json:"telemetryWorkers" s-cli:"telemetry-workers" s-def:"10" s-desc:"#workers to forward telemetry to Split servers"`

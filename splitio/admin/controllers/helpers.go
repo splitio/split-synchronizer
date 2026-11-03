@@ -331,25 +331,36 @@ func getUpstreamRequestCount(metrics storage.TelemetryRuntimeConsumer) (ok int64
 	return totalCount - errorCount, errorCount
 }
 
+// proxyCountedEndpoints lists the proxy endpoints whose responses are reported in the
+// dashboard. Each endpoint must appear exactly once.
+var proxyCountedEndpoints = []int{
+	proxyStorage.AuthEndpoint,
+	proxyStorage.SplitChangesEndpoint,
+	proxyStorage.SegmentChangesEndpoint,
+	proxyStorage.MySegmentsEndpoint,
+	proxyStorage.ImpressionsBulkEndpoint,
+	proxyStorage.ImpressionsBulkBeaconEndpoint,
+	proxyStorage.ImpressionsCountEndpoint,
+	proxyStorage.ImpressionsCountBeaconEndpoint,
+	proxyStorage.EventsBulkEndpoint,
+	proxyStorage.EventsBulkBeaconEndpoint,
+}
+
 func getProxyRequestCount(metrics storage.TelemetryRuntimeConsumer) (ok int64, errored int64) {
 	asPeeker, k := metrics.(proxyStorage.ProxyTelemetryPeeker)
 	if !k { // This will be the case when runnning in producer mode
 		return 0, 0
 	}
 
-	resources := []int{proxyStorage.AuthEndpoint, proxyStorage.SplitChangesEndpoint, proxyStorage.SegmentChangesEndpoint,
-		proxyStorage.MySegmentsEndpoint, proxyStorage.ImpressionsBulkEndpoint, proxyStorage.ImpressionsBulkBeaconEndpoint,
-		proxyStorage.ImpressionsCountEndpoint, proxyStorage.ImpressionsBulkBeaconEndpoint, proxyStorage.EventsBulkEndpoint,
-		proxyStorage.EventsBulkBeaconEndpoint}
 	var okCount int64
 	var errorCount int64
-	for _, res := range resources {
+	for _, res := range proxyCountedEndpoints {
 		for code, count := range asPeeker.PeekEndpointStatus(res) {
 			if code >= 200 && code < 300 {
 				okCount += count
 				continue
 			}
-			errorCount = +count
+			errorCount += count
 		}
 	}
 

@@ -6,8 +6,11 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/admin/views/dashboard"
 
 	"github.com/splitio/go-split-commons/v10/dtos"
+	"github.com/splitio/go-split-commons/v10/storage"
 	"github.com/splitio/go-split-commons/v10/storage/mocks"
 	"github.com/splitio/go-toolkit/v5/datastructures/set"
+
+	proxyStorage "github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -26,4 +29,73 @@ func TestBundleRBInfo(t *testing.T) {
 	})
 	split.AssertExpectations(t)
 	rb.AssertExpectations(t)
+}
+
+// fakeProxyMetrics satisfies storage.TelemetryRuntimeConsumer via the embedded nil interface
+// (never called by getProxyRequestCount) and proxyStorage.ProxyTelemetryPeeker.
+type fakeProxyMetrics struct {
+	storage.TelemetryRuntimeConsumer
+	status map[int]map[int]int64
+}
+
+func (f *fakeProxyMetrics) PeekEndpointStatus(resource int) map[int]int64 {
+	return f.status[resource]
+}
+
+func (f *fakeProxyMetrics) PeekEndpointLatency(resource int) []int64 {
+	return nil
+}
+
+func TestGetProxyRequestCountAccumulatesErrors(t *testing.T) {
+	m := &fakeProxyMetrics{status: map[int]map[int]int64{
+		proxyStorage.SplitChangesEndpoint: {200: 5, 500: 2, 404: 3},
+	}}
+	ok, errored := getProxyRequestCount(m)
+	assert.Equal(t, int64(5), ok)
+	assert.Equal(t, int64(5), errored)
+}
+
+func TestGetProxyRequestCountAccumulatesErrorsAcrossEndpoints(t *testing.T) {
+	m := &fakeProxyMetrics{status: map[int]map[int]int64{
+		proxyStorage.SplitChangesEndpoint: {500: 2},
+		proxyStorage.EventsBulkEndpoint:   {400: 4, 200: 1},
+	}}
+	ok, errored := getProxyRequestCount(m)
+	assert.Equal(t, int64(1), ok)
+	assert.Equal(t, int64(6), errored)
+}
+
+func TestGetProxyRequestCountCountsImpressionsCountBeacon(t *testing.T) {
+	m := &fakeProxyMetrics{status: map[int]map[int]int64{
+		proxyStorage.ImpressionsCountBeaconEndpoint: {200: 3},
+	}}
+	ok, errored := getProxyRequestCount(m)
+	assert.Equal(t, int64(3), ok)
+	assert.Equal(t, int64(0), errored)
+}
+
+func TestGetProxyRequestCountExcludesInternalEndpoints(t *testing.T) {
+	m := &fakeProxyMetrics{status: map[int]map[int]int64{
+		proxyStorage.TelemetryConfigEndpoint: {200: 9},
+	}}
+	ok, errored := getProxyRequestCount(m)
+	assert.Equal(t, int64(0), ok)
+	assert.Equal(t, int64(0), errored)
+}
+
+func TestGetProxyRequestCountNotProxyMode(t *testing.T) {
+	ok, errored := getProxyRequestCount(&mocks.MockTelemetryStorage{})
+	assert.Equal(t, int64(0), ok)
+	assert.Equal(t, int64(0), errored)
+}
+
+func TestProxyCountedEndpointsHasNoDuplicates(t *testing.T) {
+	seen := map[int]bool{}
+	for _, res := range proxyCountedEndpoints {
+		if seen[res] {
+			t.Fatalf("endpoint %d is listed more than once", res)
+		}
+		seen[res] = true
+	}
+	assert.True(t, seen[proxyStorage.ImpressionsCountBeaconEndpoint], "ImpressionsCountBeaconEndpoint must be counted")
 }
