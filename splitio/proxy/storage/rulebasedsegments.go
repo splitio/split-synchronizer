@@ -6,6 +6,7 @@ import (
 
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/optimized"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/persistent"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/redisstate"
 
 	"github.com/splitio/go-split-commons/v10/dtos"
 	"github.com/splitio/go-split-commons/v10/engine/grammar/constants"
@@ -29,6 +30,13 @@ type ProxyRuleBasedSegmentsStorageImpl struct {
 	oldestKnownCN int64
 	mtx           sync.Mutex
 	historic      optimized.HistoricChangesRB
+	redis         redisstate.RuleBasedSegmentWriter // nil when the Redis state is disabled
+}
+
+// WithRedisWriter sets the writer that mirrors rule-based segment changes to Redis (nil disables it) and returns the receiver
+func (p *ProxyRuleBasedSegmentsStorageImpl) WithRedisWriter(w redisstate.RuleBasedSegmentWriter) *ProxyRuleBasedSegmentsStorageImpl {
+	p.redis = w
+	return p
 }
 
 // NewProxyRuleBasedSegmentsStorage instantiates a new proxy storage that wraps an in-memory snapshot of the last known
@@ -205,6 +213,9 @@ func (p *ProxyRuleBasedSegmentsStorageImpl) Update(toAdd []dtos.RuleBasedSegment
 	p.snapshot.Update(toAdd, toRemove, changeNumber)
 	p.historic.Update(toAdd, toRemove, changeNumber)
 	p.db.Update(toAdd, toRemove, changeNumber)
+	if p.redis != nil {
+		p.redis.PutRuleBasedSegments(toAdd, toRemove, changeNumber)
+	}
 	p.mtx.Unlock()
 	return nil
 }

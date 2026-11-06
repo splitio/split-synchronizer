@@ -197,4 +197,15 @@ func (c *SegmentChangesCollectionImpl) SetChangeNumber(segment string, cn int64)
 	c.segmentsTill[segment] = cn
 }
 
+// Names returns a snapshot copy of the segment names currently stored
+func (c *SegmentChangesCollectionImpl) Names() []string {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	names := make([]string, 0, len(c.segmentsTill))
+	for name := range c.segmentsTill {
+		names = append(names, name)
+	}
+	return names
+}
+
 var _ SegmentChangesCollection = (*SegmentChangesCollectionImpl)(nil)

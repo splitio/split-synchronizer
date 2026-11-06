@@ -6,6 +6,7 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/admin/common"
 	"github.com/splitio/split-synchronizer/v5/splitio/provisional/observability"
 	pstorage "github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/redisstate"
 
 	"github.com/splitio/go-toolkit/v5/logging"
 
@@ -45,10 +46,11 @@ func (c *SyncObservabilityController) observability(ctx *gin.Context) {
 
 // ProxyObservabilityController exposes an observability endpoint exposing cached feature flags & segments information
 type ProxyObservabilityController struct {
-	logger    logging.LoggerInterface
-	telemetry pstorage.TimeslicedProxyEndpointTelemetry
-	splits    observability.ObservableSplitStorage
-	segments  observability.ObservableSegmentStorage
+	logger     logging.LoggerInterface
+	telemetry  pstorage.TimeslicedProxyEndpointTelemetry
+	splits     observability.ObservableSplitStorage
+	segments   observability.ObservableSegmentStorage
+	redisState redisstate.StatusReporter
 }
 
 // Register mounts the controller endpoints onto the supplied router
@@ -57,13 +59,17 @@ func (c *ProxyObservabilityController) Register(router gin.IRouter) {
 }
 
 func (c *ProxyObservabilityController) observability(ctx *gin.Context) {
-	ctx.JSON(200, gin.H{
+	body := gin.H{
 		"activeSplits":            c.splits.SplitNames(),
 		"activeSegments":          c.segments.NamesAndCount(),
 		"activeFlagSets":          c.splits.GetAllFlagSetNames(),
 		"proxyEndpointStats":      c.telemetry.TimeslicedReport(),
 		"proxyEndpointStatsTotal": c.telemetry.TotalMetricsReport(),
-	})
+	}
+	if c.redisState != nil {
+		body["redisState"] = c.redisState.Status()
+	}
+	ctx.JSON(200, body)
 }
 
 // NewObservabilityController constructs and returns the appropriate struct dependeing on whether the app is split-proxy or split-sync
@@ -94,10 +100,11 @@ func NewObservabilityController(proxy bool, logger logging.LoggerInterface, stor
 	}
 
 	return &ProxyObservabilityController{
-		logger:    logger,
-		splits:    splitStorage,
-		segments:  segmentStorage,
-		telemetry: telemetry,
+		logger:     logger,
+		splits:     splitStorage,
+		segments:   segmentStorage,
+		telemetry:  telemetry,
+		redisState: storagePack.RedisState,
 	}, nil
 
 }

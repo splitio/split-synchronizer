@@ -63,6 +63,18 @@ type Server struct {
 type Storage struct {
 	Volatile   Volatile   `json:"volatile" s-nested:"true"`
 	Persistent Persistent `json:"persistent" s-nested:"true"`
+	Redis      RedisState `json:"redis" s-nested:"true"`
+}
+
+// RedisState configuration options (the proxy writes its state to Redis; read support comes later)
+type RedisState struct {
+	Enabled           bool       `json:"enabled" s-cli:"redis-state-enabled" s-def:"false" s-desc:"Write the proxy state to Redis"`
+	Namespace         string     `json:"namespace" s-cli:"redis-state-namespace" s-def:"" s-desc:"Optional readable name for this environment in Redis (letters, digits, - and _); default is a hash of the API key"`
+	RetentionHours    int64      `json:"retentionHours" s-cli:"redis-state-retention-hours" s-def:"168" s-desc:"How long removed flags and segment keys stay in Redis"`
+	WriteMaxAttempts  int64      `json:"writeMaxAttempts" s-cli:"redis-state-write-max-attempts" s-def:"10" s-desc:"Attempts per round when a Redis write fails"`
+	WriteBackoffMaxMs int64      `json:"writeBackoffMaxMs" s-cli:"redis-state-write-backoff-max-ms" s-def:"60000" s-desc:"Maximum wait between Redis write attempts"`
+	MaxPendingChanges int64      `json:"maxPendingChanges" s-cli:"redis-state-max-pending-changes" s-def:"3000000" s-desc:"Queued changes above which the proxy rewrites its whole state to Redis"`
+	Connection        conf.Redis `json:"connection" s-nested:"true"`
 }
 
 // Volatile storage configuration options

@@ -3,6 +3,8 @@ package conf
 import (
 	"reflect"
 	"testing"
+
+	"github.com/splitio/split-synchronizer/v5/splitio/common/conf"
 )
 
 // walkStructFields visits every struct field reachable from t, recursing into
@@ -59,5 +61,54 @@ func TestBufferOptionsHaveDescriptions(t *testing.T) {
 				t.Errorf("field %s has no s-desc tag", tc.field)
 			}
 		})
+	}
+}
+
+func TestProxyRedisStateDefaults(t *testing.T) {
+	var m Main
+	if err := conf.PopulateDefaults(&m); err != nil {
+		t.Fatalf("PopulateDefaults returned error: %v", err)
+	}
+
+	rs := m.Storage.Redis
+	if rs.Enabled {
+		t.Errorf("Enabled: expected false, got true")
+	}
+	if rs.Namespace != "" {
+		t.Errorf("Namespace: expected empty, got %q", rs.Namespace)
+	}
+	if rs.RetentionHours != 168 {
+		t.Errorf("RetentionHours: expected 168, got %d", rs.RetentionHours)
+	}
+	if rs.WriteMaxAttempts != 10 {
+		t.Errorf("WriteMaxAttempts: expected 10, got %d", rs.WriteMaxAttempts)
+	}
+	if rs.WriteBackoffMaxMs != 60000 {
+		t.Errorf("WriteBackoffMaxMs: expected 60000, got %d", rs.WriteBackoffMaxMs)
+	}
+	if rs.MaxPendingChanges != 3000000 {
+		t.Errorf("MaxPendingChanges: expected 3000000, got %d", rs.MaxPendingChanges)
+	}
+}
+
+func TestProxyRedisStateFlagNames(t *testing.T) {
+	argMap := conf.MakeCliArgMapFor(&Main{})
+
+	expected := []string{
+		"redis-state-enabled",
+		"redis-state-namespace",
+		"redis-state-retention-hours",
+		"redis-state-write-max-attempts",
+		"redis-state-write-backoff-max-ms",
+		"redis-state-max-pending-changes",
+	}
+	for _, name := range expected {
+		if _, ok := argMap[name]; !ok {
+			t.Errorf("expected CLI flag %q to be registered", name)
+		}
+	}
+
+	if _, ok := argMap["storage-redis-state-enabled"]; ok {
+		t.Errorf("unexpected prefixed flag storage-redis-state-enabled")
 	}
 }

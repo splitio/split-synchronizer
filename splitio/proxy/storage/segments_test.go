@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"errors"
+	"github.com/stretchr/testify/mock"
 	"testing"
 
 	"github.com/splitio/go-toolkit/v5/datastructures/set"
@@ -141,4 +143,64 @@ func TestSegmentSnapshotFromDiskWithSuccess(t *testing.T) {
 	namesAndCount := segmentStorage.NamesAndCount()
 	assert.Contains(t, namesAndCount, "segment1")
 	assert.Equal(t, 2, namesAndCount["segment1"])
+}
+
+type recordingSegmentWriter struct {
+	calls    int
+	name     string
+	toAdd    []string
+	toRemove []string
+	cn       int64
+}
+
+func (r *recordingSegmentWriter) PutSegment(name string, toAdd, toRemove []string, cn int64) {
+	r.calls++
+	r.name = name
+	r.toAdd = toAdd
+	r.toRemove = toRemove
+	r.cn = cn
+}
+
+func TestProxySegmentStorageForwardsToRedisWriter(t *testing.T) {
+	toAdd := set.NewSet("k1", "k2")
+	toRemove := set.NewSet("k3")
+
+	t.Run("bolt succeeds", func(t *testing.T) {
+		psm := &mocks.SegmentChangesCollectionMock{}
+		psm.On("Update", "seg", mock.Anything, mock.Anything, int64(3)).Return(nil)
+		ss := &ProxySegmentStorageImpl{
+			logger:         logging.NewLogger(nil),
+			db:             psm,
+			mysegments:     optimized.NewMySegmentsCache(),
+			nameCountCache: observability.NewActiveSegmentTracker(10),
+		}
+		w := &recordingSegmentWriter{}
+		ss.WithRedisWriter(w)
+
+		assert.Nil(t, ss.Update("seg", toAdd, toRemove, 3))
+		assert.Equal(t, 1, w.calls)
+		assert.Equal(t, "seg", w.name)
+		assert.ElementsMatch(t, []string{"k1", "k2"}, w.toAdd)
+		assert.ElementsMatch(t, []string{"k3"}, w.toRemove)
+		assert.Equal(t, int64(3), w.cn)
+	})
+
+	t.Run("bolt fails", func(t *testing.T) {
+		psm := &mocks.SegmentChangesCollectionMock{}
+		psm.On("Update", "seg", mock.Anything, mock.Anything, int64(4)).Return(errors.New("bolt down"))
+		ss := &ProxySegmentStorageImpl{
+			logger:         logging.NewLogger(nil),
+			db:             psm,
+			mysegments:     optimized.NewMySegmentsCache(),
+			nameCountCache: observability.NewActiveSegmentTracker(10),
+		}
+		w := &recordingSegmentWriter{}
+		ss.WithRedisWriter(w)
+
+		assert.NotNil(t, ss.Update("seg", toAdd, toRemove, 4))
+		assert.Equal(t, 1, w.calls)
+		assert.ElementsMatch(t, []string{"k1", "k2"}, w.toAdd)
+		assert.ElementsMatch(t, []string{"k3"}, w.toRemove)
+		assert.Equal(t, int64(4), w.cn)
+	})
 }

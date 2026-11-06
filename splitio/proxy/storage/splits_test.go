@@ -402,3 +402,61 @@ func TestSplitSnapshotFromDiskWithSuccess(t *testing.T) {
 	assert.ElementsMatch(t, splits, splitStorage.All())
 	assert.Equal(t, int64(10), splitStorage.oldestKnownCN)
 }
+
+type recordingFlagWriter struct {
+	calls    int
+	toAdd    []dtos.SplitDTO
+	toRemove []dtos.SplitDTO
+	cn       int64
+}
+
+func (r *recordingFlagWriter) PutFlags(toAdd, toRemove []dtos.SplitDTO, cn int64) {
+	r.calls++
+	r.toAdd = append(r.toAdd, toAdd...)
+	r.toRemove = append(r.toRemove, toRemove...)
+	r.cn = cn
+}
+
+func TestProxySplitStorageForwardsToRedisWriter(t *testing.T) {
+	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
+	assert.Nil(t, err)
+	pss := NewProxySplitStorage(dbw, logging.NewLogger(nil), flagsets.NewFlagSetFilter(nil), false)
+
+	w := &recordingFlagWriter{}
+	pss.WithRedisWriter(w)
+
+	toAdd := []dtos.SplitDTO{{Name: "f1", ChangeNumber: 5, Status: "ACTIVE", TrafficTypeName: "ttt"}}
+	toRemove := []dtos.SplitDTO{{Name: "f2", ChangeNumber: 5, Status: "ARCHIVED", TrafficTypeName: "ttt"}}
+	pss.Update(toAdd, toRemove, 5)
+
+	assert.Equal(t, 1, w.calls)
+	assert.Equal(t, toAdd, w.toAdd)
+	assert.Equal(t, toRemove, w.toRemove)
+	assert.Equal(t, int64(5), w.cn)
+}
+
+func TestProxySplitStorageEmptyUpdateDoesNotForward(t *testing.T) {
+	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
+	assert.Nil(t, err)
+	pss := NewProxySplitStorage(dbw, logging.NewLogger(nil), flagsets.NewFlagSetFilter(nil), false)
+
+	w := &recordingFlagWriter{}
+	pss.WithRedisWriter(w)
+	pss.Update(nil, nil, 6)
+
+	assert.Equal(t, 0, w.calls)
+}
+
+func TestProxySplitStorageWithoutWriterUnchanged(t *testing.T) {
+	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
+	assert.Nil(t, err)
+	pss := NewProxySplitStorage(dbw, logging.NewLogger(nil), flagsets.NewFlagSetFilter(nil), false)
+
+	pss.Update([]dtos.SplitDTO{{Name: "f1", ChangeNumber: 7, Status: "ACTIVE", TrafficTypeName: "ttt"}}, nil, 7)
+
+	assert.Nil(t, pss.redis)
+	cn, err := pss.ChangeNumber()
+	assert.Nil(t, err)
+	assert.Equal(t, int64(7), cn)
+	assert.Equal(t, []string{"f1"}, pss.SplitNames())
+}
