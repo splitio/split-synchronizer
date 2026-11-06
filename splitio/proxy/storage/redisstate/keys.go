@@ -17,6 +17,13 @@ const (
 	reservedKeyPrefix = "SPLITIO."
 )
 
+const (
+	// FingerprintField is the meta hash field holding the environment fingerprint. The Lua scripts keep the same literal.
+	FingerprintField = "fingerprint"
+	// UpdatedAtField is the meta hash field holding the time in ms of the last applied write. The Lua scripts keep the same literal.
+	UpdatedAtField = "updatedAtMs"
+)
+
 var namespaceRegex = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
 var (
@@ -82,19 +89,69 @@ func (k Keys) MetaUnprefixed() string {
 	return "{" + keyRoot + "." + k.env + "}.meta"
 }
 
+// FlagData returns the hash holding the JSON of every feature flag, by name
+func (k Keys) FlagData() string {
+	return k.base + ".flags"
+}
+
+// FlagIndex returns the sorted set of feature flag names, scored by change number
+func (k Keys) FlagIndex() string {
+	return k.base + ".flags.index"
+}
+
+// FlagRemoved returns the sorted set of removed feature flag names, scored by the removal time in ms
+func (k Keys) FlagRemoved() string {
+	return k.base + ".flags.removed"
+}
+
+// RuleBasedSegmentData returns the hash holding the JSON of every rule-based segment, by name
+func (k Keys) RuleBasedSegmentData() string {
+	return k.base + ".rbs"
+}
+
+// RuleBasedSegmentIndex returns the sorted set of rule-based segment names, scored by change number
+func (k Keys) RuleBasedSegmentIndex() string {
+	return k.base + ".rbs.index"
+}
+
+// RuleBasedSegmentRemoved returns the sorted set of removed rule-based segment names, scored by the removal time in ms
+func (k Keys) RuleBasedSegmentRemoved() string {
+	return k.base + ".rbs.removed"
+}
+
+// SegmentActive returns the sorted set of keys present in the named segment, scored by change number
+func (k Keys) SegmentActive(name string) string {
+	return k.base + ".seg." + name
+}
+
+// SegmentTombstones returns the sorted set of keys removed from the named segment, scored by change number
+func (k Keys) SegmentTombstones(name string) string {
+	return k.base + ".segrm." + name
+}
+
+// SegmentRemovalClock returns the sorted set of tombstone times in ms of the named segment, scored by removal time
+func (k Keys) SegmentRemovalClock(name string) string {
+	return k.base + ".segat." + name
+}
+
+// SegmentNames returns the set of segment names written by the proxy
+func (k Keys) SegmentNames() string {
+	return k.base + ".segments"
+}
+
 // FlagKeys returns the keys the entity script touches for feature flags: meta, data, index, removed
 func (k Keys) FlagKeys() []string {
-	return []string{k.Meta(), k.base + ".flags", k.base + ".flags.index", k.base + ".flags.removed"}
+	return []string{k.Meta(), k.FlagData(), k.FlagIndex(), k.FlagRemoved()}
 }
 
 // RuleBasedSegmentKeys returns the keys the entity script touches for rule-based segments: meta, data, index, removed
 func (k Keys) RuleBasedSegmentKeys() []string {
-	return []string{k.Meta(), k.base + ".rbs", k.base + ".rbs.index", k.base + ".rbs.removed"}
+	return []string{k.Meta(), k.RuleBasedSegmentData(), k.RuleBasedSegmentIndex(), k.RuleBasedSegmentRemoved()}
 }
 
 // SegmentKeys returns the keys the segment script touches: meta, active, tombstones, removal clock, segment names
 func (k Keys) SegmentKeys(name string) []string {
-	return []string{k.Meta(), k.base + ".seg." + name, k.base + ".segrm." + name, k.base + ".segat." + name, k.base + ".segments"}
+	return []string{k.Meta(), k.SegmentActive(name), k.SegmentTombstones(name), k.SegmentRemovalClock(name), k.SegmentNames()}
 }
 
 // FlagCursorField returns the meta hash field holding the feature flag cursor

@@ -142,39 +142,38 @@ func (e *scriptEnv) names() []string {
 	return names
 }
 
-type ent struct {
-	name    string
-	cn      int64
-	removed bool
-	json    string
-}
+// ent and segKey are the writer's own entity and key types, so the tests build ARGV with the production builders
+type ent = entity
 
-type segKey struct {
-	key string
-	cn  int64
-}
+type segKey = segmentKey
 
 func entityArgs(fp string, now, retention int64, cursorField string, cursor int64, ents ...ent) []interface{} {
-	args := []interface{}{fp, now, retention, cursorField, cursor, len(ents)}
-	for _, en := range ents {
-		removed := "0"
-		if en.removed {
-			removed = "1"
-		}
-		args = append(args, en.name, en.cn, removed, en.json)
-	}
-	return args
+	return buildEntityArgs(fp, now, retention, cursorField, cursor, ents)
 }
 
 func segmentArgs(fp string, now, retention int64, name, cursorField string, cursor int64, adds, rems []segKey) []interface{} {
-	args := []interface{}{fp, now, retention, name, cursorField, cursor, len(adds), len(rems)}
-	for _, a := range adds {
-		args = append(args, a.key, a.cn)
-	}
-	for _, r := range rems {
-		args = append(args, r.key, r.cn)
-	}
-	return args
+	return buildSegmentArgs(fp, now, retention, name, cursorField, cursor, adds, rems)
+}
+
+func TestBuiltArgsRunAgainstScripts(t *testing.T) {
+	e := newScriptEnv(t)
+	ents := []ent{{"a", 5, false, `{"v":1}`}, {"b", 6, true, `{"v":2}`}}
+	require.Nil(t, e.client.Eval(FlagScript, e.keys.FlagKeys(), buildEntityArgs(testFp, testNow, testRetention, e.keys.FlagCursorField(), 7, ents)...))
+
+	d := e.dump()
+	assert.Equal(t, map[string]string{"a": `{"v":1}`, "b": `{"v":2}`}, d[e.keys.FlagData()].Fields)
+	assert.Equal(t, map[string]float64{"a": 5, "b": 6}, d[e.keys.FlagIndex()].Scores)
+	assert.Equal(t, map[string]float64{"b": float64(testNow)}, d[e.keys.FlagRemoved()].Scores)
+	assert.Equal(t, "7", d[e.keys.Meta()].Fields[e.keys.FlagCursorField()])
+
+	adds := []segKey{{"k1", 3}}
+	rems := []segKey{{"k2", 4}}
+	require.Nil(t, e.client.Eval(SegmentScript, e.keys.SegmentKeys("s"), buildSegmentArgs(testFp, testNow, testRetention, "s", e.keys.SegmentCursorField("s"), 9, adds, rems)...))
+
+	d = e.dump()
+	assert.Equal(t, map[string]float64{"k1": 3}, d[e.keys.SegmentActive("s")].Scores)
+	assert.Equal(t, map[string]float64{"k2": 4}, d[e.keys.SegmentTombstones("s")].Scores)
+	assert.Equal(t, "9", d[e.keys.Meta()].Fields[e.keys.SegmentCursorField("s")])
 }
 
 func (e *scriptEnv) flags(fp string, now int64, cursor int64, ents ...ent) error {
@@ -326,6 +325,40 @@ func TestScriptEnvironmentMismatchWritesNothing(t *testing.T) {
 	require.NotNil(t, err)
 	assert.True(t, ErrorHasMarker(err, EnvMismatchMarker), err.Error())
 
+	assert.Equal(t, before, e.dump())
+}
+
+func TestScriptUpdatedAtSetOnApplyNotOnRefusal(t *testing.T) {
+	e := newScriptEnv(t)
+	meta := func() map[string]string { return e.dump()[e.keys.Meta()].Fields }
+
+	require.Nil(t, e.flags(testFp, testNow, 5, ent{"a", 5, false, `{"v":1}`}))
+	assert.Equal(t, strconv.FormatInt(testNow, 10), meta()[UpdatedAtField])
+
+	require.Nil(t, e.segment(testFp, testNow+500, "s", 1, []segKey{{"k", 1}}, nil))
+	assert.Equal(t, strconv.FormatInt(testNow+500, 10), meta()[UpdatedAtField])
+
+	require.Nil(t, e.rbs(testFp, testNow+700, 3, ent{"r", 3, false, `{}`}))
+	assert.Equal(t, strconv.FormatInt(testNow+700, 10), meta()[UpdatedAtField])
+
+	err := e.flags("fp-B", testNow+900, 9, ent{"a", 9, false, `{"v":2}`})
+	require.NotNil(t, err)
+	assert.True(t, ErrorHasMarker(err, EnvMismatchMarker), err.Error())
+	assert.Equal(t, strconv.FormatInt(testNow+700, 10), meta()[UpdatedAtField])
+}
+
+func TestSegmentScriptUpdatedAtNotSetOnRefusal(t *testing.T) {
+	e := newScriptEnv(t)
+	meta := func() map[string]string { return e.dump()[e.keys.Meta()].Fields }
+
+	require.Nil(t, e.segment(testFp, testNow, "s", 1, []segKey{{"k", 1}}, nil))
+	assert.Equal(t, strconv.FormatInt(testNow, 10), meta()[UpdatedAtField])
+
+	before := e.dump()
+	err := e.segment("fp-B", testNow+900, "s", 2, []segKey{{"k", 2}}, nil)
+	require.NotNil(t, err)
+	assert.True(t, ErrorHasMarker(err, EnvMismatchMarker), err.Error())
+	assert.Equal(t, strconv.FormatInt(testNow, 10), meta()[UpdatedAtField])
 	assert.Equal(t, before, e.dump())
 }
 

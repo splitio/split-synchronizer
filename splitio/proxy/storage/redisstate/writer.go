@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -15,7 +16,8 @@ import (
 )
 
 const (
-	statusActive = "ACTIVE"
+	statusActive   = "ACTIVE"
+	statusArchived = "ARCHIVED"
 
 	defaultRetention         = 168 * time.Hour
 	defaultMaxAttempts       = 10
@@ -646,6 +648,73 @@ func (w *Writer) newEntity(name string, cn int64, status string, dto interface{}
 	return entity{name: name, cn: cn, removed: status != statusActive, json: string(raw)}, true
 }
 
+// buildEntityArgs returns the ARGV of FlagScript and RuleBasedSegmentScript: fingerprint, nowMs, retentionMs,
+// cursor field, cursor, count, then name, cn, removed (0|1), json for every entity. The reader's tests run these
+// args against the scripts, so the positions here and in script.go must change together.
+func buildEntityArgs(fingerprint string, nowMs, retentionMs int64, cursorField string, cursor int64, ents []entity) []interface{} {
+	args := make([]interface{}, 0, 6+4*len(ents))
+	args = append(args, fingerprint, nowMs, retentionMs, cursorField, cursor, len(ents))
+	for _, e := range ents {
+		removed := "0"
+		if e.removed {
+			removed = "1"
+		}
+		args = append(args, e.name, e.cn, removed, e.json)
+	}
+	return args
+}
+
+// buildSegmentArgs returns the ARGV of SegmentScript: fingerprint, nowMs, retentionMs, name, cursor field, cursor,
+// nAdd, nRemove, then the (key, cn) pairs of the additions and then of the removals.
+func buildSegmentArgs(fingerprint string, nowMs, retentionMs int64, name, cursorField string, cursor int64, adds, rems []segmentKey) []interface{} {
+	args := make([]interface{}, 0, 8+2*(len(adds)+len(rems)))
+	args = append(args, fingerprint, nowMs, retentionMs, name, cursorField, cursor, len(adds), len(rems))
+	for _, k := range adds {
+		args = append(args, k.key, k.cn)
+	}
+	for _, k := range rems {
+		args = append(args, k.key, k.cn)
+	}
+	return args
+}
+
+// DecodeFlag rebuilds a feature flag from the stored entity. data is the JSON from the data hash, cn is the index
+// score and removed is membership of the removed set. The index score is authoritative over any change number
+// inside the JSON. A removed entity is returned with status ARCHIVED.
+func DecodeFlag(data []byte, cn int64, removed bool) (dtos.SplitDTO, error) {
+	var d dtos.SplitDTO
+	if err := json.Unmarshal(data, &d); err != nil {
+		return dtos.SplitDTO{}, fmt.Errorf("decoding flag entity: %w", err)
+	}
+	d.ChangeNumber = cn
+	if removed {
+		d.Status = statusArchived
+	}
+	return d, nil
+}
+
+// DecodeRuleBasedSegment is DecodeFlag for rule-based segments
+func DecodeRuleBasedSegment(data []byte, cn int64, removed bool) (dtos.RuleBasedSegmentDTO, error) {
+	var d dtos.RuleBasedSegmentDTO
+	if err := json.Unmarshal(data, &d); err != nil {
+		return dtos.RuleBasedSegmentDTO{}, fmt.Errorf("decoding rule-based segment entity: %w", err)
+	}
+	d.ChangeNumber = cn
+	if removed {
+		d.Status = statusArchived
+	}
+	return d, nil
+}
+
+// ParseCursor parses a cursor value read from the meta hash
+func ParseCursor(s string) (int64, error) {
+	v, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("parsing cursor %q: %w", s, err)
+	}
+	return v, nil
+}
+
 func chunkCount(n, size int) int {
 	if n == 0 {
 		return 1
@@ -671,14 +740,7 @@ func (w *Writer) writeEntities(what, script string, keys []string, cursorField s
 		if last && !skipped {
 			cur = cursor
 		}
-		args := []interface{}{w.fingerprint, w.now().UnixMilli(), w.opts.Retention.Milliseconds(), cursorField, cur, len(part)}
-		for _, e := range part {
-			removed := "0"
-			if e.removed {
-				removed = "1"
-			}
-			args = append(args, e.name, e.cn, removed, e.json)
-		}
+		args := buildEntityArgs(w.fingerprint, w.now().UnixMilli(), w.opts.Retention.Milliseconds(), cursorField, cur, part)
 		return w.eval(what, script, keys, args)
 	}
 	skipEntity := func(name string) {
@@ -734,14 +796,7 @@ func (w *Writer) writeSegment(name string, adds, rems []segmentKey, cursor int64
 		if last && !skipped {
 			cur = cursor
 		}
-		args := make([]interface{}, 0, 8+2*(len(a)+len(r)))
-		args = append(args, w.fingerprint, w.now().UnixMilli(), w.opts.Retention.Milliseconds(), name, field, cur, len(a), len(r))
-		for _, k := range a {
-			args = append(args, k.key, k.cn)
-		}
-		for _, k := range r {
-			args = append(args, k.key, k.cn)
-		}
+		args := buildSegmentArgs(w.fingerprint, w.now().UnixMilli(), w.opts.Retention.Milliseconds(), name, field, cur, a, r)
 		return w.eval("segment write", SegmentScript, keys, args)
 	}
 	skipKey := func(k segmentKey) {

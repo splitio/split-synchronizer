@@ -14,6 +14,31 @@ func sha16(apikey string) string {
 	return hex.EncodeToString(sum[:8])
 }
 
+func TestKeyAccessorsAreTheSliceLayout(t *testing.T) {
+	k, err := NewKeys("pre", "secret-api-key", "")
+	assert.Nil(t, err)
+	base := "pre.{SPLITIO_PROXY." + sha16("secret-api-key") + "}"
+
+	assert.Equal(t, base+".flags", k.FlagData())
+	assert.Equal(t, base+".flags.index", k.FlagIndex())
+	assert.Equal(t, base+".flags.removed", k.FlagRemoved())
+	assert.Equal(t, []string{k.Meta(), k.FlagData(), k.FlagIndex(), k.FlagRemoved()}, k.FlagKeys())
+
+	assert.Equal(t, base+".rbs", k.RuleBasedSegmentData())
+	assert.Equal(t, base+".rbs.index", k.RuleBasedSegmentIndex())
+	assert.Equal(t, base+".rbs.removed", k.RuleBasedSegmentRemoved())
+	assert.Equal(t, []string{k.Meta(), k.RuleBasedSegmentData(), k.RuleBasedSegmentIndex(), k.RuleBasedSegmentRemoved()}, k.RuleBasedSegmentKeys())
+
+	assert.Equal(t, base+".seg.s", k.SegmentActive("s"))
+	assert.Equal(t, base+".segrm.s", k.SegmentTombstones("s"))
+	assert.Equal(t, base+".segat.s", k.SegmentRemovalClock("s"))
+	assert.Equal(t, base+".segments", k.SegmentNames())
+	assert.Equal(t, []string{k.Meta(), k.SegmentActive("s"), k.SegmentTombstones("s"), k.SegmentRemovalClock("s"), k.SegmentNames()}, k.SegmentKeys("s"))
+
+	assert.Equal(t, "fingerprint", FingerprintField)
+	assert.Equal(t, "updatedAtMs", UpdatedAtField)
+}
+
 func TestNewKeys(t *testing.T) {
 	env := sha16("secret-api-key")
 

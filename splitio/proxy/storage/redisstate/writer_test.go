@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -290,6 +291,94 @@ func wtSegArgs(args []interface{}) (string, int64, []wtSegKey, []wtSegKey) {
 		rems = append(rems, wtSegKey{key: args[b].(string), cn: args[b+1].(int64)})
 	}
 	return name, cursor, adds, rems
+}
+
+func TestEntityArgsLayout(t *testing.T) {
+	args := buildEntityArgs("fp", 100, 200, "flags.till", 7, []entity{
+		{name: "a", cn: 5, removed: false, json: "{}"},
+		{name: "b", cn: 6, removed: true, json: "[]"},
+	})
+	assert.Equal(t, []interface{}{"fp", int64(100), int64(200), "flags.till", int64(7), 2,
+		"a", int64(5), "0", "{}",
+		"b", int64(6), "1", "[]",
+	}, args)
+}
+
+func TestSegmentArgsLayout(t *testing.T) {
+	args := buildSegmentArgs("fp", 100, 200, "s", "seg.s.till", 9, []segmentKey{{key: "a", cn: 1}}, []segmentKey{{key: "b", cn: 2}})
+	assert.Equal(t, []interface{}{"fp", int64(100), int64(200), "s", "seg.s.till", int64(9), 1, 1,
+		"a", int64(1), "b", int64(2),
+	}, args)
+}
+
+func TestDecodeRoundTripsWriterOutput(t *testing.T) {
+	e := newWtEnv(t, wtOptions())
+	flagActive := wtFlag("f1", 5, statusActive)
+	flagArchived := wtFlag("f2", 6, statusArchived)
+	rbsActive := dtos.RuleBasedSegmentDTO{Name: "r1", ChangeNumber: 4, Status: statusActive}
+	rbsArchived := dtos.RuleBasedSegmentDTO{Name: "r2", ChangeNumber: 8, Status: statusArchived}
+	e.w.PutFlags([]dtos.SplitDTO{flagActive}, []dtos.SplitDTO{flagArchived}, 6)
+	e.w.PutRuleBasedSegments([]dtos.RuleBasedSegmentDTO{rbsActive}, []dtos.RuleBasedSegmentDTO{rbsArchived}, 8)
+	e.w.Start(nil)
+	wtWaitUntil(t, "both entity writes", func() bool { return e.client.count() == 2 && e.w.Status().PendingChanges == 0 })
+	e.stop()
+
+	gotFlags := map[string]dtos.SplitDTO{}
+	gotRbs := map[string]dtos.RuleBasedSegmentDTO{}
+	for _, c := range e.client.evals() {
+		for _, en := range wtEntities(c.args) {
+			removed := en.removed == "1"
+			if c.keys[2] == e.w.keys.FlagIndex() {
+				d, err := DecodeFlag([]byte(en.json), en.cn, removed)
+				require.Nil(t, err)
+				gotFlags[en.name] = d
+			} else {
+				d, err := DecodeRuleBasedSegment([]byte(en.json), en.cn, removed)
+				require.Nil(t, err)
+				gotRbs[en.name] = d
+			}
+		}
+	}
+	assert.Equal(t, map[string]dtos.SplitDTO{"f1": flagActive, "f2": flagArchived}, gotFlags)
+	assert.Equal(t, map[string]dtos.RuleBasedSegmentDTO{"r1": rbsActive, "r2": rbsArchived}, gotRbs)
+}
+
+func TestDecodeScoreOverridesChangeNumberInJSON(t *testing.T) {
+	d, err := DecodeFlag([]byte(`{"name":"f","changeNumber":1,"status":"ACTIVE"}`), 42, false)
+	require.Nil(t, err)
+	assert.Equal(t, int64(42), d.ChangeNumber)
+	assert.Equal(t, statusActive, d.Status)
+}
+
+func TestDecodeRejectsInvalidJSON(t *testing.T) {
+	_, err := DecodeFlag([]byte(`{`), 1, false)
+	assert.NotNil(t, err)
+	_, err = DecodeRuleBasedSegment([]byte(`{`), 1, false)
+	assert.NotNil(t, err)
+}
+
+func TestParseCursor(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		in    string
+		want  int64
+		isErr bool
+	}{
+		{name: "positive", in: "42", want: 42},
+		{name: "negative sentinel", in: "-2", want: -2},
+		{name: "empty", in: "", isErr: true},
+		{name: "not a number", in: "abc", isErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := ParseCursor(tc.in)
+			if tc.isErr {
+				assert.True(t, errors.Is(err, strconv.ErrSyntax), "%v", err)
+				return
+			}
+			require.Nil(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
 }
 
 func TestWriterRejectsInvalidOptions(t *testing.T) {

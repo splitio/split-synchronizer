@@ -38,6 +38,7 @@ end
 if not fp then
   redis.call('HSET', KEYS[1], 'fingerprint', ARGV[1])
 end
+redis.call('HSET', KEYS[1], 'updatedAtMs', ARGV[2])
 for i = 0, n - 1 do
   local b = 7 + i * 4
   local name = ARGV[b]
@@ -109,6 +110,7 @@ end
 if not fp then
   redis.call('HSET', KEYS[1], 'fingerprint', ARGV[1])
 end
+redis.call('HSET', KEYS[1], 'updatedAtMs', ARGV[2])
 local now = tonumber(ARGV[2])
 redis.call('SADD', KEYS[5], ARGV[4])
 for i = 0, nAdd - 1 do

@@ -3,7 +3,6 @@ package redisstate
 import (
 	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/splitio/go-split-commons/v10/dtos"
@@ -35,7 +34,7 @@ func (w *Writer) resync(source Source) error {
 	if err != nil {
 		return err
 	}
-	if fp, ok := fields["fingerprint"]; ok && fp != w.fingerprint {
+	if fp, ok := fields[FingerprintField]; ok && fp != w.fingerprint {
 		w.enterMismatch()
 		return ErrEnvironmentMismatch
 	}
@@ -134,7 +133,7 @@ func (w *Writer) resyncSegment(s SegmentState, fields map[string]string) error {
 
 // storedCursor parses a cursor field of the meta hash; absent or unparsable means missingCursor
 func storedCursor(fields map[string]string, field string) int64 {
-	v, err := strconv.ParseInt(fields[field], 10, 64)
+	v, err := ParseCursor(fields[field])
 	if err != nil {
 		return missingCursor
 	}
