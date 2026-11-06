@@ -37,12 +37,17 @@ type benchProfile struct {
 var (
 	benchSmallProfile   = benchProfile{flags: 20, segments: 5, bigSegments: 1, keysPerBig: 1000}
 	benchExampleProfile = benchProfile{flags: 2000, segments: 150, bigSegments: 4, keysPerBig: 500000}
+	benchMillionProfile = benchProfile{flags: 2000, segments: 150, bigSegments: 2, keysPerBig: 500000}
 )
 
-// selectedBenchProfile returns the reduced example profile only when REDISSTATE_BENCH_PROFILE=example
+// selectedBenchProfile returns the reduced profile for REDISSTATE_BENCH_PROFILE=example (2M segment keys)
+// or =million (1M segment keys); any other value selects the small profile
 func selectedBenchProfile() benchProfile {
-	if os.Getenv("REDISSTATE_BENCH_PROFILE") == "example" {
+	switch os.Getenv("REDISSTATE_BENCH_PROFILE") {
+	case "example":
 		return benchExampleProfile
+	case "million":
+		return benchMillionProfile
 	}
 	return benchSmallProfile
 }
