@@ -8,6 +8,7 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/provisional/observability"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/optimized"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/persistent"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/redisstate"
 
 	"github.com/splitio/go-split-commons/v10/dtos"
 	"github.com/splitio/go-split-commons/v10/engine/grammar/constants"
@@ -36,6 +37,7 @@ type ProxySplitStorageImpl struct {
 	logger        logging.LoggerInterface
 	oldestKnownCN int64
 	mtx           sync.Mutex
+	redis         redisstate.FlagWriter // nil when the Redis state is disabled
 }
 
 // NewProxySplitStorage instantiates a new proxy storage that wraps an in-memory snapshot of the last known,
@@ -58,6 +60,12 @@ func NewProxySplitStorage(db persistent.DBWrapper, logger logging.LoggerInterfac
 		logger:        logger,
 		oldestKnownCN: initialCN,
 	}
+}
+
+// WithRedisWriter sets the writer that mirrors flag changes to Redis (nil disables it) and returns the receiver
+func (p *ProxySplitStorageImpl) WithRedisWriter(w redisstate.FlagWriter) *ProxySplitStorageImpl {
+	p.redis = w
+	return p
 }
 
 // ChangesSince builds a SplitChanges payload to from `since` to the latest known CN
@@ -124,6 +132,9 @@ func (p *ProxySplitStorageImpl) Update(toAdd []dtos.SplitDTO, toRemove []dtos.Sp
 	p.snapshot.Update(toAdd, toRemove, changeNumber)
 	p.historic.Update(toAdd, toRemove, changeNumber)
 	p.db.Update(toAdd, toRemove, changeNumber)
+	if p.redis != nil {
+		p.redis.PutFlags(toAdd, toRemove, changeNumber)
+	}
 	p.mtx.Unlock()
 }
 

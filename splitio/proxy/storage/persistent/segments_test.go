@@ -183,3 +183,44 @@ func TestInitializeMultipleSegments(t *testing.T) {
 		}
 	}
 }
+
+func TestSegmentChangesCollectionNames(t *testing.T) {
+	dbw, err := NewBoltWrapper(BoltInMemoryMode, nil)
+	if err != nil {
+		t.Error("error creating bolt wrapper: ", err)
+	}
+
+	logger := logging.NewLogger(nil)
+	segmentC := NewSegmentChangesCollection(dbw, logger)
+	segmentC.Update("s1", set.NewSet("k1"), set.NewSet(), 1)
+	segmentC.Update("s2", set.NewSet("k2"), set.NewSet(), 2)
+	segmentC.Update("s3", set.NewSet("k3"), set.NewSet(), 3)
+
+	names := segmentC.Names()
+	expected := map[string]bool{"s1": true, "s2": true, "s3": true}
+	if len(names) != len(expected) {
+		t.Fatalf("expected %d names, got %d: %v", len(expected), len(names), names)
+	}
+	for _, name := range names {
+		if !expected[name] {
+			t.Errorf("unexpected name %q", name)
+		}
+		delete(expected, name)
+	}
+	if len(expected) != 0 {
+		t.Errorf("missing names: %v", expected)
+	}
+
+	for i := range names {
+		names[i] = "mutated"
+	}
+	after := segmentC.Names()
+	for _, name := range after {
+		if name == "mutated" {
+			t.Errorf("mutating returned slice affected the collection")
+		}
+	}
+	if len(after) != 3 {
+		t.Errorf("expected 3 names after mutation, got %d", len(after))
+	}
+}

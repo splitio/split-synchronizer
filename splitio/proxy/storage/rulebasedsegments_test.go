@@ -181,3 +181,83 @@ func TestRBSnapshotFromDiskWithOtherError(t *testing.T) {
 	assert.Equal(t, int64(10), rbsStorage.oldestKnownCN)
 }
 
+type recordingRBWriter struct {
+	calls    int
+	toAdd    []dtos.RuleBasedSegmentDTO
+	toRemove []dtos.RuleBasedSegmentDTO
+	cn       int64
+}
+
+func (r *recordingRBWriter) PutRuleBasedSegments(toAdd, toRemove []dtos.RuleBasedSegmentDTO, cn int64) {
+	r.calls++
+	r.toAdd = append(r.toAdd, toAdd...)
+	r.toRemove = append(r.toRemove, toRemove...)
+	r.cn = cn
+}
+
+func TestRBSStorageForwardsToRedisWriter(t *testing.T) {
+	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
+	assert.Nil(t, err)
+	rbs := NewProxyRuleBasedSegmentsStorage(dbw, logging.NewLogger(nil), false)
+
+	w := &recordingRBWriter{}
+	rbs.WithRedisWriter(w)
+
+	toAdd := []dtos.RuleBasedSegmentDTO{{Name: "rb1", ChangeNumber: 5, Status: "ACTIVE"}}
+	toRemove := []dtos.RuleBasedSegmentDTO{{Name: "rb2", ChangeNumber: 5, Status: "ARCHIVED"}}
+	assert.Nil(t, rbs.Update(toAdd, toRemove, 5))
+
+	assert.Equal(t, 1, w.calls)
+	assert.Equal(t, toAdd, w.toAdd)
+	assert.Equal(t, toRemove, w.toRemove)
+	assert.Equal(t, int64(5), w.cn)
+}
+
+func TestRBSStorageEmptyUpdateDoesNotForward(t *testing.T) {
+	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
+	assert.Nil(t, err)
+	rbs := NewProxyRuleBasedSegmentsStorage(dbw, logging.NewLogger(nil), false)
+
+	w := &recordingRBWriter{}
+	rbs.WithRedisWriter(w)
+	assert.Nil(t, rbs.Update(nil, nil, 6))
+
+	assert.Equal(t, 0, w.calls)
+}
+
+func TestRBSStorageWithoutWriterUnchanged(t *testing.T) {
+	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
+	assert.Nil(t, err)
+	rbs := NewProxyRuleBasedSegmentsStorage(dbw, logging.NewLogger(nil), false)
+
+	assert.Nil(t, rbs.Update([]dtos.RuleBasedSegmentDTO{{Name: "rb1", ChangeNumber: 7, Status: "ACTIVE"}}, nil, 7))
+
+	assert.Nil(t, rbs.redis)
+	cn, err := rbs.ChangeNumber()
+	assert.Nil(t, err)
+	assert.Equal(t, int64(7), cn)
+	names, err := rbs.RuleBasedSegmentNames()
+	assert.Nil(t, err)
+	assert.Equal(t, []string{"rb1"}, names)
+}
+
+// T100: the Redis forward does not depend on the Bolt write; a failing Bolt does not stop the change from reaching the writer
+func TestRBSStorageRedisIndependentOfBolt(t *testing.T) {
+	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
+	assert.Nil(t, err)
+	logger := logging.NewLogger(nil)
+	rbs := NewProxyRuleBasedSegmentsStorage(dbw, logger, false)
+	rbs.db = persistent.NewRBChangesCollection(boltDownDBWrapper{dbw}, logger)
+
+	w := &recordingRBWriter{}
+	rbs.WithRedisWriter(w)
+
+	toAdd := []dtos.RuleBasedSegmentDTO{{Name: "rb1", ChangeNumber: 5, Status: "ACTIVE"}}
+	assert.Nil(t, rbs.Update(toAdd, nil, 5))
+
+	assert.Equal(t, 1, w.calls, "writer receives the change although Bolt fails")
+	assert.Equal(t, toAdd, w.toAdd)
+	cn, err := rbs.ChangeNumber()
+	assert.Nil(t, err)
+	assert.Equal(t, int64(5), cn, "the in-memory snapshot is updated as before")
+}

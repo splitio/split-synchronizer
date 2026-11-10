@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/splitio/go-toolkit/v5/datastructures/set"
@@ -10,6 +11,7 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/persistent"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/persistent/mocks"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 func TestSegmentStorage(t *testing.T) {
@@ -141,4 +143,149 @@ func TestSegmentSnapshotFromDiskWithSuccess(t *testing.T) {
 	namesAndCount := segmentStorage.NamesAndCount()
 	assert.Contains(t, namesAndCount, "segment1")
 	assert.Equal(t, 2, namesAndCount["segment1"])
+}
+
+type recordingSegmentWriter struct {
+	calls    int
+	name     string
+	toAdd    []string
+	toRemove []string
+	cn       int64
+}
+
+func (r *recordingSegmentWriter) PutSegment(name string, toAdd, toRemove []string, cn int64) {
+	r.calls++
+	r.name = name
+	r.toAdd = toAdd
+	r.toRemove = toRemove
+	r.cn = cn
+}
+
+// T52: every successful Update forwards to PutSegment with the same arguments; Bolt's cursor is not consulted for that
+// and nothing is forwarded when the Bolt update fails
+func TestSegmentUpdateFromZeroUsesFullWrite(t *testing.T) {
+	newStorage := func(updateErr error) (*ProxySegmentStorageImpl, *recordingSegmentWriter, *mocks.SegmentChangesCollectionMock) {
+		psm := &mocks.SegmentChangesCollectionMock{}
+		psm.On("Update", "seg", mock.Anything, mock.Anything, int64(3)).Return(updateErr)
+		ss := &ProxySegmentStorageImpl{
+			logger:         logging.NewLogger(nil),
+			db:             psm,
+			mysegments:     optimized.NewMySegmentsCache(),
+			nameCountCache: observability.NewActiveSegmentTracker(10),
+		}
+		w := &recordingSegmentWriter{}
+		ss.WithRedisWriter(w)
+		return ss, w, psm
+	}
+
+	ss, w, psm := newStorage(nil)
+	assert.Nil(t, ss.Update("seg", set.NewSet("k1"), set.NewSet("k3"), 3))
+	assert.Equal(t, 1, w.calls)
+	assert.Equal(t, "seg", w.name)
+	assert.ElementsMatch(t, []string{"k1"}, w.toAdd)
+	assert.ElementsMatch(t, []string{"k3"}, w.toRemove)
+	assert.Equal(t, int64(3), w.cn)
+	psm.AssertNotCalled(t, "ChangeNumber", "seg")
+
+	ss, w, _ = newStorage(errors.New("bolt down"))
+	assert.NotNil(t, ss.Update("seg", set.NewSet("k1"), set.NewSet(), 3))
+	assert.Equal(t, 1, w.calls, "a failed Bolt update is still forwarded (D20)")
+}
+
+func TestProxySegmentStorageForwardsToRedisWriter(t *testing.T) {
+	toAdd := set.NewSet("k1", "k2")
+	toRemove := set.NewSet("k3")
+
+	t.Run("bolt succeeds", func(t *testing.T) {
+		psm := &mocks.SegmentChangesCollectionMock{}
+		psm.On("ChangeNumber", "seg").Return(int64(1))
+		psm.On("Update", "seg", mock.Anything, mock.Anything, int64(3)).Return(nil)
+		ss := &ProxySegmentStorageImpl{
+			logger:         logging.NewLogger(nil),
+			db:             psm,
+			mysegments:     optimized.NewMySegmentsCache(),
+			nameCountCache: observability.NewActiveSegmentTracker(10),
+		}
+		w := &recordingSegmentWriter{}
+		ss.WithRedisWriter(w)
+
+		assert.Nil(t, ss.Update("seg", toAdd, toRemove, 3))
+		assert.Equal(t, 1, w.calls)
+		assert.Equal(t, "seg", w.name)
+		assert.ElementsMatch(t, []string{"k1", "k2"}, w.toAdd)
+		assert.ElementsMatch(t, []string{"k3"}, w.toRemove)
+		assert.Equal(t, int64(3), w.cn)
+	})
+
+	t.Run("bolt fails", func(t *testing.T) {
+		psm := &mocks.SegmentChangesCollectionMock{}
+		psm.On("ChangeNumber", "seg").Return(int64(1))
+		psm.On("Update", "seg", mock.Anything, mock.Anything, int64(4)).Return(errors.New("bolt down"))
+		ss := &ProxySegmentStorageImpl{
+			logger:         logging.NewLogger(nil),
+			db:             psm,
+			mysegments:     optimized.NewMySegmentsCache(),
+			nameCountCache: observability.NewActiveSegmentTracker(10),
+		}
+		w := &recordingSegmentWriter{}
+		ss.WithRedisWriter(w)
+
+		assert.NotNil(t, ss.Update("seg", toAdd, toRemove, 4))
+		assert.Equal(t, 1, w.calls, "a failed Bolt update is still forwarded (D20)")
+		assert.Equal(t, "seg", w.name)
+		assert.Equal(t, int64(4), w.cn)
+	})
+}
+
+// no writer set is a plain Bolt update
+func TestSegmentUpdateFromZeroFailureAndNoWriter(t *testing.T) {
+	newStorage := func(updateErr error) (*ProxySegmentStorageImpl, *mocks.SegmentChangesCollectionMock) {
+		psm := &mocks.SegmentChangesCollectionMock{}
+		psm.On("Update", "seg", mock.Anything, mock.Anything, int64(3)).Return(updateErr)
+		return &ProxySegmentStorageImpl{
+			logger:         logging.NewLogger(nil),
+			db:             psm,
+			mysegments:     optimized.NewMySegmentsCache(),
+			nameCountCache: observability.NewActiveSegmentTracker(10),
+		}, psm
+	}
+
+	t.Run("no redis writer", func(t *testing.T) {
+		ss, psm := newStorage(nil)
+		assert.Nil(t, ss.Update("seg", set.NewSet("k1"), set.NewSet(), 3))
+		psm.AssertNotCalled(t, "ChangeNumber", "seg")
+	})
+}
+
+// T101: a failing Bolt does not stop the first update from reaching the writer; with a failing Bolt and no writer the name is in neither store
+func TestProxySegmentStorageRedisIndependentOfBolt(t *testing.T) {
+	logger := logging.NewLogger(nil)
+	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
+	assert.Nil(t, err)
+	newStorage := func() *ProxySegmentStorageImpl {
+		return &ProxySegmentStorageImpl{
+			logger:         logger,
+			db:             persistent.NewSegmentChangesCollection(boltDownDBWrapper{dbw}, logger),
+			mysegments:     optimized.NewMySegmentsCache(),
+			nameCountCache: observability.NewActiveSegmentTracker(10),
+		}
+	}
+
+	t.Run("writer receives first update when bolt fails", func(t *testing.T) {
+		ss := newStorage()
+		w := &recordingSegmentWriter{}
+		ss.WithRedisWriter(w)
+
+		assert.NotNil(t, ss.Update("seg", set.NewSet("k1"), set.NewSet(), 3))
+		assert.Equal(t, 1, w.calls)
+		assert.Equal(t, "seg", w.name)
+		assert.ElementsMatch(t, []string{"k1"}, w.toAdd)
+	})
+
+	t.Run("name in neither store when bolt fails and no writer", func(t *testing.T) {
+		ss := newStorage()
+		assert.NotNil(t, ss.Update("seg", set.NewSet("k1"), set.NewSet(), 3))
+		_, err := ss.ChangesSince("seg", -1)
+		assert.ErrorIs(t, err, ErrSegmentNotFound)
+	})
 }

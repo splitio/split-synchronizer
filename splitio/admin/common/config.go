@@ -3,6 +3,7 @@ package common
 import (
 	"github.com/splitio/go-split-commons/v10/engine/grammar/constants"
 	"github.com/splitio/go-split-commons/v10/storage"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/redisstate"
 )
 
 var ProducerFeatureFlagsRules = []string{constants.MatcherTypeAllKeys, constants.MatcherTypeInSegment, constants.MatcherTypeWhitelist, constants.MatcherTypeEqualTo, constants.MatcherTypeGreaterThanOrEqualTo, constants.MatcherTypeLessThanOrEqualTo, constants.MatcherTypeBetween,
@@ -29,4 +30,6 @@ type Storages struct {
 	UniqueKeysStorage        storage.UniqueKeysMultiSdkConsumer
 	LargeSegmentStorage      storage.LargeSegmentsStorage
 	RuleBasedSegmentsStorage storage.RuleBasedSegmentsStorage
+	// RedisState is nil unless the proxy writes its state to Redis
+	RedisState redisstate.StatusReporter
 }
