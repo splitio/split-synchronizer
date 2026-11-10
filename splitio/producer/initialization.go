@@ -68,7 +68,7 @@ func Start(logger logging.LoggerInterface, cfg *conf.Main) error {
 	}
 
 	// Redis Storages
-	redisOptions, err := parseRedisOptions(&cfg.Storage.Redis)
+	redisOptions, err := common.ParseRedisOptions(&cfg.Storage.Redis)
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error parsing redis config: %w", err), common.ExitRedisInitializationFailed)
 	}
