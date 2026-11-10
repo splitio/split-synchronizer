@@ -7,6 +7,7 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/provisional/observability"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/optimized"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/persistent"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/redisstate"
 
 	"github.com/splitio/go-split-commons/v10/dtos"
 	"github.com/splitio/go-split-commons/v10/storage"
@@ -31,6 +32,13 @@ type ProxySegmentStorageImpl struct {
 	nameCountCache *observability.ActiveSegmentTracker
 	db             persistent.SegmentChangesCollection
 	mysegments     optimized.MySegmentsCache
+	redis          redisstate.SegmentWriter // nil when the Redis state is disabled
+}
+
+// WithRedisWriter sets the writer that mirrors segment key changes to Redis (nil disables it) and returns the receiver
+func (s *ProxySegmentStorageImpl) WithRedisWriter(w redisstate.SegmentWriter) *ProxySegmentStorageImpl {
+	s.redis = w
+	return s
 }
 
 // NewProxySegmentStorage for proxy
@@ -143,6 +151,12 @@ func (s *ProxySegmentStorageImpl) SegmentContainsKey(segmentName string, key str
 func (s *ProxySegmentStorageImpl) Update(name string, toAdd *set.ThreadUnsafeSet, toRemove *set.ThreadUnsafeSet, changeNumber int64) error {
 	errCache := s.mysegments.Update(name, toAdd, toRemove)
 	errDB := s.db.Update(name, toAdd, toRemove, changeNumber)
+	if s.redis != nil {
+		adds, removes := stringsFrom(toAdd), stringsFrom(toRemove)
+		if len(adds)+len(removes) > 0 {
+			s.redis.PutSegment(name, adds, removes, changeNumber)
+		}
+	}
 	if errCache == nil && errDB == nil {
 		s.nameCountCache.Update(name, toAdd.Size(), toRemove.Size())
 		return nil
@@ -218,6 +232,21 @@ func populateCachesFromDisk(
 		dst.Update(all[idx].Name, s, set.NewSet())
 		names.Update(all[idx].Name, count, 0)
 	}
+}
+
+// stringsFrom returns the string members of the set, skipping any non-string member
+func stringsFrom(s *set.ThreadUnsafeSet) []string {
+	if s == nil {
+		return nil
+	}
+	items := s.List()
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		if str, ok := item.(string); ok {
+			out = append(out, str)
+		}
+	}
+	return out
 }
 
 var _ storage.SegmentStorage = (*ProxySegmentStorageImpl)(nil)

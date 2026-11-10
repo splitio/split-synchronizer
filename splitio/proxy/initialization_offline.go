@@ -72,6 +72,18 @@ func warnOfflineLargeSegments(logger logging.LoggerInterface, names *set.ThreadU
 	logger.Warning("Split Proxy offline mode: the snapshot references large segments [" + strings.Join(items, ",") + "] but large-segment keys are not stored in snapshots. Flags that use them return the default treatment.")
 }
 
+// maskedConfigForAdmin returns a copy of cfg that is safe to expose on the admin dashboard:
+// the API key is obfuscated and the Redis password is replaced by a fixed mask. cfg is not modified.
+func maskedConfigForAdmin(cfg *pconf.Main) pconf.Main {
+	cfgForAdmin := *cfg
+	cfgForAdmin.Apikey = logging.ObfuscateAPIKey(cfgForAdmin.Apikey)
+	cfgForAdmin.Storage.Redis.Connection.Pass = adminRedisPassMask
+	return cfgForAdmin
+}
+
+// adminRedisPassMask replaces the Redis password in the configuration shown on the admin dashboard.
+const adminRedisPassMask = "xxxxxxxxxxxxxxx"
+
 func startOffline(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	snap, payload, err := loadOfflineSnapshot(cfg)
 	if err != nil {

@@ -40,6 +40,10 @@ import (
 
 // Start initialize in proxy mode
 func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
+	if cfg.Offline && cfg.Storage.Redis.Enabled {
+		return common.NewInitError(errors.New("redis state is not supported in offline mode"), common.ExitInvalidConfiguration)
+	}
+
 	if cfg.Initialization.OverridesFile != "" && !cfg.Offline {
 		return common.NewInitError(errors.New("treatment overrides require offline mode in this version"), common.ExitInvalidConfiguration)
 	}
@@ -110,6 +114,13 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, flagsets.NewFlagSetFilter(cfg.FlagSetsFilter), snapshotValid)
 	ruleBasedStorage := storage.NewProxyRuleBasedSegmentsStorage(dbInstance, logger, snapshotValid)
 	segmentStorage := storage.NewProxySegmentStorage(dbInstance, logger, snapshotValid)
+	redisWriter, err := setupRedisState(cfg, logger, splitStorage, ruleBasedStorage, segmentStorage)
+	if err != nil {
+		return err
+	}
+	if redisWriter != nil {
+		defer stopRedisState(redisWriter, logger, stopWaitBound(cfg.Storage.Redis, cfg.Storage.Redis.Connection))
+	}
 	largeSegmentStorage := inmemory.NewLargeSegmentsStorage()
 
 	// Local telemetry
@@ -237,6 +248,9 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		LocalTelemetryStorage:    localTelemetryStorage,
 		LargeSegmentStorage:      largeSegmentStorage,
 		RuleBasedSegmentsStorage: ruleBasedStorage,
+	}
+	if redisWriter != nil {
+		storages.RedisState = redisWriter
 	}
 
 	// --------------------------- ADMIN DASHBOARD ------------------------------
