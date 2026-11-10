@@ -2,7 +2,10 @@ package conf
 
 import (
 	"reflect"
+	"strings"
 	"testing"
+
+	"github.com/splitio/split-synchronizer/v5/splitio/common/conf"
 )
 
 // walkStructFields visits every struct field reachable from t, recursing into
@@ -59,5 +62,127 @@ func TestBufferOptionsHaveDescriptions(t *testing.T) {
 				t.Errorf("field %s has no s-desc tag", tc.field)
 			}
 		})
+	}
+}
+
+func TestProxyRedisStateDefaults(t *testing.T) {
+	var m Main
+	if err := conf.PopulateDefaults(&m); err != nil {
+		t.Fatalf("PopulateDefaults returned error: %v", err)
+	}
+
+	rs := m.Storage.Redis
+	if rs.Enabled {
+		t.Errorf("Enabled: expected false, got true")
+	}
+	if rs.Namespace != "" {
+		t.Errorf("Namespace: expected empty, got %q", rs.Namespace)
+	}
+	if rs.RetentionHours != 168 {
+		t.Errorf("RetentionHours: expected 168, got %d", rs.RetentionHours)
+	}
+	if rs.WriteMaxAttempts != 3 {
+		t.Errorf("WriteMaxAttempts: expected 3, got %d", rs.WriteMaxAttempts)
+	}
+	if rs.WriteBackoffMaxMs != 60000 {
+		t.Errorf("WriteBackoffMaxMs: expected 60000, got %d", rs.WriteBackoffMaxMs)
+	}
+	if rs.MaxPendingChanges != 3000000 {
+		t.Errorf("MaxPendingChanges: expected 3000000, got %d", rs.MaxPendingChanges)
+	}
+	if rs.ChunkSize != 1000 {
+		t.Errorf("ChunkSize: expected 1000, got %d", rs.ChunkSize)
+	}
+	if rs.PurgeBatch != 500 {
+		t.Errorf("PurgeBatch: expected 500, got %d", rs.PurgeBatch)
+	}
+	if rs.StopTimeoutMs != 10000 {
+		t.Errorf("StopTimeoutMs: expected 10000, got %d", rs.StopTimeoutMs)
+	}
+}
+
+func TestRedisStateDefaults(t *testing.T) {
+	var m Main
+	if err := conf.PopulateDefaults(&m); err != nil {
+		t.Fatalf("PopulateDefaults returned error: %v", err)
+	}
+
+	rs := m.Storage.Redis
+	got := map[string]int64{
+		"writeMaxAttempts":  rs.WriteMaxAttempts,
+		"writeBackoffMaxMs": rs.WriteBackoffMaxMs,
+		"maxPendingChanges": rs.MaxPendingChanges,
+		"chunkSize":         rs.ChunkSize,
+		"purgeBatch":        rs.PurgeBatch,
+		"stopTimeoutMs":     rs.StopTimeoutMs,
+	}
+	want := map[string]int64{
+		"writeMaxAttempts":  3,
+		"writeBackoffMaxMs": 60000,
+		"maxPendingChanges": 3000000,
+		"chunkSize":         1000,
+		"purgeBatch":        500,
+		"stopTimeoutMs":     10000,
+	}
+	for name, w := range want {
+		if got[name] != w {
+			t.Errorf("redisState.%s: expected %d, got %d", name, w, got[name])
+		}
+	}
+}
+
+func TestProxyRedisStateHelpMatchesBehavior(t *testing.T) {
+	rt := reflect.TypeOf(RedisState{})
+
+	mpc, ok := rt.FieldByName("MaxPendingChanges")
+	if !ok {
+		t.Fatal("MaxPendingChanges field not found")
+	}
+	if desc := mpc.Tag.Get("s-desc"); strings.Contains(desc, "rewrites its whole state") {
+		t.Errorf("MaxPendingChanges s-desc is stale: %q", desc)
+	}
+
+	for _, name := range []string{"ChunkSize", "PurgeBatch", "StopTimeoutMs"} {
+		f, ok := rt.FieldByName(name)
+		if !ok {
+			t.Errorf("field %s not found", name)
+			continue
+		}
+		if f.Tag.Get("s-desc") == "" {
+			t.Errorf("field %s has empty s-desc", name)
+		}
+	}
+
+	bounds := map[string]string{"ChunkSize": "10000", "PurgeBatch": "5000", "StopTimeoutMs": "60000"}
+	for name, bound := range bounds {
+		f, _ := rt.FieldByName(name)
+		if !strings.Contains(f.Tag.Get("s-desc"), bound) {
+			t.Errorf("field %s s-desc does not state its upper bound %s", name, bound)
+		}
+	}
+}
+
+func TestProxyRedisStateFlagNames(t *testing.T) {
+	argMap := conf.MakeCliArgMapFor(&Main{})
+
+	expected := []string{
+		"redis-state-enabled",
+		"redis-state-namespace",
+		"redis-state-retention-hours",
+		"redis-state-write-max-attempts",
+		"redis-state-write-backoff-max-ms",
+		"redis-state-max-pending-changes",
+		"redis-state-chunk-size",
+		"redis-state-purge-batch",
+		"redis-state-stop-timeout-ms",
+	}
+	for _, name := range expected {
+		if _, ok := argMap[name]; !ok {
+			t.Errorf("expected CLI flag %q to be registered", name)
+		}
+	}
+
+	if _, ok := argMap["storage-redis-state-enabled"]; ok {
+		t.Errorf("unexpected prefixed flag storage-redis-state-enabled")
 	}
 }

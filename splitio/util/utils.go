@@ -3,6 +3,7 @@ package util
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/splitio/split-synchronizer/v5/splitio"
@@ -16,6 +17,12 @@ import (
 func HashAPIKey(apikey string) uint32 {
 	murmur32 := hasher.NewMurmur332Hasher(0)
 	return murmur32.Hash([]byte(apikey))
+}
+
+// ConfigFingerprint returns the decimal fingerprint of the API key, flag spec version and flag sets.
+// It is the same value the synchronizer stores as its apikey hash.
+func ConfigFingerprint(apikey, flagSpecVersion string, flagSets []string) string {
+	return strconv.Itoa(int(HashAPIKey(apikey + flagSpecVersion + strings.Join(flagSets, "::"))))
 }
 
 // GetClientKey accepts an apikey and extracts the "client-key" portion of it

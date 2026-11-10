@@ -47,3 +47,31 @@ type TLS struct {
 	MinTLSVersion            string `json:"minTlsVersion" s-cli:"tls-min-tls-version" s-def:"1.3" s-desc:"Minimum TLS version to allow X.Y"`
 	AllowedCipherSuites      string `json:"allowedCipherSuites" s-cli:"tls-allowed-cipher-suites" s-def:"" s-desc:"Comma-separated list of cipher suites to allow"`
 }
+
+// Redis configuration options
+type Redis struct {
+	Host                  string   `json:"host" s-cli:"redis-host" s-def:"localhost" s-desc:"Redis server hostname"`
+	Port                  int      `json:"port" s-cli:"redis-port" s-def:"6379" s-desc:"Redis Server port"`
+	Db                    int      `json:"db" s-cli:"redis-db" s-def:"0" s-desc:"Redis DB"`
+	Username              string   `json:"username" s-cli:"redis-user" s-def:"" s-desc:"Redis username"`
+	Pass                  string   `json:"password" s-cli:"redis-pass" s-def:"" s-desc:"Redis password"`
+	Prefix                string   `json:"prefix" s-cli:"redis-prefix" s-def:"" s-desc:"Redis key prefix"`
+	Network               string   `json:"network" s-cli:"redis-network" s-def:"tcp" s-desc:"Redis network protocol"`
+	MaxRetries            int      `json:"maxRetries" s-cli:"redis-max-retries" s-def:"0" s-desc:"Redis connection max retries"`
+	DialTimeout           int      `json:"dialTimeout" s-cli:"redis-dial-timeout" s-def:"5" s-desc:"Redis connection dial timeout"`
+	ReadTimeout           int      `json:"readTimeout" s-cli:"redis-read-timeout" s-def:"10" s-desc:"Redis connection read timeout"`
+	WriteTimeout          int      `json:"writeTimeout" s-cli:"redis-write-timeout" s-def:"5" s-desc:"Redis connection write timeout"`
+	PoolSize              int      `json:"poolSize" s-cli:"redis-pool" s-def:"10" s-desc:"Redis connection pool size"`
+	SentinelReplication   bool     `json:"sentinelReplication" s-cli:"redis-sentinel-replication" s-def:"false" s-desc:"Redis sentinel replication enabled."`
+	SentinelAddresses     string   `json:"sentinelAddresses" s-cli:"redis-sentinel-addresses" s-def:"" s-desc:"List of redis sentinels"`
+	SentinelMaster        string   `json:"sentinelMaster" s-cli:"redis-sentinel-master" s-def:"" s-desc:"Name of master"`
+	ClusterMode           bool     `json:"clusterMode" s-cli:"redis-cluster-mode" s-def:"false" s-desc:"Redis cluster enabled."`
+	ClusterNodes          string   `json:"clusterNodes" s-cli:"redis-cluster-nodes" s-def:"" s-desc:"List of redis cluster nodes."`
+	ClusterKeyHashTag     string   `json:"keyHashTag" s-cli:"redis-cluster-key-hashtag" s-def:"" s-desc:"keyHashTag for redis cluster."`
+	TLS                   bool     `json:"enableTLS" s-cli:"redis-tls" s-def:"false" s-desc:"Use SSL/TLS for connecting to redis"`
+	TLSServerName         string   `json:"tlsServerName" s-cli:"redis-tls-server-name" s-def:"" s-desc:"Server name to use when validating a server public key"`
+	TLSCACertificates     []string `json:"caCertificates" s-cli:"redis-tls-ca-certs" s-def:"" s-desc:"Root CA certificates to connect to a redis server via SSL/TLS"`
+	TLSSkipNameValidation bool     `json:"tlsSkipNameValidation" s-cli:"redis-tls-skip-name-validation" s-def:"false" s-desc:"Blindly accept server's public key."`
+	TLSClientCertificate  string   `json:"tlsClientCertificate" s-cli:"redis-tls-client-certificate" s-def:"" s-desc:"Client certificate signed by a known CA"`
+	TLSClientKey          string   `json:"tlsClientKey" s-cli:"redis-tls-client-key" s-def:"" s-desc:"Client private key matching the certificate."`
+}
