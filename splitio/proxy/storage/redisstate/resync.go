@@ -1,6 +1,7 @@
 package redisstate
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -36,7 +37,7 @@ func (w *Writer) resync(source Source) error {
 	defer func() { w.resyncPass = false }()
 	fields, err := w.readMeta()
 	if err != nil {
-		return err
+		return fmt.Errorf("reading meta: %w", err)
 	}
 	if fp, ok := fields[FingerprintField]; ok && fp != w.fingerprint {
 		w.enterMismatch()
@@ -54,13 +55,24 @@ func (w *Writer) resync(source Source) error {
 		return e
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("reading flags from source: %w", err)
 	}
-	ents, skipped := w.flagEntities(flags, nil)
+	storedFlags, err := w.readHash(w.keys.Unprefixed().FlagData())
+	if err != nil {
+		return fmt.Errorf("reading stored flags: %w", err)
+	}
+	var gone []dtos.SplitDTO
+	var goneSkipped []string
+	if !sourceEmpty(len(flags), flagsCn) {
+		gone, goneSkipped = w.unlistedFlags(storedFlags, flags)
+	}
+	all, removals := withRemovals(flags, gone)
+	ents, skipped := w.flagEntities(all, removals)
+	skipped = append(skipped, goneSkipped...)
 	released := w.releaseGroup(w.keys.FlagCursorField())
 	if _, err := w.writeEntities("flag resync", FlagScript, w.keys.FlagKeys(), w.keys.FlagCursorField(), ents, flagsCn, skipped); err != nil {
 		w.restoreGroup(w.keys.FlagCursorField(), released)
-		return err
+		return fmt.Errorf("writing flags: %w", err)
 	}
 
 	var rbs []dtos.RuleBasedSegmentDTO
@@ -74,20 +86,41 @@ func (w *Writer) resync(source Source) error {
 		return e
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("reading rule-based segments from source: %w", err)
 	}
-	rbsEnts, rbsSkipped := w.rbsEntities(rbs, nil)
+	storedRBS, err := w.readHash(w.keys.Unprefixed().RuleBasedSegmentData())
+	if err != nil {
+		return fmt.Errorf("reading stored rule-based segments: %w", err)
+	}
+	var goneRBS []dtos.RuleBasedSegmentDTO
+	var goneRBSSkipped []string
+	if !sourceEmpty(len(rbs), rbsCn) {
+		goneRBS, goneRBSSkipped = w.unlistedRuleBasedSegments(storedRBS, rbs)
+	}
+	allRBS, rbsRemovals := withRemovals(rbs, goneRBS)
+	rbsEnts, rbsSkipped := w.rbsEntities(allRBS, rbsRemovals)
+	rbsSkipped = append(rbsSkipped, goneRBSSkipped...)
 	releasedRBS := w.releaseGroup(w.keys.RuleBasedSegmentCursorField())
 	if _, err := w.writeEntities("rule-based segment resync", RuleBasedSegmentScript, w.keys.RuleBasedSegmentKeys(), w.keys.RuleBasedSegmentCursorField(), rbsEnts, rbsCn, rbsSkipped); err != nil {
 		w.restoreGroup(w.keys.RuleBasedSegmentCursorField(), releasedRBS)
-		return err
+		return fmt.Errorf("writing rule-based segments: %w", err)
 	}
 
-	if err := w.resyncSegments(source, fields); err != nil {
-		return err
+	listed, err := w.resyncSegments(source, fields)
+	if err != nil {
+		return fmt.Errorf("resyncing segments: %w", err)
+	}
+	if err := w.dropUnlistedSegments(fields, listed); err != nil {
+		return fmt.Errorf("dropping unlisted segments: %w", err)
 	}
 	w.clearOverflowIfUnchanged(epoch)
 	return nil
+}
+
+// sourceEmpty reports a source that holds nothing yet (no entities and no change number). Such a source is not evidence
+// that the entities Redis holds were removed (T62), so the pass deletes nothing in that group.
+func sourceEmpty(n int, cn int64) bool {
+	return n == 0 && cn <= 0
 }
 
 // overflowEpochOf returns the overflow epoch under mtx
@@ -123,9 +156,14 @@ func (w *Writer) clearOverflowIfUnchanged(epoch uint64) {
 
 // readMeta reads the meta hash once per resync. Errors are retried like a failed script call.
 func (w *Writer) readMeta() (map[string]string, error) {
+	return w.readHash(w.keys.MetaUnprefixed())
+}
+
+// readHash reads a whole hash by its unprefixed name. Errors are retried like a failed script call.
+func (w *Writer) readHash(key string) (map[string]string, error) {
 	var fields map[string]string
-	err := w.retry("redis meta read", func() error {
-		f, e := w.client.HGetAll(w.keys.MetaUnprefixed())
+	err := w.retry("redis hash read", func() error {
+		f, e := w.client.HGetAll(key)
 		if e == nil {
 			fields = f
 			w.recordSuccess()
@@ -135,15 +173,79 @@ func (w *Writer) readMeta() (map[string]string, error) {
 	return fields, err
 }
 
+// withRemovals appends the entities the source does not list and marks them removed, so the script tombstones them (D40)
+func withRemovals[T any](listed, gone []T) ([]T, []bool) {
+	all := make([]T, 0, len(listed)+len(gone))
+	all = append(all, listed...)
+	all = append(all, gone...)
+	removals := make([]bool, len(all))
+	for i := len(listed); i < len(all); i++ {
+		removals[i] = true
+	}
+	return all, removals
+}
+
+// unlistedFlags returns the stored flags the source does not list. Each keeps the change number of its own stored JSON (D4),
+// because the source has no entry for it. An unreadable JSON is returned as a skip, so the cursor does not pass it (D40).
+func (w *Writer) unlistedFlags(stored map[string]string, listed []dtos.SplitDTO) ([]dtos.SplitDTO, []string) {
+	in := make(map[string]bool, len(listed))
+	for _, d := range listed {
+		in[d.Name] = true
+	}
+	var out []dtos.SplitDTO
+	var skipped []string
+	for name, raw := range stored {
+		if in[name] {
+			continue
+		}
+		var d dtos.SplitDTO
+		if err := json.Unmarshal([]byte(raw), &d); err != nil {
+			w.logger.Error(fmt.Sprintf("redis state: stored flag %q has unreadable JSON, its removal is not written", name))
+			skipped = append(skipped, name)
+			continue
+		}
+		d.Name = name
+		out = append(out, d)
+	}
+	return out, skipped
+}
+
+// unlistedRuleBasedSegments is unlistedFlags for rule-based segments
+func (w *Writer) unlistedRuleBasedSegments(stored map[string]string, listed []dtos.RuleBasedSegmentDTO) ([]dtos.RuleBasedSegmentDTO, []string) {
+	in := make(map[string]bool, len(listed))
+	for _, d := range listed {
+		in[d.Name] = true
+	}
+	var out []dtos.RuleBasedSegmentDTO
+	var skipped []string
+	for name, raw := range stored {
+		if in[name] {
+			continue
+		}
+		var d dtos.RuleBasedSegmentDTO
+		if err := json.Unmarshal([]byte(raw), &d); err != nil {
+			w.logger.Error(fmt.Sprintf("redis state: stored rule-based segment %q has unreadable JSON, its removal is not written", name))
+			skipped = append(skipped, name)
+			continue
+		}
+		d.Name = name
+		out = append(out, d)
+	}
+	return out, skipped
+}
+
 // resyncSegments streams the segments from the source. A segment whose stored cursor is already at or above the
 // source cursor is skipped. The first error from writing a segment stops the stream and is returned.
-func (w *Writer) resyncSegments(source Source, fields map[string]string) error {
+func (w *Writer) resyncSegments(source Source, fields map[string]string) (map[string]struct{}, error) {
 	var fatal error
+	var listed map[string]struct{}
 	err := w.retry("source segments read", func() error {
+		listed = map[string]struct{}{}
 		e := source.Segments(func(s SegmentState) error {
 			if fatal != nil {
 				return fatal
 			}
+			listed[s.Name] = struct{}{}
 			fatal = w.resyncSegment(s, fields)
 			return fatal
 		})
@@ -156,9 +258,41 @@ func (w *Writer) resyncSegments(source Source, fields map[string]string) error {
 		return e
 	})
 	if fatal != nil {
-		return fatal
+		return nil, fatal
 	}
-	return err
+	return listed, err
+}
+
+// dropUnlistedSegments deletes the segments the meta hash registers but the source did not list (D40, T163). The
+// names come from the meta read at the start of the pass, so no key scan is needed. It runs only after a complete stream.
+func (w *Writer) dropUnlistedSegments(fields map[string]string, listed map[string]struct{}) error {
+	if len(listed) == 0 {
+		// an empty source is not evidence that the segments were removed (T62); Reset clears them on a full boot
+		return nil
+	}
+	dropped := 0
+	defer func() {
+		if dropped > 0 {
+			w.logger.Warning(fmt.Sprintf("redis state: deleted %d segments that are in Redis but not in the local state", dropped))
+		}
+	}()
+	for field := range fields {
+		name, ok := segmentNameOfCursorField(field)
+		if !ok || !validSegmentName(name) {
+			continue
+		}
+		if _, ok := listed[name]; ok {
+			continue
+		}
+		err := w.retry("segment drop", func() error {
+			return w.client.Eval(SegmentDropScript, w.keys.SegmentKeys(name), name)
+		})
+		if err != nil {
+			return fmt.Errorf("deleting segment %q: %w", name, err)
+		}
+		dropped++
+	}
+	return nil
 }
 
 // resyncSegment writes one segment unless Redis already holds it up to its change number, with a matching key
@@ -169,15 +303,39 @@ func (w *Writer) resyncSegment(s SegmentState, fields map[string]string) error {
 		return nil
 	}
 	field := w.keys.SegmentCursorField(s.Name)
-	if storedCursor(fields, field) >= s.ChangeNumber {
+	released := w.releaseGroup(field)
+	frozen := released.whole || len(released.names) > 0
+	err := w.syncSegment(s, field, fields, frozen)
+	if err != nil {
+		w.restoreGroup(field, released)
+	}
+	return err
+}
+
+// syncSegment is the body of resyncSegment. A segment whose group a dropped write froze is rewritten even when Redis
+// looks current, because the lost change may have swapped keys without changing the count.
+func (w *Writer) syncSegment(s SegmentState, field string, fields map[string]string, frozen bool) error {
+	if !frozen && storedCursor(fields, field) >= s.ChangeNumber {
 		intact, err := w.segmentIntact(s)
-		if err != nil || intact {
-			return err
+		if err != nil {
+			return fmt.Errorf("checking segment %q: %w", s.Name, err)
+		}
+		if intact {
+			return nil
 		}
 		w.logger.Warning(fmt.Sprintf("redis state: segment %s has a current cursor but a different key count in Redis, rewriting it", s.Name))
+		// the rewrite only adds keys, so the keys Redis holds beyond the source are deleted first (D38).
+		// Known window: until the rewrite lands, the committed cursor stays with empty sets, so a reader booting
+		// right now restores this segment as empty. Rare (count-mismatch repair only) and healed by the next resync
+		if err := w.DeleteSegmentKeys(s.Name); err != nil {
+			return fmt.Errorf("deleting keys of segment %q: %w", s.Name, err)
+		}
 	}
 	_, err := w.writeSegment(s.Name, toSegmentKeys(s.Active), toSegmentKeys(s.Removed), s.ChangeNumber, false)
-	return err
+	if err != nil {
+		return fmt.Errorf("writing segment %q: %w", s.Name, err)
+	}
+	return nil
 }
 
 // storedCursor parses a cursor field of the meta hash; absent or unparsable means missingCursor
@@ -255,7 +413,7 @@ func (w *Writer) purge(fields map[string]string) error {
 				return errStopped
 			}
 			err := w.retry("expiry purge", func() error {
-				return w.client.Eval(PurgeScript, t.keys, w.fingerprint, retention, batch, t.hasData)
+				return w.client.Eval(PurgeScript, slices.Concat(t.keys, []string{w.keys.PurgeLast()}), w.fingerprint, retention, batch, t.hasData)
 			})
 			if err != nil {
 				return err
@@ -295,13 +453,18 @@ func (w *Writer) startupPurge() error {
 	return nil
 }
 
-// purgeLastCount reads the number of entries the last PurgeScript call removed (the purgeLast meta field)
+// purgeLastCount returns the count of the last PurgeScript call. It uses GET, never HGETALL: the meta hash grows with segments (D40).
 func (w *Writer) purgeLastCount() (int64, error) {
-	fields, err := w.readMeta()
+	var raw string
+	err := w.retry("purge count read", func() error {
+		var e error
+		raw, e = w.client.Get(w.keys.Unprefixed().PurgeLast())
+		return e
+	})
 	if err != nil {
 		return 0, err
 	}
-	n, err := ParseCursor(fields[purgeLastField])
+	n, err := ParseCursor(raw)
 	if err != nil {
 		return 0, fmt.Errorf("redis state: reading the purge count: %w", err)
 	}

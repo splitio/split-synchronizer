@@ -149,7 +149,7 @@ for i = 0, nAdd - 1 do
   local key = ARGV[8 + 2 * i]
   local cn = tonumber(ARGV[9 + 2 * i])
   local cur = math.max(tonumber(redis.call('ZSCORE', KEYS[2], key) or '-1'), tonumber(redis.call('ZSCORE', KEYS[3], key) or '-1'))
-  if cn >= cur then
+  if cn > cur then
     redis.call('ZADD', KEYS[2], cn, key)
     redis.call('ZREM', KEYS[3], key)
     redis.call('ZREM', KEYS[4], key)
@@ -159,7 +159,8 @@ for i = 0, nRem - 1 do
   local key = ARGV[base + 1 + 2 * i]
   local cn = tonumber(ARGV[base + 2 + 2 * i])
   local cur = math.max(tonumber(redis.call('ZSCORE', KEYS[2], key) or '-1'), tonumber(redis.call('ZSCORE', KEYS[3], key) or '-1'))
-  if cn > cur then
+  -- D37: on a change number tie the removal wins; a tombstone already at cn is not rewritten
+  if cn > cur or (cn == cur and redis.call('ZSCORE', KEYS[3], key) == false) then
     redis.call('ZADD', KEYS[3], cn, key)
     redis.call('ZADD', KEYS[4], now, key)
     redis.call('ZREM', KEYS[2], key)
@@ -191,14 +192,23 @@ end
 return 1
 `
 
+// SegmentDropScript deletes a segment Redis holds but the local state no longer lists: its three keys and its cursor
+// field (D40, T163). KEYS come from Keys.SegmentKeys, ARGV[1] is the segment name.
+const SegmentDropScript = luaPrelude + `-- KEYS: 1 meta, 2 active zset, 3 removed zset, 4 segat zset
+checkMeta(KEYS[1])
+redis.call('DEL', KEYS[2], KEYS[3], KEYS[4])
+redis.call('HDEL', KEYS[1], 'seg.' .. ARGV[1] .. '.till')
+return 1
+`
+
 // PurgeScript removes up to ARGV[3] expired removal markers from one index: the entries of the removal clock zset
 // (KEYS[4]) older than the retention (ARGV[2]) leave the index (KEYS[3]) and the clock, and for flags and rule-based
 // segments (ARGV[4] = 1) their data (KEYS[2]). KEYS come from Keys.FlagKeys, Keys.RuleBasedSegmentKeys or
 // Keys.SegmentKeys (segments: KEYS[3] tombstones, KEYS[4] removal clock; KEYS[2] is not touched).
 // It checks the fingerprint like the write scripts (an absent fingerprint is set, a foreign one is refused) and
-// writes the number of entries it removed to the meta field purgeLast, so the Writer can repeat the call while the
-// count equals the batch. The Client Eval returns no result (D27).
-const PurgeScript = luaPrelude + `-- KEYS: 1 meta, 2 data hash, 3 index zset, 4 removal clock zset
+// writes the number of entries it removed to the string key KEYS[5] (Keys.PurgeLast, optional), so the Writer can repeat the call
+// while the count equals the batch. The Client Eval returns no result (D27).
+const PurgeScript = luaPrelude + `-- KEYS: 1 meta, 2 data hash, 3 index zset, 4 removal clock zset, 5 purge count key (optional)
 -- ARGV: 1 fingerprint, 2 retentionMs, 3 batch, 4 hasData (0|1)
 if #ARGV ~= 4 or not isint(ARGV[2]) or tonumber(ARGV[2]) < 0 or not isint(ARGV[3]) or tonumber(ARGV[3]) <= 0 then
   return redis.error_reply('PROXY_BAD_ARGS')
@@ -224,7 +234,7 @@ for _, name in ipairs(expired) do
   redis.call('ZREM', KEYS[3], name)
   redis.call('ZREM', KEYS[4], name)
 end
-redis.call('HSET', KEYS[1], 'purgeLast', #expired)
+if KEYS[5] then redis.call('SET', KEYS[5], #expired) end
 return 1
 `
 

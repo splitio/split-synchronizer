@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func sha16(apikey string) string {
@@ -165,9 +166,38 @@ func TestNewKeysDoesNotMatchSynchronizerNamespace(t *testing.T) {
 	}
 }
 
+func TestKeysPrefixRejectsBraces(t *testing.T) {
+	tests := []struct {
+		name   string
+		prefix string
+		ok     bool
+	}{
+		{"normal prefix", "pre", true},
+		{"open brace", "a{b", false},
+		{"close brace", "a}b", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := NewKeys(tc.prefix, "secret-api-key", "")
+			if tc.ok {
+				assert.Nil(t, err)
+			} else {
+				assert.ErrorIs(t, err, ErrInvalidPrefix)
+			}
+		})
+	}
+}
+
 func TestNewKeysRejectsBraces(t *testing.T) {
 	for _, ns := range []string{"a{b", "a}b", "{x}", "x}{"} {
 		_, err := NewKeys("pre", "secret-api-key", ns)
 		assert.ErrorIs(t, err, ErrInvalidNamespace, ns)
 	}
+}
+
+func TestPurgeLastSharesHashTag(t *testing.T) {
+	k, err := NewKeys("app", "test-api-key", "")
+	require.NoError(t, err)
+	assert.Equal(t, "{SPLITIO_PROXY."+k.Env()+"}.purgelast", k.Unprefixed().PurgeLast())
+	assert.Equal(t, "app."+k.Unprefixed().PurgeLast(), k.PurgeLast(), "the prefixed name adds the prefix only")
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"reflect"
 	"runtime"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -22,6 +24,9 @@ import (
 )
 
 const wtFingerprint = "fp-test"
+
+// purgeLastField is the field name test fakes use to hold the PurgeScript count that Client.Get returns
+const purgeLastField = "purgeLast"
 
 type wtCall struct {
 	script string
@@ -121,6 +126,10 @@ func (c *wtClient) HGetAll(key string) (map[string]string, error) {
 		c.hgets = append(c.hgets, key)
 	}
 	out := map[string]string{}
+	// only the meta hash has content in this fake; the data hashes read by resync are empty
+	if !strings.HasSuffix(key, ".meta") {
+		return out, nil
+	}
 	for k, v := range c.meta {
 		out[k] = v
 	}
@@ -128,6 +137,17 @@ func (c *wtClient) HGetAll(key string) (map[string]string, error) {
 }
 
 func (c *wtClient) Prefix() string { return "" }
+
+// Get returns the purge count the fake PurgeScript recorded in the purgeLast meta field; the key is not checked
+func (c *wtClient) Get(key string) (string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	v, ok := c.meta[purgeLastField]
+	if !ok {
+		return "", errors.New("redis: nil")
+	}
+	return v, nil
+}
 
 func (c *wtClient) Scan(uint64, string, int64) ([]string, uint64, error) {
 	c.mu.Lock()
@@ -164,7 +184,7 @@ func wtResetFixture(t *testing.T, c *wtClient) (*wtEnv, []string) {
 	c.meta = map[string]string{"flags.till": "1", "rbs.till": "1", "seg.s1.till": "1", "seg.s2.till": "-1"}
 	u := e.w.keys.Unprefixed()
 	want := []string{
-		u.FlagData(), u.FlagIndex(), u.FlagRemoved(),
+		u.PurgeLast(), u.FlagData(), u.FlagIndex(), u.FlagRemoved(),
 		u.RuleBasedSegmentData(), u.RuleBasedSegmentIndex(), u.RuleBasedSegmentRemoved(),
 		u.SegmentActive("s1"), u.SegmentTombstones("s1"), u.SegmentRemovalClock("s1"),
 		u.SegmentActive("s2"), u.SegmentTombstones("s2"), u.SegmentRemovalClock("s2"),
@@ -694,71 +714,62 @@ func TestWriterRedisUnreachable(t *testing.T) {
 	e.client.fail = func(int, wtCall) error {
 		return &net.OpError{Op: "dial", Err: errors.New("connection refused")}
 	}
-	gate := make(chan time.Duration)
-	e.w.wait = func(d time.Duration) bool {
-		e.clock.Add(d)
-		select {
-		case gate <- d:
-			return true
-		case <-e.w.stop:
-			return false
-		}
-	}
 	e.w.PutFlags(wtFlags("f1"), nil, 1)
 	e.w.Start(nil)
-	rounds := 0
-	for rounds < 2 {
-		if wtRecv(t, gate, "backoff wait") == e.opts.BackoffMaxWait {
-			rounds++
-		}
-	}
+	// D36: the change gets MaxAttempts tries, then it is dropped; Redis stays behind until a resync repairs it
+	wtWaitUntil(t, "the drop", func() bool { return e.w.Status().FailedRounds == 1 && e.w.Status().PendingChanges == 0 })
 
+	assert.Equal(t, e.opts.MaxAttempts, e.client.count(), "the change is tried MaxAttempts times, then dropped")
 	st := e.w.Status()
 	assert.False(t, st.Healthy)
-	assert.GreaterOrEqual(t, st.FailedRounds, int64(2))
+	assert.Equal(t, int64(1), st.FailedRounds)
 	assert.Contains(t, st.LastError, "connection refused")
-	assert.Equal(t, 1, st.PendingChanges, "the queued change must not be dropped while Redis is down")
-	assert.Greater(t, st.LagMs, int64(0))
-
-	e.clock.Add(time.Minute)
-	later := e.w.Status()
-	assert.GreaterOrEqual(t, later.LagMs-st.LagMs, int64(60000), "lag grows with the clock")
+	assert.Equal(t, 0, st.PendingChanges, "the change is dropped, Redis behind the source")
+	assert.Equal(t, 1, e.log.errorCount(), "one Error line for the dropped change")
 
 	start := time.Now()
 	e.stop()
 	assert.Less(t, time.Since(start), 2*time.Second, "Stop must return promptly")
-	assert.Equal(t, e.log.errorCount(), int(e.w.Status().FailedRounds), "one Error per failed round")
 }
 
 func TestWriterRecoversAfterOutage(t *testing.T) {
 	e := newWtEnv(t, wtOptions())
 	e.client.fail = func(n int, _ wtCall) error {
-		if n <= 5 {
+		if n <= 3 {
 			return &net.OpError{Op: "dial", Err: errors.New("down")}
 		}
 		return nil
 	}
 	e.w.PutFlags(wtFlags("f1"), nil, 1)
 	e.w.Start(nil)
-	wtWaitUntil(t, "recovery", func() bool { return e.client.count() == 6 && e.w.Status().PendingChanges == 0 })
+	// evals 1-3 fail: the first change is dropped after MaxAttempts (D36)
+	wtWaitUntil(t, "the drop", func() bool { return e.w.Status().FailedRounds == 1 && e.w.Status().PendingChanges == 0 })
+	assert.Equal(t, 3, e.client.count(), "the first change gets MaxAttempts tries, then it is dropped")
+	assert.Equal(t, 1, e.log.errorCount(), "one Error line for the drop")
+
+	// the outage is over: eval 4 succeeds for the second change
+	e.w.PutFlags(wtFlags("f2"), nil, 2)
+	wtWaitUntil(t, "recovery", func() bool { return e.w.Status().Healthy && e.w.Status().PendingChanges == 0 })
 	e.stop()
 
-	assert.Equal(t, 6, e.client.count(), "five failed tries and one applied write")
+	assert.Equal(t, 4, e.client.count(), "three failed tries for the dropped change and one applied write for the next change")
 	st := e.w.Status()
 	assert.True(t, st.Healthy)
-	assert.Equal(t, int64(0), st.FailedRounds, "a successful round clears the failed rounds")
+	assert.Equal(t, "", st.LastError, "a successful write clears the last error")
+	assert.Equal(t, int64(0), st.FailedRounds, "a successful write clears the failed rounds")
 	assert.Equal(t, int64(0), st.LagMs)
 	assert.Equal(t, e.clock.Now().UnixMilli(), st.LastSuccessUnixMs)
-	assert.Equal(t, 1, e.log.errorCount())
+	assert.Equal(t, 1, e.log.errorCount(), "still exactly one Error line: the success logs nothing")
 }
 
 func TestWriterPartialFailure(t *testing.T) {
 	opts := wtOptions()
 	opts.ChunkSize = 2
 	e := newWtEnv(t, opts)
+	// the chunk holding f2 fails for the first MaxAttempts tries of the first change only
 	failures := 0
 	e.client.fail = func(_ int, c wtCall) error {
-		if wtEntities(c.args)[0].name == "f2" && failures < 7 {
+		if wtEntities(c.args)[0].name == "f2" && failures < opts.MaxAttempts {
 			failures++
 			return &net.OpError{Op: "read", Err: errors.New("i/o timeout")}
 		}
@@ -766,24 +777,34 @@ func TestWriterPartialFailure(t *testing.T) {
 	}
 	e.w.PutFlags(wtFlags("f0", "f1", "f2", "f3", "f4"), nil, 7)
 	e.w.Start(nil)
-	wtWaitUntil(t, "the three chunks", func() bool { return e.client.count() == 10 && e.w.Status().PendingChanges == 0 })
+	// chunks [f0 f1] ok (eval 1), [f2 f3] fails 3 times (evals 2-4): the chunk is dropped and [f4] is never sent (D36)
+	wtWaitUntil(t, "the drop", func() bool { return e.w.Status().FailedRounds == 1 && e.w.Status().PendingChanges == 0 })
+	assert.Equal(t, 1+opts.MaxAttempts, e.client.count(), "one good chunk, then MaxAttempts tries of the f2 chunk; the chunk after it is not sent")
+	for _, c := range e.client.evals() {
+		assert.NotEqual(t, "f4", wtEntities(c.args)[len(wtEntities(c.args))-1].name, "the last chunk, the only one with the real cursor, is not sent after the drop")
+		assert.Equal(t, int64(-1), wtFlagCursor(c.args), "no call before the drop carries the real cursor, so the cursor did not advance past the dropped chunk")
+	}
+	assert.Equal(t, 1, e.log.errorCount(), "one Error line for the dropped chunk")
+	assert.False(t, e.w.Status().Healthy)
+
+	// the outage is over: a following change writes all three chunks; the f0 chunk is sent again because the change is new
+	e.w.PutFlags(wtFlags("f0", "f1", "f2", "f3", "f4"), nil, 7)
+	wtWaitUntil(t, "the following change", func() bool { return e.w.Status().Healthy && e.w.Status().PendingChanges == 0 })
 	e.stop()
 
+	assert.Equal(t, 1+opts.MaxAttempts+3, e.client.count(), "the following change writes its three chunks once each, with no further failures")
 	calls := e.client.evals()
 	firstChunk := 0
 	for _, c := range calls {
-		ents := wtEntities(c.args)
-		if ents[0].name == "f0" {
+		if wtEntities(c.args)[0].name == "f0" {
 			firstChunk++
 		}
-		if ents[len(ents)-1].name == "f4" {
-			assert.Equal(t, int64(7), wtFlagCursor(c.args), "only the last chunk carries the real cursor")
-		} else {
-			assert.Equal(t, int64(-1), wtFlagCursor(c.args), "chunks before the last keep the cursor")
-		}
+		// D36: the drop freezes the group until a resync; Start(nil) makes the resync a no-op, so even the last chunk
+		// of the following change sends noCursor and the stored cursor stays behind the data
+		assert.Equal(t, int64(-1), wtFlagCursor(c.args), "no call after the drop sends the real cursor while the group is frozen")
 	}
-	assert.Equal(t, 1, firstChunk, "the first chunk is not re-sent after success")
-	assert.Equal(t, int64(0), e.w.Status().FailedRounds, "a successful round clears the failed rounds")
+	assert.Equal(t, 2, firstChunk, "the f0 chunk is sent once per change: once by the dropped change and once by the following change")
+	assert.Equal(t, int64(0), e.w.Status().FailedRounds, "the write after the outage clears the failed rounds")
 }
 
 func TestWriterCrashBetweenDataAndCursor(t *testing.T) {
@@ -880,13 +901,23 @@ func TestSuccessClearsLastError(t *testing.T) {
 	}
 	e.w.PutFlags(wtFlags("a"), nil, 1)
 	e.w.Start(nil)
-	wtWaitUntil(t, "the write after the failed round", func() bool { return e.client.count() >= 4 && e.w.Status().PendingChanges == 0 })
+	// evals 1-3 are BUSY: the first change is dropped after MaxAttempts (D36), so the failed round is a drop
+	wtWaitUntil(t, "the drop", func() bool { return e.w.Status().FailedRounds == 1 && e.w.Status().PendingChanges == 0 })
+	st := e.w.Status()
+	assert.False(t, st.Healthy, "the dropped change leaves the writer unhealthy")
+	assert.Contains(t, st.LastError, "BUSY redis is busy", "the drop records the last error")
+	assert.Equal(t, 3, e.client.count(), "the first change gets MaxAttempts tries, then it is dropped")
+
+	// eval 4 succeeds for the next change: the success clears the error of the dropped change
+	e.w.PutFlags(wtFlags("b"), nil, 2)
+	wtWaitUntil(t, "the write after the drop", func() bool { return e.w.Status().Healthy && e.w.Status().PendingChanges == 0 })
 	e.stop()
 
-	st := e.w.Status()
+	assert.Equal(t, 4, e.client.count(), "three BUSY tries, then one successful write of the next change")
+	st = e.w.Status()
 	assert.True(t, st.Healthy)
-	assert.Equal(t, "", st.LastError)
-	assert.Equal(t, int64(0), st.FailedRounds)
+	assert.Equal(t, "", st.LastError, "the successful write clears LastError")
+	assert.Equal(t, int64(0), st.FailedRounds, "the successful write clears FailedRounds")
 }
 
 func TestResetClearsHealthAndLastError(t *testing.T) {
@@ -1524,48 +1555,41 @@ func TestOverflowFreezesCursorsUntilResync(t *testing.T) {
 	assert.Equal(t, []int64{8, 8}, flagCursors(), "the startup pass and the clean resync each write the flags cursor")
 }
 
-func TestWriterMaxAttemptsExhaustedKeepsChange(t *testing.T) {
+// D36: the test protects the retry cap. When the MaxAttempts tries of a change are exhausted the change is dropped,
+// not kept and retried; a later change is still written.
+func TestWriterMaxAttemptsExhaustedDropsChange(t *testing.T) {
 	opts := wtOptions()
 	e := newWtEnv(t, opts)
-	gate := make(chan struct{})
-	reached := make(chan struct{})
-	var releaseOnce sync.Once
-	release := func() { releaseOnce.Do(func() { close(gate) }) }
-	t.Cleanup(release)
 	e.client.fail = func(n int, _ wtCall) error {
-		switch {
-		case n <= opts.MaxAttempts:
+		if n <= opts.MaxAttempts {
 			return &net.OpError{Op: "dial", Err: errors.New("redis down")}
-		case n == opts.MaxAttempts+1:
-			close(reached)
-			wtHold(t, gate, "gate signal")
 		}
 		return nil
 	}
 	e.w.PutFlags(wtFlags("a"), nil, 7)
 	e.w.Start(nil)
+	wtWaitUntil(t, "the drop", func() bool { return e.w.Status().FailedRounds == 1 && e.w.Status().PendingChanges == 0 })
 
-	select {
-	case <-reached:
-	case <-time.After(5 * time.Second):
-		t.Fatal("the change was not retried after the failed round")
-	}
 	s := e.w.Status()
 	assert.False(t, s.Healthy)
 	assert.Equal(t, int64(1), s.FailedRounds)
 	assert.Equal(t, "dial: redis down", s.LastError)
-	assert.Equal(t, 1, s.PendingChanges, "the change is kept while it is retried")
-	assert.Equal(t, 1, e.log.errorCount(), "one error line per failed round")
+	assert.Equal(t, 0, s.PendingChanges, "the change is dropped after MaxAttempts, it is not kept for another try")
+	assert.Equal(t, 1, e.log.errorCount(), "one error line for the dropped change")
+	require.Equal(t, opts.MaxAttempts, e.client.count(), "exactly MaxAttempts tries, no retry after the cap")
 
-	release()
-	wtWaitUntil(t, "the retried write", func() bool { return e.w.Status().PendingChanges == 0 })
+	e.w.PutFlags(wtFlags("b"), nil, 8)
+	wtWaitUntil(t, "the later change", func() bool { return e.w.Status().Healthy && e.w.Status().PendingChanges == 0 })
 	e.stop()
 
 	calls := e.client.evals()
 	require.Len(t, calls, opts.MaxAttempts+1)
-	assert.Equal(t, calls[0].args[6:], calls[opts.MaxAttempts].args[6:], "the same change is sent again")
+	for _, c := range calls[:opts.MaxAttempts] {
+		assert.Equal(t, "a", wtEntities(c.args)[0].name, "the tries are for the dropped change")
+	}
+	assert.Equal(t, "b", wtEntities(calls[opts.MaxAttempts].args)[0].name, "the dropped change is not sent again; the later change is")
 	assert.True(t, e.w.Status().Healthy)
-	assert.Equal(t, int64(0), e.w.Status().FailedRounds, "a successful round clears the failed rounds")
+	assert.Equal(t, int64(0), e.w.Status().FailedRounds, "a successful write clears the failed rounds")
 }
 
 // T60: concurrent and repeated calls never block, even while a resync runs, and coalesce into one more pass
@@ -1735,7 +1759,7 @@ func TestClassifyRedisErrors(t *testing.T) {
 		{"lua wrapped READONLY wins over lua error", "ERR user_script:1: READONLY You can't write against a read only replica. script: 0753be4445ca355585f921a9dcf10d124588b3b9, on @user_script:1.", errTransient},
 		{"lua wrapped BUSY", "ERR Error running script (call to f_1a2b): @user_script:1: BUSY Redis is busy running a script.", errTransient},
 		{"lua wrapped WRONGTYPE is permanent", "ERR user_script:1: WRONGTYPE Operation against a key holding the wrong kind of value script: 691ad66b169ddb9e0d5fb480aeb7c7887a2c4b59, on @user_script:1.", errPermanent},
-		{"NOAUTH is unknown", "NOAUTH Authentication required.", errUnknown},
+		{"NOAUTH is transient", "NOAUTH Authentication required.", errTransient},
 		{"unlisted text is unknown", "something Redis has never said", errUnknown},
 	}
 	for _, c := range cases {
@@ -1755,9 +1779,10 @@ func TestWrongTypeMetaFailsRound(t *testing.T) {
 		}
 		return nil
 	}
-	require.NoError(t, e.w.eval("meta test", "meta-script", []string{meta}, nil))
-	assert.Equal(t, opts.MaxAttempts+1, e.client.count(), "one failed round of attempts, then a retry that succeeds")
-	assert.Len(t, e.log.errors, 1, "the failed round is logged once at Error level")
+	err := e.w.eval("meta test", "meta-script", []string{meta}, nil)
+	require.ErrorIs(t, err, errDropped, "D36: the transient meta error is dropped after the attempt cap, not retried forever")
+	assert.Equal(t, opts.MaxAttempts, e.client.count())
+	assert.Len(t, e.log.errors, 1, "the drop is logged once at Error level")
 	assert.Equal(t, int64(0), e.w.Status().RejectedChanges, "a meta hash WRONGTYPE must not skip anything")
 }
 
@@ -1798,6 +1823,149 @@ func TestUnknownErrorBoundedRetryThenFreeze(t *testing.T) {
 	require.NoError(t, e.w.eval("flag write", "flag-script", []string{data}, nil), "the worker is not stalled by the skip")
 }
 
+func TestRetryCapDropsChange(t *testing.T) {
+	opts := wtOptions()
+	e := newWtEnv(t, opts)
+	e.client.fail = func(_ int, c wtCall) error {
+		if wtHasArg(c.args, "drop") {
+			return errors.New("redis: connection pool timeout")
+		}
+		return nil
+	}
+	err := e.w.eval("flag write", "flag-script", []string{e.w.keys.FlagData()}, []interface{}{"drop"})
+	assert.ErrorIs(t, err, errDropped, "a transient error is dropped after its bounded attempts")
+	assert.Equal(t, opts.MaxAttempts, e.client.count(), "never retried beyond MaxAttempts")
+	assert.Equal(t, 1, e.log.errorCount(), "one Error line for the drop")
+	st := e.w.Status()
+	assert.False(t, st.Healthy)
+	assert.NotEmpty(t, st.LastError)
+
+	e.w.PutFlags(wtFlags("drop"), nil, 7)
+	e.w.PutSegment("s1", []string{"k"}, nil, 8)
+	require.NoError(t, e.w.Start(nil))
+	wtWaitUntil(t, "the segment write after the dropped flag change", func() bool {
+		return e.w.Status().PendingChanges == 0 && e.client.count() == 2*opts.MaxAttempts+1
+	})
+	e.stop()
+
+	segments := 0
+	for _, c := range e.client.evals() {
+		if c.script == SegmentScript {
+			segments++
+		}
+	}
+	assert.Equal(t, 1, segments, "the next queued change is still written")
+	assert.Equal(t, 2, e.log.errorCount(), "one Error line per dropped change")
+}
+
+func TestHealthRecoversAfterSuccess(t *testing.T) {
+	e := newWtEnv(t, wtOptions())
+	failing := true
+	e.client.fail = func(int, wtCall) error {
+		if failing {
+			return errors.New("redis: connection pool timeout")
+		}
+		return nil
+	}
+	data := e.w.keys.FlagData()
+	require.ErrorIs(t, e.w.eval("flag write", "flag-script", []string{data}, nil), errDropped)
+	require.False(t, e.w.Status().Healthy)
+
+	failing = false
+	require.NoError(t, e.w.eval("flag write", "flag-script", []string{data}, nil))
+	st := e.w.Status()
+	assert.True(t, st.Healthy)
+	assert.Empty(t, st.LastError)
+}
+
+func TestPermanentRejectionMarksUnhealthy(t *testing.T) {
+	e := newWtEnv(t, wtOptions())
+	e.client.fail = func(int, wtCall) error { return errors.New("PROXY_BAD_ARGS") }
+	err := e.w.eval("flag write", "flag-script", []string{e.w.keys.FlagData()}, nil)
+	assert.ErrorIs(t, err, errChunkRejected)
+	assert.Equal(t, 1, e.client.count(), "a permanent rejection is not retried")
+	st := e.w.Status()
+	assert.False(t, st.Healthy)
+	assert.NotEmpty(t, st.LastError)
+	assert.Equal(t, int64(0), st.FailedRounds, "a refusal is not a failed round")
+}
+
+func TestTransientErrorDoesNotIsolateEntities(t *testing.T) {
+	opts := wtOptions()
+	opts.ChunkSize = 10
+	e := newWtEnv(t, opts)
+	e.client.fail = func(int, wtCall) error { return errors.New("redis: connection pool timeout") }
+	e.w.PutFlags(wtFlags("a", "b", "c"), nil, 7)
+	require.NoError(t, e.w.Start(nil))
+	wtWaitUntil(t, "the dropped chunk", func() bool {
+		return e.w.Status().PendingChanges == 0 && e.client.count() == opts.MaxAttempts
+	})
+	e.stop()
+
+	for _, c := range e.client.evals() {
+		assert.Len(t, wtEntities(c.args), 3, "a transient error never splits the chunk into single entities")
+	}
+	assert.Equal(t, int64(0), e.w.Status().RejectedChanges, "no entity is refused")
+	g := e.w.groups[e.w.keys.FlagCursorField()]
+	require.NotNil(t, g, "the flag group is frozen")
+	assert.True(t, g.whole, "the dropped change freezes its group until a resync releases it")
+}
+
+func TestDropTriggersBoundedResync(t *testing.T) {
+	opts := wtOptions()
+	// one try per change so retry() records no waits and the recorded waits are only the resync backoff (D36)
+	opts.MaxAttempts = 1
+	e := newWtEnv(t, opts)
+	var down atomic.Bool
+	var resyncs atomic.Int64
+	e.client.fail = func(int, wtCall) error {
+		if down.Load() {
+			return errors.New("redis: connection pool timeout")
+		}
+		return nil
+	}
+	var mu sync.Mutex
+	var waits []time.Duration
+	fakeWait := e.w.wait
+	e.w.wait = func(d time.Duration) bool {
+		mu.Lock()
+		waits = append(waits, d)
+		mu.Unlock()
+		return fakeWait(d)
+	}
+	cursorWritten := func(cn int64) bool {
+		for _, c := range e.client.evals() {
+			if c.script == FlagScript && wtFlagCursor(c.args) == cn {
+				return true
+			}
+		}
+		return false
+	}
+
+	require.NoError(t, e.w.Start(&wtSource{flags: wtFlags("a"), flagsCn: 7, onFlags: func() { resyncs.Add(1) }}))
+	wtWaitUntil(t, "the startup resync", func() bool { return cursorWritten(7) && e.w.Status().PendingChanges == 0 })
+
+	down.Store(true)
+	e.w.PutFlags(wtFlags("x"), nil, 8)
+	wtWaitUntil(t, "resyncs requested while Redis is down", func() bool { return resyncs.Load() >= 3 })
+
+	down.Store(false)
+	e.w.PutFlags(wtFlags("y"), nil, 9)
+	wtWaitUntil(t, "the cursor catches up after recovery", func() bool {
+		return cursorWritten(9) && e.w.Status().PendingChanges == 0 && e.w.Status().Healthy
+	})
+	e.stop()
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.NotEmpty(t, waits, "retries and resync requests wait with a backoff")
+	for _, d := range waits {
+		assert.LessOrEqual(t, d, opts.BackoffMaxWait, "every wait is capped by BackoffMaxWait")
+	}
+	require.GreaterOrEqual(t, len(waits), 3, "the resync backoff waits at least three times")
+	assert.Equal(t, []time.Duration{time.Second, 2 * time.Second, 4 * time.Second}, waits[:3], "the resync backoff doubles from 1s")
+}
+
 func TestClassifyBusyTransientNoauthBounded(t *testing.T) {
 	t.Run("BUSY wrapped in a Lua error is retried, not skipped", func(t *testing.T) {
 		opts := wtOptions()
@@ -1813,14 +1981,34 @@ func TestClassifyBusyTransientNoauthBounded(t *testing.T) {
 		assert.Equal(t, 3, e.client.count())
 		assert.Empty(t, e.log.errors, "no round failed, so nothing is logged")
 	})
-	t.Run("NOAUTH is retried WriteMaxAttempts times then skipped", func(t *testing.T) {
-		opts := wtOptions()
-		e := newWtEnv(t, opts)
-		e.client.fail = func(int, wtCall) error { return errors.New("NOAUTH Authentication required.") }
-		err := e.w.eval("flag write", "flag-script", []string{e.w.keys.FlagData()}, nil)
-		assert.ErrorIs(t, err, errChunkRejected)
-		assert.Equal(t, opts.MaxAttempts, e.client.count())
+	t.Run("NOAUTH is transient, never isolated per entity", func(t *testing.T) {
+		assert.Equal(t, errTransient, classify(errors.New("NOAUTH Authentication required")))
 	})
+}
+
+func TestClassifyPoolTimeoutIsTransient(t *testing.T) {
+	// text of go-redis v9 internal/pool ErrPoolTimeout
+	assert.Equal(t, errTransient, classify(errors.New("redis: connection pool timeout")))
+}
+
+func TestClassifyConnectionErrorsTransient(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+	}{
+		{"EOF", io.EOF},
+		{"unexpected EOF", io.ErrUnexpectedEOF},
+		{"wrapped EOF", fmt.Errorf("read: %w", io.EOF)},
+		{"client closed", errors.New("redis: client is closed")},
+		{"broken pipe", fmt.Errorf("write tcp 127.0.0.1:1->127.0.0.1:6379: %w", syscall.EPIPE)},
+		{"EPIPE in net.OpError", &net.OpError{Op: "write", Net: "tcp", Err: syscall.EPIPE}},
+		{"NOAUTH during failover", errors.New("NOAUTH Authentication required")},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, errTransient, classify(c.err))
+		})
+	}
 }
 
 func TestClassifyClusterErrorsAndEchoedMarkers(t *testing.T) {
@@ -1833,7 +2021,7 @@ func TestClassifyClusterErrorsAndEchoedMarkers(t *testing.T) {
 		{errors.New("NOREPLICAS Not enough good replicas to write."), errTransient},
 		{errors.New("EXECABORT Transaction discarded because of previous errors."), errTransient},
 		{errors.New("ERR max number of clients reached"), errTransient},
-		{errors.New("connection pool timeout"), errTransient},
+		{errors.New("redis: connection pool timeout"), errTransient},
 		{errors.New("ERR max number of clients reached, try later"), errUnknown},
 		{&net.OpError{Op: "dial", Err: errors.New("connection refused")}, errTransient},
 		{errors.New("PROXY_BAD_ARGS"), errPermanent},
@@ -1869,7 +2057,7 @@ func TestClassifyTablePinnedToRealErrorStrings(t *testing.T) {
 		{"[quoted] MOVED", "MOVED 3999 127.0.0.1:6381", errTransient},
 		{"[quoted] NOREPLICAS", "NOREPLICAS Not enough good replicas to write.", errTransient},
 		{"[quoted] CROSSSLOT", "CROSSSLOT Keys in request don't hash to the same slot", errPermanent},
-		{"[quoted] NOAUTH", "NOAUTH Authentication required.", errUnknown},
+		{"[quoted] NOAUTH", "NOAUTH Authentication required.", errTransient},
 		{"[quoted] WRONGPASS", "WRONGPASS invalid username-password pair or user is disabled.", errUnknown},
 		{"[quoted] unlisted", "ERR something Redis has never said", errUnknown},
 	}
@@ -2052,10 +2240,10 @@ func TestStopReportsLeftoverCount(t *testing.T) {
 	assert.NotContains(t, strings.ToLower(info), "resync", "the log makes no promise of startup recovery")
 }
 
-// wtBlockedWait replaces w.wait with the real sleep and signals waiting when a 60s backoff starts
+// wtBlockedWait replaces w.wait with the real sleep and signals waiting when the first backoff between attempts (1s) starts
 func wtBlockedWait(e *wtEnv, waiting chan<- struct{}) {
 	e.w.wait = func(d time.Duration) bool {
-		if d == time.Minute {
+		if d >= time.Second {
 			select {
 			case waiting <- struct{}{}:
 			default:
@@ -2069,7 +2257,7 @@ func wtBlockedWait(e *wtEnv, waiting chan<- struct{}) {
 // one second later and Stop wakes the worker: one immediate attempt succeeds and the queued change is written.
 func TestStopWakesBackoffForOneImmediateAttempt(t *testing.T) {
 	opts := wtOptions()
-	opts.MaxAttempts = 1
+	opts.MaxAttempts = 2
 	opts.BackoffMaxWait = time.Minute
 	opts.StopTimeoutMs = 5000
 	e := newWtEnv(t, opts)
@@ -2088,7 +2276,7 @@ func TestStopWakesBackoffForOneImmediateAttempt(t *testing.T) {
 	select {
 	case <-waiting:
 	case <-time.After(5 * time.Second):
-		t.Fatal("the worker did not enter the 60s backoff")
+		t.Fatal("the worker did not enter the backoff between attempts")
 	}
 
 	down.Store(false)
@@ -2114,7 +2302,7 @@ func TestStopWakesBackoffForOneImmediateAttempt(t *testing.T) {
 // dropped and counted.
 func TestStopDrainDeadlineCapsBackoffWait(t *testing.T) {
 	opts := wtOptions()
-	opts.MaxAttempts = 1
+	opts.MaxAttempts = 3
 	opts.BackoffMaxWait = time.Minute
 	opts.StopTimeoutMs = 1000
 	e := newWtEnv(t, opts)
@@ -2130,7 +2318,7 @@ func TestStopDrainDeadlineCapsBackoffWait(t *testing.T) {
 	select {
 	case <-waiting:
 	case <-time.After(5 * time.Second):
-		t.Fatal("the worker did not enter the 60s backoff")
+		t.Fatal("the worker did not enter the backoff between attempts")
 	}
 
 	start := time.Now()
@@ -2141,10 +2329,10 @@ func TestStopDrainDeadlineCapsBackoffWait(t *testing.T) {
 	}()
 	select {
 	case <-stopped:
-	case <-time.After(5 * time.Second):
-		t.Fatal("Stop did not return: the 60s backoff was not capped at the drain deadline")
+	case <-time.After(3 * time.Second):
+		t.Fatal("Stop did not return within 3s: the 60s backoff was not capped at the 1s drain deadline")
 	}
-	assert.GreaterOrEqual(t, time.Since(start), 700*time.Millisecond, "the waits left before the deadline are paced in real time, not spun through")
+	assert.GreaterOrEqual(t, time.Since(start), 500*time.Millisecond, "the waits left before the deadline are paced in real time, not spun through")
 	assert.Contains(t, e.log.infoText(), "2 queued changes dropped", "the change in flight and the queued change are counted")
 }
 
@@ -2984,41 +3172,45 @@ func TestOutageQueueBoundedByDistinctEntities(t *testing.T) {
 	e.w.PutFlags(one(0), nil, 1)
 	e.w.Start(nil)
 	wtWaitUntil(t, "the first change is in flight", func() bool { return e.client.count() >= 1 })
+	// D36: each change is dropped after MaxAttempts, so the queue keeps moving while changes arrive; its size stays
+	// within the 10 distinct flags however many changes arrive (re-updates of a queued name merge)
+	maxQueued := 0
 	for i := 1; i < 1000; i++ {
 		e.w.PutFlags(one(i), nil, int64(i+1))
+		if q := wtQueuedSize(e.w); q > maxQueued {
+			maxQueued = q
+		}
 	}
-
+	assert.LessOrEqual(t, maxQueued, 10, "the queue never holds more entities than the 10 distinct flags during the outage")
 	assert.False(t, wtOverflowed(e.w), "re-updates of queued names merge: no overflow during the outage")
 	assert.Equal(t, int64(0), e.w.Status().Resyncs)
-	q := wtQueued(e.w)
-	if assert.Len(t, q, 1) {
-		names := map[string]struct{}{}
-		for _, d := range q[0].flags {
-			names[d.Name] = struct{}{}
-		}
-		assert.Len(t, names, 10, "the queue holds 10 distinct entities")
-	}
-	assert.Equal(t, 10, wtQueuedSize(e.w))
+	wtWaitUntil(t, "a change is dropped after MaxAttempts", func() bool { return e.w.Status().FailedRounds >= 1 })
 
+	// the outage ends; a later change carries all 10 flags with new change numbers, so the final state is written by it
 	down.Store(false)
-	wtWaitUntil(t, "the queue drains after the outage", func() bool {
-		calls := e.client.evals()
-		return len(calls) > 0 && e.w.Status().PendingChanges == 0 && wtFlagCursor(calls[len(calls)-1].args) == 1000
+	final := make([]dtos.SplitDTO, 0, 10)
+	for k := 0; k < 10; k++ {
+		final = append(final, wtFlag(fmt.Sprintf("f%d", k), int64(2000+k), statusActive))
+	}
+	e.w.PutFlags(final, nil, 2010)
+	wtWaitUntil(t, "the final change is written after the outage", func() bool {
+		return e.w.Status().Healthy && e.w.Status().PendingChanges == 0
 	})
 	e.stop()
 
 	calls := e.client.evals()
 	last := calls[len(calls)-1]
-	assert.Equal(t, int64(1000), wtFlagCursor(last.args), "the final cursor is the last update")
 	got := map[string]int64{}
 	for _, en := range wtEntities(last.args) {
 		got[en.name] = en.cn
 	}
 	want := map[string]int64{}
 	for k := 0; k < 10; k++ {
-		want[fmt.Sprintf("f%d", k)] = int64(991 + k)
+		want[fmt.Sprintf("f%d", k)] = int64(2000 + k)
 	}
-	assert.Equal(t, want, got, "final state holds the last update of each flag")
+	// the group stays frozen after the drops (D36) and Start(nil) makes the resync a no-op, so the cursor is not sent
+	assert.Equal(t, want, got, "the last write holds the final change for every flag")
+	assert.Equal(t, int64(-1), wtFlagCursor(last.args), "the frozen group sends no real cursor without a resync")
 }
 
 // wtWithinDeadline fails the test unless ch is closed within d

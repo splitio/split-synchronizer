@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"reflect"
 	"runtime/debug"
@@ -11,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/splitio/go-split-commons/v10/dtos"
@@ -36,9 +38,6 @@ const (
 	MaxPurgeBatch    = 5000
 	MaxStopTimeoutMs = 60000
 
-	// purgeLastField is the meta field where PurgeScript writes the number of entries it removed in its last call
-	purgeLastField = "purgeLast"
-
 	// noCursor is the cursor argument that makes a script leave the stored cursor untouched
 	noCursor = int64(-1)
 )
@@ -48,9 +47,13 @@ var (
 	ErrEnvironmentMismatch = errors.New("redis state belongs to a different environment or configuration")
 	// ErrInvalidOptions is returned when the writer is built with an invalid option or dependency
 	ErrInvalidOptions = errors.New("invalid redis state writer options")
+	// ErrInvalidSegmentName is returned by DeleteSegmentKeys for an empty name or one with glob characters
+	ErrInvalidSegmentName = errors.New("redis state segment name is empty or contains glob characters")
 
 	errStopped       = errors.New("redis state writer stopped")
 	errChunkRejected = errors.New("redis state chunk rejected by the script")
+	// errDropped is returned once transient retries ran out: the change is not in Redis, which is behind
+	errDropped = errors.New("redis state change dropped after transient errors, Redis is behind")
 )
 
 // errClass is the D28 class of a Redis error
@@ -66,9 +69,9 @@ const (
 // D28 marker lists. A marker counts only as the first word of the error text, after an optional "ERR " prefix and the
 // Lua wrapper (see errHead), so a marker echoed inside an entity name does not change the class.
 var (
-	transientHeads = []string{"READONLY", "LOADING", "OOM", "TRYAGAIN", "CLUSTERDOWN", "MASTERDOWN", "BUSY", "MOVED", "ASK", "NOREPLICAS", "EXECABORT", "PROXY_META_WRONGTYPE"}
-	// transientTexts are matched by their exact full text (REV 19c)
-	transientTexts = []string{"ERR max number of clients reached", "connection pool timeout"}
+	transientHeads = []string{"READONLY", "LOADING", "OOM", "TRYAGAIN", "CLUSTERDOWN", "MASTERDOWN", "BUSY", "MOVED", "ASK", "NOREPLICAS", "EXECABORT", "NOAUTH", "PROXY_META_WRONGTYPE"}
+	// transientTexts are matched by their exact full text (REV 19c, D39: the go-redis texts include the "redis: " prefix)
+	transientTexts = []string{"ERR max number of clients reached", "redis: connection pool timeout", "redis: client is closed"}
 	permanentHeads = []string{"PROXY_BAD_ARGS", "WRONGTYPE", "CROSSSLOT"}
 )
 
@@ -80,7 +83,8 @@ func classify(err error) errClass {
 	head := errHead(msg)
 	var netErr net.Error
 	switch {
-	case slices.Contains(transientHeads, head), slices.Contains(transientTexts, msg), errors.As(err, &netErr):
+	case slices.Contains(transientHeads, head), slices.Contains(transientTexts, msg), errors.As(err, &netErr),
+		errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF), errors.Is(err, syscall.EPIPE):
 		return errTransient
 	case ErrorHasMarker(err, EnvMismatchMarker):
 		return errEnvMismatch
@@ -116,6 +120,8 @@ type Client interface {
 	Prefix() string
 	// Del is used by Reset. The prefixed client adds Prefix()+"." to the keys itself
 	Del(keys ...string) (int64, error)
+	// Get reads a string key (the purge count). The prefixed client adds the prefix itself, so pass Keys.Unprefixed().PurgeLast()
+	Get(key string) (string, error)
 }
 
 var _ Client = (*redis.PrefixedRedisClient)(nil)
@@ -166,7 +172,7 @@ type Status struct {
 // Options configures a Writer
 type Options struct {
 	Retention         time.Duration // how long removals are kept, default 168h
-	MaxAttempts       int           // attempts per round, default 3
+	MaxAttempts       int           // attempts per script call before the change is dropped, default 3
 	BackoffMaxWait    time.Duration // default 60s
 	MaxPendingChanges int           // default 3000000 (entities + keys queued; a queued key is 24 bytes, about 72 MB at the cap)
 	ChunkSize         int           // default 1000 (entities or keys per script call)
@@ -404,6 +410,7 @@ func (w *Writer) Stop() {
 	dropped := len(w.queue)
 	if w.inflight != nil {
 		dropped++
+		w.inflight = nil
 	}
 	w.clearQueueLocked()
 	w.mtx.Unlock()
@@ -454,7 +461,7 @@ func (w *Writer) deleteKnown() error {
 		return err
 	}
 	known := []string{
-		u.FlagData(), u.FlagIndex(), u.FlagRemoved(),
+		u.PurgeLast(), u.FlagData(), u.FlagIndex(), u.FlagRemoved(),
 		u.RuleBasedSegmentData(), u.RuleBasedSegmentIndex(), u.RuleBasedSegmentRemoved(),
 	}
 	for field := range meta {
@@ -469,6 +476,20 @@ func (w *Writer) deleteKnown() error {
 	}
 	_, err = w.client.Del(u.Meta())
 	return err
+}
+
+// DeleteSegmentKeys deletes the active, tombstone and removal clock keys of one segment and no other key, meta included.
+// The segment write that follows rewrites the cursor (D38). It uses the worker's retry state, so call it before Start or from the worker (resync) only.
+func (w *Writer) DeleteSegmentKeys(name string) error {
+	if !validSegmentName(name) {
+		return ErrInvalidSegmentName
+	}
+	u := w.keys.Unprefixed()
+	keys := []string{u.SegmentActive(name), u.SegmentTombstones(name), u.SegmentRemovalClock(name)}
+	return w.retry("segment key delete", func() error {
+		_, err := w.client.Del(keys...)
+		return err
+	})
 }
 
 // segmentNameOfCursorField returns the segment name of a meta field "seg.<name>.till"
@@ -967,6 +988,8 @@ func (w *Writer) run(source Source) {
 		_ = w.startupPurge()
 		purgePending = false
 	}
+	// dropBo paces the resync requests while a resync keeps dropping (D36), so an outage is not hammered
+	dropBo := backoff.New(2, w.opts.BackoffMaxWait)
 	for {
 		j, ok := w.next()
 		if !ok {
@@ -979,6 +1002,16 @@ func (w *Writer) run(source Source) {
 				w.logger.Info("redis state: resync cut short by Stop, it reruns at the next start")
 				continue
 			}
+			if errors.Is(err, errDropped) {
+				if w.wait(dropBo.Next()) {
+					w.RequestResync()
+				}
+				continue
+			}
+			if err != nil && !errors.Is(err, ErrEnvironmentMismatch) {
+				w.logger.Error(fmt.Sprintf("redis state: resync failed, it reruns at the next request or start: %s", err.Error()))
+			}
+			dropBo = backoff.New(2, w.opts.BackoffMaxWait)
 			if purgePending && err == nil {
 				purgePending = false
 				// the purge logs its own outcome; a Stop cut is left to the next start and a mismatch is already recorded
@@ -991,7 +1024,10 @@ func (w *Writer) run(source Source) {
 				return
 			}
 			w.finishChange()
-			if refused {
+			if errors.Is(err, errDropped) {
+				// the drop freezes the group; a resync releases it and rewrites the lost change
+				w.RequestResync()
+			} else if refused {
 				w.scheduleRefusedResync()
 			}
 		}
@@ -1107,48 +1143,68 @@ func (w *Writer) recordFailedRound(what string, attempts int, last error) {
 	w.stats.FailedRounds++
 	w.stats.LastError = last.Error()
 	w.mtx.Unlock()
-	w.logger.Error(fmt.Sprintf("redis state: %s failed %d times in a row, retrying: %s", what, attempts, last.Error()))
+	w.logger.Error(fmt.Sprintf("redis state: %s failed %d times in a row: %s", what, attempts, last.Error()))
 }
 
-// retry runs op in rounds of MaxAttempts tries with exponential backoff between tries. A failed round is reported and
-// a new one starts after BackoffMaxWait, forever: a change is never dropped. It returns early with
-// ErrEnvironmentMismatch (no retry), errChunkRejected (bad arguments, no retry: the caller isolates the refused
-// entity and reports it) or errStopped once the drain deadline has passed.
+// recordDrop reports a change dropped after its transient tries ran out: one Error line, unhealthy until a write succeeds
+func (w *Writer) recordDrop(what string, attempts int, last error) {
+	w.mtx.Lock()
+	w.stats.Healthy = false
+	w.stats.FailedRounds++
+	w.stats.LastError = last.Error()
+	w.mtx.Unlock()
+	w.logger.Error(fmt.Sprintf("redis state: %s dropped after %d attempts, Redis is behind the source until the next resync: %s", what, attempts, last.Error()))
+}
+
+// recordRefused marks the writer unhealthy after a permanent rejection. It logs nothing: the caller logs the skipped entity.
+func (w *Writer) recordRefused(last error) {
+	w.mtx.Lock()
+	w.stats.Healthy = false
+	w.stats.LastError = last.Error()
+	w.mtx.Unlock()
+}
+
+// retry runs op up to MaxAttempts times with exponential backoff between tries. It returns early with
+// ErrEnvironmentMismatch (no retry), errChunkRejected (bad arguments or an unknown error, no retry: the caller isolates
+// the refused entity and reports it), errDropped once the transient tries are exhausted (the caller does not isolate
+// entities, the change is lost until a resync) or errStopped once the drain deadline has passed.
 func (w *Writer) retry(what string, op func() error) error {
-	for {
-		bo := backoff.New(2, w.opts.BackoffMaxWait)
-		var last error
-		for attempt := 1; attempt <= w.opts.MaxAttempts; attempt++ {
-			// a running resync or purge pass stops at its next Eval once draining starts (D26 c)
-			if w.aborted() || w.resyncPass && w.stopped() {
-				return errStopped
-			}
-			err := op()
-			if err == nil {
-				return nil
-			}
-			class := classify(err)
-			switch class {
-			case errEnvMismatch:
-				w.enterMismatch()
-				return ErrEnvironmentMismatch
-			case errPermanent:
-				return errChunkRejected
-			}
-			last = err
-			if class == errUnknown && attempt == w.opts.MaxAttempts {
-				w.recordFailedRound(what, attempt, last)
-				return errChunkRejected
-			}
-			if attempt < w.opts.MaxAttempts && !w.wait(bo.Next()) {
-				return errStopped
-			}
+	bo := backoff.New(2, w.opts.BackoffMaxWait)
+	var last error
+	for attempt := 1; attempt <= w.opts.MaxAttempts; attempt++ {
+		// a running resync or purge pass stops at its next Eval once draining starts (D26 c)
+		if w.aborted() || w.resyncPass && w.stopped() {
+			return errStopped
 		}
-		w.recordFailedRound(what, w.opts.MaxAttempts, last)
-		if !w.wait(w.opts.BackoffMaxWait) {
+		err := op()
+		if err == nil {
+			return nil
+		}
+		class := classify(err)
+		switch class {
+		case errEnvMismatch:
+			w.enterMismatch()
+			return ErrEnvironmentMismatch
+		case errPermanent:
+			w.recordRefused(err)
+			return errChunkRejected
+		}
+		last = err
+		if class == errUnknown && attempt == w.opts.MaxAttempts {
+			w.recordFailedRound(what, attempt, last)
+			return errChunkRejected
+		}
+		if attempt < w.opts.MaxAttempts && !w.wait(bo.Next()) {
 			return errStopped
 		}
 	}
+	// a change that runs out of tries while Stop drains stays in flight, so Stop counts it as dropped
+	if w.stopped() {
+		return errStopped
+	}
+	// D36: the cap ends the retries, so a long outage cannot stall the queue; the resync repairs the dropped change
+	w.recordDrop(what, w.opts.MaxAttempts, last)
+	return errDropped
 }
 
 // eval runs one script call with retry and records the success
@@ -1385,6 +1441,12 @@ func (g *groupFreeze) addSkip(name string, limit int) {
 	}
 }
 
+// dropped freezes the whole group after a change was dropped (D36): the stored cursor must not pass the lost change, and a resync releases the freeze
+func (g *groupFreeze) dropped() {
+	g.names = map[string]struct{}{}
+	g.whole = true
+}
+
 // written records a successful send: its entities are clean, and a real cursor becomes the last written one
 func (g *groupFreeze) written(part []entity, cur int64) {
 	for _, e := range part {
@@ -1414,6 +1476,9 @@ func (w *Writer) writeEntities(what, script string, keys []string, cursorField s
 		}
 		args := buildEntityArgs(w.fingerprint, w.opts.Retention.Milliseconds(), cursorField, cur, part)
 		if err := w.eval(what, script, keys, args); err != nil {
+			if errors.Is(err, errDropped) {
+				g.dropped()
+			}
 			return err
 		}
 		g.written(part, cur)
@@ -1477,6 +1542,9 @@ func (w *Writer) writeSegment(name string, adds, rems []segmentKey, cursor int64
 		}
 		args := buildSegmentArgs(w.fingerprint, w.opts.Retention.Milliseconds(), name, field, cur, a, r)
 		if err := w.eval("segment write", SegmentScript, keys, args); err != nil {
+			if errors.Is(err, errDropped) {
+				g.dropped()
+			}
 			return err
 		}
 		g.written(nil, cur)
