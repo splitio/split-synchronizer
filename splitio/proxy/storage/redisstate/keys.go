@@ -13,6 +13,8 @@ import (
 const (
 	keyRoot   = "SPLITIO_PROXY"
 	globChars = `*?[]\`
+	// hashTagChars would corrupt the cluster hash tag {SPLITIO_PROXY.<env>} if they appeared in the prefix
+	hashTagChars = "{}"
 	// reservedKeyPrefix is the key namespace the synchronizer uses; the proxy must never write under it
 	reservedKeyPrefix = "SPLITIO."
 )
@@ -28,7 +30,7 @@ var namespaceRegex = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
 var (
 	// ErrInvalidPrefix is returned when the Redis prefix contains glob characters
-	ErrInvalidPrefix = errors.New("redis prefix must not contain any of *?[]\\")
+	ErrInvalidPrefix = errors.New("redis prefix must not contain any of *?[]\\{}")
 	// ErrReservedPrefix is returned when the prefix would place proxy keys under the synchronizer's SPLITIO. namespace
 	ErrReservedPrefix = errors.New("redis prefix must not start with SPLITIO. (reserved for the synchronizer)")
 	// ErrInvalidNamespace is returned when the namespace does not match ^[A-Za-z0-9_-]{1,64}$
@@ -46,7 +48,7 @@ type Keys struct {
 // NewKeys builds the key set for an environment. The environment id is the namespace when it is not
 // empty, otherwise the first 16 hex characters of the SHA-256 of the api key.
 func NewKeys(prefix, apikey, namespace string) (Keys, error) {
-	if strings.ContainsAny(prefix, globChars) {
+	if strings.ContainsAny(prefix, globChars+hashTagChars) {
 		return Keys{}, ErrInvalidPrefix
 	}
 
@@ -167,6 +169,11 @@ func (k Keys) RuleBasedSegmentCursorField() string {
 // SegmentCursorField returns the meta hash field holding the cursor of the named segment
 func (k Keys) SegmentCursorField(name string) string {
 	return fmt.Sprintf("seg.%s.till", name)
+}
+
+// PurgeLast is the key of the count the last PurgeScript call removed. It shares the hash tag of the other keys.
+func (k Keys) PurgeLast() string {
+	return k.base + ".purgelast"
 }
 
 // Pattern returns the glob matching every key of this environment, used only by Reset

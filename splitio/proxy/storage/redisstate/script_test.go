@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -339,6 +340,29 @@ func TestScriptSegmentAddRemoveTombstone(t *testing.T) {
 	d = e.dump()
 	assert.NotContains(t, d[sk[1]].Scores, "k2")
 	assert.Equal(t, float64(5), d[sk[2]].Scores["k2"])
+}
+
+func TestSegmentTieRemovalWins(t *testing.T) {
+	tests := []struct {
+		name  string
+		calls [][2][]segKey
+	}{
+		{"add then remove in separate calls", [][2][]segKey{{{{"k", 5}}, nil}, {nil, {{"k", 5}}}}},
+		{"remove then add in separate calls", [][2][]segKey{{nil, {{"k", 5}}}, {{{"k", 5}}, nil}}},
+		{"add and remove in one call", [][2][]segKey{{{{"k", 5}}, {{"k", 5}}}}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newScriptEnv(t)
+			sk := e.keys.SegmentKeys("s")
+			for i, c := range tc.calls {
+				require.Nil(t, e.segment(testFp, "s", int64(i+1), c[0], c[1]))
+			}
+			d := e.dump()
+			assert.NotContains(t, d[sk[1]].Scores, "k")
+			assert.Equal(t, float64(5), d[sk[2]].Scores["k"])
+		})
+	}
 }
 
 func TestScriptSegmentTombstoneExpires(t *testing.T) {
@@ -756,15 +780,15 @@ func TestSegmentTieAcrossChunks(t *testing.T) {
 	require.Nil(t, e.segment(testFp, "seg.add", noCursor, []segKey{{"k1", 5}}, nil))
 	require.Nil(t, e.segment(testFp, "seg.add", 5, nil, []segKey{{"k1", 5}}))
 	d := e.dump()
-	assert.Equal(t, map[string]float64{"k1": 5}, d[addThenRemove[1]].Scores, "add wins on an equal cn")
-	assert.Empty(t, d[addThenRemove[2]].Scores)
+	assert.Empty(t, d[addThenRemove[1]].Scores, "removal wins on an equal cn (D37)")
+	assert.Equal(t, map[string]float64{"k1": 5}, d[addThenRemove[2]].Scores)
 
 	removeThenAdd := e.keys.SegmentKeys("seg.rem")
 	require.Nil(t, e.segment(testFp, "seg.rem", noCursor, nil, []segKey{{"k2", 5}}))
 	require.Nil(t, e.segment(testFp, "seg.rem", 5, []segKey{{"k2", 5}}, nil))
 	d = e.dump()
-	assert.Equal(t, map[string]float64{"k2": 5}, d[removeThenAdd[1]].Scores, "add wins in the reverse order too")
-	assert.Empty(t, d[removeThenAdd[2]].Scores)
+	assert.Empty(t, d[removeThenAdd[1]].Scores, "removal wins in the reverse order too (D37)")
+	assert.Equal(t, map[string]float64{"k2": 5}, d[removeThenAdd[2]].Scores)
 
 	lower := e.keys.SegmentKeys("seg.low")
 	require.Nil(t, e.segment(testFp, "seg.low", noCursor, []segKey{{"k3", 9}}, nil))
@@ -787,8 +811,8 @@ func TestSegmentTieAcrossChunks(t *testing.T) {
 	assert.Equal(t, segEval{cursor: 5, rems: []string{"k4"}}, rc.calls[2], "the last chunk is the remove and carries the cursor")
 	chunk := e.keys.SegmentKeys("seg.chunk")
 	d = e.dump()
-	assert.Equal(t, map[string]float64{"k4": 5, "k5": 5}, d[chunk[1]].Scores, "add and remove in separate chunks keep the key added")
-	assert.Empty(t, d[chunk[2]].Scores)
+	assert.Equal(t, map[string]float64{"k5": 5}, d[chunk[1]].Scores, "removal wins on an equal cn across chunks (D37)")
+	assert.Equal(t, map[string]float64{"k4": 5}, d[chunk[2]].Scores)
 }
 
 func TestRetentionUsesRedisTime(t *testing.T) {
@@ -908,14 +932,17 @@ func TestScriptPurgeRetentionBoundary(t *testing.T) {
 		require.Nil(t, e.client.Eval(boundarySeedScript, []string{sk[2], sk[3]}, "at", cutoff))
 		require.Nil(t, e.client.Eval(boundarySeedScript, []string{sk[2], sk[3]}, "below", cutoff-1))
 		require.Nil(t, e.client.Eval(boundarySeedScript, []string{sk[2], sk[3]}, "above", cutoff+1))
-		require.Nil(t, e.client.Eval(PurgeScript, sk, testFp, retention, int64(100), int64(0)))
+		require.Nil(t, e.client.Eval(PurgeScript, append(slices.Clone(sk), e.keys.PurgeLast()), testFp, retention, int64(100), int64(0)))
 		if boundaryClock(t, e, meta) != t0 {
 			continue
 		}
 		d := e.dump()
 		assert.Equal(t, map[string]float64{"above": float64(cutoff + 1)}, d[sk[3]].Scores, "retention+1 is kept")
 		assert.Equal(t, map[string]float64{"above": 1}, d[sk[2]].Scores, "the markers at and below the cutoff left the index")
-		assert.Equal(t, "2", d[meta].Fields["purgeLast"], "the at-cutoff and below-cutoff markers were expired")
+		count, err := e.client.Get(e.keys.Unprefixed().PurgeLast())
+		require.NoError(t, err)
+		assert.Equal(t, "2", count, "the at-cutoff and below-cutoff markers were expired, counted in the purge count key")
+		assert.NotContains(t, d[meta].Fields, "purgeLast", "the count no longer grows the meta hash")
 		return
 	}
 }
