@@ -7,6 +7,59 @@ import (
 	"github.com/splitio/go-toolkit/v5/logging"
 )
 
+// TestRBChangesWriteFailureIsReported checks that a failed Bolt write for rule-based segments
+// is returned by UpdateWithError and logged by Update.
+func TestRBChangesWriteFailureIsReported(t *testing.T) {
+	toAdd := []dtos.RuleBasedSegmentDTO{{Name: "rb1", ChangeNumber: 1, Status: "ACTIVE"}}
+
+	t.Run("UpdateWithError returns the error", func(t *testing.T) {
+		c := NewRBChangesCollection(closedDB(t), logging.NewLogger(nil))
+		if err := c.UpdateWithError(toAdd, nil, 1); err == nil {
+			t.Error("expected the failed write to be returned")
+		}
+	})
+	t.Run("Update logs it", func(t *testing.T) {
+		rec := &errorRecorder{}
+		c := NewRBChangesCollection(closedDB(t), rec)
+		c.Update(toAdd, nil, 1)
+		if !rec.logged("persisting rule-based segments") {
+			t.Errorf("expected a logged error, got %v", rec.errs)
+		}
+	})
+	t.Run("a healthy write returns nil", func(t *testing.T) {
+		dbw, err := NewBoltWrapper(BoltInMemoryMode, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = dbw.Discard() })
+		c := NewRBChangesCollection(dbw, logging.NewLogger(nil))
+		if err := c.UpdateWithError(toAdd, nil, 7); err != nil {
+			t.Errorf("unexpected error %v", err)
+		}
+		if c.ChangeNumber() != 7 {
+			t.Errorf("change number %d, want 7", c.ChangeNumber())
+		}
+	})
+}
+
+// TestRBRestoreWithoutItemsAnchorsChangeNumber checks that a rule-based segments restore with no
+// items still anchors the change number.
+func TestRBRestoreWithoutItemsAnchorsChangeNumber(t *testing.T) {
+	dbw, err := NewBoltWrapper(BoltInMemoryMode, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = dbw.Discard() })
+	c := NewRBChangesCollection(dbw, logging.NewLogger(nil))
+
+	if err := c.UpdateWithError(nil, nil, 42); err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
+	if c.ChangeNumber() != 42 {
+		t.Errorf("change number %d, want 42", c.ChangeNumber())
+	}
+}
+
 func TestRBChangesCollection(t *testing.T) {
 	dbw, err := NewBoltWrapper(BoltInMemoryMode, nil)
 	if err != nil {
