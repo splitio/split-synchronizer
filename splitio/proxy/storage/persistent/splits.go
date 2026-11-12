@@ -54,13 +54,18 @@ func (c *SplitChangesCollection) Update(toAdd []dtos.SplitDTO, toRemove []dtos.S
 
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+	allSaved := true
 	for idx := range items.items {
 		err := c.collection.SaveAs([]byte(items.items[idx].Name), items.items[idx])
 		if err != nil {
-			// TODO(mredolatti): log
+			allSaved = false
+			c.collection.Logger().Error("error saving feature flag: ", items.items[idx].Name, " ", err)
 		}
 	}
-	c.changeNumber = cn
+	// The cursor only advances when every item was stored, so it never gets ahead of the stored data
+	if allSaved {
+		c.changeNumber = cn
+	}
 }
 
 // FetchAll return a SplitChangesItem
@@ -105,4 +110,11 @@ func (c *SplitChangesCollection) ChangeNumber() int64 {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 	return c.changeNumber
+}
+
+// SetChangeNumber seeds the cursor after stored data was loaded at startup
+func (c *SplitChangesCollection) SetChangeNumber(cn int64) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.changeNumber = cn
 }

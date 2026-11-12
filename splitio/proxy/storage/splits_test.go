@@ -17,13 +17,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// boltDownDBWrapper makes every Bolt write fail; reads go to the real in-memory wrapper
+// boltDownDBWrapper makes every local store write fail; reads go to the real in-memory wrapper
 type boltDownDBWrapper struct {
 	persistent.DBWrapper
 }
 
 func (boltDownDBWrapper) Update(func(*bolt.Tx) error) error {
-	return errors.New("bolt down")
+	return errors.New("local store write fails")
 }
 
 func TestSplitStorage(t *testing.T) {
@@ -473,8 +473,8 @@ func TestProxySplitStorageWithoutWriterUnchanged(t *testing.T) {
 	assert.Equal(t, []string{"f1"}, pss.SplitNames())
 }
 
-// T70: the Redis forward does not depend on the Bolt write; a failing Bolt does not stop the change from reaching the writer
-func TestProxySplitStorageRedisIndependentOfBolt(t *testing.T) {
+// The writer forward does not depend on the local store write; a failing local store does not stop the change from reaching the writer
+func TestProxySplitStorageRedisIndependentOfLocalStoreFailure(t *testing.T) {
 	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
 	assert.Nil(t, err)
 	logger := logging.NewLogger(nil)
@@ -487,7 +487,7 @@ func TestProxySplitStorageRedisIndependentOfBolt(t *testing.T) {
 	toAdd := []dtos.SplitDTO{{Name: "f1", ChangeNumber: 5, Status: "ACTIVE", TrafficTypeName: "ttt"}}
 	pss.Update(toAdd, nil, 5)
 
-	assert.Equal(t, 1, w.calls, "writer receives the change although Bolt fails")
+	assert.Equal(t, 1, w.calls, "writer receives the change although the local store fails")
 	assert.Equal(t, toAdd, w.toAdd)
 	cn, err := pss.ChangeNumber()
 	assert.Nil(t, err)

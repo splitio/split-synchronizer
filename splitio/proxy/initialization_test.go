@@ -9,12 +9,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/splitio/go-split-commons/v10/dtos"
 	"github.com/splitio/go-split-commons/v10/engine/grammar/constants"
 	"github.com/splitio/go-split-commons/v10/synchronizer"
 	"github.com/splitio/go-toolkit/v5/logging"
 	adminCommon "github.com/splitio/split-synchronizer/v5/splitio/admin/common"
 	"github.com/splitio/split-synchronizer/v5/splitio/common/snapshot"
 	pconf "github.com/splitio/split-synchronizer/v5/splitio/proxy/conf"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/redisstate"
 	"github.com/splitio/split-synchronizer/v5/splitio/util"
 )
 
@@ -90,7 +92,7 @@ func (m *mockLogger) Warning(msg ...interface{}) {
 
 func (m *mockLogger) Debug(msg ...interface{}) {}
 func (m *mockLogger) Error(msg ...interface{}) {}
-func (m *mockLogger) Info(msg ...interface{}) {}
+func (m *mockLogger) Info(msg ...interface{})  {}
 
 func TestSnapshotHashMismatchLogsWarningAndIgnoresSnapshot(t *testing.T) {
 	// Create a temporary snapshot file with a specific hash
@@ -264,7 +266,7 @@ func TestFeatureFlagRulesKeepLargeSegmentMatcher(t *testing.T) {
 		return false
 	}
 	// Without this matcher the proxy rewrites flag conditions to "unsupported" before storage,
-	// so large segments are never fetched (F10).
+	// so large segments are never fetched.
 	if !has(adminCommon.ProxyFeatureFlagsRules, constants.MatcherTypeInLargeSegment) {
 		t.Error("proxy feature flag rules must accept IN_LARGE_SEGMENT")
 	}
@@ -308,4 +310,61 @@ func TestMaskRedisStateSecretsMasksCopyOnly(t *testing.T) {
 	if empty.Storage.Redis.Connection.Pass != "" || empty.Storage.Redis.Connection.Username != "" {
 		t.Error("empty credentials should stay empty so the admin view shows they are unset")
 	}
+}
+
+type resyncCountingClient struct{}
+
+func (resyncCountingClient) Eval(script string, keys []string, args ...interface{}) error { return nil }
+func (resyncCountingClient) HGetAll(key string) (map[string]string, error) {
+	return map[string]string{}, nil
+}
+func (resyncCountingClient) Prefix() string                    { return "prefix" }
+func (resyncCountingClient) Del(keys ...string) (int64, error) { return 0, nil }
+func (resyncCountingClient) Get(key string) (string, error)    { return "", nil }
+
+type resyncCountingSource struct{ flagCalls int64 }
+
+func (s *resyncCountingSource) Flags() ([]dtos.SplitDTO, int64, error) {
+	atomic.AddInt64(&s.flagCalls, 1)
+	return nil, 0, nil
+}
+
+func (s *resyncCountingSource) RuleBasedSegments() ([]dtos.RuleBasedSegmentDTO, int64, error) {
+	return nil, 0, nil
+}
+
+func (s *resyncCountingSource) Segments(visit func(redisstate.SegmentState) error) error { return nil }
+
+func waitForFlagCalls(t *testing.T, s *resyncCountingSource, want int64) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for atomic.LoadInt64(&s.flagCalls) < want {
+		if time.Now().After(deadline) {
+			t.Fatalf("expected at least %d source reads, got %d", want, atomic.LoadInt64(&s.flagCalls))
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func TestRequestRedisResyncRepairsStartedWriter(t *testing.T) {
+	requestRedisResync(nil)
+
+	keys, err := redisstate.NewKeys("prefix", "apikey", "ns")
+	if err != nil {
+		t.Fatal(err)
+	}
+	logger := logging.NewLogger(nil)
+	w, err := redisstate.NewWriter(resyncCountingClient{}, keys, "fingerprint", redisstate.DefaultOptions(), logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := &resyncCountingSource{}
+	if err := w.Start(src); err != nil {
+		t.Fatal(err)
+	}
+	defer w.Stop()
+
+	waitForFlagCalls(t, src, 1)
+	requestRedisResync(w)
+	waitForFlagCalls(t, src, 2)
 }

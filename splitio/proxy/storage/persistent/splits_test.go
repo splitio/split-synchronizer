@@ -1,6 +1,7 @@
 package persistent
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/splitio/go-split-commons/v10/dtos"
@@ -56,5 +57,35 @@ func TestSplitPersistentStorage(t *testing.T) {
 
 	if splitC.ChangeNumber() != 2 {
 		t.Error("CN should be 2.")
+	}
+}
+
+type saveFailCollection struct {
+	CollectionWrapper
+	fail   bool
+	logger logging.LoggerInterface
+}
+
+func (f *saveFailCollection) SaveAs(key []byte, item interface{}) error {
+	if f.fail {
+		return errors.New("save failed")
+	}
+	return nil
+}
+
+func (f *saveFailCollection) Logger() logging.LoggerInterface { return f.logger }
+
+func TestSplitChangesCollectionCursorAdvancesOnlyWhenSaved(t *testing.T) {
+	logger := logging.NewLogger(nil)
+	failing := &SplitChangesCollection{collection: &saveFailCollection{fail: true, logger: logger}}
+	failing.Update([]dtos.SplitDTO{{Name: "f", ChangeNumber: 5, Status: "ACTIVE"}}, nil, 5)
+	if cn := failing.ChangeNumber(); cn != 0 {
+		t.Errorf("cursor must not advance when a save fails, got %d", cn)
+	}
+
+	ok := &SplitChangesCollection{collection: &saveFailCollection{logger: logger}}
+	ok.Update([]dtos.SplitDTO{{Name: "f", ChangeNumber: 5, Status: "ACTIVE"}}, nil, 5)
+	if cn := ok.ChangeNumber(); cn != 5 {
+		t.Errorf("cursor should advance after successful saves, got %d", cn)
 	}
 }

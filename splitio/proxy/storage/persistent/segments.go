@@ -144,7 +144,7 @@ func (c *SegmentChangesCollectionImpl) fetch(name string) (*SegmentChangesItem, 
 	var q SegmentChangesItem
 	errq := dec.Decode(&q)
 	if errq != nil {
-		c.collection.Logger().Error("decode error:", errq)
+		return nil, fmt.Errorf("decoding segment %s: %w", name, errq)
 	}
 	return &q, nil
 }

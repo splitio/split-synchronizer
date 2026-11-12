@@ -17,7 +17,7 @@ import (
 	commonredis "github.com/splitio/go-split-commons/v10/storage/redis"
 )
 
-// stopWaitBound is the hard bound shutdown waits for the Redis writer to stop (D26 (a)). It is the drain bound
+// stopWaitBound is the hard bound shutdown waits for the Redis writer to stop. It is the drain bound
 // plus one worst-case Redis call (dial, read and write timeouts for every attempt, the timeouts are in seconds)
 // plus a fixed margin, so a single hung Eval cannot exceed it.
 func stopWaitBound(state pconf.RedisState, conn conf.Redis) time.Duration {
@@ -111,14 +111,18 @@ func setupRedisState(cfg *pconf.Main, logger logging.LoggerInterface, splits *st
 	if err := validateRedisStateSettings(&redisCfg); err != nil {
 		return nil, err
 	}
+	// The namespace is checked here, before any connection, so a bad value never reaches Redis. The prefix is
+	// only known once the client exists and is validated by the NewKeys call below.
+	if _, err := redisstate.NewKeys("", cfg.Apikey, redisCfg.Namespace); err != nil {
+		return nil, common.NewInitError(fmt.Errorf("error building redis state keys: %w", err), common.ExitInvalidConfiguration)
+	}
 
 	opts, err := common.ParseRedisOptions(&redisCfg.Connection)
 	if err != nil {
 		return nil, common.NewInitError(fmt.Errorf("error parsing redis state config: %w", err), common.ExitInvalidConfiguration)
 	}
 
-	// The go-toolkit PrefixedRedisClient has no Close, so on a later setup failure this client is not closed.
-	// Accepted and documented (plan D29 C-6, OI18): the process exit releases it.
+	// The go-toolkit PrefixedRedisClient has no Close, so on a later setup failure this client is not closed; process exit releases it.
 	client, err := newRedisStateClient(opts, logger)
 	if err != nil {
 		return nil, common.NewInitError(fmt.Errorf("error instantiating redis state client: %w", err), common.ExitRedisInitializationFailed)

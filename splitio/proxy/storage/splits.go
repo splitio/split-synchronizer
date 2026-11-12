@@ -254,6 +254,7 @@ func snapshotFromDisk(
 
 	dst.Update(filtered, nil, cn)
 	historic.Update(filtered, nil, cn)
+	src.SetChangeNumber(cn)
 	return cn
 }
 

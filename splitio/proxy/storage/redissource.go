@@ -8,44 +8,26 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/redisstate"
 
 	"github.com/splitio/go-split-commons/v10/dtos"
+	"github.com/splitio/go-split-commons/v10/engine/grammar/constants"
 )
 
-// RedisStateSource exposes the proxy's complete local state (Bolt-backed storages) to the Redis writer for resync
+// RedisStateSource exposes the proxy's complete local state to the Redis writer for resync
 type RedisStateSource struct {
 	splits   *ProxySplitStorageImpl
 	rbs      *ProxyRuleBasedSegmentsStorageImpl
 	segments *ProxySegmentStorageImpl
 }
 
-// NewRedisStateSource builds a Source over the three proxy storages
 func NewRedisStateSource(splits *ProxySplitStorageImpl, rbs *ProxyRuleBasedSegmentsStorageImpl, segments *ProxySegmentStorageImpl) *RedisStateSource {
 	return &RedisStateSource{splits: splits, rbs: rbs, segments: segments}
 }
 
 var _ redisstate.Source = (*RedisStateSource)(nil)
 
-// flagsChangeNumber reads the change number under the facade lock. Update writes the snapshot and Bolt under the same
-// lock, so once the lock is released Bolt holds at least the data of this change number. The full Bolt read that
-// follows runs without the lock (it would stall Update), which can only leave the cursor behind the data.
-func (s *RedisStateSource) flagsChangeNumber() (int64, error) {
-	s.splits.mtx.Lock()
-	defer s.splits.mtx.Unlock()
-	return s.splits.snapshot.ChangeNumber()
-}
-
-// rbsChangeNumber is flagsChangeNumber for rule-based segments
-func (s *RedisStateSource) rbsChangeNumber() (int64, error) {
-	s.rbs.mtx.Lock()
-	defer s.rbs.mtx.Unlock()
-	return s.rbs.snapshot.ChangeNumber()
-}
-
 // Flags returns all flags (archived included) and the flag change number; the cursor is never ahead of the returned data
 func (s *RedisStateSource) Flags() ([]dtos.SplitDTO, int64, error) {
-	cn, err := s.flagsChangeNumber()
-	if err != nil {
-		return nil, 0, fmt.Errorf("reading flags change number: %w", err)
-	}
+	// The cursor is read before the data: a concurrent Update can only leave the cursor behind the data read
+	cn := s.splits.db.ChangeNumber()
 	all, err := s.splits.db.FetchAll()
 	if err != nil {
 		if errors.Is(err, persistent.ErrorBucketNotFound) {
@@ -56,15 +38,19 @@ func (s *RedisStateSource) Flags() ([]dtos.SplitDTO, int64, error) {
 		}
 		return nil, 0, fmt.Errorf("reading flags: %w", err)
 	}
+	for idx := range all {
+		// Flags outside the configured flag sets are kept locally but must reach Redis as removed, as on the live path
+		if all[idx].Status == constants.SplitStatusActive && !s.splits.flagSets.Instersect(all[idx].Sets) {
+			all[idx].Status = constants.SplitStatusArchived
+		}
+	}
 	return all, cn, nil
 }
 
 // RuleBasedSegments returns all rule-based segments and their change number; the cursor is never ahead of the returned data
 func (s *RedisStateSource) RuleBasedSegments() ([]dtos.RuleBasedSegmentDTO, int64, error) {
-	cn, err := s.rbsChangeNumber()
-	if err != nil {
-		return nil, 0, fmt.Errorf("reading rule-based segments change number: %w", err)
-	}
+	// The cursor is read before the data, as in Flags
+	cn := s.rbs.db.ChangeNumber()
 	all, err := s.rbs.db.FetchAll()
 	if err != nil {
 		if errors.Is(err, persistent.ErrorBucketNotFound) {
