@@ -243,6 +243,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	cfgForAdmin := *cfg
 	hash := util.HashAPIKey(cfgForAdmin.Apikey + cfg.FlagSpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
 	cfgForAdmin.Apikey = logging.ObfuscateAPIKey(cfgForAdmin.Apikey)
+	maskRedisStateSecrets(&cfgForAdmin)
 
 	adminTLSConfig, err := util.TLSConfigForServer(&cfg.Admin.TLS)
 	if err != nil {
@@ -326,6 +327,21 @@ var (
 	errRetrying      = errors.New("error but snapshot available")
 	errUnrecoverable = errors.New("error and no snapshot available")
 )
+
+// maskedSecret replaces non-empty credentials in the config served by the admin API.
+const maskedSecret = "********"
+
+// maskRedisStateSecrets masks the Redis state connection credentials (username, password,
+// TLS client key). It mutates only the struct it is given, so callers pass a value copy
+// of the config and the live config keeps its secrets.
+func maskRedisStateSecrets(cfg *pconf.Main) {
+	conn := &cfg.Storage.Redis.Connection
+	for _, secret := range []*string{&conn.Username, &conn.Pass, &conn.TLSClientKey} {
+		if *secret != "" {
+			*secret = maskedSecret
+		}
+	}
+}
 
 func startBGSync(m synchronizer.Manager, mstatus chan int, haveSnapshot bool, onReady func()) error {
 	attemptInit := func() bool {

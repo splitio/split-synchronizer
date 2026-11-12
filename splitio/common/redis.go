@@ -34,17 +34,34 @@ func ParseRedisOptions(cfg *conf.Redis) (*config.RedisConfig, error) {
 	}
 
 	if cfg.SentinelReplication {
-		redisCfg.SentinelAddresses = strings.Split(cfg.SentinelAddresses, ",")
+		redisCfg.SentinelAddresses = splitAddresses(cfg.SentinelAddresses)
+		if len(redisCfg.SentinelAddresses) == 0 {
+			return nil, errors.New("sentinel addresses must not be empty")
+		}
 		redisCfg.SentinelMaster = cfg.SentinelMaster
 	} else if cfg.ClusterMode {
 		redisCfg.ClusterKeyHashTag = cfg.ClusterKeyHashTag
-		redisCfg.ClusterNodes = strings.Split(cfg.ClusterNodes, ",")
+		redisCfg.ClusterNodes = splitAddresses(cfg.ClusterNodes)
+		if len(redisCfg.ClusterNodes) == 0 {
+			return nil, errors.New("cluster nodes must not be empty")
+		}
 	} else {
 		redisCfg.Host = cfg.Host
 		redisCfg.Port = cfg.Port
 		redisCfg.Database = cfg.Db
 	}
 	return redisCfg, nil
+}
+
+// splitAddresses splits a comma-separated list, trimming whitespace and dropping empty elements
+func splitAddresses(list string) []string {
+	var out []string
+	for _, part := range strings.Split(list, ",") {
+		if p := strings.TrimSpace(part); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func parseTLSConfig(opt *conf.Redis) (*tls.Config, error) {
@@ -66,7 +83,7 @@ func parseTLSConfig(opt *conf.Redis) (*tls.Config, error) {
 			}
 			ok := certPool.AppendCertsFromPEM(pemData)
 			if !ok {
-				return nil, fmt.Errorf("failed to add certificate %s to the TLS configuration: ", cacert)
+				return nil, fmt.Errorf("failed to add certificate %s to the TLS configuration", cacert)
 			}
 		}
 		cfg.RootCAs = certPool
@@ -87,7 +104,7 @@ func parseTLSConfig(opt *conf.Redis) (*tls.Config, error) {
 		cfg.Certificates = []tls.Certificate{certPair}
 	} else if opt.TLSClientKey != opt.TLSClientCertificate {
 		// If they aren't both set, and they aren't equal, it means that only one is set, which is invalid.
-		return nil, errors.New("You must provide either both client certificate and client private key, or none")
+		return nil, errors.New("you must provide either both client certificate and client private key, or none")
 	}
 
 	return &cfg, nil

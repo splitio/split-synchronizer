@@ -279,3 +279,33 @@ func TestFeatureFlagRulesKeepLargeSegmentMatcher(t *testing.T) {
 		t.Error("proxy rules must be the producer rules plus IN_LARGE_SEGMENT only")
 	}
 }
+
+func TestMaskRedisStateSecretsMasksCopyOnly(t *testing.T) {
+	live := &pconf.Main{}
+	live.Storage.Redis.Connection.Username = "redis-user"
+	live.Storage.Redis.Connection.Pass = "placeholder-pw"
+	live.Storage.Redis.Connection.TLSClientKey = "client-key-pem-placeholder"
+	live.Storage.Redis.Connection.Host = "redis.local"
+
+	cfgForAdmin := *live
+	maskRedisStateSecrets(&cfgForAdmin)
+
+	conn := cfgForAdmin.Storage.Redis.Connection
+	if conn.Username != maskedSecret || conn.Pass != maskedSecret || conn.TLSClientKey != maskedSecret {
+		t.Fatalf("expected masked credentials in admin copy, got user=%q pass=%q key=%q", conn.Username, conn.Pass, conn.TLSClientKey)
+	}
+	if conn.Host != "redis.local" {
+		t.Errorf("non-secret host should not be masked, got %q", conn.Host)
+	}
+
+	orig := live.Storage.Redis.Connection
+	if orig.Username != "redis-user" || orig.Pass != "placeholder-pw" || orig.TLSClientKey != "client-key-pem-placeholder" {
+		t.Errorf("live config was mutated: user=%q pass=%q key=%q", orig.Username, orig.Pass, orig.TLSClientKey)
+	}
+
+	empty := &pconf.Main{}
+	maskRedisStateSecrets(empty)
+	if empty.Storage.Redis.Connection.Pass != "" || empty.Storage.Redis.Connection.Username != "" {
+		t.Error("empty credentials should stay empty so the admin view shows they are unset")
+	}
+}

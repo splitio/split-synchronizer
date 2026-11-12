@@ -33,9 +33,12 @@ const (
 	defaultChunkSize         = 1000
 	defaultPurgeBatch        = 500
 	defaultStopTimeoutMs     = 10000
-	// Upper bounds (D25 REV 19c): a Lua script of unbounded size blocks Redis past lua-time-limit.
-	MaxChunkSize     = 10000
-	MaxPurgeBatch    = 5000
+	// Upper bounds: a Lua script of unbounded size blocks Redis past lua-time-limit.
+	// MaxChunkSize caps the number of entities sent in one Lua script call.
+	MaxChunkSize = 10000
+	// MaxPurgeBatch caps the number of keys removed per purge batch.
+	MaxPurgeBatch = 5000
+	// MaxStopTimeoutMs caps how long Stop waits for the worker to drain, in milliseconds.
 	MaxStopTimeoutMs = 60000
 
 	// noCursor is the cursor argument that makes a script leave the stored cursor untouched
@@ -56,7 +59,7 @@ var (
 	errDropped = errors.New("redis state change dropped after transient errors, Redis is behind")
 )
 
-// errClass is the D28 class of a Redis error
+// errClass is the class of a Redis error
 type errClass int
 
 const (
@@ -66,16 +69,30 @@ const (
 	errUnknown
 )
 
-// D28 marker lists. A marker counts only as the first word of the error text, after an optional "ERR " prefix and the
+// String returns the class name used in log and error text
+func (c errClass) String() string {
+	switch c {
+	case errTransient:
+		return "transient"
+	case errEnvMismatch:
+		return "environment mismatch"
+	case errPermanent:
+		return "permanent"
+	default:
+		return "unknown"
+	}
+}
+
+// Marker lists. A marker counts only as the first word of the error text, after an optional "ERR " prefix and the
 // Lua wrapper (see errHead), so a marker echoed inside an entity name does not change the class.
 var (
-	transientHeads = []string{"READONLY", "LOADING", "OOM", "TRYAGAIN", "CLUSTERDOWN", "MASTERDOWN", "BUSY", "MOVED", "ASK", "NOREPLICAS", "EXECABORT", "NOAUTH", "PROXY_META_WRONGTYPE"}
-	// transientTexts are matched by their exact full text (REV 19c, D39: the go-redis texts include the "redis: " prefix)
+	transientHeads = []string{"READONLY", "LOADING", "OOM", "TRYAGAIN", "CLUSTERDOWN", "MASTERDOWN", "MISCONF", "BUSY", "MOVED", "ASK", "NOREPLICAS", "EXECABORT", "NOAUTH", "PROXY_META_WRONGTYPE"}
+	// transientTexts are matched by their exact full text (the go-redis texts include the "redis: " prefix)
 	transientTexts = []string{"ERR max number of clients reached", "redis: connection pool timeout", "redis: client is closed"}
 	permanentHeads = []string{"PROXY_BAD_ARGS", "WRONGTYPE", "CROSSSLOT"}
 )
 
-// classify maps a Redis or client error to its D28 class. The order is the table: transient first (even inside a Lua
+// classify maps a Redis or client error to its class. The order is the table: transient first (even inside a Lua
 // wrapper), then the environment mismatch marker, then permanent (a permanent marker or a Lua runtime error), and
 // anything else is unknown.
 func classify(err error) errClass {
@@ -154,7 +171,7 @@ var (
 )
 
 // Status is a point-in-time view of the writer; the JSON tags are what /observability serves under "redisState".
-// Resyncs counts overflow events (every time queued changes were dropped), not the startup resync.
+// Resyncs counts overflow events (every time queued changes were dropped) and resyncs scheduled after a refused live chunk; the startup resync is not counted.
 type Status struct {
 	Healthy             bool   `json:"healthy"`
 	EnvironmentMismatch bool   `json:"environmentMismatch"`
@@ -174,10 +191,10 @@ type Options struct {
 	Retention         time.Duration // how long removals are kept, default 168h
 	MaxAttempts       int           // attempts per script call before the change is dropped, default 3
 	BackoffMaxWait    time.Duration // default 60s
-	MaxPendingChanges int           // default 3000000 (entities + keys queued; a queued key is 24 bytes, about 72 MB at the cap)
+	MaxPendingChanges int           // default 3000000 (entities + keys queued)
 	ChunkSize         int           // default 1000 (entities or keys per script call)
 	PurgeBatch        int           // default 500 (entries removed per PurgeScript call), 1..5000
-	StopTimeoutMs     int64         // default 10000 (drain bound on Stop, D26), 1..60000
+	StopTimeoutMs     int64         // default 10000 (drain bound on Stop), 1..60000
 }
 
 // DefaultOptions returns the default writer options
@@ -213,14 +230,14 @@ type change struct {
 	cn         int64
 	flags      []dtos.SplitDTO
 	rbs        []dtos.RuleBasedSegmentDTO
-	removals   []bool // true for entities from the removal list of a PutFlags or PutRuleBasedSegments call (D24)
+	removals   []bool // true for entities from the removal list of a PutFlags or PutRuleBasedSegments call
 	segment    string
 	adds       []segmentKey
 	rems       []segmentKey
 	// namePos (flags, rule-based segments) and keyPos (segments) map an entity name or key to its position. Built
-	// lazily on the first merge (D31), then updated on every merge, so a merge costs O(size of the merged change).
+	// lazily on the first merge, then updated on every merge, so a merge costs O(size of the merged change).
 	namePos map[string]int
-	keyPos  map[string]keyPos
+	pos     map[string]keyPos
 }
 
 // keyPos locates a segment key in change.adds (add true) or change.rems.
@@ -229,7 +246,7 @@ type keyPos struct {
 	idx int
 }
 
-// groupKey identifies the queue group of a change: flags, rule-based segments, or one segment name (D19, D31).
+// groupKey identifies the queue group of a change: flags, rule-based segments, or one segment name.
 type groupKey struct {
 	kind    changeKind
 	segment string
@@ -255,10 +272,10 @@ type job struct {
 }
 
 // Writer mirrors the proxy state into Redis. Put* only enqueue; a single worker goroutine talks to Redis.
-// Lock order: the facade mutex is taken before mtx. The worker holds mtx only to read or change queue and
+// The worker holds mtx only to read or change queue and
 // status state, never across Source calls, Eval, HGetAll or a wait.
 type Writer struct {
-	// overflow and overflowEpoch are guarded by mtx (D21). overflow freezes the cursors of every group until a resync
+	// overflow and overflowEpoch are guarded by mtx. overflow freezes the cursors of every group until a resync
 	// with a Source completes; overflowEpoch counts overflows so a resync can tell whether one happened after it started.
 	overflow      bool
 	overflowEpoch uint64
@@ -272,7 +289,7 @@ type Writer struct {
 	fingerprint string
 	opts        Options
 	logger      logging.LoggerInterface
-	groups      map[string]*groupFreeze // D19 in-memory group state, keyed by cursor field; lazily created by freezeOf
+	groups      map[string]*groupFreeze // in-memory group state, keyed by cursor field; lazily created by freezeOf
 
 	now     func() time.Time
 	wait    func(time.Duration) bool
@@ -282,14 +299,14 @@ type Writer struct {
 	stop     chan struct{}
 	done     chan struct{}
 	stopOnce sync.Once
-	// drainUntil is the drain deadline (D26), written by Stop before w.stop closes and read only after the close is observed
+	// drainUntil is the drain deadline, written by Stop before w.stop closes and read only after the close is observed
 	drainUntil time.Time
 
 	mtx        sync.Mutex
 	started    bool
 	queue      []*change
 	queuedSize int
-	// groupIdx maps a group to its last queued change (D31). A change leaves the index when it is popped or the queue is cleared.
+	// groupIdx maps a group to its last queued change. A change leaves the index when it is popped or the queue is cleared.
 	groupIdx    map[groupKey]*change
 	inflight    *change
 	needResync  bool
@@ -306,6 +323,8 @@ type Writer struct {
 }
 
 // NewWriter validates opts (all > 0, else an error wrapping ErrInvalidOptions) and builds a Writer. It does not touch Redis.
+// The writer assumes a single-node (non-cluster) Redis: the client does not prefix the Eval KEYS in cluster mode, so
+// sentinel and cluster deployments are unsupported for now.
 func NewWriter(client Client, keys Keys, fingerprint string, opts Options, logger logging.LoggerInterface) (*Writer, error) {
 	switch {
 	case client == nil:
@@ -328,6 +347,8 @@ func NewWriter(client Client, keys Keys, fingerprint string, opts Options, logge
 		return nil, fmt.Errorf("%w: purge batch must be 1..%d", ErrInvalidOptions, MaxPurgeBatch)
 	case opts.StopTimeoutMs <= 0 || opts.StopTimeoutMs > MaxStopTimeoutMs:
 		return nil, fmt.Errorf("%w: stop timeout ms must be 1..%d", ErrInvalidOptions, MaxStopTimeoutMs)
+	case keys.prefix != client.Prefix():
+		return nil, fmt.Errorf("%w: keys prefix %q does not match the client prefix %q", ErrInvalidOptions, keys.prefix, client.Prefix())
 	}
 
 	w := &Writer{
@@ -347,11 +368,14 @@ func NewWriter(client Client, keys Keys, fingerprint string, opts Options, logge
 	return w, nil
 }
 
-// Start runs the D30 probe, then launches the single background worker. The worker first calls source.Resync (if source != nil), then drains the queue.
+// Start runs the startup probe, then launches the single background worker. The worker first calls source.Resync (if source != nil), then drains the queue.
 // A probe that fails with a script error returns a minimum-version InitError and starts no worker.
 func (w *Writer) Start(source Source) error {
 	if !hasSource(source) {
 		source = nil
+	}
+	if w.stopped() {
+		return nil
 	}
 	if err := w.probe(); err != nil {
 		return err
@@ -377,20 +401,31 @@ func (w *Writer) Start(source Source) error {
 	return nil
 }
 
-// probe runs startProbeScript once under the namespace (D30). A Redis error reply that is not transient means the
-// server can not run TIME-then-write scripts, so it returns a minimum-version InitError. Any other error (transport,
-// timeout) is not a version error: it is logged and the worker retries through its normal path.
+// probe runs startProbeScript once under the namespace. A non-transient Redis error reply fails Start with an
+// InitError: a script-support reply (unknown command, or a write after TIME refused on Redis before 5.0) gets the
+// minimum-version message, any other reply (auth, permission, ...) keeps its own text. Transport and timeout errors
+// are not reply errors: they are logged and the worker retries through its normal path.
 func (w *Writer) probe() error {
-	err := w.client.Eval(startProbeScript, []string{w.keys.Unprefixed().base + ".probe"})
+	err := w.client.Eval(startProbeScript, []string{w.keys.base + ".probe"})
 	if err == nil {
 		return nil
 	}
 	var reply interface{ RedisError() }
 	if errors.As(err, &reply) && classify(err) != errTransient {
-		return common.NewInitError(fmt.Errorf("redis state writer requires Redis 5.0 or later (scripts call TIME then write): %w", err), common.ExitRedisInitializationFailed)
+		if isScriptUnsupportedReply(err) {
+			return common.NewInitError(fmt.Errorf("redis state writer requires Redis 5.0 or later (scripts call TIME then write): %w", err), common.ExitRedisInitializationFailed)
+		}
+		return common.NewInitError(fmt.Errorf("redis state writer start probe rejected by Redis: %w", err), common.ExitRedisInitializationFailed)
 	}
 	w.logger.Warning("redis state writer start probe failed, the worker will retry: ", err)
 	return nil
+}
+
+// isScriptUnsupportedReply reports whether a Redis error reply means the server cannot run the probe script:
+// EVAL missing, or a write after a non-deterministic command refused (Redis before 5.0 without script effects replication)
+func isScriptUnsupportedReply(err error) bool {
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "unknown command") || strings.Contains(msg, "write commands not allowed after non deterministic commands")
 }
 
 // Stop drains the queue for at most StopTimeoutMs, then drops what is left and returns after the worker exits. New
@@ -479,7 +514,7 @@ func (w *Writer) deleteKnown() error {
 }
 
 // DeleteSegmentKeys deletes the active, tombstone and removal clock keys of one segment and no other key, meta included.
-// The segment write that follows rewrites the cursor (D38). It uses the worker's retry state, so call it before Start or from the worker (resync) only.
+// The segment write that follows rewrites the cursor. It uses the worker's retry state, so call it before Start or from the worker (resync) only.
 func (w *Writer) DeleteSegmentKeys(name string) error {
 	if !validSegmentName(name) {
 		return ErrInvalidSegmentName
@@ -581,7 +616,7 @@ func hasSource(s Source) bool {
 	}
 	v := reflect.ValueOf(s)
 	switch v.Kind() {
-	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Func, reflect.Interface, reflect.Chan:
+	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan:
 		return !v.IsNil()
 	}
 	return true
@@ -623,7 +658,7 @@ func (w *Writer) enqueue(c *change) {
 
 	w.mtx.Lock()
 	if w.stopped() {
-		// D26 (d): once Stop is called the change is refused, so a busy source cannot extend the drain
+		// once Stop is called the change is refused, so a busy source cannot extend the drain
 		w.stats.DroppedChanges++
 		first := !w.stopRefusedLogged
 		w.stopRefusedLogged = true
@@ -671,14 +706,14 @@ func (w *Writer) enqueue(c *change) {
 	w.wake()
 }
 
-// logOverflow logs an overflow decided under mtx. It runs after the unlock, so the logger is never called under the lock (G-12).
+// logOverflow logs an overflow decided under mtx. It runs after the unlock, so the logger is never called under the lock.
 func (w *Writer) logOverflow(msg string) {
 	if msg != "" {
 		w.logger.Error(msg)
 	}
 }
 
-// mergeLocked folds c into the last queued change q of the same group (D31). q is never the in-flight change:
+// mergeLocked folds c into the last queued change q of the same group. q is never the in-flight change:
 // a popped change leaves the group index first. The caller holds mtx.
 func (w *Writer) mergeLocked(q, c *change) {
 	before := q.size
@@ -707,7 +742,7 @@ func (w *Writer) clearQueueLocked() {
 }
 
 // sizeAfterLocked returns queuedSize as it would be once c is queued: c merged into its group's queued change, or
-// appended as a new change. The queue contents are not changed (D31 rule 6, D21). The caller holds mtx.
+// appended as a new change. The queue contents are not changed. The caller holds mtx.
 func (w *Writer) sizeAfterLocked(c *change) int {
 	target := w.groupIdx[groupOf(c)]
 	if target == nil {
@@ -741,12 +776,12 @@ func (q *change) mergedSize(c *change) int {
 	}
 	q.indexKeys()
 	for _, k := range c.rems {
-		if _, ok := q.keyPos[k.key]; !ok && !seenName(seen, k.key) {
+		if _, ok := q.pos[k.key]; !ok && !seenName(seen, k.key) {
 			fresh++
 		}
 	}
 	for _, k := range c.adds {
-		if _, ok := q.keyPos[k.key]; !ok && !seenName(seen, k.key) {
+		if _, ok := q.pos[k.key]; !ok && !seenName(seen, k.key) {
 			fresh++
 		}
 	}
@@ -762,7 +797,7 @@ func seenName(seen map[string]struct{}, name string) bool {
 	return false
 }
 
-// indexNames builds the name-to-position map of a flags or rule-based segments change once (D31 rev 21).
+// indexNames builds the name-to-position map of a flags or rule-based segments change once.
 func (q *change) indexNames() {
 	if q.namePos != nil {
 		return
@@ -776,17 +811,17 @@ func (q *change) indexNames() {
 	}
 }
 
-// indexKeys builds the key-to-position map of a segment change once (D31 rev 21).
+// indexKeys builds the key-to-position map of a segment change once.
 func (q *change) indexKeys() {
-	if q.keyPos != nil {
+	if q.pos != nil {
 		return
 	}
-	q.keyPos = make(map[string]keyPos, len(q.adds)+len(q.rems))
+	q.pos = make(map[string]keyPos, len(q.adds)+len(q.rems))
 	for i := range q.rems {
-		q.keyPos[q.rems[i].key] = keyPos{add: false, idx: i}
+		q.pos[q.rems[i].key] = keyPos{add: false, idx: i}
 	}
 	for i := range q.adds {
-		q.keyPos[q.adds[i].key] = keyPos{add: true, idx: i}
+		q.pos[q.adds[i].key] = keyPos{add: true, idx: i}
 	}
 }
 
@@ -798,15 +833,20 @@ func (q *change) mergeFlags(c *change) {
 		if p, ok := q.namePos[d.Name]; ok {
 			if d.ChangeNumber >= q.flags[p].ChangeNumber {
 				q.flags[p] = d
-				q.removals[p] = c.removals[i]
+				q.removals[p] = removalAt(c.removals, i)
 			}
 			continue
 		}
 		q.namePos[d.Name] = len(q.flags)
 		q.flags = append(q.flags, d)
-		q.removals = append(q.removals, c.removals[i])
+		q.removals = append(q.removals, removalAt(c.removals, i))
 	}
 	q.size = len(q.flags)
+}
+
+// removalAt reports whether entity i is a removal; an index past the end of rem counts as false
+func removalAt(rem []bool, i int) bool {
+	return i < len(rem) && rem[i]
 }
 
 // mergeRuleBased keeps, per rule-based segment name, the entry with the higher change number; at an equal cn the later arrival wins.
@@ -817,19 +857,19 @@ func (q *change) mergeRuleBased(c *change) {
 		if p, ok := q.namePos[d.Name]; ok {
 			if d.ChangeNumber >= q.rbs[p].ChangeNumber {
 				q.rbs[p] = d
-				q.removals[p] = c.removals[i]
+				q.removals[p] = removalAt(c.removals, i)
 			}
 			continue
 		}
 		q.namePos[d.Name] = len(q.rbs)
 		q.rbs = append(q.rbs, d)
-		q.removals = append(q.removals, c.removals[i])
+		q.removals = append(q.removals, removalAt(c.removals, i))
 	}
 	q.size = len(q.rbs)
 }
 
-// mergeKeys merges a segment change into q (same segment name). Removals are applied before adds of c, so an add and
-// a remove at the same cn leave the key added (D28, S-1). Per key the higher cn wins.
+// mergeKeys merges a segment change into q (same segment name). Per key the higher cn wins; at an equal cn the removal
+// wins whatever the order of arrival (same rule as the Lua scripts in script.go).
 func (q *change) mergeKeys(c *change) {
 	q.indexKeys()
 	for _, k := range c.rems {
@@ -841,9 +881,10 @@ func (q *change) mergeKeys(c *change) {
 	q.size = len(q.adds) + len(q.rems)
 }
 
-// putKey stores k in the add or removal list of q, replacing an entry with a lower cn, or with an equal cn when it is a removal and k is an add.
+// putKey stores k in the add or removal list of q. An entry with a lower cn is replaced. At an equal cn the removal
+// wins: an add never replaces an existing entry, and a removal replaces an add.
 func (q *change) putKey(k segmentKey, add bool) {
-	p, ok := q.keyPos[k.key]
+	p, ok := q.pos[k.key]
 	if !ok {
 		q.insertKey(k, add)
 		return
@@ -854,7 +895,7 @@ func (q *change) putKey(k segmentKey, add bool) {
 	} else {
 		cur = q.rems[p.idx]
 	}
-	if k.cn < cur.cn || (k.cn == cur.cn && (p.add || !add)) {
+	if k.cn < cur.cn || (k.cn == cur.cn && add) {
 		return
 	}
 	if p.add == add {
@@ -872,11 +913,11 @@ func (q *change) putKey(k segmentKey, add bool) {
 func (q *change) insertKey(k segmentKey, add bool) {
 	if add {
 		q.adds = append(q.adds, k)
-		q.keyPos[k.key] = keyPos{add: true, idx: len(q.adds) - 1}
+		q.pos[k.key] = keyPos{add: true, idx: len(q.adds) - 1}
 		return
 	}
 	q.rems = append(q.rems, k)
-	q.keyPos[k.key] = keyPos{add: false, idx: len(q.rems) - 1}
+	q.pos[k.key] = keyPos{add: false, idx: len(q.rems) - 1}
 }
 
 // removeKey drops the entry at p by moving the last entry of its list into the hole (order inside a change is not kept)
@@ -885,7 +926,7 @@ func (q *change) removeKey(p keyPos) {
 		last := len(q.adds) - 1
 		if p.idx != last {
 			q.adds[p.idx] = q.adds[last]
-			q.keyPos[q.adds[p.idx].key] = keyPos{add: true, idx: p.idx}
+			q.pos[q.adds[p.idx].key] = keyPos{add: true, idx: p.idx}
 		}
 		q.adds = q.adds[:last]
 		return
@@ -893,7 +934,7 @@ func (q *change) removeKey(p keyPos) {
 	last := len(q.rems) - 1
 	if p.idx != last {
 		q.rems[p.idx] = q.rems[last]
-		q.keyPos[q.rems[p.idx].key] = keyPos{add: false, idx: p.idx}
+		q.pos[q.rems[p.idx].key] = keyPos{add: false, idx: p.idx}
 	}
 	q.rems = q.rems[:last]
 }
@@ -930,7 +971,7 @@ func (w *Writer) scheduleRefusedResync() {
 }
 
 // sleep waits d and reports whether the worker should try again. A Stop wakes a sleeping worker once and one immediate
-// attempt follows; every later wait while draining runs min(d, time left to the drain deadline) (D26 b).
+// attempt follows; every later wait while draining runs min(d, time left to the drain deadline).
 // woken is owned by the worker goroutine.
 func (w *Writer) sleep(d time.Duration) bool {
 	if w.stopped() {
@@ -980,15 +1021,15 @@ func (w *Writer) run(source Source) {
 	// registered after close, so it runs first: a panic in the worker, a resync pass or a Source callback (all of them
 	// run on this goroutine) is recovered and the worker exits through close(w.done)
 	defer w.recoverWorker()
-	// the startup purge (D27) runs after the first resync completes, or at once when there is no Source
+	// the startup purge runs after the first resync completes, or at once when there is no Source
 	purgePending := true
 	if source == nil {
-		// a purge cut short by Stop is left to the next start; the queue is still drained (D26)
+		// a purge cut short by Stop is left to the next start; the queue is still drained
 		// the purge logs its own outcome; a Stop cut is left to the next start and a mismatch is already recorded
 		_ = w.startupPurge()
 		purgePending = false
 	}
-	// dropBo paces the resync requests while a resync keeps dropping (D36), so an outage is not hammered
+	// dropBo paces the resync requests while a resync keeps dropping, so an outage is not hammered
 	dropBo := backoff.New(2, w.opts.BackoffMaxWait)
 	for {
 		j, ok := w.next()
@@ -1009,7 +1050,7 @@ func (w *Writer) run(source Source) {
 				continue
 			}
 			if err != nil && !errors.Is(err, ErrEnvironmentMismatch) {
-				w.logger.Error(fmt.Sprintf("redis state: resync failed, it reruns at the next request or start: %s", err.Error()))
+				w.logger.Error(fmt.Sprintf("redis state: resync failed, it reruns at the next request or start: %v", err))
 			}
 			dropBo = backoff.New(2, w.opts.BackoffMaxWait)
 			if purgePending && err == nil {
@@ -1061,7 +1102,7 @@ func (w *Writer) next() (job, bool) {
 			if w.needResync {
 				w.needResync = false
 				if w.stopped() {
-					// draining: a pending resync is skipped so the queue is served first (D26 c)
+					// draining: a pending resync is skipped so the queue is served first
 					w.resyncSince = time.Time{}
 					w.mtx.Unlock()
 					w.logger.Info("redis state: pending resync skipped during the shutdown drain, the queued changes are written first")
@@ -1137,15 +1178,6 @@ func (w *Writer) recordSuccess() {
 	w.mtx.Unlock()
 }
 
-func (w *Writer) recordFailedRound(what string, attempts int, last error) {
-	w.mtx.Lock()
-	w.stats.Healthy = false
-	w.stats.FailedRounds++
-	w.stats.LastError = last.Error()
-	w.mtx.Unlock()
-	w.logger.Error(fmt.Sprintf("redis state: %s failed %d times in a row: %s", what, attempts, last.Error()))
-}
-
 // recordDrop reports a change dropped after its transient tries ran out: one Error line, unhealthy until a write succeeds
 func (w *Writer) recordDrop(what string, attempts int, last error) {
 	w.mtx.Lock()
@@ -1165,15 +1197,16 @@ func (w *Writer) recordRefused(last error) {
 }
 
 // retry runs op up to MaxAttempts times with exponential backoff between tries. It returns early with
-// ErrEnvironmentMismatch (no retry), errChunkRejected (bad arguments or an unknown error, no retry: the caller isolates
-// the refused entity and reports it), errDropped once the transient tries are exhausted (the caller does not isolate
-// entities, the change is lost until a resync) or errStopped once the drain deadline has passed.
+// ErrEnvironmentMismatch (no retry), errChunkRejected (permanent bad arguments, no retry: the caller isolates the refused
+// entity and reports it), errDropped once the retryable tries (transient and unknown errors alike) are exhausted (the caller
+// does not isolate entities, the change is lost until a resync) or errStopped once the drain deadline has passed.
 func (w *Writer) retry(what string, op func() error) error {
 	bo := backoff.New(2, w.opts.BackoffMaxWait)
 	var last error
+	var lastClass errClass
 	for attempt := 1; attempt <= w.opts.MaxAttempts; attempt++ {
-		// a running resync or purge pass stops at its next Eval once draining starts (D26 c)
-		if w.aborted() || w.resyncPass && w.stopped() {
+		// a running resync or purge pass stops at its next Eval once draining starts
+		if w.aborted() || (w.resyncPass && w.stopped()) {
 			return errStopped
 		}
 		err := op()
@@ -1190,10 +1223,7 @@ func (w *Writer) retry(what string, op func() error) error {
 			return errChunkRejected
 		}
 		last = err
-		if class == errUnknown && attempt == w.opts.MaxAttempts {
-			w.recordFailedRound(what, attempt, last)
-			return errChunkRejected
-		}
+		lastClass = class
 		if attempt < w.opts.MaxAttempts && !w.wait(bo.Next()) {
 			return errStopped
 		}
@@ -1202,9 +1232,10 @@ func (w *Writer) retry(what string, op func() error) error {
 	if w.stopped() {
 		return errStopped
 	}
-	// D36: the cap ends the retries, so a long outage cannot stall the queue; the resync repairs the dropped change
+	// the cap ends the retries, so a long outage cannot stall the queue; the resync repairs the dropped change
 	w.recordDrop(what, w.opts.MaxAttempts, last)
-	return errDropped
+	// the wrapped error keeps the original class and cause, so errors.Is sees both errDropped and the last Redis error
+	return fmt.Errorf("%w: last error class %s: %w", errDropped, lastClass, last)
 }
 
 // eval runs one script call with retry and records the success
@@ -1237,7 +1268,7 @@ func (w *Writer) flagEntities(list []dtos.SplitDTO, removals []bool) ([]entity, 
 	var skipped []string
 	for i := range list {
 		d := &list[i]
-		removed := d.Status != statusActive || (removals != nil && removals[i])
+		removed := d.Status != statusActive || removalAt(removals, i)
 		e, ok := w.newEntity(d.Name, d.ChangeNumber, removed, *d)
 		if !ok {
 			skipped = append(skipped, d.Name)
@@ -1254,7 +1285,7 @@ func (w *Writer) rbsEntities(list []dtos.RuleBasedSegmentDTO, removals []bool) (
 	var skipped []string
 	for i := range list {
 		d := &list[i]
-		removed := d.Status != statusActive || (removals != nil && removals[i])
+		removed := d.Status != statusActive || removalAt(removals, i)
 		e, ok := w.newEntity(d.Name, d.ChangeNumber, removed, *d)
 		if !ok {
 			skipped = append(skipped, d.Name)
@@ -1269,14 +1300,14 @@ func (w *Writer) rbsEntities(list []dtos.RuleBasedSegmentDTO, removals []bool) (
 func (w *Writer) newEntity(name string, cn int64, removed bool, dto interface{}) (entity, bool) {
 	raw, err := w.marshal(dto)
 	if err != nil {
-		w.reject(fmt.Sprintf("redis state: cannot serialize %q, skipped: %s", name, err.Error()))
+		w.reject(fmt.Sprintf("redis state: cannot serialize %q, skipped: %v", name, err))
 		return entity{}, false
 	}
 	return entity{name: name, cn: cn, removed: removed, json: string(raw)}, true
 }
 
 // buildEntityArgs returns the ARGV of FlagScript and RuleBasedSegmentScript: fingerprint, retentionMs,
-// cursor field, cursor, count, then name, cn, removed (0|1), json for every entity. The reader's tests run these
+// cursor field, cursor, count, then name, cn, removed (0|1), json for every entity. The script tests run these
 // args against the scripts, so the positions here and in script.go must change together.
 func buildEntityArgs(fingerprint string, retentionMs int64, cursorField string, cursor int64, ents []entity) []interface{} {
 	args := make([]interface{}, 0, 5+4*len(ents))
@@ -1356,7 +1387,7 @@ func span[T any](list []T, lo, hi, offset int) []T {
 	return list[s:e]
 }
 
-// groupFreeze is the in-memory state of one flag or rule-based segment group (D19). names holds the entities refused
+// groupFreeze is the in-memory state of one flag or rule-based segment group. names holds the entities refused
 // or skipped and not yet written cleanly. last is the last cursor sent with a real value. While names is not empty
 // the group sends last, so the stored cursor stays behind the skipped entity. whole is set when the skipped set grows past MaxPendingChanges: the names are dropped and the group stays frozen until a resync releases it. Lost on restart (mirror-only gap).
 type groupFreeze struct {
@@ -1366,7 +1397,7 @@ type groupFreeze struct {
 	whole   bool
 }
 
-// releaseGroup drops the skipped names and the whole-group freeze of the group that owns cursorField (D19 rule b). A resync
+// releaseGroup drops the skipped names and the whole-group freeze of the group that owns cursorField. A resync
 // calls it before it rewrites the group, so a name skipped again during that resync freezes the group once more. It returns
 // the previous state so restoreGroup can put it back if the write fails.
 func (w *Writer) releaseGroup(cursorField string) groupFreeze {
@@ -1429,7 +1460,7 @@ func (g *groupFreeze) cursorToSend(cursor int64, frozen bool) int64 {
 	return noCursor
 }
 
-// addSkip records a skipped entity name. Past limit names the set is discarded and the group freezes as a whole (D19 cap).
+// addSkip records a skipped entity name. Past limit names the set is discarded and the group freezes as a whole.
 func (g *groupFreeze) addSkip(name string, limit int) {
 	if g.whole {
 		return
@@ -1441,10 +1472,15 @@ func (g *groupFreeze) addSkip(name string, limit int) {
 	}
 }
 
-// dropped freezes the whole group after a change was dropped (D36): the stored cursor must not pass the lost change, and a resync releases the freeze
-func (g *groupFreeze) dropped() {
+// freezeWhole freezes the whole group: later writes send the last written cursor until the group is released
+func (g *groupFreeze) freezeWhole() {
 	g.names = map[string]struct{}{}
 	g.whole = true
+}
+
+// dropped freezes the whole group after a change was dropped: the stored cursor must not pass the lost change, and a resync releases the freeze
+func (g *groupFreeze) dropped() {
+	g.freezeWhole()
 }
 
 // written records a successful send: its entities are clean, and a real cursor becomes the last written one
@@ -1501,7 +1537,6 @@ func (w *Writer) writeEntities(what, script string, keys []string, cursorField s
 		}
 		refused = true
 		if len(part) < 2 {
-			skipped = true
 			for _, e := range part {
 				skipEntity(e.name)
 			}
@@ -1550,9 +1585,10 @@ func (w *Writer) writeSegment(name string, adds, rems []segmentKey, cursor int64
 		g.written(nil, cur)
 		return nil
 	}
-	skipKey := func(k segmentKey) {
+	skipKey := func() {
 		skipped = true
 		w.skipsSeen = true
+		g.freezeWhole()
 		w.reject(fmt.Sprintf("redis state: segment %s has a key rejected by the script because of inconsistent arguments, skipped", name))
 	}
 	for i := 0; i < n; i++ {
@@ -1569,19 +1605,18 @@ func (w *Writer) writeSegment(name string, adds, rems []segmentKey, cursor int64
 		}
 		refused = true
 		if len(a)+len(r) < 2 {
-			skipped = true
-			for _, k := range a {
-				skipKey(k)
+			for range a {
+				skipKey()
 			}
-			for _, k := range r {
-				skipKey(k)
+			for range r {
+				skipKey()
 			}
 			continue
 		}
 		for j := range a {
 			err := send(a[j:j+1], nil, last && len(r) == 0 && j == len(a)-1)
 			if errors.Is(err, errChunkRejected) {
-				skipKey(a[j])
+				skipKey()
 				continue
 			}
 			if err != nil {
@@ -1591,7 +1626,7 @@ func (w *Writer) writeSegment(name string, adds, rems []segmentKey, cursor int64
 		for j := range r {
 			err := send(nil, r[j:j+1], last && j == len(r)-1)
 			if errors.Is(err, errChunkRejected) {
-				skipKey(r[j])
+				skipKey()
 				continue
 			}
 			if err != nil {

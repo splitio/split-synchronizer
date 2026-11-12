@@ -31,11 +31,13 @@ func TestResyncWritesFullStateFromSource(t *testing.T) {
 			ChangeNumber: 6,
 		}},
 	}
-	e.w.Start(src)
+	if err := e.w.Start(src); err != nil {
+		t.Fatal(err)
+	}
 	wtWaitUntil(t, "the resync", func() bool { return e.client.count() == 3 && e.w.Status().PendingChanges == 0 })
 	e.stop()
 
-	// D40: a resync reads meta, then the flag and rule-based segment data hashes
+	// a resync reads meta, then the flag and rule-based segment data hashes
 	assert.Equal(t, []string{e.w.keys.MetaUnprefixed(), e.w.keys.Unprefixed().FlagData(), e.w.keys.Unprefixed().RuleBasedSegmentData()}, e.client.hgetKeys(), "meta is read once per resync, then the flag and rule-based segment hashes")
 	assert.Equal(t, int64(0), e.w.Status().Resyncs, "the startup resync is not counted")
 
@@ -75,7 +77,9 @@ func TestResyncSourceErrorIsRetried(t *testing.T) {
 		segs:       []SegmentState{{Name: "s", Active: map[string]int64{"k": 1}, ChangeNumber: 1}},
 		segsFails:  1,
 	}
-	e.w.Start(src)
+	if err := e.w.Start(src); err != nil {
+		t.Fatal(err)
+	}
 	wtWaitUntil(t, "the resync", func() bool { return e.client.count() == 3 && e.w.Status().PendingChanges == 0 })
 	e.stop()
 
@@ -101,7 +105,9 @@ func TestResyncSkipsUpToDateSegments(t *testing.T) {
 		return SegmentState{Name: name, Active: map[string]int64{"k": 6}, ChangeNumber: 6}
 	}
 	src := &wtSource{segs: []SegmentState{seg("up"), seg("ahead"), seg("behind"), seg("bogus"), seg("absent")}}
-	e.w.Start(src)
+	if err := e.w.Start(src); err != nil {
+		t.Fatal(err)
+	}
 	wtWaitUntil(t, "the resync", func() bool { return e.client.count() == 5 && e.w.Status().PendingChanges == 0 })
 	e.stop()
 
@@ -113,7 +119,7 @@ func TestResyncSkipsUpToDateSegments(t *testing.T) {
 		}
 	}
 	assert.Equal(t, map[string]bool{"behind": true, "bogus": true, "absent": true}, written)
-	// D40: the resync reads meta, then the flag and rule-based segment hashes, before it decides which segments to skip
+	// the resync reads meta, then the flag and rule-based segment hashes, before it decides which segments to skip
 	assert.Equal(t, []string{e.w.keys.MetaUnprefixed(), e.w.keys.Unprefixed().FlagData(), e.w.keys.Unprefixed().RuleBasedSegmentData()}, e.client.hgetKeys())
 }
 
@@ -121,7 +127,9 @@ func TestResyncDetectsMismatchBeforeWriting(t *testing.T) {
 	e := newWtEnv(t, wtOptions())
 	e.client.meta = map[string]string{"fingerprint": "another-configuration"}
 	src := &wtSource{flags: wtFlags("f1"), flagsCn: 1, segs: []SegmentState{{Name: "s", ChangeNumber: 1}}}
-	e.w.Start(src)
+	if err := e.w.Start(src); err != nil {
+		t.Fatal(err)
+	}
 	wtWaitUntil(t, "the mismatch", func() bool { return e.w.Status().EnvironmentMismatch })
 	e.stop()
 
@@ -142,7 +150,9 @@ func TestResyncSkipsBadArgsChunkWithoutRetry(t *testing.T) {
 		return nil
 	}
 	src := &wtSource{flags: wtFlags("a", "b", "c"), flagsCn: 5}
-	e.w.Start(src)
+	if err := e.w.Start(src); err != nil {
+		t.Fatal(err)
+	}
 	wtWaitUntil(t, "the resync", func() bool { return e.client.count() == 4 })
 	e.stop()
 
@@ -170,7 +180,9 @@ func TestResyncIsolatesBadEntity(t *testing.T) {
 		flagsCn: 5,
 		segs:    []SegmentState{{Name: "s", Active: map[string]int64{"bad": 3, "g1": 3}, ChangeNumber: 3}},
 	}
-	e.w.Start(src)
+	if err := e.w.Start(src); err != nil {
+		t.Fatal(err)
+	}
 	wtWaitUntil(t, "the resync", func() bool { return e.client.count() == 8 })
 	e.stop()
 
@@ -207,7 +219,9 @@ func TestResyncRewritesSegmentWithCurrentCursorButMissingKeys(t *testing.T) {
 	e.client.meta = map[string]string{e.w.keys.SegmentCursorField("up"): "6"}
 	e.client.checkFail = func() error { return errors.New("ERR PROXY_COUNT_MISMATCH") }
 	src := &wtSource{segs: []SegmentState{{Name: "up", Active: map[string]int64{"k": 6}, ChangeNumber: 6}}}
-	e.w.Start(src)
+	if err := e.w.Start(src); err != nil {
+		t.Fatal(err)
+	}
 	wtWaitUntil(t, "the rewrite", func() bool { return e.client.count() == 3 && e.w.Status().PendingChanges == 0 })
 	e.stop()
 
@@ -308,7 +322,9 @@ func TestOverflowThenLiveChangeThenResyncConverges(t *testing.T) {
 		segs:    []SegmentState{{Name: "s", Active: map[string]int64{"k1": 1}, ChangeNumber: 1}},
 	}
 	src := newSegDoneSource(state)
-	w.Start(src)
+	if err := w.Start(src); err != nil {
+		t.Fatal(err)
+	}
 	src.wait(t)
 	wtWaitUntil(t, "the startup resync", func() bool { return w.Status().PendingChanges == 0 })
 
@@ -368,7 +384,7 @@ func queuedSegmentAdds(w *Writer) []string {
 	return keys
 }
 
-// T59: a requested resync with a populated source rewrites the groups Redis lacks, with no marker field
+// a requested resync with a populated source rewrites the groups Redis lacks, with no marker field
 func TestRequestResyncRewritesFlagsFromPopulatedSource(t *testing.T) {
 	e := newScriptEnv(t)
 	require.Nil(t, e.flags(wtFingerprint, 100, ent{"a", 100, false, `{"name":"a"}`}))
@@ -376,7 +392,9 @@ func TestRequestResyncRewritesFlagsFromPopulatedSource(t *testing.T) {
 	w, _ := newRealWriter(t, e, wtOptions())
 	state := &wtSource{flagsCn: -1, rbsCn: -1}
 	src := newSegDoneSource(state)
-	w.Start(src)
+	if err := w.Start(src); err != nil {
+		t.Fatal(err)
+	}
 	src.wait(t)
 
 	state.flags = []dtos.SplitDTO{wtFlag("a", 100, "ACTIVE"), wtFlag("b", 100, "ACTIVE")}
@@ -396,7 +414,7 @@ func TestRequestResyncRewritesFlagsFromPopulatedSource(t *testing.T) {
 	assert.Equal(t, float64(100), d[e.keys.FlagKeys()[2]].Scores["b"], "the flag missing from Redis is rewritten")
 }
 
-// T62: a requested resync against an empty or behind source changes nothing: no key is added and no cursor moves back
+// a requested resync against an empty or behind source changes nothing: no key is added and no cursor moves back
 func TestRequestResyncEmptySourceChangesNothing(t *testing.T) {
 	e := newScriptEnv(t)
 	require.Nil(t, e.flags(wtFingerprint, 100, ent{"a", 100, false, `{"name":"a"}`}))
@@ -404,7 +422,9 @@ func TestRequestResyncEmptySourceChangesNothing(t *testing.T) {
 	w, _ := newRealWriter(t, e, wtOptions())
 	state := &wtSource{flagsCn: -1, rbsCn: -1}
 	src := newSegDoneSource(state)
-	w.Start(src)
+	if err := w.Start(src); err != nil {
+		t.Fatal(err)
+	}
 	src.wait(t)
 
 	w.RequestResync()
@@ -423,7 +443,7 @@ func TestRequestResyncEmptySourceChangesNothing(t *testing.T) {
 	assert.Len(t, d[e.keys.FlagKeys()[2]].Scores, 1, "the behind source adds no flag")
 }
 
-// T65: a flags and segment write followed by a resync leaves no dirty.* field and no key with "dirty" in the namespace
+// a flags and segment write followed by a resync leaves no dirty.* field and no key with "dirty" in the namespace
 func TestNoDirtyFieldsWritten(t *testing.T) {
 	e := newScriptEnv(t)
 	w, _ := newRealWriter(t, e, wtOptions())
@@ -434,7 +454,9 @@ func TestNoDirtyFieldsWritten(t *testing.T) {
 		segs:    []SegmentState{{Name: "s1", Active: map[string]int64{"k1": 3}, Removed: map[string]int64{"k2": 4}, ChangeNumber: 5}},
 	}
 	src := newSegDoneSource(state)
-	w.Start(src)
+	if err := w.Start(src); err != nil {
+		t.Fatal(err)
+	}
 	src.wait(t)
 	state.flagsCn = 11
 	w.RequestResync()
@@ -500,7 +522,9 @@ func TestStartPurgesDormantTombstones(t *testing.T) {
 	w, err := NewWriter(rec, e.keys, testFp, opts, &wtLogger{})
 	require.NoError(t, err)
 	src := &wtSource{flags: []dtos.SplitDTO{wtFlag("on", 10, "ACTIVE")}, flagsCn: 10}
-	w.Start(src)
+	if err := w.Start(src); err != nil {
+		t.Fatal(err)
+	}
 	wtWaitUntil(t, "the startup purge of the dormant tombstone", func() bool { return dormantRemovedGone(e) && w.Status().PendingChanges == 0 })
 	w.Stop()
 
@@ -511,7 +535,7 @@ func TestStartPurgesDormantTombstones(t *testing.T) {
 	resyncAt, purgeAt := slices.Index(scripts, FlagScript), slices.Index(scripts, PurgeScript)
 	require.GreaterOrEqual(t, resyncAt, 0, "the first resync writes the flags")
 	require.GreaterOrEqual(t, purgeAt, 0, "the startup purge runs")
-	assert.Greater(t, purgeAt, resyncAt, "D27 REV 19c: the purge runs after the first resync completes")
+	assert.Greater(t, purgeAt, resyncAt, "the purge runs after the first resync completes")
 }
 
 func TestPurgeBatchConfigurable(t *testing.T) {
@@ -543,7 +567,7 @@ func TestPurgeBatchConfigurable(t *testing.T) {
 	assert.Equal(t, 5, purges, "flags: three calls removing one entry each, then one empty call; rule-based segments: one empty call")
 }
 
-// T149 (D33): a segment group first seen after an overflow starts frozen. Its first live write sends noCursor, and it
+// a segment group first seen after an overflow starts frozen. Its first live write sends noCursor, and it
 // stays frozen until a resync with a Source releases it. The overflow resync fails permanently (flags read on call 2), so
 // the overflow is not cleared before the live write.
 func TestOverflowFreezesGroupFirstSeenAfterOverflow(t *testing.T) {
@@ -570,7 +594,9 @@ func TestOverflowFreezesGroupFirstSeenAfterOverflow(t *testing.T) {
 		permErr: errors.New("WRONGTYPE source flags unreadable"),
 	}
 	src := newSegDoneSource(ws)
-	e.w.Start(src)
+	if err := e.w.Start(src); err != nil {
+		t.Fatal(err)
+	}
 	src.wait(t)
 	wtWaitUntil(t, "the startup resync", func() bool { return e.w.Status().PendingChanges == 0 })
 	base := e.client.count()
@@ -605,7 +631,7 @@ func TestOverflowFreezesGroupFirstSeenAfterOverflow(t *testing.T) {
 	assert.Equal(t, int64(5), cursor, "a resync with a Source releases group n, so the next write moves its cursor")
 }
 
-// T148 (D34, D19): after a skipped entity and a process restart, a resync with a Source rewrites the group and releases
+// after a skipped entity and a process restart, a resync with a Source rewrites the group and releases
 // the cursor. With a nil Source nothing repairs the group (limit A3), so the skipped entity is never sent again.
 func TestRestartAfterSkippedEntityRepairsGroupOnlyWithSource(t *testing.T) {
 	cases := []struct {
@@ -622,7 +648,9 @@ func TestRestartAfterSkippedEntityRepairsGroupOnlyWithSource(t *testing.T) {
 				}
 				return nil
 			}
-			e.w.Start(&wtSource{flags: wtFlags("a", "bad", "c"), flagsCn: 5})
+			if err := e.w.Start(&wtSource{flags: wtFlags("a", "bad", "c"), flagsCn: 5}); err != nil {
+				t.Fatal(err)
+			}
 			wtWaitUntil(t, "the first resync", func() bool { return e.w.Status().RejectedChanges == 1 && e.w.Status().PendingChanges == 0 })
 			e.stop()
 
@@ -635,8 +663,9 @@ func TestRestartAfterSkippedEntityRepairsGroupOnlyWithSource(t *testing.T) {
 			if tc.src {
 				src = &wtSource{flags: wtFlags("a", "bad", "c"), flagsCn: 5}
 			}
-			w2.Start(src)
-
+			if err := w2.Start(src); err != nil {
+				t.Fatal(err)
+			}
 			if !tc.src {
 				w2.Stop()
 				assert.Equal(t, int64(0), w2.Status().Resyncs)
@@ -667,7 +696,7 @@ func TestRestartAfterSkippedEntityRepairsGroupOnlyWithSource(t *testing.T) {
 	}
 }
 
-// T148 same-writer case (F4): the group freeze lives in memory, so only the instance that skipped the entity can
+// Same-writer case: the group freeze lives in memory, so only the instance that skipped the entity can
 // release it. A RequestResync on that instance with a populated Source must rewrite the skipped entity under the
 // released cursor (releaseGroup, writer.go).
 func TestRequestResyncRepairsSkippedEntityOnSameWriter(t *testing.T) {
@@ -690,7 +719,9 @@ func TestRequestResyncRepairsSkippedEntityOnSameWriter(t *testing.T) {
 				return nil
 			}
 			src := &wtSource{flags: wtFlags("a", "bad", "c"), flagsCn: 5}
-			e.w.Start(src)
+			if err := e.w.Start(src); err != nil {
+				t.Fatal(err)
+			}
 			wtWaitUntil(t, "the first resync", func() bool { return e.w.Status().RejectedChanges == 1 && e.w.Status().PendingChanges == 0 })
 
 			refuse = false
@@ -717,14 +748,16 @@ func TestRequestResyncRepairsSkippedEntityOnSameWriter(t *testing.T) {
 	}
 }
 
-// T151 (D34 A1, pinning test): when the meta hash disappears mid-run (Redis data loss, residual A1), the next write
+// when the meta hash disappears mid-run (Redis data loss), the next write
 // recreates the fingerprint and writes the cursor. Detection is out of scope; a later change that makes this write refuse
 // must be a deliberate decision, so this test fails on it.
 func TestFingerprintMissingMidRunRecreatedByNextWrite(t *testing.T) {
 	e := newScriptEnv(t)
 	w, _ := newRealWriter(t, e, wtOptions())
 	src := newSegDoneSource(&wtSource{flags: wtFlags("f1"), flagsCn: 1})
-	w.Start(src)
+	if err := w.Start(src); err != nil {
+		t.Fatal(err)
+	}
 	src.wait(t)
 	wtWaitUntil(t, "the startup resync", func() bool { return w.Status().PendingChanges == 0 })
 
@@ -793,7 +826,7 @@ func (c *cutClient) recorded() []cutEval {
 	return append([]cutEval(nil), c.evals...)
 }
 
-// T146 (CP-5, D34/D19): a resync cut off mid pass leaves no cursor ahead of its data, and the restart skips only the
+// a resync cut off mid pass leaves no cursor ahead of its data, and the restart skips only the
 // segments whose cursor is current and whose key count matches.
 func TestResyncCrashMidwayRestartKeepsCursorsBehindData(t *testing.T) {
 	e := newScriptEnv(t)
@@ -812,7 +845,9 @@ func TestResyncCrashMidwayRestartKeepsCursorsBehindData(t *testing.T) {
 	w, err := NewWriter(cut, e.keys, wtFingerprint, opts, &wtLogger{})
 	require.NoError(t, err)
 	t.Cleanup(w.Stop)
-	w.Start(newSource())
+	if err := w.Start(newSource()); err != nil {
+		t.Fatal(err)
+	}
 	wtWaitUntil(t, "the link cut inside the segment pass", cut.wasRefused)
 	w.Stop()
 
@@ -833,7 +868,9 @@ func TestResyncCrashMidwayRestartKeepsCursorsBehindData(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(w2.Stop)
 	src2 := newSegDoneSource(newSource())
-	w2.Start(src2)
+	if err := w2.Start(src2); err != nil {
+		t.Fatal(err)
+	}
 	src2.wait(t)
 	w2.Stop()
 
@@ -858,7 +895,7 @@ func TestResyncCrashMidwayRestartKeepsCursorsBehindData(t *testing.T) {
 	assert.Len(t, d[e.keys.SegmentKeys("s3")[1]].Scores, 1)
 }
 
-// T161 (D40): a flag that Redis holds and the source no longer lists gets a tombstone at its own change number.
+// a flag that Redis holds and the source no longer lists gets a tombstone at its own change number.
 func TestResyncTombstonesRedisOnlyFlag(t *testing.T) {
 	e := newScriptEnv(t)
 	require.NoError(t, e.flags(wtFingerprint, 7,
@@ -878,7 +915,7 @@ func TestResyncTombstonesRedisOnlyFlag(t *testing.T) {
 	assert.Equal(t, float64(5), d[fk[2]].Scores["a"], "a is untouched")
 }
 
-// T162 (D40): a rule-based segment that Redis holds and the source no longer lists gets a tombstone at its own change number.
+// a rule-based segment that Redis holds and the source no longer lists gets a tombstone at its own change number.
 func TestResyncTombstonesRedisOnlyRuleBasedSegment(t *testing.T) {
 	e := newScriptEnv(t)
 	require.NoError(t, e.rbs(wtFingerprint, 7,
@@ -898,7 +935,7 @@ func TestResyncTombstonesRedisOnlyRuleBasedSegment(t *testing.T) {
 	assert.Equal(t, float64(5), d[rk[2]].Scores["a"], "a is untouched")
 }
 
-// T165 (D40): the startup purge reads meta once, never once per PurgeScript call.
+// the startup purge reads meta once, never once per PurgeScript call.
 func TestPurgeReadsOnlyPurgeLastField(t *testing.T) {
 	keys := wtKeys(t)
 	meta := map[string]string{}
@@ -913,7 +950,7 @@ func TestPurgeReadsOnlyPurgeLastField(t *testing.T) {
 	assert.Len(t, c.purgeCalls, 152, "one PurgeScript call per flag index, rule-based index and segment")
 }
 
-// T168 (D38): Reset before Start removes the flags, rule-based segments and segment keys of an earlier run.
+// Reset before Start removes the flags, rule-based segments and segment keys of an earlier run.
 func TestResetBeforeStartRemovesStaleState(t *testing.T) {
 	e := newScriptEnv(t)
 	require.NoError(t, e.flags(wtFingerprint, 3, ent{"stale", 3, false, `{"name":"stale","changeNumber":3,"status":"ACTIVE"}`}))
@@ -938,7 +975,7 @@ func TestResetBeforeStartRemovesStaleState(t *testing.T) {
 	assert.NotContains(t, d[e.keys.Meta()].Fields, e.keys.SegmentCursorField("stale"))
 }
 
-// T164 (D38): a current segment with keys Redis holds beyond the source loses them, and the next resync finds it intact.
+// a current segment with keys Redis holds beyond the source loses them, and the next resync finds it intact.
 func TestResyncSegmentExtraKeysConverges(t *testing.T) {
 	e := newScriptEnv(t)
 	require.NoError(t, e.segment(wtFingerprint, "s", 5, []segKey{{"a", 5}, {"b", 5}, {"x", 5}}, nil))
@@ -972,7 +1009,7 @@ func TestResyncSegmentExtraKeysConverges(t *testing.T) {
 	assert.Zero(t, segWrites, "the second resync writes no segment")
 }
 
-// T169 (D38): DeleteSegmentKeys removes one segment's keys and nothing else; an invalid name is refused and deletes nothing.
+// DeleteSegmentKeys removes one segment's keys and nothing else; an invalid name is refused and deletes nothing.
 func TestDeleteSegmentKeysLeavesOthers(t *testing.T) {
 	e := newScriptEnv(t)
 	require.NoError(t, e.segment(wtFingerprint, "s1", 5, []segKey{{"a", 5}}, []segKey{{"r", 5}}))
@@ -998,7 +1035,23 @@ func TestDeleteSegmentKeysLeavesOthers(t *testing.T) {
 	assert.Equal(t, map[string]float64{"b": 6}, e.dump()[s2[1]].Scores, "an invalid name deletes nothing")
 }
 
-// T163 (D40): a segment Redis holds that the source no longer lists is dropped (keys and cursor); listed segments stay.
+// a key Redis holds beyond the source's members of a listed segment (same cursor, extra member) is removed by the
+// resync rewrite, and the members the source lists stay.
+func TestResyncRemovesStaleSegmentKeyBeyondSource(t *testing.T) {
+	e := newScriptEnv(t)
+	require.NoError(t, e.segment(wtFingerprint, "keep", 5, []segKey{{"a", 5}, {"zombie", 5}}, nil))
+	seg := SegmentState{Name: "keep", Active: map[string]int64{"a": 5}, ChangeNumber: 5}
+	src := newSegDoneSource(&wtSource{segs: []SegmentState{seg}})
+	w, _ := newRealWriter(t, e, wtOptions())
+	require.NoError(t, w.Start(src))
+	src.wait(t)
+	w.Stop()
+
+	active := e.keys.SegmentKeys("keep")[1]
+	assert.Equal(t, map[string]float64{"a": 5}, e.dump()[active].Scores, "the member Redis holds beyond the source is deleted")
+}
+
+// a segment Redis holds that the source no longer lists is dropped (keys and cursor); listed segments stay.
 func TestResyncDropsRedisOnlySegment(t *testing.T) {
 	e := newScriptEnv(t)
 	require.NoError(t, e.segment(wtFingerprint, "keep", 5, []segKey{{"a", 5}}, nil))
@@ -1025,7 +1078,7 @@ func TestResyncDropsRedisOnlySegment(t *testing.T) {
 	assert.Equal(t, map[string]float64{"a": 5}, d[e.keys.SegmentKeys("keep")[1]].Scores)
 }
 
-// T163: a failed segment stream drops nothing, because the listed names are incomplete.
+// a failed segment stream drops nothing, because the listed names are incomplete.
 func TestResyncSegmentStreamErrorDropsNothing(t *testing.T) {
 	e := newScriptEnv(t)
 	require.NoError(t, e.segment(wtFingerprint, "gone", 6, []segKey{{"b", 6}}, nil))
@@ -1102,7 +1155,29 @@ func TestDropUnlistedSegmentsPermanentEvalErrorKeepsKeys(t *testing.T) {
 	assert.Contains(t, d[e.keys.Meta()].Fields, e.keys.SegmentCursorField("gone"), "its cursor is not deleted")
 }
 
-// T62/T163: an empty source (nothing listed, no change number) is no evidence of removal, so a resync against it keeps
+// A dropped segment loses its in-memory group state (skipped names and whole-group freeze) together with its Redis
+// keys; a segment that is still listed keeps its group state
+func TestDropUnlistedSegmentsPrunesGroupState(t *testing.T) {
+	e := newScriptEnv(t)
+	require.NoError(t, e.segment(wtFingerprint, "keep", 5, []segKey{{"a", 5}}, nil))
+	require.NoError(t, e.segment(wtFingerprint, "gone", 6, []segKey{{"b", 6}}, nil))
+	w, err := NewWriter(e.client, e.keys, wtFingerprint, wtOptions(), &wtLogger{})
+	require.NoError(t, err)
+	t.Cleanup(w.Stop)
+	goneField := e.keys.SegmentCursorField("gone")
+	keepField := e.keys.SegmentCursorField("keep")
+	w.freezeOf(goneField).addSkip("b", wtOptions().MaxPendingChanges)
+	w.freezeOf(keepField).addSkip("a", wtOptions().MaxPendingChanges)
+	fields := e.dump()[e.keys.Meta()].Fields
+
+	require.NoError(t, w.dropUnlistedSegments(fields, map[string]struct{}{"keep": {}}))
+
+	assert.NotContains(t, w.groups, goneField, "the dropped segment no longer keeps group state")
+	assert.Contains(t, w.groups, keepField, "a listed segment keeps its group state")
+	assert.Contains(t, w.groups[keepField].names, "a")
+}
+
+// An empty source (nothing listed, no change number) is no evidence of removal, so a resync against it keeps
 // the flags, rule-based segments and segments Redis holds, even when their stored JSON carries a real change number.
 func TestResyncEmptySourceKeepsRedisState(t *testing.T) {
 	e := newScriptEnv(t)

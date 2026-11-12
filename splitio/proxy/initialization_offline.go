@@ -131,6 +131,7 @@ func startOffline(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	cfgForAdmin := *cfg
 	hash := util.HashAPIKey(cfgForAdmin.Apikey + cfg.FlagSpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
 	cfgForAdmin.Apikey = logging.ObfuscateAPIKey(cfgForAdmin.Apikey)
+	maskRedisStateSecrets(&cfgForAdmin)
 
 	adminTLSConfig, err := util.TLSConfigForServer(&cfg.Admin.TLS)
 	if err != nil {

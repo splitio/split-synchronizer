@@ -22,7 +22,7 @@ import (
 const (
 	testNow       = int64(1000000000)
 	testRetention = int64(1000)
-	// testLongRetention keeps tombstones for an hour so "kept" assertions never race the real Redis clock (D23)
+	// testLongRetention keeps tombstones for an hour so "kept" assertions never race the real Redis clock
 	testLongRetention = int64(3600000)
 	testFp            = "fp-A"
 
@@ -41,7 +41,7 @@ return redis.error_reply(cjson.encode(out))
 `
 )
 
-// ResetScript deletes every key matching ARGV[1] (use Keys.Pattern) and returns the number of deleted keys. Test helper
+// ResetScript deletes every key matching ARGV[1] (for an environment, its Meta() key minus "meta", plus "*") and returns the number of deleted keys. Test helper
 // only: it uses KEYS, which production code must not run.
 const ResetScript = `local keys = redis.call('KEYS', ARGV[1]) for _, k in ipairs(keys) do redis.call('DEL', k) end return #keys`
 
@@ -68,7 +68,9 @@ func newScriptClient(t *testing.T, prefix string) *redis.PrefixedRedisClient {
 		Network:  "tcp",
 		Prefix:   prefix,
 	}, logging.NewLogger(nil))
-	require.Nil(t, err)
+	if err != nil {
+		t.Skipf("no Redis at localhost:6379, skipping: %v", err)
+	}
 	return client
 }
 
@@ -209,7 +211,7 @@ func (e *scriptEnv) segmentWithRetention(fp string, retention int64, name string
 	return e.client.Eval(SegmentScript, e.keys.SegmentKeys(name), segmentArgs(fp, retention, name, e.keys.SegmentCursorField(name), cursor, adds, rems)...)
 }
 
-// updatedAt returns meta updatedAtMs, written from Redis TIME by the last applied call (D23). Tests never compare it to a Go clock.
+// updatedAt returns meta updatedAtMs, written from Redis TIME by the last applied call. Tests never compare it to a Go clock.
 func updatedAt(t *testing.T, d map[string]dumped, metaKey string) float64 {
 	t.Helper()
 	v, err := strconv.ParseFloat(d[metaKey].Fields[UpdatedAtField], 64)
@@ -218,7 +220,7 @@ func updatedAt(t *testing.T, d map[string]dumped, metaKey string) float64 {
 	return v
 }
 
-// advanceClock repeats an accepted call until the Redis clock has moved past base. Bounded to 2s in 10ms steps (D23), no fixed sleep.
+// advanceClock repeats an accepted call until the Redis clock has moved past base. Bounded to 2s in 10ms steps, no fixed sleep.
 func (e *scriptEnv) advanceClock(t *testing.T, base float64, accepted func() error) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
@@ -552,7 +554,7 @@ func TestResetOnlyDeletesOwnNamespace(t *testing.T) {
 	require.Nil(t, b.flags(testFp, 1, ent{"f", 1, false, `{}`}))
 	require.Nil(t, a.client.Set("SPLITIO.split.x", "value", 0))
 
-	require.Nil(t, a.client.Eval(ResetScript, nil, a.keys.Pattern()))
+	require.Nil(t, a.client.Eval(ResetScript, nil, strings.TrimSuffix(a.keys.Meta(), "meta")+"*"))
 
 	for _, name := range a.names() {
 		assert.NotContains(t, name, "{SPLITIO_PROXY."+a.keys.Env()+"}", name)
@@ -566,7 +568,7 @@ func TestWriterCrashBetweenSegmentChunks(t *testing.T) {
 	e := newScriptEnv(t)
 	sk := e.keys.SegmentKeys("seg.one")
 
-	// D22: the first chunk registers the name with cursor -1, so a crash here leaves a name that Reset and purge can see
+	// the first chunk registers the name with cursor -1, so a crash here leaves a name that Reset and purge can see
 	require.Nil(t, e.segment(testFp, "seg.one", noCursor, []segKey{{"k1", 1}}, nil))
 	d := e.dump()
 	assert.Equal(t, map[string]float64{"k1": 1}, d[sk[1]].Scores)
@@ -622,7 +624,7 @@ func TestResetAfterPartialSegmentWriteLeavesNoKeys(t *testing.T) {
 	sk := e.keys.SegmentKeys("seg.one")
 	field := e.keys.SegmentCursorField("seg.one")
 
-	// two chunks of one key each; chunk 2 never lands, so the write stops after chunk 1 (D22, crash point FL-3)
+	// two chunks of one key each; chunk 2 never lands, so the write stops after chunk 1
 	rc := &segmentCallRecorder{Client: e.client, failFrom: 2}
 	opts := DefaultOptions()
 	opts.ChunkSize = 1
@@ -630,7 +632,7 @@ func TestResetAfterPartialSegmentWriteLeavesNoKeys(t *testing.T) {
 	w, err := NewWriter(rc, e.keys, testFp, opts, logging.NewLogger(nil))
 	require.Nil(t, err)
 	_, err = w.writeSegment("seg.one", []segKey{{"k1", 1}, {"k2", 1}}, nil, 1, false)
-	require.Nil(t, err)
+	require.ErrorIs(t, err, errDropped, "an unclassified failure on chunk 2 drops the change")
 	require.Len(t, rc.calls, 1, "exactly chunk 1 reached Redis")
 	assert.Equal(t, noCursor, rc.calls[0].cursor, "chunk 1 carries no real cursor")
 
@@ -780,14 +782,14 @@ func TestSegmentTieAcrossChunks(t *testing.T) {
 	require.Nil(t, e.segment(testFp, "seg.add", noCursor, []segKey{{"k1", 5}}, nil))
 	require.Nil(t, e.segment(testFp, "seg.add", 5, nil, []segKey{{"k1", 5}}))
 	d := e.dump()
-	assert.Empty(t, d[addThenRemove[1]].Scores, "removal wins on an equal cn (D37)")
+	assert.Empty(t, d[addThenRemove[1]].Scores, "removal wins on an equal cn")
 	assert.Equal(t, map[string]float64{"k1": 5}, d[addThenRemove[2]].Scores)
 
 	removeThenAdd := e.keys.SegmentKeys("seg.rem")
 	require.Nil(t, e.segment(testFp, "seg.rem", noCursor, nil, []segKey{{"k2", 5}}))
 	require.Nil(t, e.segment(testFp, "seg.rem", 5, []segKey{{"k2", 5}}, nil))
 	d = e.dump()
-	assert.Empty(t, d[removeThenAdd[1]].Scores, "removal wins in the reverse order too (D37)")
+	assert.Empty(t, d[removeThenAdd[1]].Scores, "removal wins in the reverse order too")
 	assert.Equal(t, map[string]float64{"k2": 5}, d[removeThenAdd[2]].Scores)
 
 	lower := e.keys.SegmentKeys("seg.low")
@@ -797,7 +799,7 @@ func TestSegmentTieAcrossChunks(t *testing.T) {
 	assert.Equal(t, map[string]float64{"k3": 9}, d[lower[1]].Scores, "a lower cn arriving later is ignored")
 	assert.Empty(t, d[lower[2]].Scores)
 
-	// one segment in three chunks: the chunks go out in order and only the last one carries the real cursor (D1)
+	// one segment in three chunks: the chunks go out in order and only the last one carries the real cursor
 	rc := &segmentCallRecorder{Client: e.client}
 	opts := DefaultOptions()
 	opts.ChunkSize = 1
@@ -811,7 +813,7 @@ func TestSegmentTieAcrossChunks(t *testing.T) {
 	assert.Equal(t, segEval{cursor: 5, rems: []string{"k4"}}, rc.calls[2], "the last chunk is the remove and carries the cursor")
 	chunk := e.keys.SegmentKeys("seg.chunk")
 	d = e.dump()
-	assert.Equal(t, map[string]float64{"k5": 5}, d[chunk[1]].Scores, "removal wins on an equal cn across chunks (D37)")
+	assert.Equal(t, map[string]float64{"k5": 5}, d[chunk[1]].Scores, "removal wins on an equal cn across chunks")
 	assert.Equal(t, map[string]float64{"k4": 5}, d[chunk[2]].Scores)
 }
 
@@ -945,4 +947,11 @@ func TestScriptPurgeRetentionBoundary(t *testing.T) {
 		assert.NotContains(t, d[meta].Fields, "purgeLast", "the count no longer grows the meta hash")
 		return
 	}
+}
+
+// TestClassifyMisconfIsTransient checks that a MISCONF reply (Redis refuses writes after a failed background save) is
+// retried like the other server-state errors instead of being dropped as unknown.
+func TestClassifyMisconfIsTransient(t *testing.T) {
+	err := errors.New("MISCONF Redis is configured to save RDB snapshots, but it's currently unable to persist to disk. Commands that may modify the data set are disabled.")
+	assert.Equal(t, errTransient, classify(err))
 }

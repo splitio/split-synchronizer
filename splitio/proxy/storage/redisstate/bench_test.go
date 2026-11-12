@@ -200,7 +200,9 @@ func benchKeys(n int) []string {
 
 func BenchmarkWritePutFlag(b *testing.B) {
 	env := newBenchEnv(b)
-	env.w.Start(nil)
+	if err := env.w.Start(nil); err != nil {
+		b.Fatal(err)
+	}
 	b.Cleanup(env.w.Stop)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -216,7 +218,9 @@ func BenchmarkWriteSegmentChunk(b *testing.B) {
 	}{{"1key", 1}, {"1000keys", 1000}} {
 		b.Run(tc.name, func(b *testing.B) {
 			env := newBenchEnv(b)
-			env.w.Start(nil)
+			if err := env.w.Start(nil); err != nil {
+				b.Fatal(err)
+			}
 			b.Cleanup(env.w.Stop)
 			adds := benchKeys(tc.keys)
 			b.ResetTimer()
@@ -265,7 +269,9 @@ func BenchmarkResyncExampleProfile(b *testing.B) {
 		env := newBenchEnv(b)
 		b.StartTimer()
 		start := time.Now()
-		env.w.Start(src)
+		if err := env.w.Start(src); err != nil {
+			b.Fatal(err)
+		}
 		waitSegmentCursor(b, env, last.Name, last.ChangeNumber)
 		elapsed += time.Since(start)
 		b.StopTimer()

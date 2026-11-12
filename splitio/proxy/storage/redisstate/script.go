@@ -22,7 +22,7 @@ func ErrorHasMarker(err error, marker string) bool {
 }
 
 // luaPrelude defines the helpers every script shares: isint accepts only optionally signed decimal integers (so
-// "1.5", "1e3" and "" are refused) and nowMs reads the Redis clock (D23), so the removal clock is the one Redis clock.
+// "1.5", "1e3" and "" are refused) and nowMs reads the Redis clock, so the removal clock is the one Redis clock.
 const luaPrelude = `local function isint(s)
   return s ~= false and s ~= nil and string.match(s, '^%-?%d+$') ~= nil
 end
@@ -159,7 +159,7 @@ for i = 0, nRem - 1 do
   local key = ARGV[base + 1 + 2 * i]
   local cn = tonumber(ARGV[base + 2 + 2 * i])
   local cur = math.max(tonumber(redis.call('ZSCORE', KEYS[2], key) or '-1'), tonumber(redis.call('ZSCORE', KEYS[3], key) or '-1'))
-  -- D37: on a change number tie the removal wins; a tombstone already at cn is not rewritten
+  -- on a change number tie the removal wins; a tombstone already at cn is not rewritten
   if cn > cur or (cn == cur and redis.call('ZSCORE', KEYS[3], key) == false) then
     redis.call('ZADD', KEYS[3], cn, key)
     redis.call('ZADD', KEYS[4], now, key)
@@ -182,7 +182,7 @@ return 1
 // countMismatchMarker is the error marker SegmentCheckScript returns when Redis does not hold the expected segment
 const countMismatchMarker = "PROXY_COUNT_MISMATCH"
 
-// SegmentCheckScript fails with PROXY_COUNT_MISMATCH unless the cursor field of the segment (D22) is present and not
+// SegmentCheckScript fails with PROXY_COUNT_MISMATCH unless the cursor field of the segment is present and not
 // -1, and its active key count is ARGV[1]. KEYS come from Keys.SegmentKeys, ARGV[2] is the segment name.
 const SegmentCheckScript = `-- KEYS: 1 meta, 2 active zset, 3 removed zset, 4 segat zset
 local till = redis.call('HGET', KEYS[1], 'seg.' .. ARGV[2] .. '.till')
@@ -193,7 +193,7 @@ return 1
 `
 
 // SegmentDropScript deletes a segment Redis holds but the local state no longer lists: its three keys and its cursor
-// field (D40, T163). KEYS come from Keys.SegmentKeys, ARGV[1] is the segment name.
+// field. KEYS come from Keys.SegmentKeys, ARGV[1] is the segment name.
 const SegmentDropScript = luaPrelude + `-- KEYS: 1 meta, 2 active zset, 3 removed zset, 4 segat zset
 checkMeta(KEYS[1])
 redis.call('DEL', KEYS[2], KEYS[3], KEYS[4])
@@ -207,7 +207,7 @@ return 1
 // Keys.SegmentKeys (segments: KEYS[3] tombstones, KEYS[4] removal clock; KEYS[2] is not touched).
 // It checks the fingerprint like the write scripts (an absent fingerprint is set, a foreign one is refused) and
 // writes the number of entries it removed to the string key KEYS[5] (Keys.PurgeLast, optional), so the Writer can repeat the call
-// while the count equals the batch. The Client Eval returns no result (D27).
+// while the count equals the batch. The Client Eval returns no result.
 const PurgeScript = luaPrelude + `-- KEYS: 1 meta, 2 data hash, 3 index zset, 4 removal clock zset, 5 purge count key (optional)
 -- ARGV: 1 fingerprint, 2 retentionMs, 3 batch, 4 hasData (0|1)
 if #ARGV ~= 4 or not isint(ARGV[2]) or tonumber(ARGV[2]) < 0 or not isint(ARGV[3]) or tonumber(ARGV[3]) <= 0 then
@@ -238,7 +238,7 @@ if KEYS[5] then redis.call('SET', KEYS[5], #expired) end
 return 1
 `
 
-// startProbeScript is the Start probe (D30). It reads TIME and then writes, the path that needs Redis 5.0 effects
+// startProbeScript is the Start probe. It reads TIME and then writes, the path that needs Redis 5.0 effects
 // replication; on an older server it fails with a script error, which Start reports as a minimum-version InitError.
 // KEYS: 1 probe key (the writer deletes it again in the same script).
 const startProbeScript = `redis.call('TIME')
