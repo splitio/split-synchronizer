@@ -182,7 +182,7 @@ func TestOfflineWarnsWhenFlagSetsFilterIsConfigured(t *testing.T) {
 	}
 }
 
-// The offline health endpoints dereference these monitors, so they must exist and report healthy (G5).
+// The offline health endpoints dereference these monitors, so they must exist and report healthy.
 func TestOfflineStaticMonitorsReportHealthy(t *testing.T) {
 	app := newStaticAppMonitor()
 	services := newStaticServicesMonitor()

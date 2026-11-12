@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"fmt"
+	"unicode/utf8"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/admin/common"
 	"github.com/splitio/split-synchronizer/v5/splitio/provisional/observability"
@@ -67,9 +68,26 @@ func (c *ProxyObservabilityController) observability(ctx *gin.Context) {
 		"proxyEndpointStatsTotal": c.telemetry.TotalMetricsReport(),
 	}
 	if c.redisState != nil {
-		body["redisState"] = c.redisState.Status()
+		status := c.redisState.Status()
+		status.LastError = truncateStatusError(status.LastError, maxRedisStateErrorBytes)
+		body["redisState"] = status
 	}
 	ctx.JSON(200, body)
+}
+
+// maxRedisStateErrorBytes bounds the error text exposed on the endpoint, since it can carry raw network error text.
+const maxRedisStateErrorBytes = 200
+
+// truncateStatusError cuts s to at most maxBytes without splitting a UTF-8 sequence.
+func truncateStatusError(s string, maxBytes int) string {
+	if len(s) <= maxBytes {
+		return s
+	}
+	cut := maxBytes
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut]
 }
 
 // NewObservabilityController constructs and returns the appropriate struct dependeing on whether the app is split-proxy or split-sync

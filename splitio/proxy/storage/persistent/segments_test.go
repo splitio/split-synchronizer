@@ -224,3 +224,29 @@ func TestSegmentChangesCollectionNames(t *testing.T) {
 		t.Errorf("expected 3 names after mutation, got %d", len(after))
 	}
 }
+
+type fetchByCollection struct {
+	CollectionWrapper
+	data   []byte
+	logger logging.LoggerInterface
+}
+
+func (f *fetchByCollection) FetchBy(key []byte) ([]byte, error) { return f.data, nil }
+
+func (f *fetchByCollection) Logger() logging.LoggerInterface { return f.logger }
+
+func TestSegmentChangesCollectionFetchDecodeErrorIsReturned(t *testing.T) {
+	logger := logging.NewLogger(nil)
+	c := &SegmentChangesCollectionImpl{
+		collection:   &fetchByCollection{data: []byte("not gob"), logger: logger},
+		segmentsTill: make(map[string]int64),
+		logger:       logger,
+	}
+	item, err := c.Fetch("seg")
+	if err == nil {
+		t.Fatal("expected a decode error")
+	}
+	if item != nil {
+		t.Errorf("expected no item on decode error, got %+v", item)
+	}
+}

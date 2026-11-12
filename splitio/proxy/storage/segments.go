@@ -152,10 +152,7 @@ func (s *ProxySegmentStorageImpl) Update(name string, toAdd *set.ThreadUnsafeSet
 	errCache := s.mysegments.Update(name, toAdd, toRemove)
 	errDB := s.db.Update(name, toAdd, toRemove, changeNumber)
 	if s.redis != nil {
-		adds, removes := stringsFrom(toAdd), stringsFrom(toRemove)
-		if len(adds)+len(removes) > 0 {
-			s.redis.PutSegment(name, adds, removes, changeNumber)
-		}
+		s.redis.PutSegment(name, stringsFrom(toAdd), stringsFrom(toRemove), changeNumber)
 	}
 	if errCache == nil && errDB == nil {
 		s.nameCountCache.Update(name, toAdd.Size(), toRemove.Size())

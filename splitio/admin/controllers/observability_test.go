@@ -5,7 +5,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	adminCommon "github.com/splitio/split-synchronizer/v5/splitio/admin/common"
 	"github.com/splitio/split-synchronizer/v5/splitio/provisional/observability"
@@ -279,7 +281,11 @@ func proxyObservabilityBody(t *testing.T, redisState redisstate.StatusReporter) 
 	resp := httptest.NewRecorder()
 	ctx, router := gin.CreateTestContext(resp)
 	ctrl.Register(router)
-	ctx.Request, _ = http.NewRequest(http.MethodGet, "/observability", nil)
+	req, err := http.NewRequest(http.MethodGet, "/observability", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx.Request = req
 	router.ServeHTTP(resp, ctx.Request)
 
 	if resp.Code != 200 {
@@ -337,4 +343,31 @@ func TestProxyObservabilityWithoutRedisStateUnchanged(t *testing.T) {
 	if len(result) != 5 {
 		t.Errorf("expected exactly 5 keys. Actual %d", len(result))
 	}
+}
+
+func TestProxyObservabilityTruncatesRedisStateError(t *testing.T) {
+	t.Run("short error is returned unchanged", func(t *testing.T) {
+		reporter := &fakeRedisStateReporter{status: redisstate.Status{LastError: "connection refused"}}
+		state := proxyObservabilityBody(t, reporter)["redisState"].(map[string]interface{})
+		if state["lastError"] != "connection refused" {
+			t.Errorf("lastError should be unchanged. Actual %v", state["lastError"])
+		}
+	})
+
+	t.Run("long error is cut to 200 bytes on a rune boundary", func(t *testing.T) {
+		// 199 ASCII bytes followed by a 2-byte rune: a plain byte cut at 200 would split the rune.
+		long := strings.Repeat("a", 199) + "\u00e9" + strings.Repeat("b", 100)
+		reporter := &fakeRedisStateReporter{status: redisstate.Status{LastError: long}}
+		state := proxyObservabilityBody(t, reporter)["redisState"].(map[string]interface{})
+		got, _ := state["lastError"].(string)
+		if len(got) > 200 {
+			t.Errorf("lastError should be at most 200 bytes. Actual %d", len(got))
+		}
+		if !utf8.ValidString(got) {
+			t.Errorf("lastError must be valid UTF-8. Actual %q", got)
+		}
+		if got != strings.Repeat("a", 199) {
+			t.Errorf("lastError should keep the 199 ASCII bytes. Actual %d bytes", len(got))
+		}
+	})
 }

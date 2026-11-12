@@ -23,6 +23,7 @@ import (
 	pconf "github.com/splitio/split-synchronizer/v5/splitio/proxy/conf"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/persistent"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/redisstate"
 	pTasks "github.com/splitio/split-synchronizer/v5/splitio/proxy/tasks"
 	"github.com/splitio/split-synchronizer/v5/splitio/util"
 
@@ -213,6 +214,8 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	before := time.Now()
 	err = startBGSync(syncManager, mstatus, snapshotValid, func() {
 		logger.Info("Synchronizer tasks started")
+		// The writer's startup resync can run against an empty source on a cold boot, so repair it once sync has populated the storages.
+		requestRedisResync(redisWriter)
 		appMonitor.Start()
 		servicesMonitor.Start()
 		flagSetsAfterSanitize, _ := flagsets.SanitizeMany(cfg.FlagSetsFilter)
@@ -354,6 +357,13 @@ func maskRedisStateSecrets(cfg *pconf.Main) {
 		if *secret != "" {
 			*secret = maskedSecret
 		}
+	}
+}
+
+// requestRedisResync asks a non-nil Redis writer for a full resync. A nil writer (feature disabled) is a no-op.
+func requestRedisResync(w *redisstate.Writer) {
+	if w != nil {
+		w.RequestResync()
 	}
 }
 

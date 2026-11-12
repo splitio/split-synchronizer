@@ -630,7 +630,7 @@ func TestPostBeaconImpressionsCounts(t *testing.T) {
 	}
 }
 
-// Offline mode drops events, impressions and counts with no-op sinks and no impression listener (G3, G4).
+// Offline mode drops events, impressions and counts with no-op sinks and no impression listener.
 func TestOfflineNoopSinksAcceptPostsWithoutListener(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	_, router := gin.CreateTestContext(httptest.NewRecorder())

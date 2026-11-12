@@ -793,7 +793,7 @@ func TestMemberships(t *testing.T) {
 	segmentStorage.AssertExpectations(t)
 }
 
-// Offline mode serves an empty large segment store: segments are returned, large segments never (G6).
+// Offline mode serves an empty large segment store: segments are returned, large segments never.
 func TestMembershipsOfflineHasNoLargeSegments(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

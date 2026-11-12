@@ -241,8 +241,8 @@ func TestRBSStorageWithoutWriterUnchanged(t *testing.T) {
 	assert.Equal(t, []string{"rb1"}, names)
 }
 
-// T100: the Redis forward does not depend on the Bolt write; a failing Bolt does not stop the change from reaching the writer
-func TestRBSStorageRedisIndependentOfBolt(t *testing.T) {
+// The writer forward does not depend on the local store write; a failing local store does not stop the change from reaching the writer
+func TestRBSStorageRedisIndependentOfLocalStoreFailure(t *testing.T) {
 	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
 	assert.Nil(t, err)
 	logger := logging.NewLogger(nil)
@@ -255,7 +255,7 @@ func TestRBSStorageRedisIndependentOfBolt(t *testing.T) {
 	toAdd := []dtos.RuleBasedSegmentDTO{{Name: "rb1", ChangeNumber: 5, Status: "ACTIVE"}}
 	assert.Nil(t, rbs.Update(toAdd, nil, 5))
 
-	assert.Equal(t, 1, w.calls, "writer receives the change although Bolt fails")
+	assert.Equal(t, 1, w.calls, "writer receives the change although the local store fails")
 	assert.Equal(t, toAdd, w.toAdd)
 	cn, err := rbs.ChangeNumber()
 	assert.Nil(t, err)

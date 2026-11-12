@@ -161,9 +161,8 @@ func (r *recordingSegmentWriter) PutSegment(name string, toAdd, toRemove []strin
 	r.cn = cn
 }
 
-// T52: every successful Update forwards to PutSegment with the same arguments; Bolt's cursor is not consulted for that
-// and nothing is forwarded when the Bolt update fails
-func TestSegmentUpdateFromZeroUsesFullWrite(t *testing.T) {
+// A failed local store update is still forwarded, because the writer does not depend on the local store.
+func TestSegmentUpdateForwardsArgsAndOnLocalStoreFailure(t *testing.T) {
 	newStorage := func(updateErr error) (*ProxySegmentStorageImpl, *recordingSegmentWriter, *mocks.SegmentChangesCollectionMock) {
 		psm := &mocks.SegmentChangesCollectionMock{}
 		psm.On("Update", "seg", mock.Anything, mock.Anything, int64(3)).Return(updateErr)
@@ -187,16 +186,37 @@ func TestSegmentUpdateFromZeroUsesFullWrite(t *testing.T) {
 	assert.Equal(t, int64(3), w.cn)
 	psm.AssertNotCalled(t, "ChangeNumber", "seg")
 
-	ss, w, _ = newStorage(errors.New("bolt down"))
+	ss, w, _ = newStorage(errors.New("local store write fails"))
 	assert.NotNil(t, ss.Update("seg", set.NewSet("k1"), set.NewSet(), 3))
-	assert.Equal(t, 1, w.calls, "a failed Bolt update is still forwarded (D20)")
+	assert.Equal(t, 1, w.calls, "a failed local store update is still forwarded")
+}
+
+// An update with no adds and no removes still reaches the writer, so the segment is cached as empty
+func TestSegmentUpdateEmptySetsReachWriter(t *testing.T) {
+	psm := &mocks.SegmentChangesCollectionMock{}
+	psm.On("Update", "seg", mock.Anything, mock.Anything, int64(5)).Return(nil)
+	ss := &ProxySegmentStorageImpl{
+		logger:         logging.NewLogger(nil),
+		db:             psm,
+		mysegments:     optimized.NewMySegmentsCache(),
+		nameCountCache: observability.NewActiveSegmentTracker(10),
+	}
+	w := &recordingSegmentWriter{}
+	ss.WithRedisWriter(w)
+
+	assert.Nil(t, ss.Update("seg", set.NewSet(), set.NewSet(), 5))
+	assert.Equal(t, 1, w.calls)
+	assert.Equal(t, "seg", w.name)
+	assert.Empty(t, w.toAdd)
+	assert.Empty(t, w.toRemove)
+	assert.Equal(t, int64(5), w.cn)
 }
 
 func TestProxySegmentStorageForwardsToRedisWriter(t *testing.T) {
 	toAdd := set.NewSet("k1", "k2")
 	toRemove := set.NewSet("k3")
 
-	t.Run("bolt succeeds", func(t *testing.T) {
+	t.Run("local store succeeds", func(t *testing.T) {
 		psm := &mocks.SegmentChangesCollectionMock{}
 		psm.On("ChangeNumber", "seg").Return(int64(1))
 		psm.On("Update", "seg", mock.Anything, mock.Anything, int64(3)).Return(nil)
@@ -217,10 +237,10 @@ func TestProxySegmentStorageForwardsToRedisWriter(t *testing.T) {
 		assert.Equal(t, int64(3), w.cn)
 	})
 
-	t.Run("bolt fails", func(t *testing.T) {
+	t.Run("local store fails", func(t *testing.T) {
 		psm := &mocks.SegmentChangesCollectionMock{}
 		psm.On("ChangeNumber", "seg").Return(int64(1))
-		psm.On("Update", "seg", mock.Anything, mock.Anything, int64(4)).Return(errors.New("bolt down"))
+		psm.On("Update", "seg", mock.Anything, mock.Anything, int64(4)).Return(errors.New("local store write fails"))
 		ss := &ProxySegmentStorageImpl{
 			logger:         logging.NewLogger(nil),
 			db:             psm,
@@ -231,13 +251,12 @@ func TestProxySegmentStorageForwardsToRedisWriter(t *testing.T) {
 		ss.WithRedisWriter(w)
 
 		assert.NotNil(t, ss.Update("seg", toAdd, toRemove, 4))
-		assert.Equal(t, 1, w.calls, "a failed Bolt update is still forwarded (D20)")
+		assert.Equal(t, 1, w.calls, "a failed local store update is still forwarded")
 		assert.Equal(t, "seg", w.name)
 		assert.Equal(t, int64(4), w.cn)
 	})
 }
 
-// no writer set is a plain Bolt update
 func TestSegmentUpdateFromZeroFailureAndNoWriter(t *testing.T) {
 	newStorage := func(updateErr error) (*ProxySegmentStorageImpl, *mocks.SegmentChangesCollectionMock) {
 		psm := &mocks.SegmentChangesCollectionMock{}
@@ -257,8 +276,8 @@ func TestSegmentUpdateFromZeroFailureAndNoWriter(t *testing.T) {
 	})
 }
 
-// T101: a failing Bolt does not stop the first update from reaching the writer; with a failing Bolt and no writer the name is in neither store
-func TestProxySegmentStorageRedisIndependentOfBolt(t *testing.T) {
+// A failing local store does not stop the first update from reaching the writer; with a failing local store and no writer the name is in neither store
+func TestProxySegmentStorageRedisIndependentOfLocalStoreFailure(t *testing.T) {
 	logger := logging.NewLogger(nil)
 	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
 	assert.Nil(t, err)
@@ -271,7 +290,7 @@ func TestProxySegmentStorageRedisIndependentOfBolt(t *testing.T) {
 		}
 	}
 
-	t.Run("writer receives first update when bolt fails", func(t *testing.T) {
+	t.Run("writer receives first update when local store fails", func(t *testing.T) {
 		ss := newStorage()
 		w := &recordingSegmentWriter{}
 		ss.WithRedisWriter(w)
@@ -282,7 +301,7 @@ func TestProxySegmentStorageRedisIndependentOfBolt(t *testing.T) {
 		assert.ElementsMatch(t, []string{"k1"}, w.toAdd)
 	})
 
-	t.Run("name in neither store when bolt fails and no writer", func(t *testing.T) {
+	t.Run("name in neither store when local store fails and no writer", func(t *testing.T) {
 		ss := newStorage()
 		assert.NotNil(t, ss.Update("seg", set.NewSet("k1"), set.NewSet(), 3))
 		_, err := ss.ChangesSince("seg", -1)

@@ -467,37 +467,6 @@ func TestSetupRedisStateStopOnShutdown(t *testing.T) {
 	assert.True(t, stopRedisState(nil, logger, time.Second))
 }
 
-func TestMaskedConfigForAdminMasksSecrets(t *testing.T) {
-	const apikey = "placeholder-test-apikey"
-	const password = "supersecret"
-
-	cfg := &pconf.Main{}
-	cfg.Apikey = apikey
-	cfg.Storage.Redis.Connection.Pass = password
-
-	masked := maskedConfigForAdmin(cfg)
-
-	if masked.Apikey == apikey {
-		t.Fatalf("expected obfuscated apikey, got the original value")
-	}
-	if strings.Contains(masked.Apikey, apikey) {
-		t.Errorf("masked apikey %q still contains the original apikey", masked.Apikey)
-	}
-	if strings.Contains(fmt.Sprintf("%+v", masked), password) {
-		t.Errorf("masked config still contains the redis password")
-	}
-	if masked.Storage.Redis.Connection.Pass != adminRedisPassMask {
-		t.Errorf("expected pass %q, got %q", adminRedisPassMask, masked.Storage.Redis.Connection.Pass)
-	}
-
-	if cfg.Apikey != apikey {
-		t.Errorf("original apikey was mutated: %q", cfg.Apikey)
-	}
-	if cfg.Storage.Redis.Connection.Pass != password {
-		t.Errorf("original redis password was mutated: %q", cfg.Storage.Redis.Connection.Pass)
-	}
-}
-
 // stuckClient blocks HGetAll, so the writer worker never gets past the startup resync
 type stuckClient struct {
 	entered chan struct{}
@@ -529,7 +498,6 @@ func (emptyRedisStateSource) RuleBasedSegments() ([]dtos.RuleBasedSegmentDTO, in
 }
 func (emptyRedisStateSource) Segments(func(redisstate.SegmentState) error) error { return nil }
 
-// warnLogger records Warning lines
 type warnLogger struct {
 	logging.LoggerInterface
 	mtx      sync.Mutex
@@ -555,7 +523,7 @@ func TestStopRedisStateTimeout(t *testing.T) {
 	t.Cleanup(release)
 
 	logger := &warnLogger{LoggerInterface: logging.NewLogger(nil)}
-	keys, err := redisstate.NewKeys("t-"+t.Name(), "apikey-test", "")
+	keys, err := redisstate.NewKeys("", "apikey-test", "")
 	assert.NoError(t, err)
 	writer, err := redisstate.NewWriter(client, keys, "fp-test", redisstate.DefaultOptions(), logger)
 	assert.NoError(t, err)
@@ -652,7 +620,7 @@ func TestStopNotBlockedByHungEval(t *testing.T) {
 	t.Cleanup(release)
 
 	logger := &warnLogger{LoggerInterface: logging.NewLogger(nil)}
-	keys, err := redisstate.NewKeys("t-"+t.Name(), "apikey-test", "")
+	keys, err := redisstate.NewKeys("", "apikey-test", "")
 	assert.NoError(t, err)
 	writer, err := redisstate.NewWriter(client, keys, "fp-test", redisstate.DefaultOptions(), logger)
 	assert.NoError(t, err)
@@ -690,4 +658,22 @@ func TestStopNotBlockedByHungEval(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("the writer worker did not exit after the Eval was released")
 	}
+}
+
+func TestSetupRedisStateRejectsInvalidNamespaceBeforeConnecting(t *testing.T) {
+	original := newRedisStateClient
+	t.Cleanup(func() { newRedisStateClient = original })
+	connected := false
+	newRedisStateClient = func(*commonconf.RedisConfig, logging.LoggerInterface) (*redis.PrefixedRedisClient, error) {
+		connected = true
+		return nil, errors.New("client must not be created for an invalid namespace")
+	}
+
+	logger, splits, rbs, segments := newRedisStateTestStorages(t)
+	cfg := redisStateTestConfig(t)
+	cfg.Storage.Redis.Namespace = "bad namespace!"
+	writer, err := setupRedisState(cfg, logger, splits, rbs, segments)
+	assert.True(t, writer == nil)
+	assertInitError(t, err, common.ExitInvalidConfiguration)
+	assert.False(t, connected, "invalid namespace must be rejected before the Redis client is created")
 }

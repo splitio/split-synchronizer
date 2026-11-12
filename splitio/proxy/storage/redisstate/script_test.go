@@ -917,7 +917,7 @@ func boundaryClock(t *testing.T, e *scriptEnv, meta string) int64 {
 	return v
 }
 
-// F23: PurgeScript expires a removal marker when its clock score is at or before now - retention (inclusive).
+// PurgeScript expires a removal marker when its clock score is at or before now - retention (inclusive).
 // The markers sit exactly at the cutoff, one below it (expired) and one above it (kept, the retention+1 case).
 // The Redis clock is sampled before and after the purge; the attempt is repeated if the millisecond ticked, so the
 // cutoff the script uses is known exactly.

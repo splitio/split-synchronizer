@@ -1794,7 +1794,7 @@ func TestPutRuleBasedSegmentsRemovalListOverridesActiveStatus(t *testing.T) {
 	assert.Equal(t, "0", byName["added"], "an ACTIVE entity from the add list is written active")
 }
 
-// F27: 50 goroutines call the Put* methods while the worker drains; run under -race, every call returns and Stop returns.
+// 50 goroutines call the Put* methods while the worker drains; run under -race, every call returns and Stop returns.
 func TestConcurrentPutsReturnUnderRace(t *testing.T) {
 	e := newWtEnv(t, wtOptions())
 	if err := e.w.Start(nil); err != nil {
@@ -2762,7 +2762,7 @@ func TestMirrorOnlyRestartAcceptedGap(t *testing.T) {
 
 	calls := e.client.evals()
 	require.Len(t, calls, 3)
-	assert.Equal(t, int64(7), wtFlagCursor(calls[2].args), "accepted limitation (OI23): the freeze is lost on a mirror-only restart, so the first write advances the cursor past the skipped entity")
+	assert.Equal(t, int64(7), wtFlagCursor(calls[2].args), "accepted limitation: the freeze is lost on a mirror-only restart, so the first write advances the cursor past the skipped entity")
 }
 
 func TestPurgeLoopHonorsStop(t *testing.T) {

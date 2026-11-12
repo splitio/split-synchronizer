@@ -150,12 +150,12 @@ func TestRedisStateSourceEmptyBucketFreshInstall(t *testing.T) {
 	flags, cn, err := source.Flags()
 	require.Nil(t, err)
 	assert.Empty(t, flags)
-	assert.Equal(t, int64(-1), cn)
+	assert.Equal(t, int64(0), cn)
 
 	rbDTOs, rbCN, err := source.RuleBasedSegments()
 	require.Nil(t, err)
 	assert.Empty(t, rbDTOs)
-	assert.Equal(t, int64(-1), rbCN)
+	assert.Equal(t, int64(0), rbCN)
 }
 
 func TestRedisStateSourceMissingBucketWithCursorIsError(t *testing.T) {
@@ -170,7 +170,7 @@ func TestRedisStateSourceMissingBucketWithCursorIsError(t *testing.T) {
 	splits.Update([]dtos.SplitDTO{{Name: "f1", ChangeNumber: 3, Status: "ACTIVE", TrafficTypeName: "ttt"}}, nil, 4)
 	assert.Nil(t, rbs.Update([]dtos.RuleBasedSegmentDTO{{Name: "rb1", ChangeNumber: 5, Status: "ACTIVE"}}, nil, 5))
 
-	// Simulate a lost Bolt bucket: the in-memory snapshot keeps cn != 0 but the buckets are gone
+	// Simulate lost buckets: the in-memory change numbers stay set but the stored buckets are gone
 	require.Nil(t, dbw.Update(func(tx *bolt.Tx) error {
 		if err := tx.DeleteBucket([]byte("SPLIT_CHANGES_COLLECTION")); err != nil {
 			return err
@@ -189,4 +189,83 @@ func TestRedisStateSourceMissingBucketWithCursorIsError(t *testing.T) {
 	require.NotNil(t, err)
 	assert.ErrorIs(t, err, persistent.ErrorBucketNotFound)
 	assert.Contains(t, err.Error(), "bucket is missing while change number is 5")
+}
+
+func TestRedisStateSourceFlagsOutsideFlagSetsServedAsRemoved(t *testing.T) {
+	logger := logging.NewLogger(nil)
+	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
+	require.Nil(t, err)
+
+	splits := NewProxySplitStorage(dbw, logger, flagsets.NewFlagSetFilter([]string{"set1"}), false)
+	rbs := NewProxyRuleBasedSegmentsStorage(dbw, logger, false)
+
+	splits.Update([]dtos.SplitDTO{
+		{Name: "in", ChangeNumber: 1, Status: "ACTIVE", Sets: []string{"set1"}, TrafficTypeName: "ttt"},
+		{Name: "out", ChangeNumber: 2, Status: "ACTIVE", Sets: []string{"set2"}, TrafficTypeName: "ttt"},
+	}, nil, 2)
+
+	source := NewRedisStateSource(splits, rbs, nil)
+	flags, cn, err := source.Flags()
+	require.Nil(t, err)
+	assert.Equal(t, int64(2), cn)
+
+	statuses := make(map[string]string, len(flags))
+	for _, f := range flags {
+		statuses[f.Name] = string(f.Status)
+	}
+	assert.Equal(t, "ACTIVE", statuses["in"])
+	assert.Equal(t, "ARCHIVED", statuses["out"])
+}
+
+func TestRedisStateSourceSegmentDecodeErrorFailsResync(t *testing.T) {
+	logger := logging.NewLogger(nil)
+	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
+	require.Nil(t, err)
+
+	splits := NewProxySplitStorage(dbw, logger, flagsets.NewFlagSetFilter(nil), false)
+	rbs := NewProxyRuleBasedSegmentsStorage(dbw, logger, false)
+	segments := NewProxySegmentStorage(dbw, logger, false)
+
+	assert.Nil(t, segments.Update("seg", set.NewSet("a"), set.NewSet(), 7))
+	require.Nil(t, dbw.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket([]byte("SEGMENT_CHANGES_COLLECTION")).Put([]byte("seg"), []byte("not gob"))
+	}))
+
+	source := NewRedisStateSource(splits, rbs, segments)
+	visited := 0
+	err = source.Segments(func(redisstate.SegmentState) error {
+		visited++
+		return nil
+	})
+	require.NotNil(t, err)
+	assert.Equal(t, 0, visited)
+}
+
+func TestRedisStateSourceCursorAfterRestoredSnapshot(t *testing.T) {
+	logger := logging.NewLogger(nil)
+	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
+	require.Nil(t, err)
+
+	splits := NewProxySplitStorage(dbw, logger, flagsets.NewFlagSetFilter(nil), false)
+	rbs := NewProxyRuleBasedSegmentsStorage(dbw, logger, false)
+	splits.Update([]dtos.SplitDTO{
+		{Name: "f1", ChangeNumber: 5, Status: "ACTIVE", TrafficTypeName: "ttt"},
+		{Name: "f2", ChangeNumber: 6, Status: "ACTIVE", TrafficTypeName: "ttt"},
+		{Name: "f3", ChangeNumber: 7, Status: "ACTIVE", TrafficTypeName: "ttt"},
+	}, nil, 7)
+	assert.Nil(t, rbs.Update([]dtos.RuleBasedSegmentDTO{{Name: "rb1", ChangeNumber: 8, Status: "ACTIVE"}}, nil, 8))
+
+	restoredSplits := NewProxySplitStorage(dbw, logger, flagsets.NewFlagSetFilter(nil), true)
+	restoredRBS := NewProxyRuleBasedSegmentsStorage(dbw, logger, true)
+	source := NewRedisStateSource(restoredSplits, restoredRBS, nil)
+
+	flags, cn, err := source.Flags()
+	require.Nil(t, err)
+	assert.Equal(t, int64(7), cn)
+	assert.Len(t, flags, 3)
+
+	rbDTOs, rbCN, err := source.RuleBasedSegments()
+	require.Nil(t, err)
+	assert.Equal(t, int64(8), rbCN)
+	assert.Len(t, rbDTOs, 1)
 }

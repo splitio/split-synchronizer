@@ -632,7 +632,7 @@ func TestOverflowFreezesGroupFirstSeenAfterOverflow(t *testing.T) {
 }
 
 // after a skipped entity and a process restart, a resync with a Source rewrites the group and releases
-// the cursor. With a nil Source nothing repairs the group (limit A3), so the skipped entity is never sent again.
+// the cursor. With a nil Source nothing repairs the group, so the skipped entity is never sent again.
 func TestRestartAfterSkippedEntityRepairsGroupOnlyWithSource(t *testing.T) {
 	cases := []struct {
 		name string
