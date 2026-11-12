@@ -66,9 +66,11 @@ type Storage struct {
 	Redis      RedisState `json:"redis" s-nested:"true"`
 }
 
-// RedisState configuration options (the proxy writes its state to Redis; read support comes later)
+// RedisState configuration options (the proxy writes its state to Redis; the proxy reads it back at boot).
+// The proxy state keys have no TTL and the reader cannot detect keys evicted by Redis, so the database must use
+// maxmemory-policy noeviction (or have no maxmemory limit).
 type RedisState struct {
-	Enabled           bool       `json:"enabled" s-cli:"redis-state-enabled" s-def:"false" s-desc:"Write the proxy state to Redis"`
+	Enabled           bool       `json:"enabled" s-cli:"redis-state-enabled" s-def:"false" s-desc:"Write the proxy state to Redis and read it back at boot. The Redis database must not evict keys (maxmemory-policy noeviction)"`
 	Namespace         string     `json:"namespace" s-cli:"redis-state-namespace" s-def:"" s-desc:"Optional readable name for this environment in Redis (letters, digits, - and _); default is a hash of the API key"`
 	RetentionHours    int64      `json:"retentionHours" s-cli:"redis-state-retention-hours" s-def:"168" s-desc:"How long removed flags and segment keys stay in Redis"`
 	WriteMaxAttempts  int64      `json:"writeMaxAttempts" s-cli:"redis-state-write-max-attempts" s-def:"3" s-desc:"Attempts per Redis write before the change is dropped; the next resync repairs a dropped change"`

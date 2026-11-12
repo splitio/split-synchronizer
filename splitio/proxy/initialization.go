@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -41,8 +42,27 @@ import (
 
 // Start initialize in proxy mode
 func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
+	return start(logger, cfg)
+}
+
+// afterRestoreHook is a test seam, nil in production. It is called after the Redis cursors are applied and before
+// the Redis state writer is set up.
+var afterRestoreHook func(*storage.ProxySplitStorageImpl)
+
+// redisClusterRequested mirrors the choice made by common.ParseRedisOptions: Sentinel wins over cluster mode, and the
+// cluster nodes setting is ignored unless cluster mode is on.
+func redisClusterRequested(cfg *pconf.Main) bool {
+	conn := cfg.Storage.Redis.Connection
+	return conn.ClusterMode && !conn.SentinelReplication
+}
+
+func start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	if cfg.Offline && cfg.Storage.Redis.Enabled {
 		return common.NewInitError(errors.New("redis state is not supported in offline mode"), common.ExitInvalidConfiguration)
+	}
+
+	if cfg.Storage.Redis.Enabled && redisClusterRequested(cfg) {
+		return common.NewInitError(errors.New("redis state does not support Redis Cluster in this version; use a standalone or Sentinel Redis (clear the redis cluster nodes setting)"), common.ExitInvalidConfiguration)
 	}
 
 	if cfg.Initialization.OverridesFile != "" && !cfg.Offline {
@@ -61,7 +81,65 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	// Initialization of DB
 	var dbpath = persistent.BoltInMemoryMode
 	var snapshotValid = false
-	if snapFile := cfg.Initialization.Snapshot; snapFile != "" {
+	var bootAdminServer *bootAdmin
+	if cfg.Storage.Redis.Enabled && !cfg.Initialization.ForceFreshStartup {
+		// Validate before binding so a bad setting is reported without a port conflict masking it. The check runs
+		// again inside resolveRedisBootInto on purpose: it is cheap and that path is also exercised directly.
+		if err = validateRedisStateSettings(&cfg.Storage.Redis); err != nil {
+			return err
+		}
+		// Hold the admin address from before the redis read until the full admin server takes over.
+		bootAdminServer, err = startBootAdmin(cfg, logger)
+		if err != nil {
+			return err
+		}
+		defer bootAdminServer.stop()
+	}
+	// With redis enabled the in-memory db and the storages exist before the read, so the reader restores each segment
+	// into them as it goes instead of holding every segment in memory. They are thrown away unless redis wins.
+	var dbInstance *persistent.BoltDBWrapper
+	var splitStorage *storage.ProxySplitStorageImpl
+	var ruleBasedStorage *storage.ProxyRuleBasedSegmentsStorageImpl
+	var segmentStorage *storage.ProxySegmentStorageImpl
+	var sink redisstate.RestoreSink
+	if bootAdminServer != nil {
+		dbInstance, err = persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
+		if err != nil {
+			return common.NewInitError(fmt.Errorf("error instantiating boltdb: %w", err), common.ExitErrorDB)
+		}
+		splitStorage, ruleBasedStorage, segmentStorage = newProxyStorages(dbInstance, logger, cfg, false)
+		sink = storage.NewRedisRestoreSink(splitStorage, ruleBasedStorage, segmentStorage)
+	}
+	discardBootDB := func() {
+		if dbInstance == nil {
+			return
+		}
+		if derr := dbInstance.Discard(); derr != nil {
+			logger.Warning(fmt.Sprintf("error discarding the temporary boot database: %v", derr))
+		}
+		dbInstance, splitStorage, ruleBasedStorage, segmentStorage = nil, nil, nil, nil
+	}
+	keepBootDB := false
+	defer func() {
+		if !keepBootDB {
+			discardBootDB()
+		}
+	}()
+
+	boot, err := resolveRedisBootInto(cfg, logger, newBootReadClient, sink)
+	if err != nil {
+		return err
+	}
+	if boot.Source != BootSourceRedis {
+		discardBootDB()
+	}
+	bootAdminServer.setPhase(bootPhaseInitialSync)
+	if boot.Source == BootSourceRedis {
+		// Valid Redis state wins; the snapshot file is not parsed, so a bad file cannot abort the boot.
+		// A state with skipped segments is incomplete, so it does not excuse a failed first cloud sync.
+		snapshotValid = len(boot.State.SkippedSegments) == 0
+	}
+	if snapFile := cfg.Initialization.Snapshot; snapFile != "" && boot.Source != BootSourceRedis {
 		snap, err := snapshot.DecodeFromFile(snapFile)
 		if err != nil {
 			return common.NewInitError(fmt.Errorf("error parsing snapshot file: %w", err), common.ExitInvalidConfiguration)
@@ -88,9 +166,11 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		}
 	}
 
-	dbInstance, err := persistent.NewBoltWrapper(dbpath, nil)
-	if err != nil {
-		return common.NewInitError(fmt.Errorf("error instantiating boltdb: %w", err), common.ExitErrorDB)
+	if dbInstance == nil {
+		dbInstance, err = persistent.NewBoltWrapper(dbpath, nil)
+		if err != nil {
+			return common.NewInitError(fmt.Errorf("error instantiating boltdb: %w", err), common.ExitErrorDB)
+		}
 	}
 
 	// Set up the http proxy caching.
@@ -112,9 +192,17 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	splitAPI := api.NewSplitAPI(cfg.Apikey, *advanced, logger, metadata)
 
 	// Proxy storages already implement the observable interface, so no need to wrap them
-	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, flagsets.NewFlagSetFilter(cfg.FlagSetsFilter), snapshotValid)
-	ruleBasedStorage := storage.NewProxyRuleBasedSegmentsStorage(dbInstance, logger, snapshotValid)
-	segmentStorage := storage.NewProxySegmentStorage(dbInstance, logger, snapshotValid)
+	// Redis boots set splitStorage earlier (sink setup) and restore into it, so this branch runs only for non-Redis boots.
+	if splitStorage == nil {
+		preloadFromDisk := snapshotValid
+		splitStorage, ruleBasedStorage, segmentStorage = newProxyStorages(dbInstance, logger, cfg, preloadFromDisk)
+	}
+	if err := applyRedisCursors(boot, splitStorage, ruleBasedStorage, segmentStorage); err != nil {
+		return err
+	}
+	if afterRestoreHook != nil {
+		afterRestoreHook(splitStorage)
+	}
 	redisWriter, err := setupRedisState(cfg, logger, splitStorage, ruleBasedStorage, segmentStorage)
 	if err != nil {
 		return err
@@ -205,6 +293,13 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error instantiating sync manager: %w", err), common.ExitTaskInitialization)
 	}
+	// An error return after the sync tasks start must stop them before the deferred boot db discard runs (defers run
+	// last in first out), otherwise they keep writing into a closed db. Stop is a no-op if the manager never ran.
+	defer func() {
+		if !keepBootDB {
+			syncManager.Stop()
+		}
+	}()
 
 	// Try to start bg sync in BG with unlimited retries (when a valid snapshot is provided),
 	// the passed function is invoked upon initialization completion
@@ -214,7 +309,8 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	before := time.Now()
 	err = startBGSync(syncManager, mstatus, snapshotValid, func() {
 		logger.Info("Synchronizer tasks started")
-		// The writer's startup resync can run against an empty source on a cold boot, so repair it once sync has populated the storages.
+		// The writer's startup resync can run against an empty source on a cold boot, so repair it once sync
+		// has populated the storages.
 		requestRedisResync(redisWriter)
 		appMonitor.Start()
 		servicesMonitor.Start()
@@ -289,8 +385,6 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error starting admin server: %w", err), common.ExitAdminError)
 	}
-	go adminServer.Start()
-
 	tlsConfig, err := util.TLSConfigForServer(&cfg.Server.TLS)
 	if err != nil {
 		return common.NewInitError(fmt.Errorf("error setting up proxy TLS config: %w", err), common.ExitTLSError)
@@ -332,10 +426,19 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		proxyOptions.ImpressionListener.Start()
 	}
 
+	bootAdminServer.stop()
+	go func() {
+		if err := adminServer.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Error(fmt.Sprintf("admin server stopped: %v", err))
+		}
+	}()
+
 	proxyAPI := New(proxyOptions)
 	go proxyAPI.Start()
 
 	rtm.RegisterShutdownHandler()
+	// Past this point the process serves until shutdown, so the restored boot DB is kept.
+	keepBootDB = true
 	rtm.Block()
 	return nil
 }

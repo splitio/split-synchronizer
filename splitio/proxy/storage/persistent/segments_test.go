@@ -184,6 +184,133 @@ func TestInitializeMultipleSegments(t *testing.T) {
 	}
 }
 
+// TestSegmentRestoreKeepsPerKeyChangeNumbersAndTombstones checks that Restore keeps each key's
+// change number and tombstones, and survives re-initialization.
+func TestSegmentRestoreKeepsPerKeyChangeNumbersAndTombstones(t *testing.T) {
+	dbw, err := NewBoltWrapper(BoltInMemoryMode, nil)
+	if err != nil {
+		t.Fatal("error creating bolt wrapper: ", err)
+	}
+
+	logger := logging.NewLogger(nil)
+	segmentC := NewSegmentChangesCollection(dbw, logger)
+
+	item := SegmentChangesItem{
+		Name: "s1",
+		Keys: map[string]SegmentKey{
+			"k1": {Name: "k1", ChangeNumber: 5, Removed: false},
+			"k2": {Name: "k2", ChangeNumber: 9, Removed: true},
+			"k3": {Name: "k3", ChangeNumber: 7, Removed: false},
+		},
+	}
+	if err := segmentC.Restore(item); err != nil {
+		t.Fatal("Restore should not fail: ", err)
+	}
+
+	check := func(c *SegmentChangesCollectionImpl, label string) {
+		t.Helper()
+		fetched, err := c.Fetch("s1")
+		if err != nil || fetched == nil {
+			t.Fatalf("%s: Fetch should return s1, err: %v", label, err)
+		}
+		if len(fetched.Keys) != len(item.Keys) {
+			t.Fatalf("%s: expected %d keys, got %d", label, len(item.Keys), len(fetched.Keys))
+		}
+		for name, want := range item.Keys {
+			got, ok := fetched.Keys[name]
+			if !ok {
+				t.Errorf("%s: key %s missing", label, name)
+				continue
+			}
+			if got.ChangeNumber != want.ChangeNumber || got.Removed != want.Removed {
+				t.Errorf(
+					"%s: key %s got cn=%d removed=%v, want cn=%d removed=%v",
+					label,
+					name,
+					got.ChangeNumber,
+					got.Removed,
+					want.ChangeNumber,
+					want.Removed,
+				)
+			}
+		}
+		if cn := c.ChangeNumber("s1"); cn != 9 {
+			t.Errorf("%s: segment change number should be 9, got %d", label, cn)
+		}
+	}
+
+	check(segmentC, "after restore")
+	check(NewSegmentChangesCollection(dbw, logger), "after re-initialization")
+}
+
+// TestSegmentRestoreActiveKeyCountIgnoresTombstones checks that a restored segment with 1 active
+// key and 3 tombstones has exactly one active key.
+func TestSegmentRestoreActiveKeyCountIgnoresTombstones(t *testing.T) {
+	dbw, err := NewBoltWrapper(BoltInMemoryMode, nil)
+	if err != nil {
+		t.Fatal("error creating bolt wrapper: ", err)
+	}
+	segmentC := NewSegmentChangesCollection(dbw, logging.NewLogger(nil))
+
+	item := SegmentChangesItem{
+		Name: "s1",
+		Keys: map[string]SegmentKey{
+			"active": {Name: "active", ChangeNumber: 3},
+			"t1":     {Name: "t1", ChangeNumber: 4, Removed: true},
+			"t2":     {Name: "t2", ChangeNumber: 5, Removed: true},
+			"t3":     {Name: "t3", ChangeNumber: 6, Removed: true},
+		},
+	}
+	if err := segmentC.Restore(item); err != nil {
+		t.Fatal("Restore should not fail: ", err)
+	}
+
+	fetched, err := segmentC.Fetch("s1")
+	if err != nil || fetched == nil {
+		t.Fatalf("Fetch should return s1, err: %v", err)
+	}
+	active := 0
+	for _, key := range fetched.Keys {
+		if !key.Removed {
+			active++
+		}
+	}
+	if active != 1 {
+		t.Errorf("expected 1 active key, got %d", active)
+	}
+}
+
+// TestSegmentRestoreWithoutKeysAnchorsChangeNumber checks that a restore with no keys still anchors
+// the segment at change number zero.
+func TestSegmentRestoreWithoutKeysAnchorsChangeNumber(t *testing.T) {
+	dbw, err := NewBoltWrapper(BoltInMemoryMode, nil)
+	if err != nil {
+		t.Fatal("error creating bolt wrapper: ", err)
+	}
+	segmentC := NewSegmentChangesCollection(dbw, logging.NewLogger(nil))
+
+	if err := segmentC.Restore(SegmentChangesItem{Name: "empty"}); err != nil {
+		t.Fatal("Restore should not fail: ", err)
+	}
+	if cn := segmentC.ChangeNumber("empty"); cn != 0 {
+		t.Errorf("expected change number 0 for a segment without keys, got %d", cn)
+	}
+}
+
+// TestSegmentRestoreReturnsBoltError checks that a failed Bolt write during Restore is returned
+// and leaves the change number untouched.
+func TestSegmentRestoreReturnsBoltError(t *testing.T) {
+	segmentC := NewSegmentChangesCollection(closedDB(t), logging.NewLogger(nil))
+
+	err := segmentC.Restore(SegmentChangesItem{Name: "s1", Keys: map[string]SegmentKey{"k": {Name: "k", ChangeNumber: 2}}})
+	if err == nil {
+		t.Fatal("expected the failed Bolt write to be returned")
+	}
+	if cn := segmentC.ChangeNumber("s1"); cn != -1 {
+		t.Errorf("change number should not be anchored after a failed restore, got %d", cn)
+	}
+}
+
 func TestSegmentChangesCollectionNames(t *testing.T) {
 	dbw, err := NewBoltWrapper(BoltInMemoryMode, nil)
 	if err != nil {
@@ -248,5 +375,47 @@ func TestSegmentChangesCollectionFetchDecodeErrorIsReturned(t *testing.T) {
 	}
 	if item != nil {
 		t.Errorf("expected no item on decode error, got %+v", item)
+	}
+}
+
+func TestRestoreEmptySegmentNameReturnsError(t *testing.T) {
+	dbw, err := NewBoltWrapper(t.TempDir()+"/state.db", nil)
+	if err != nil {
+		t.Fatal("error creating bolt wrapper: ", err)
+	}
+	defer dbw.Discard()
+
+	segmentC := NewSegmentChangesCollection(dbw, logging.NewLogger(nil))
+	err = segmentC.Restore(SegmentChangesItem{Name: "", Keys: map[string]SegmentKey{"k1": {Name: "k1", ChangeNumber: 3}}})
+	if err == nil {
+		t.Fatal("restore with an empty segment name must return an error")
+	}
+	for _, name := range segmentC.Names() {
+		if name == "" {
+			t.Error("empty segment name must not be recorded as a restored segment")
+		}
+	}
+}
+
+func TestFailedSaveAsLeavesSegmentsTillUnchanged(t *testing.T) {
+	dbw, err := NewBoltWrapper(t.TempDir()+"/state.db", nil)
+	if err != nil {
+		t.Fatal("error creating bolt wrapper: ", err)
+	}
+
+	segmentC := NewSegmentChangesCollection(dbw, logging.NewLogger(nil))
+	if err := segmentC.Update("s1", set.NewSet("k1"), set.NewSet(), 5); err != nil {
+		t.Fatal("initial update should succeed: ", err)
+	}
+
+	if err := dbw.Discard(); err != nil {
+		t.Fatal("error closing bolt: ", err)
+	}
+
+	if err := segmentC.Update("s1", set.NewSet("k2"), set.NewSet(), 7); err == nil {
+		t.Fatal("update on a closed db must fail")
+	}
+	if cn := segmentC.ChangeNumber("s1"); cn != 5 {
+		t.Errorf("segmentsTill must stay at 5 after a failed SaveAs, got %d", cn)
 	}
 }

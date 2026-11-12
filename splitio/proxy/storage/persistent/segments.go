@@ -124,6 +124,27 @@ func (c *SegmentChangesCollectionImpl) Update(name string, toAdd *set.ThreadUnsa
 	return nil
 }
 
+// Restore stores the item as-is in one Bolt transaction, keeping each key's ChangeNumber
+// and Removed flag (tombstones included).
+// The segment's change number is the highest key change number, or zero when there are no keys.
+func (c *SegmentChangesCollectionImpl) Restore(item SegmentChangesItem) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	var till int64
+	for _, key := range item.Keys {
+		if key.ChangeNumber > till {
+			till = key.ChangeNumber
+		}
+	}
+
+	if err := c.collection.SaveAs([]byte(item.Name), &item); err != nil {
+		return fmt.Errorf("error restoring segment changes to bolt: %w", err)
+	}
+	c.segmentsTill[item.Name] = till
+	return nil
+}
+
 // Fetch return a SegmentChangesItem
 func (c *SegmentChangesCollectionImpl) Fetch(name string) (*SegmentChangesItem, error) {
 	c.mutex.RLock()

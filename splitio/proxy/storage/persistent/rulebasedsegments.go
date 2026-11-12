@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/gob"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/splitio/go-split-commons/v10/dtos"
@@ -27,13 +29,27 @@ func NewRBChangesCollection(db DBWrapper, logger logging.LoggerInterface) *RBCha
 	}
 }
 
-// Update processes a set of rule based changes items + a changeNumber bump atomically
+// Update persists each item in its own transaction and advances the changeNumber only when every write succeeded.
+// Errors are logged, not returned; use UpdateWithError when the caller must stop on a failed write.
 func (c *RBChangesCollection) Update(toAdd []dtos.RuleBasedSegmentDTO, toRemove []dtos.RuleBasedSegmentDTO, cn int64) {
+	if err := c.UpdateWithError(toAdd, toRemove, cn); err != nil {
+		c.collection.Logger().Error("error persisting rule-based segments: ", err)
+	}
+}
+
+// UpdateWithError is Update returning the joined write errors instead of logging them.
+// The changeNumber advances only when no write failed.
+func (c *RBChangesCollection) UpdateWithError(
+	toAdd []dtos.RuleBasedSegmentDTO,
+	toRemove []dtos.RuleBasedSegmentDTO,
+	cn int64,
+) error {
 	items := NewChangesItems(len(toAdd) + len(toRemove))
+	var errs []error
 	process := func(rb *dtos.RuleBasedSegmentDTO) {
 		asJSON, err := json.Marshal(rb)
 		if err != nil {
-			// This should not happen unless the DTO class is broken
+			errs = append(errs, fmt.Errorf("encoding rule-based segment %q: %w", rb.Name, err))
 			return
 		}
 		items.Append(ChangesItem{
@@ -54,18 +70,16 @@ func (c *RBChangesCollection) Update(toAdd []dtos.RuleBasedSegmentDTO, toRemove 
 
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	allSaved := true
 	for idx := range items.items {
-		err := c.collection.SaveAs([]byte(items.items[idx].Name), items.items[idx])
-		if err != nil {
-			allSaved = false
-			c.collection.Logger().Error("error saving rule-based segment: ", items.items[idx].Name, " ", err)
+		if err := c.collection.SaveAs([]byte(items.items[idx].Name), items.items[idx]); err != nil {
+			errs = append(errs, fmt.Errorf("saving rule-based segment %q: %w", items.items[idx].Name, err))
 		}
 	}
 	// The cursor only advances when every item was stored, so it never gets ahead of the stored data
-	if allSaved {
+	if len(errs) == 0 {
 		c.changeNumber = cn
 	}
+	return errors.Join(errs...)
 }
 
 // FetchAll return a ChangesItem

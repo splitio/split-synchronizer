@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/gob"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/splitio/go-split-commons/v10/dtos"
@@ -27,13 +29,23 @@ func NewSplitChangesCollection(db DBWrapper, logger logging.LoggerInterface) *Sp
 	}
 }
 
-// Update processes a set of feature flag changes items + a changeNumber bump atomically
+// Update persists each item in its own transaction and advances the changeNumber only when every write succeeded.
+// Errors are logged, not returned; use UpdateWithError when the caller must stop on a failed write.
 func (c *SplitChangesCollection) Update(toAdd []dtos.SplitDTO, toRemove []dtos.SplitDTO, cn int64) {
+	if err := c.UpdateWithError(toAdd, toRemove, cn); err != nil {
+		c.collection.Logger().Error("error persisting feature flags: ", err)
+	}
+}
+
+// UpdateWithError is Update returning the joined write errors instead of logging them.
+// The changeNumber advances only when no write failed.
+func (c *SplitChangesCollection) UpdateWithError(toAdd []dtos.SplitDTO, toRemove []dtos.SplitDTO, cn int64) error {
 	items := NewChangesItems(len(toAdd) + len(toRemove))
+	var errs []error
 	process := func(split *dtos.SplitDTO) {
 		asJSON, err := json.Marshal(split)
 		if err != nil {
-			// This should not happen unless the DTO class is broken
+			errs = append(errs, fmt.Errorf("encoding feature flag %q: %w", split.Name, err))
 			return
 		}
 		items.Append(ChangesItem{
@@ -54,18 +66,16 @@ func (c *SplitChangesCollection) Update(toAdd []dtos.SplitDTO, toRemove []dtos.S
 
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	allSaved := true
 	for idx := range items.items {
-		err := c.collection.SaveAs([]byte(items.items[idx].Name), items.items[idx])
-		if err != nil {
-			allSaved = false
-			c.collection.Logger().Error("error saving feature flag: ", items.items[idx].Name, " ", err)
+		if err := c.collection.SaveAs([]byte(items.items[idx].Name), items.items[idx]); err != nil {
+			errs = append(errs, fmt.Errorf("saving feature flag %q: %w", items.items[idx].Name, err))
 		}
 	}
 	// The cursor only advances when every item was stored, so it never gets ahead of the stored data
-	if allSaved {
+	if len(errs) == 0 {
 		c.changeNumber = cn
 	}
+	return errors.Join(errs...)
 }
 
 // FetchAll return a SplitChangesItem
