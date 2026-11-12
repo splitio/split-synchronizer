@@ -12,13 +12,18 @@ import (
 
 // SegmentState is the full state of one segment as stored by the proxy
 type SegmentState struct {
-	Name         string
-	Active       map[string]int64 // key -> change number
-	Removed      map[string]int64 // key -> change number of the tombstone
+	// Name is the segment name
+	Name string
+	// Active maps each key in the segment to its change number
+	Active map[string]int64
+	// Removed maps each removed key (tombstone) to its change number
+	Removed map[string]int64
+	// ChangeNumber is the segment change number
 	ChangeNumber int64
 }
 
-// Source gives the Writer access to the proxy's complete local state (the Bolt-backed storage).
+// Source gives the Writer access to the proxy's complete current state, wherever it is held (an in-memory store filled
+// from the Split cloud, or any other store). The Writer assumes nothing about the backing store.
 // Implementations must read the cursor no later than the data it returns (cursor behind data is safe).
 type Source interface {
 	Flags() ([]dtos.SplitDTO, int64, error)                        // all flags incl. ARCHIVED, and the flag cursor
@@ -28,6 +33,9 @@ type Source interface {
 
 // missingCursor is the stored cursor assumed for a segment that Redis does not know or whose cursor is unparsable
 const missingCursor = int64(-2)
+
+// maxPurgeIterations bounds the expiry purge loop per key set so it cannot spin forever
+const maxPurgeIterations = 10000
 
 // resync rewrites the full local state into Redis: meta check, flags, rule-based segments, then segments one by one.
 // The worker holds no mutex while it runs; every Source and client call goes through retry.
@@ -50,7 +58,7 @@ func (w *Writer) resync(source Source) error {
 		var e error
 		flags, flagsCn, e = source.Flags()
 		if e != nil {
-			w.logger.Error(fmt.Sprintf("redis state: reading the flags from the local state failed, retrying: %s", e.Error()))
+			w.logger.Error(fmt.Sprintf("redis state: reading the flags from the local state failed, retrying: %v", e))
 		}
 		return e
 	})
@@ -81,7 +89,7 @@ func (w *Writer) resync(source Source) error {
 		var e error
 		rbs, rbsCn, e = source.RuleBasedSegments()
 		if e != nil {
-			w.logger.Error(fmt.Sprintf("redis state: reading the rule-based segments from the local state failed, retrying: %s", e.Error()))
+			w.logger.Error(fmt.Sprintf("redis state: reading the rule-based segments from the local state failed, retrying: %v", e))
 		}
 		return e
 	})
@@ -118,7 +126,7 @@ func (w *Writer) resync(source Source) error {
 }
 
 // sourceEmpty reports a source that holds nothing yet (no entities and no change number). Such a source is not evidence
-// that the entities Redis holds were removed (T62), so the pass deletes nothing in that group.
+// that the entities Redis holds were removed, so the pass deletes nothing in that group.
 func sourceEmpty(n int, cn int64) bool {
 	return n == 0 && cn <= 0
 }
@@ -130,7 +138,7 @@ func (w *Writer) overflowEpochOf() uint64 {
 	return w.overflowEpoch
 }
 
-// overflowFrozen reports whether an overflow freezes the cursors of the worker's writes (D21). A resync pass rewrites
+// overflowFrozen reports whether an overflow freezes the cursors of the worker's writes. A resync pass rewrites
 // the groups with source cursors, so the overflow does not freeze that pass.
 func (w *Writer) overflowFrozen() bool {
 	if w.resyncPass {
@@ -142,7 +150,7 @@ func (w *Writer) overflowFrozen() bool {
 }
 
 // clearOverflowIfUnchanged ends the overflow freeze after a resync with a source completed with no skip in any group,
-// and no overflow happened since the resync started (D19 rule b). A skip keeps the overflow, so the frozen groups stay frozen.
+// and no overflow happened since the resync started. A skip keeps the overflow, so the frozen groups stay frozen.
 func (w *Writer) clearOverflowIfUnchanged(epoch uint64) {
 	if w.skipsSeen {
 		return
@@ -173,7 +181,7 @@ func (w *Writer) readHash(key string) (map[string]string, error) {
 	return fields, err
 }
 
-// withRemovals appends the entities the source does not list and marks them removed, so the script tombstones them (D40)
+// withRemovals appends the entities the source does not list and marks them removed, so the script tombstones them
 func withRemovals[T any](listed, gone []T) ([]T, []bool) {
 	all := make([]T, 0, len(listed)+len(gone))
 	all = append(all, listed...)
@@ -185,8 +193,8 @@ func withRemovals[T any](listed, gone []T) ([]T, []bool) {
 	return all, removals
 }
 
-// unlistedFlags returns the stored flags the source does not list. Each keeps the change number of its own stored JSON (D4),
-// because the source has no entry for it. An unreadable JSON is returned as a skip, so the cursor does not pass it (D40).
+// unlistedFlags returns the stored flags the source does not list. Each keeps the change number of its own stored JSON,
+// because the source has no entry for it. An unreadable JSON is returned as a skip, so the cursor does not pass it.
 func (w *Writer) unlistedFlags(stored map[string]string, listed []dtos.SplitDTO) ([]dtos.SplitDTO, []string) {
 	in := make(map[string]bool, len(listed))
 	for _, d := range listed {
@@ -253,7 +261,7 @@ func (w *Writer) resyncSegments(source Source, fields map[string]string) (map[st
 			return nil
 		}
 		if e != nil {
-			w.logger.Error(fmt.Sprintf("redis state: reading the segments from the local state failed, retrying: %s", e.Error()))
+			w.logger.Error(fmt.Sprintf("redis state: reading the segments from the local state failed, retrying: %v", e))
 		}
 		return e
 	})
@@ -263,11 +271,11 @@ func (w *Writer) resyncSegments(source Source, fields map[string]string) (map[st
 	return listed, err
 }
 
-// dropUnlistedSegments deletes the segments the meta hash registers but the source did not list (D40, T163). The
+// dropUnlistedSegments deletes the segments the meta hash registers but the source did not list. The
 // names come from the meta read at the start of the pass, so no key scan is needed. It runs only after a complete stream.
 func (w *Writer) dropUnlistedSegments(fields map[string]string, listed map[string]struct{}) error {
 	if len(listed) == 0 {
-		// an empty source is not evidence that the segments were removed (T62); Reset clears them on a full boot
+		// an empty source is not evidence that the segments were removed; Reset clears them on a full boot
 		return nil
 	}
 	dropped := 0
@@ -290,13 +298,15 @@ func (w *Writer) dropUnlistedSegments(fields map[string]string, listed map[strin
 		if err != nil {
 			return fmt.Errorf("deleting segment %q: %w", name, err)
 		}
+		// the segment is gone from Redis, so its skipped names and whole-group freeze no longer apply
+		delete(w.groups, field)
 		dropped++
 	}
 	return nil
 }
 
 // resyncSegment writes one segment unless Redis already holds it up to its change number, with a matching key
-// count (D15).
+// count.
 func (w *Writer) resyncSegment(s SegmentState, fields map[string]string) error {
 	if !validSegmentName(s.Name) {
 		w.reject(fmt.Sprintf("redis state: segment name %q contains glob characters or is empty, not resynced", s.Name))
@@ -324,9 +334,9 @@ func (w *Writer) syncSegment(s SegmentState, field string, fields map[string]str
 			return nil
 		}
 		w.logger.Warning(fmt.Sprintf("redis state: segment %s has a current cursor but a different key count in Redis, rewriting it", s.Name))
-		// the rewrite only adds keys, so the keys Redis holds beyond the source are deleted first (D38).
-		// Known window: until the rewrite lands, the committed cursor stays with empty sets, so a reader booting
-		// right now restores this segment as empty. Rare (count-mismatch repair only) and healed by the next resync
+		// the rewrite only adds keys, so the keys Redis holds beyond the source are deleted first.
+		// Known window: until the rewrite lands, the committed cursor stays with empty sets, so a restart
+		// that reads Redis now restores this segment as empty. Rare (count-mismatch repair only) and healed by the next resync
 		if err := w.DeleteSegmentKeys(s.Name); err != nil {
 			return fmt.Errorf("deleting keys of segment %q: %w", s.Name, err)
 		}
@@ -376,15 +386,12 @@ func (w *Writer) segmentIntact(s SegmentState) (bool, error) {
 	return intact, err
 }
 
-// purgeBatch returns the entries removed per PurgeScript call (Options.PurgeBatch, the default when unset)
+// purgeBatch returns the entries removed per PurgeScript call (Options.PurgeBatch, validated by NewWriter)
 func (w *Writer) purgeBatch() int64 {
-	if w.opts.PurgeBatch <= 0 {
-		return defaultPurgeBatch
-	}
 	return int64(w.opts.PurgeBatch)
 }
 
-// purge removes the expired removal markers (D27): the flag and rule-based segment removal indexes, then the tombstone
+// purge removes the expired removal markers: the flag and rule-based segment removal indexes, then the tombstone
 // index of every segment named in meta (a -1 cursor still names the segment). Each index is purged in PurgeScript calls
 // of at most PurgeBatch entries, repeated while a call removed a full batch. It checks stopped() between calls and
 // returns errStopped when the writer stops first. A fingerprint mismatch returns ErrEnvironmentMismatch and deletes nothing.
@@ -408,9 +415,13 @@ func (w *Writer) purge(fields map[string]string) error {
 		targets = append(targets, target{w.keys.SegmentKeys(name), "0"})
 	}
 	for _, t := range targets {
-		for {
+		for iter := 1; ; iter++ {
 			if w.stopped() {
 				return errStopped
+			}
+			if iter > maxPurgeIterations {
+				w.logger.Warning(fmt.Sprintf("redis state: expiry purge still had rows after %d batches, stopping until the next start", maxPurgeIterations))
+				break
 			}
 			err := w.retry("expiry purge", func() error {
 				return w.client.Eval(PurgeScript, slices.Concat(t.keys, []string{w.keys.PurgeLast()}), w.fingerprint, retention, batch, t.hasData)
@@ -430,12 +441,12 @@ func (w *Writer) purge(fields map[string]string) error {
 	return nil
 }
 
-// startupPurge is the expiry pass at writer start (D27): meta gives the fingerprint check and the segment names, then purge.
-// A purge that fails is logged and reruns at the next start (FL-11). It returns errStopped so the worker exits.
+// startupPurge is the expiry pass at writer start: meta gives the fingerprint check and the segment names, then purge.
+// A purge that fails is logged and reruns at the next start. It returns errStopped so the worker exits.
 func (w *Writer) startupPurge() error {
 	fields, err := w.readMeta()
 	if err != nil {
-		w.logger.Error(fmt.Sprintf("redis state: reading meta for the startup expiry purge failed, it reruns at the next start: %s", err.Error()))
+		w.logger.Error(fmt.Sprintf("redis state: reading meta for the startup expiry purge failed, it reruns at the next start: %v", err))
 		return nil
 	}
 	if fp, ok := fields[FingerprintField]; ok && fp != w.fingerprint {
@@ -448,12 +459,12 @@ func (w *Writer) startupPurge() error {
 		w.logger.Info("redis state: startup expiry purge cut short by Stop, it reruns at the next start")
 		return err
 	case err != nil:
-		w.logger.Error(fmt.Sprintf("redis state: the startup expiry purge stopped early, it reruns at the next start: %s", err.Error()))
+		w.logger.Error(fmt.Sprintf("redis state: the startup expiry purge stopped early, it reruns at the next start: %v", err))
 	}
 	return nil
 }
 
-// purgeLastCount returns the count of the last PurgeScript call. It uses GET, never HGETALL: the meta hash grows with segments (D40).
+// purgeLastCount returns the count of the last PurgeScript call. It uses GET, never HGETALL: the meta hash grows with segments.
 func (w *Writer) purgeLastCount() (int64, error) {
 	var raw string
 	err := w.retry("purge count read", func() error {

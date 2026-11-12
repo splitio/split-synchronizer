@@ -79,3 +79,21 @@ func TestParseTLSConfigMinVersion12(t *testing.T) {
 		assert.Equal(t, uint16(tls.VersionTLS12), cfg.MinVersion)
 	}
 }
+
+func TestParseRedisOptionsTrimsAddressLists(t *testing.T) {
+	sentinel, err := ParseRedisOptions(&conf.Redis{SentinelReplication: true, SentinelAddresses: "a:1, b:2", SentinelMaster: "m"})
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"a:1", "b:2"}, sentinel.SentinelAddresses)
+
+	cluster, err := ParseRedisOptions(&conf.Redis{ClusterMode: true, ClusterNodes: " a:1 ,,b:2, "})
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"a:1", "b:2"}, cluster.ClusterNodes)
+}
+
+func TestParseRedisOptionsEmptyAddressListsAreErrors(t *testing.T) {
+	_, err := ParseRedisOptions(&conf.Redis{SentinelReplication: true, SentinelAddresses: " , ", SentinelMaster: "m"})
+	assert.EqualError(t, err, "sentinel addresses must not be empty")
+
+	_, err = ParseRedisOptions(&conf.Redis{ClusterMode: true, ClusterNodes: ""})
+	assert.EqualError(t, err, "cluster nodes must not be empty")
+}

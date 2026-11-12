@@ -37,7 +37,11 @@ func TestConfigFingerprint(t *testing.T) {
 
 func TestMurmurHashOnAlphanumericData(t *testing.T) {
 	inFile, _ := os.Open("../../test/murmur/murmur3-sample-data-v2.csv")
-	defer inFile.Close()
+	defer func() {
+		if err := inFile.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
 
 	reader := csv.NewReader(bufio.NewReader(inFile))
 
@@ -65,7 +69,11 @@ func TestMurmurHashOnAlphanumericData(t *testing.T) {
 
 func TestMurmurHashOnNonAlphanumericData(t *testing.T) {
 	inFile, _ := os.Open("../../test/murmur/murmur3-sample-data-non-alpha-numeric-v2.csv")
-	defer inFile.Close()
+	defer func() {
+		if err := inFile.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
 
 	reader := csv.NewReader(bufio.NewReader(inFile))
 

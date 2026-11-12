@@ -55,14 +55,12 @@ func TestNewKeys(t *testing.T) {
 		assert.Equal(t, "flags.till", k.FlagCursorField())
 		assert.Equal(t, "rbs.till", k.RuleBasedSegmentCursorField())
 		assert.Equal(t, "seg.a.b.till", k.SegmentCursorField("a.b"))
-		assert.Equal(t, base+".*", k.Pattern())
 	})
 
 	t.Run("layout without prefix", func(t *testing.T) {
 		k, err := NewKeys("", "secret-api-key", "")
 		assert.Nil(t, err)
 		assert.Equal(t, "{SPLITIO_PROXY."+env+"}.meta", k.Meta())
-		assert.Equal(t, "{SPLITIO_PROXY."+env+"}.*", k.Pattern())
 	})
 
 	t.Run("stable and does not contain the api key", func(t *testing.T) {
@@ -72,7 +70,7 @@ func TestNewKeys(t *testing.T) {
 		assert.Nil(t, err2)
 		assert.Equal(t, k1, k2)
 		all := append(k1.SegmentKeys("x"), k1.FlagKeys()...)
-		all = append(all, k1.Pattern(), k1.Env())
+		all = append(all, k1.Env())
 		for _, key := range all {
 			assert.False(t, strings.Contains(key, "secret-api-key"))
 		}
@@ -156,7 +154,7 @@ func TestNewKeysDoesNotMatchSynchronizerNamespace(t *testing.T) {
 		assert.Nil(t, err)
 		all := append(k.SegmentKeys("x"), k.FlagKeys()...)
 		all = append(all, k.RuleBasedSegmentKeys()...)
-		all = append(all, k.Meta(), k.Pattern())
+		all = append(all, k.Meta())
 		for _, key := range all {
 			assert.False(t, strings.HasPrefix(key, "SPLITIO."), key)
 			if prefix != "" {

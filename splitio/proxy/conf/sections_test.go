@@ -101,36 +101,6 @@ func TestProxyRedisStateDefaults(t *testing.T) {
 	}
 }
 
-func TestRedisStateDefaults(t *testing.T) {
-	var m Main
-	if err := conf.PopulateDefaults(&m); err != nil {
-		t.Fatalf("PopulateDefaults returned error: %v", err)
-	}
-
-	rs := m.Storage.Redis
-	got := map[string]int64{
-		"writeMaxAttempts":  rs.WriteMaxAttempts,
-		"writeBackoffMaxMs": rs.WriteBackoffMaxMs,
-		"maxPendingChanges": rs.MaxPendingChanges,
-		"chunkSize":         rs.ChunkSize,
-		"purgeBatch":        rs.PurgeBatch,
-		"stopTimeoutMs":     rs.StopTimeoutMs,
-	}
-	want := map[string]int64{
-		"writeMaxAttempts":  3,
-		"writeBackoffMaxMs": 60000,
-		"maxPendingChanges": 3000000,
-		"chunkSize":         1000,
-		"purgeBatch":        500,
-		"stopTimeoutMs":     10000,
-	}
-	for name, w := range want {
-		if got[name] != w {
-			t.Errorf("redisState.%s: expected %d, got %d", name, w, got[name])
-		}
-	}
-}
-
 func TestProxyRedisStateHelpMatchesBehavior(t *testing.T) {
 	rt := reflect.TypeOf(RedisState{})
 
@@ -140,6 +110,14 @@ func TestProxyRedisStateHelpMatchesBehavior(t *testing.T) {
 	}
 	if desc := mpc.Tag.Get("s-desc"); strings.Contains(desc, "rewrites its whole state") {
 		t.Errorf("MaxPendingChanges s-desc is stale: %q", desc)
+	}
+
+	wma, ok := rt.FieldByName("WriteMaxAttempts")
+	if !ok {
+		t.Fatal("WriteMaxAttempts field not found")
+	}
+	if desc := wma.Tag.Get("s-desc"); strings.Contains(desc, "rounds repeat forever") || !strings.Contains(desc, "dropped") || !strings.Contains(desc, "next resync repairs") {
+		t.Errorf("WriteMaxAttempts s-desc must say the change is dropped and the next resync repairs it: %q", desc)
 	}
 
 	for _, name := range []string{"ChunkSize", "PurgeBatch", "StopTimeoutMs"} {

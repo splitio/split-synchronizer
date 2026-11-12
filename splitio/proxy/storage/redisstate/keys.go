@@ -41,8 +41,9 @@ var (
 
 // Keys builds every Redis key name used by the proxy state of one environment
 type Keys struct {
-	env  string
-	base string
+	env    string
+	prefix string
+	base   string
 }
 
 // NewKeys builds the key set for an environment. The environment id is the namespace when it is not
@@ -73,7 +74,7 @@ func NewKeys(prefix, apikey, namespace string) (Keys, error) {
 			return Keys{}, ErrReservedPrefix
 		}
 	}
-	return Keys{env: env, base: base}, nil
+	return Keys{env: env, prefix: prefix, base: base}, nil
 }
 
 // Env returns the environment id used in the key names
@@ -174,9 +175,4 @@ func (k Keys) SegmentCursorField(name string) string {
 // PurgeLast is the key of the count the last PurgeScript call removed. It shares the hash tag of the other keys.
 func (k Keys) PurgeLast() string {
 	return k.base + ".purgelast"
-}
-
-// Pattern returns the glob matching every key of this environment, used only by Reset
-func (k Keys) Pattern() string {
-	return k.base + ".*"
 }
