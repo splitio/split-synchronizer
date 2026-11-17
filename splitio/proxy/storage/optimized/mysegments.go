@@ -47,22 +47,15 @@ func (m *MySegmentsCacheImpl) SegmentsForUser(key string) []string {
 	return userSegments
 }
 
-// Update adds and removes segments to keys
+// Update adds and removes segments to keys. Removals are applied first so that
+// a key present in both lists ends up with the segment (add wins), matching Bolt
+// and go-split-commons.
 func (m *MySegmentsCacheImpl) Update(name string, toAdd *set.ThreadUnsafeSet, toRemove *set.ThreadUnsafeSet) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
 	invalidAdded := []string{}
 	invalidRemoved := []string{}
-	for _, addedKey := range toAdd.List() {
-		strKey, ok := addedKey.(string)
-		if !ok {
-			invalidAdded = append(invalidAdded, fmt.Sprintf("%T::%+v", addedKey, addedKey))
-			continue
-		}
-		m.addSegmentToUser(strKey, name)
-	}
-
 	for _, removedKey := range toRemove.List() {
 		strKey, ok := removedKey.(string)
 		if !ok {
@@ -70,6 +63,15 @@ func (m *MySegmentsCacheImpl) Update(name string, toAdd *set.ThreadUnsafeSet, to
 			continue
 		}
 		m.removeSegmentForUser(strKey, name)
+	}
+
+	for _, addedKey := range toAdd.List() {
+		strKey, ok := addedKey.(string)
+		if !ok {
+			invalidAdded = append(invalidAdded, fmt.Sprintf("%T::%+v", addedKey, addedKey))
+			continue
+		}
+		m.addSegmentToUser(strKey, name)
 	}
 
 	if len(invalidAdded) > 0 || len(invalidRemoved) > 0 {

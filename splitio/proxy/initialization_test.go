@@ -368,3 +368,51 @@ func TestRequestRedisResyncRepairsStartedWriter(t *testing.T) {
 	requestRedisResync(w)
 	waitForFlagCalls(t, src, 2)
 }
+
+func TestSecondResyncSkippedOnWarmBoot(t *testing.T) {
+	keys, err := redisstate.NewKeys("prefix", "apikey", "ns")
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := redisstate.NewWriter(resyncCountingClient{}, keys, "fingerprint", redisstate.DefaultOptions(), logging.NewLogger(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := &resyncCountingSource{}
+	if err := w.Start(src); err != nil {
+		t.Fatal(err)
+	}
+	defer w.Stop()
+
+	waitForFlagCalls(t, src, 1)
+	requestSecondResync(w, true)
+	time.Sleep(200 * time.Millisecond)
+	if got := atomic.LoadInt64(&src.flagCalls); got != 1 {
+		t.Fatalf("expected no second resync on warm boot, got %d source reads", got)
+	}
+}
+
+func TestSecondResyncRunsOnColdBoot(t *testing.T) {
+	keys, err := redisstate.NewKeys("prefix", "apikey", "ns")
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := redisstate.NewWriter(resyncCountingClient{}, keys, "fingerprint", redisstate.DefaultOptions(), logging.NewLogger(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := &resyncCountingSource{}
+	if err := w.Start(src); err != nil {
+		t.Fatal(err)
+	}
+	defer w.Stop()
+
+	waitForFlagCalls(t, src, 1)
+	requestSecondResync(w, false)
+	waitForFlagCalls(t, src, 2)
+}
+
+func TestSecondResyncNilWriter(t *testing.T) {
+	requestSecondResync(nil, true)
+	requestSecondResync(nil, false)
+}

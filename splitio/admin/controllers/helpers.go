@@ -7,6 +7,7 @@ import (
 
 	"github.com/splitio/go-split-commons/v10/storage"
 	"github.com/splitio/go-split-commons/v10/telemetry"
+	"github.com/splitio/go-toolkit/v5/datastructures/set"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/admin/views/dashboard"
 	"github.com/splitio/split-synchronizer/v5/splitio/producer/evcalc"
@@ -76,13 +77,6 @@ func bundleSegmentInfo(splitStorage storage.SplitStorage, segmentStorage storage
 	names := splitStorage.SegmentNames()
 	summaries := make([]dashboard.SegmentSummary, 0, names.Size())
 
-	// see if the segment storage is able to count segment keys and if so provide an appropriate function.
-	// otherwise, just return 0.
-	removedKeyCounter := func(segmentName string) int { return 0 }
-	if withRemovedKeyCount, ok := segmentStorage.(proxyStorage.ProxySegmentStorage); ok {
-		removedKeyCounter = func(segmentName string) int { return withRemovedKeyCount.CountRemovedKeys(segmentName) }
-	}
-
 	for _, name := range names.List() {
 		strName, ok := name.(string)
 		if !ok {
@@ -95,12 +89,12 @@ func bundleSegmentInfo(splitStorage storage.SplitStorage, segmentStorage storage
 			continue
 		}
 		cn, _ := segmentStorage.ChangeNumber(strName)
-		removed := removedKeyCounter(strName)
+		active, removed := countActiveKeys(keys)
 		summaries = append(summaries, dashboard.SegmentSummary{
 			Name:         strName,
-			ActiveKeys:   keys.Size(),
+			ActiveKeys:   active,
 			RemovedKeys:  removed,
-			TotalKeys:    keys.Size() + removed,
+			TotalKeys:    active + removed,
 			LastModified: time.Unix(0, cn*int64(time.Millisecond)).UTC().Format(time.UnixDate),
 		})
 	}
@@ -145,6 +139,20 @@ func bundleRuleBasedInfo(splitStorage storage.SplitStorage, ruleBasedSegmentStor
 		})
 	}
 	return summaries
+}
+
+// countActiveKeys returns the number of active and removed (tombstone) entries in a segment key set in a single
+// pass. The proxy's Keys returns persistent.SegmentKey entries including removed ones; plain string keys are
+// always active.
+func countActiveKeys(keys *set.ThreadUnsafeSet) (active int, removed int) {
+	for _, key := range keys.List() {
+		if k, ok := key.(persistent.SegmentKey); ok && k.Removed {
+			removed++
+			continue
+		}
+		active++
+	}
+	return active, removed
 }
 
 func bundleSegmentKeysInfo(name string, segmentStorage storage.SegmentStorageConsumer) []dashboard.SegmentKeySummary {

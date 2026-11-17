@@ -90,7 +90,7 @@ func (c *SegmentChangesCollectionImpl) Update(name string, toAdd *set.ThreadUnsa
 	for _, removedKey := range toRemove.List() {
 		strKey, ok := removedKey.(string)
 		if !ok {
-			c.logger.Error(fmt.Sprintf("skipping non-string key when updating segment %s: %+v", name, strKey))
+			c.logger.Error(fmt.Sprintf("skipping non-string key when updating segment %s: %T::%+v", name, removedKey, removedKey))
 			continue
 		}
 		c.logger.Debug("Removing", strKey, "from", name)
@@ -105,7 +105,7 @@ func (c *SegmentChangesCollectionImpl) Update(name string, toAdd *set.ThreadUnsa
 	for _, addedKey := range toAdd.List() {
 		strKey, ok := addedKey.(string)
 		if !ok {
-			c.logger.Error(fmt.Sprintf("skipping non-string key when updating segment %s: %+v", name, strKey))
+			c.logger.Error(fmt.Sprintf("skipping non-string key when updating segment %s: %T::%+v", name, addedKey, addedKey))
 			continue
 		}
 		c.logger.Debug("Adding", strKey, "in", name)

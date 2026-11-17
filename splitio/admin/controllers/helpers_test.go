@@ -11,6 +11,7 @@ import (
 	"github.com/splitio/go-toolkit/v5/datastructures/set"
 
 	proxyStorage "github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/persistent"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -98,4 +99,23 @@ func TestProxyCountedEndpointsHasNoDuplicates(t *testing.T) {
 		seen[res] = true
 	}
 	assert.True(t, seen[proxyStorage.ImpressionsCountBeaconEndpoint], "ImpressionsCountBeaconEndpoint must be counted")
+}
+
+func TestCountActiveKeysExcludesTombstones(t *testing.T) {
+	keys := set.NewSet()
+	keys.Add(persistent.SegmentKey{Name: "a", ChangeNumber: 1})
+	keys.Add(persistent.SegmentKey{Name: "b", ChangeNumber: 2})
+	keys.Add(persistent.SegmentKey{Name: "c", ChangeNumber: 3, Removed: true})
+	keys.Add("plain")
+	active, removed := countActiveKeys(keys)
+	if active != 3 {
+		t.Errorf("expected 3 active keys, got %d", active)
+	}
+	if removed != 1 {
+		t.Errorf("expected 1 removed key, got %d", removed)
+	}
+	active, removed = countActiveKeys(set.NewSet())
+	if active != 0 || removed != 0 {
+		t.Errorf("expected 0 active and 0 removed for empty set, got %d and %d", active, removed)
+	}
 }

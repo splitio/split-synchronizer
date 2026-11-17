@@ -215,7 +215,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	err = startBGSync(syncManager, mstatus, snapshotValid, func() {
 		logger.Info("Synchronizer tasks started")
 		// The writer's startup resync can run against an empty source on a cold boot, so repair it once sync has populated the storages.
-		requestRedisResync(redisWriter)
+		requestSecondResync(redisWriter, snapshotValid)
 		appMonitor.Start()
 		servicesMonitor.Start()
 		flagSetsAfterSanitize, _ := flagsets.SanitizeMany(cfg.FlagSetsFilter)
@@ -365,6 +365,14 @@ func requestRedisResync(w *redisstate.Writer) {
 	if w != nil {
 		w.RequestResync()
 	}
+}
+
+// requestSecondResync requests the post-sync repair resync only on a cold boot: a valid Bolt snapshot means the writer's startup resync already ran with full data.
+func requestSecondResync(w *redisstate.Writer, snapshotValid bool) {
+	if snapshotValid {
+		return
+	}
+	requestRedisResync(w)
 }
 
 func startBGSync(m synchronizer.Manager, mstatus chan int, haveSnapshot bool, onReady func()) error {

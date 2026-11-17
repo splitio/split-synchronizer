@@ -1,6 +1,8 @@
 package persistent
 
 import (
+	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/splitio/go-toolkit/v5/datastructures/set"
@@ -248,5 +250,67 @@ func TestSegmentChangesCollectionFetchDecodeErrorIsReturned(t *testing.T) {
 	}
 	if item != nil {
 		t.Errorf("expected no item on decode error, got %+v", item)
+	}
+}
+
+func TestSegmentUpdateAddWinsInBolt(t *testing.T) {
+	dbw, err := NewBoltWrapper(BoltInMemoryMode, nil)
+	if err != nil {
+		t.Error("error creating bolt wrapper: ", err)
+	}
+
+	logger := logging.NewLogger(nil)
+	segmentC := NewSegmentChangesCollection(dbw, logger)
+	segmentC.Update("s1", set.NewSet("k1"), set.NewSet("k1"), 1)
+
+	forS1, err := segmentC.Fetch("s1")
+	if err != nil {
+		t.Error("err shoud be nil: ", err)
+	}
+	if forS1 == nil {
+		t.Fatal("s1 should exist")
+	}
+	k1, ok := forS1.Keys["k1"]
+	if !ok {
+		t.Fatal("k1 should be present")
+	}
+	if k1.Removed {
+		t.Error("k1 should stay active when present in both lists (add wins)")
+	}
+}
+
+func TestUpdateSkipsNonStringKeysAndLogsOffendingValue(t *testing.T) {
+	dbw, err := NewBoltWrapper(BoltInMemoryMode, nil)
+	if err != nil {
+		t.Fatal("error creating bolt wrapper: ", err)
+	}
+
+	var errBuf bytes.Buffer
+	logger := logging.NewLogger(&logging.LoggerOptions{ErrorWriter: &errBuf})
+	segmentC := NewSegmentChangesCollection(dbw, logger)
+
+	// Non-string elements must not panic and must be skipped; valid keys must still be stored.
+	segmentC.Update("s1", set.NewSet("k1", 42), set.NewSet("k2", 7), 1)
+
+	forS1, err := segmentC.Fetch("s1")
+	if err != nil {
+		t.Fatal("err should be nil: ", err)
+	}
+	if len(forS1.Keys) != 2 {
+		t.Fatalf("expected 2 valid keys stored, got %d", len(forS1.Keys))
+	}
+	if forS1.Keys["k1"].Removed {
+		t.Error("k1 should not be removed")
+	}
+	if !forS1.Keys["k2"].Removed {
+		t.Error("k2 should be removed")
+	}
+
+	logged := errBuf.String()
+	if !strings.Contains(logged, "42") {
+		t.Errorf("expected error log to contain offending added value 42, got: %s", logged)
+	}
+	if !strings.Contains(logged, "7") {
+		t.Errorf("expected error log to contain offending removed value 7, got: %s", logged)
 	}
 }
