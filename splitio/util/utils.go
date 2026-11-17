@@ -20,9 +20,15 @@ func HashAPIKey(apikey string) uint32 {
 }
 
 // ConfigFingerprint returns the decimal fingerprint of the API key, flag spec version and flag sets.
-// It is the same value the synchronizer stores as its apikey hash.
+// The fields are joined with a NUL byte so field boundaries cannot collide. It differs from the legacy apikey hash
+// used by the Bolt based checks (HashAPIKey of the plain concatenation).
+//
+// The value is a 32-bit murmur hash, so two different configurations can collide (the same API key with different
+// flag sets is the case to watch). A collision is not detected: the Redis writer only compares fingerprints and
+// refuses to write when they differ (ErrEnvironmentMismatch), so a collision lets one configuration reuse the
+// other's state.
 func ConfigFingerprint(apikey, flagSpecVersion string, flagSets []string) string {
-	return strconv.Itoa(int(HashAPIKey(apikey + flagSpecVersion + strings.Join(flagSets, "::"))))
+	return strconv.Itoa(int(HashAPIKey(apikey + "\x00" + flagSpecVersion + "\x00" + strings.Join(flagSets, "::"))))
 }
 
 // GetClientKey accepts an apikey and extracts the "client-key" portion of it

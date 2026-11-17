@@ -344,27 +344,58 @@ func TestScriptSegmentAddRemoveTombstone(t *testing.T) {
 	assert.Equal(t, float64(5), d[sk[2]].Scores["k2"])
 }
 
-func TestSegmentTieRemovalWins(t *testing.T) {
-	tests := []struct {
-		name  string
-		calls [][2][]segKey
-	}{
-		{"add then remove in separate calls", [][2][]segKey{{{{"k", 5}}, nil}, {nil, {{"k", 5}}}}},
-		{"remove then add in separate calls", [][2][]segKey{{nil, {{"k", 5}}}, {{{"k", 5}}, nil}}},
-		{"add and remove in one call", [][2][]segKey{{{{"k", 5}}, {{"k", 5}}}}},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			e := newScriptEnv(t)
-			sk := e.keys.SegmentKeys("s")
-			for i, c := range tc.calls {
-				require.Nil(t, e.segment(testFp, "s", int64(i+1), c[0], c[1]))
-			}
-			d := e.dump()
-			assert.NotContains(t, d[sk[1]].Scores, "k")
-			assert.Equal(t, float64(5), d[sk[2]].Scores["k"])
-		})
-	}
+// A key in both lists of one call ends active: add wins within one response.
+func TestSegmentAddWinsSameCall(t *testing.T) {
+	e := newScriptEnv(t)
+	sk := e.keys.SegmentKeys("s")
+	require.Nil(t, e.segment(testFp, "s", noCursor, []segKey{{"k", 5}}, []segKey{{"k", 5}}))
+	d := e.dump()
+	assert.Equal(t, float64(5), d[sk[1]].Scores["k"], "active at cn")
+	assert.Empty(t, d[sk[2]].Scores, "no tombstone")
+	assert.Empty(t, d[sk[3]].Scores, "no segat entry")
+}
+
+// Across calls at an equal cn the existing state is kept: a replayed add never replaces a tombstone.
+func TestSegmentReplayAddAfterRemoveKeepsTombstone(t *testing.T) {
+	e := newScriptEnv(t)
+	sk := e.keys.SegmentKeys("s")
+	require.Nil(t, e.segment(testFp, "s", noCursor, nil, []segKey{{"k", 5}}))
+	require.Nil(t, e.segment(testFp, "s", noCursor, []segKey{{"k", 5}}, nil))
+	d := e.dump()
+	assert.Empty(t, d[sk[1]].Scores, "no active key")
+	assert.Equal(t, float64(5), d[sk[2]].Scores["k"], "tombstone kept")
+}
+
+// Across calls at an equal cn the existing state is kept: a replayed removal never replaces an active key.
+func TestSegmentReplayRemoveAfterAddKeepsActive(t *testing.T) {
+	e := newScriptEnv(t)
+	sk := e.keys.SegmentKeys("s")
+	require.Nil(t, e.segment(testFp, "s", noCursor, []segKey{{"k", 5}}, nil))
+	require.Nil(t, e.segment(testFp, "s", noCursor, nil, []segKey{{"k", 5}}))
+	d := e.dump()
+	assert.Equal(t, float64(5), d[sk[1]].Scores["k"], "active kept")
+	assert.Empty(t, d[sk[2]].Scores, "no tombstone")
+}
+
+// A higher cn wins in either direction; a lower cn is ignored.
+func TestSegmentHigherCnWinsLowerIgnored(t *testing.T) {
+	e := newScriptEnv(t)
+	sk := e.keys.SegmentKeys("s")
+	require.Nil(t, e.segment(testFp, "s", noCursor, []segKey{{"k", 5}}, nil))
+	require.Nil(t, e.segment(testFp, "s", noCursor, nil, []segKey{{"k", 6}}))
+	d := e.dump()
+	assert.Empty(t, d[sk[1]].Scores, "removal at the higher cn")
+	assert.Equal(t, float64(6), d[sk[2]].Scores["k"])
+
+	require.Nil(t, e.segment(testFp, "s", noCursor, []segKey{{"k", 4}}, nil))
+	d = e.dump()
+	assert.Empty(t, d[sk[1]].Scores, "a lower add is ignored")
+	assert.Equal(t, float64(6), d[sk[2]].Scores["k"], "tombstone unchanged by a lower add")
+
+	require.Nil(t, e.segment(testFp, "s", noCursor, []segKey{{"k", 7}}, nil))
+	d = e.dump()
+	assert.Equal(t, float64(7), d[sk[1]].Scores["k"], "a higher add wins")
+	assert.Empty(t, d[sk[2]].Scores, "tombstone removed by the higher add")
 }
 
 func TestScriptSegmentTombstoneExpires(t *testing.T) {
@@ -573,7 +604,7 @@ func TestWriterCrashBetweenSegmentChunks(t *testing.T) {
 	d := e.dump()
 	assert.Equal(t, map[string]float64{"k1": 1}, d[sk[1]].Scores)
 	assert.Equal(t, "-1", d[sk[0]].Fields["seg.seg.one.till"], "partially written segment keeps cursor -1")
-	assert.True(t, ErrorHasMarker(e.client.Eval(SegmentCheckScript, sk, 1, "seg.one"), countMismatchMarker), "a partially written segment is treated as missing")
+	assert.True(t, ErrorHasMarker(e.client.Eval(SegmentCheckScript, sk, 1, "seg.one", 0), countMismatchMarker), "a partially written segment is treated as missing")
 
 	require.Nil(t, e.segment(testFp, "seg.one", 1, []segKey{{"k2", 1}}, nil))
 	d = e.dump()
@@ -654,12 +685,12 @@ func TestScriptSegmentCheckDetectsMissingKeys(t *testing.T) {
 	e := newScriptEnv(t)
 	sk := e.keys.SegmentKeys("seg.one")
 
-	err := e.client.Eval(SegmentCheckScript, sk, 0, "seg.one")
+	err := e.client.Eval(SegmentCheckScript, sk, 0, "seg.one", 0)
 	assert.True(t, ErrorHasMarker(err, countMismatchMarker), "unknown segment")
 
 	require.Nil(t, e.segment(testFp, "seg.one", 1, []segKey{{"k1", 1}, {"k2", 1}}, nil))
-	assert.Nil(t, e.client.Eval(SegmentCheckScript, sk, 2, "seg.one"))
-	err = e.client.Eval(SegmentCheckScript, sk, 3, "seg.one")
+	assert.Nil(t, e.client.Eval(SegmentCheckScript, sk, 2, "seg.one", 0))
+	err = e.client.Eval(SegmentCheckScript, sk, 3, "seg.one", 0)
 	assert.True(t, ErrorHasMarker(err, countMismatchMarker), "count differs")
 }
 
@@ -692,7 +723,7 @@ func TestSegmentCheckUsesCursorField(t *testing.T) {
 	e := newScriptEnv(t)
 	sk := e.keys.SegmentKeys("seg.one")
 	field := e.keys.SegmentCursorField("seg.one")
-	check := func(count int64) error { return e.client.Eval(SegmentCheckScript, sk, count, "seg.one") }
+	check := func(count int64) error { return e.client.Eval(SegmentCheckScript, sk, count, "seg.one", 0) }
 
 	require.Nil(t, e.client.Eval(`redis.call('ZADD', KEYS[1], 1, 'k1') return 1`, sk[1:2]))
 	assert.True(t, ErrorHasMarker(check(1), countMismatchMarker), "cursor field missing")
@@ -705,7 +736,7 @@ func TestSegmentCheckUsesCursorField(t *testing.T) {
 	assert.True(t, ErrorHasMarker(check(2), countMismatchMarker), "count differs")
 
 	require.Nil(t, e.segment(testFp, "seg.empty", 4, nil, nil))
-	assert.Nil(t, e.client.Eval(SegmentCheckScript, e.keys.SegmentKeys("seg.empty"), 0, "seg.empty"), "empty segment with cursor >= 0 is intact")
+	assert.Nil(t, e.client.Eval(SegmentCheckScript, e.keys.SegmentKeys("seg.empty"), 0, "seg.empty", 0), "empty segment with cursor >= 0 is intact")
 
 	for _, n := range e.names() {
 		assert.False(t, strings.HasSuffix(n, ".segments"), "no .segments key: %s", n)
@@ -782,14 +813,14 @@ func TestSegmentTieAcrossChunks(t *testing.T) {
 	require.Nil(t, e.segment(testFp, "seg.add", noCursor, []segKey{{"k1", 5}}, nil))
 	require.Nil(t, e.segment(testFp, "seg.add", 5, nil, []segKey{{"k1", 5}}))
 	d := e.dump()
-	assert.Empty(t, d[addThenRemove[1]].Scores, "removal wins on an equal cn")
-	assert.Equal(t, map[string]float64{"k1": 5}, d[addThenRemove[2]].Scores)
+	assert.Equal(t, map[string]float64{"k1": 5}, d[addThenRemove[1]].Scores, "the existing add stays on an equal cn")
+	assert.Empty(t, d[addThenRemove[2]].Scores)
 
 	removeThenAdd := e.keys.SegmentKeys("seg.rem")
 	require.Nil(t, e.segment(testFp, "seg.rem", noCursor, nil, []segKey{{"k2", 5}}))
 	require.Nil(t, e.segment(testFp, "seg.rem", 5, []segKey{{"k2", 5}}, nil))
 	d = e.dump()
-	assert.Empty(t, d[removeThenAdd[1]].Scores, "removal wins in the reverse order too")
+	assert.Empty(t, d[removeThenAdd[1]].Scores, "the existing tombstone stays on an equal cn")
 	assert.Equal(t, map[string]float64{"k2": 5}, d[removeThenAdd[2]].Scores)
 
 	lower := e.keys.SegmentKeys("seg.low")
@@ -813,8 +844,8 @@ func TestSegmentTieAcrossChunks(t *testing.T) {
 	assert.Equal(t, segEval{cursor: 5, rems: []string{"k4"}}, rc.calls[2], "the last chunk is the remove and carries the cursor")
 	chunk := e.keys.SegmentKeys("seg.chunk")
 	d = e.dump()
-	assert.Equal(t, map[string]float64{"k5": 5}, d[chunk[1]].Scores, "removal wins on an equal cn across chunks")
-	assert.Equal(t, map[string]float64{"k4": 5}, d[chunk[2]].Scores)
+	assert.Equal(t, map[string]float64{"k4": 5, "k5": 5}, d[chunk[1]].Scores, "the add of k4 stays active on an equal cn across chunks")
+	assert.Empty(t, d[chunk[2]].Scores, "no tombstone")
 }
 
 func TestRetentionUsesRedisTime(t *testing.T) {
@@ -846,7 +877,7 @@ func TestPartialRewriteKeepsCursorButFailsCheck(t *testing.T) {
 	require.Nil(t, e.segment(testFp, "seg.one", 100, []segKey{{"k1", 1}, {"k2", 1}}, nil))
 	require.Nil(t, e.segment(testFp, "seg.one", noCursor, []segKey{{"k3", 2}}, nil))
 	assert.Equal(t, "100", e.dump()[sk[0]].Fields[field], "a partial rewrite keeps the old cursor")
-	assert.True(t, ErrorHasMarker(e.client.Eval(SegmentCheckScript, sk, 4, "seg.one"), countMismatchMarker), "the full count of 4 fails against 3 keys")
+	assert.True(t, ErrorHasMarker(e.client.Eval(SegmentCheckScript, sk, 4, "seg.one", 0), countMismatchMarker), "the full count of 4 fails against 3 keys")
 }
 
 func TestFrozenNewSegmentCursorMinusOneCheck(t *testing.T) {
@@ -855,11 +886,11 @@ func TestFrozenNewSegmentCursorMinusOneCheck(t *testing.T) {
 
 	require.Nil(t, e.segment(testFp, "seg.new", noCursor, []segKey{{"k1", 1}}, nil))
 	for i := 0; i < 2; i++ {
-		assert.True(t, ErrorHasMarker(e.client.Eval(SegmentCheckScript, sk, 1, "seg.new"), countMismatchMarker), "startup check %d asks for a rewrite", i)
+		assert.True(t, ErrorHasMarker(e.client.Eval(SegmentCheckScript, sk, 1, "seg.new", 0), countMismatchMarker), "startup check %d asks for a rewrite", i)
 	}
 
 	require.Nil(t, e.segment(testFp, "seg.new", 3, []segKey{{"k1", 1}}, nil))
-	assert.Nil(t, e.client.Eval(SegmentCheckScript, sk, 1, "seg.new"), "a clean write sets the cursor and the check passes")
+	assert.Nil(t, e.client.Eval(SegmentCheckScript, sk, 1, "seg.new", 0), "a clean write sets the cursor and the check passes")
 }
 
 func TestPurgeRefusesForeignFingerprint(t *testing.T) {
@@ -954,4 +985,28 @@ func TestScriptPurgeRetentionBoundary(t *testing.T) {
 func TestClassifyMisconfIsTransient(t *testing.T) {
 	err := errors.New("MISCONF Redis is configured to save RDB snapshots, but it's currently unable to persist to disk. Commands that may modify the data set are disabled.")
 	assert.Equal(t, errTransient, classify(err))
+}
+
+func TestSegmentCheckDetectsTombstoneCountDifference(t *testing.T) {
+	e := newScriptEnv(t)
+	sk := e.keys.SegmentKeys("seg.one")
+
+	require.Nil(t, e.segment(testFp, "seg.one", 5, []segKey{{"k1", 1}, {"k2", 1}}, []segKey{{"r1", 2}}))
+	assert.Nil(t, e.client.Eval(SegmentCheckScript, sk, 2, "seg.one", 1), "matching active and tombstone counts")
+	assert.True(t, ErrorHasMarker(e.client.Eval(SegmentCheckScript, sk, 2, "seg.one", 0), countMismatchMarker), "equal active count, Redis holds one tombstone more")
+	assert.True(t, ErrorHasMarker(e.client.Eval(SegmentCheckScript, sk, 2, "seg.one", 2), countMismatchMarker), "equal active count, Redis holds one tombstone fewer (a lost removal)")
+}
+
+func TestSegmentCheckBadTombstoneArg(t *testing.T) {
+	e := newScriptEnv(t)
+	sk := e.keys.SegmentKeys("seg.one")
+
+	require.Nil(t, e.segment(testFp, "seg.one", 5, []segKey{{"k1", 1}}, nil))
+	for name, args := range map[string][]interface{}{
+		"missing":     {1, "seg.one"},
+		"not integer": {1, "seg.one", "x"},
+	} {
+		err := e.client.Eval(SegmentCheckScript, sk, args...)
+		assert.True(t, ErrorHasMarker(err, BadArgsMarker), name)
+	}
 }

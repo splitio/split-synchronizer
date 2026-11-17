@@ -14,7 +14,7 @@ import (
 
 func TestConfigFingerprint(t *testing.T) {
 	inline := func(apikey, spec string, flagSets []string) string {
-		return strconv.Itoa(int(HashAPIKey(apikey + spec + strings.Join(flagSets, "::"))))
+		return strconv.Itoa(int(HashAPIKey(apikey + "\x00" + spec + "\x00" + strings.Join(flagSets, "::"))))
 	}
 
 	fp := ConfigFingerprint("key-1", "1.3", []string{"set_a", "set_b"})
@@ -32,6 +32,15 @@ func TestConfigFingerprint(t *testing.T) {
 	}
 	if ConfigFingerprint("", "", nil) != inline("", "", nil) {
 		t.Error("empty inputs must still match the inline expression")
+	}
+}
+
+func TestConfigFingerprintFieldBoundary(t *testing.T) {
+	if ConfigFingerprint("ab", "c1", nil) == ConfigFingerprint("abc", "1", nil) {
+		t.Error("apikey/spec boundary must not collide: (ab,c1) vs (abc,1)")
+	}
+	if ConfigFingerprint("k", "1.3", []string{"a"}) == ConfigFingerprint("k1.3", "", []string{"a"}) {
+		t.Error("apikey/spec boundary must not collide: (k,1.3) vs (k1.3,)")
 	}
 }
 

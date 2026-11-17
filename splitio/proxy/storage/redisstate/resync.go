@@ -334,9 +334,7 @@ func (w *Writer) syncSegment(s SegmentState, field string, fields map[string]str
 			return nil
 		}
 		w.logger.Warning(fmt.Sprintf("redis state: segment %s has a current cursor but a different key count in Redis, rewriting it", s.Name))
-		// the rewrite only adds keys, so the keys Redis holds beyond the source are deleted first.
-		// Known window: until the rewrite lands, the committed cursor stays with empty sets, so a restart
-		// that reads Redis now restores this segment as empty. Rare (count-mismatch repair only) and healed by the next resync
+		// the rewrite only adds keys, so the keys Redis holds beyond the source are deleted first, and the cursor is reset to -1 in the same call so no restart sees a current cursor over a partial segment.
 		if err := w.DeleteSegmentKeys(s.Name); err != nil {
 			return fmt.Errorf("deleting keys of segment %q: %w", s.Name, err)
 		}
@@ -367,11 +365,11 @@ func toSegmentKeys(m map[string]int64) []segmentKey {
 	return out
 }
 
-// segmentIntact reports whether Redis registers the segment and holds as many active keys as the local state
+// segmentIntact reports whether Redis registers the segment and holds as many active keys and tombstones as the local state
 func (w *Writer) segmentIntact(s SegmentState) (bool, error) {
 	intact := false
 	err := w.retry("segment check", func() error {
-		e := w.client.Eval(SegmentCheckScript, w.keys.SegmentKeys(s.Name), len(s.Active), s.Name)
+		e := w.client.Eval(SegmentCheckScript, w.keys.SegmentKeys(s.Name), len(s.Active), s.Name, len(s.Removed))
 		if ErrorHasMarker(e, countMismatchMarker) {
 			return nil
 		}

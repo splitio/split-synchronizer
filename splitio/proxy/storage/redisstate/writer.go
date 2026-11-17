@@ -513,17 +513,15 @@ func (w *Writer) deleteKnown() error {
 	return err
 }
 
-// DeleteSegmentKeys deletes the active, tombstone and removal clock keys of one segment and no other key, meta included.
-// The segment write that follows rewrites the cursor. It uses the worker's retry state, so call it before Start or from the worker (resync) only.
+// DeleteSegmentKeys deletes the active, tombstone and removal clock keys of one segment and resets its cursor to -1
+// in the same script, so a restart never reads a current cursor over a partial segment. No other key is touched.
+// The segment write that follows rewrites the segment. It uses the worker's retry state, so call it before Start or from the worker (resync) only.
 func (w *Writer) DeleteSegmentKeys(name string) error {
 	if !validSegmentName(name) {
 		return ErrInvalidSegmentName
 	}
-	u := w.keys.Unprefixed()
-	keys := []string{u.SegmentActive(name), u.SegmentTombstones(name), u.SegmentRemovalClock(name)}
 	return w.retry("segment key delete", func() error {
-		_, err := w.client.Del(keys...)
-		return err
+		return w.client.Eval(SegmentRepairScript, w.keys.SegmentKeys(name), w.keys.SegmentCursorField(name))
 	})
 }
 
@@ -574,12 +572,17 @@ func (w *Writer) PutSegment(name string, toAdd, toRemove []string, cn int64) {
 		return
 	}
 	adds := make([]segmentKey, len(toAdd))
+	added := make(map[string]struct{}, len(toAdd))
 	for i, k := range toAdd {
 		adds[i] = segmentKey{key: k, cn: cn}
+		added[k] = struct{}{}
 	}
-	rems := make([]segmentKey, len(toRemove))
-	for i, k := range toRemove {
-		rems[i] = segmentKey{key: k, cn: cn}
+	rems := make([]segmentKey, 0, len(toRemove))
+	for _, k := range toRemove {
+		if _, both := added[k]; both {
+			continue
+		}
+		rems = append(rems, segmentKey{key: k, cn: cn})
 	}
 	w.enqueue(&change{kind: kindSegment, cn: cn, segment: name, adds: adds, rems: rems, size: len(adds) + len(rems)})
 }
@@ -868,8 +871,8 @@ func (q *change) mergeRuleBased(c *change) {
 	q.size = len(q.rbs)
 }
 
-// mergeKeys merges a segment change into q (same segment name). Per key the higher cn wins; at an equal cn the removal
-// wins whatever the order of arrival (same rule as the Lua scripts in script.go).
+// mergeKeys merges a segment change into q (same segment name). Per key the higher cn wins; at an equal cn the
+// existing entry stays whatever the order of arrival (same rule as the Lua scripts in script.go).
 func (q *change) mergeKeys(c *change) {
 	q.indexKeys()
 	for _, k := range c.rems {
@@ -881,8 +884,8 @@ func (q *change) mergeKeys(c *change) {
 	q.size = len(q.adds) + len(q.rems)
 }
 
-// putKey stores k in the add or removal list of q. An entry with a lower cn is replaced. At an equal cn the removal
-// wins: an add never replaces an existing entry, and a removal replaces an add.
+// putKey stores k in the add or removal list of q. Only a higher cn replaces an existing entry; at an equal cn the
+// existing entry stays, whether it is an add or a removal.
 func (q *change) putKey(k segmentKey, add bool) {
 	p, ok := q.pos[k.key]
 	if !ok {
@@ -895,7 +898,7 @@ func (q *change) putKey(k segmentKey, add bool) {
 	} else {
 		cur = q.rems[p.idx]
 	}
-	if k.cn < cur.cn || (k.cn == cur.cn && add) {
+	if k.cn <= cur.cn {
 		return
 	}
 	if p.add == add {

@@ -3003,36 +3003,59 @@ func TestEnqueueCoalescesSegmentChanges(t *testing.T) {
 	for _, k := range s.rems {
 		rems[k.key] = k.cn
 	}
-	assert.Len(t, s.adds, 1, "no key is listed twice")
-	assert.Equal(t, map[string]int64{"k1": 5}, adds, "equal cn: removal wins; k3 and k4 stay removed, and the add of k4 in the same change does not replace it")
-	assert.Equal(t, map[string]int64{"k2": 6, "k3": 5, "k4": 5}, rems, "higher cn removes k2; the lower cn add at 4 is ignored")
+	assert.Len(t, s.adds, 2, "no key is listed twice")
+	assert.Equal(t, map[string]int64{"k1": 5, "k4": 5}, adds, "k4 is added in its own change; the add of k3 at the same cn does not replace its removal")
+	assert.Equal(t, map[string]int64{"k2": 6, "k3": 5}, rems, "higher cn removes k2; the lower cn add at 4 is ignored; k3 stays removed at the equal cn")
 	assert.Equal(t, int64(6), s.cn, "the change number of the merged change is the max")
 	assert.Equal(t, 4, s.size, "size is the merged distinct key count")
 	assert.Equal(t, 5, wtQueuedSize(e.w), "queuedSize is 4 merged keys plus 1 key of the other segment")
 }
 
-// At an equal change number the removal wins whatever the arrival order, the same rule as the Lua script
-func TestEnqueueSegmentTieRemovalWinsBothOrders(t *testing.T) {
-	cases := map[string]func(w *Writer){
-		"add then removal": func(w *Writer) {
-			w.PutSegment("s", []string{"k"}, nil, 5)
-			w.PutSegment("s", nil, []string{"k"}, 5)
+// A key in both lists of one PutSegment is queued only as an add: add wins within one response.
+func TestPutSegmentKeyInBothListsAddWins(t *testing.T) {
+	e := newWtEnv(t, wtOptions())
+	e.w.PutSegment("s", []string{"k"}, []string{"k"}, 5)
+	q := wtQueued(e.w)
+	require.Len(t, q, 1)
+	require.Len(t, q[0].adds, 1)
+	assert.Equal(t, segmentKey{key: "k", cn: 5}, q[0].adds[0])
+	assert.Empty(t, q[0].rems, "the removal of the same key is not queued")
+	assert.Equal(t, 1, q[0].size)
+}
+
+// At an equal change number the existing entry stays whatever the arrival order
+func TestEnqueueSegmentTieKeepsExistingBothOrders(t *testing.T) {
+	cases := map[string]struct {
+		first, second func(w *Writer)
+		keptAdd       bool
+	}{
+		"add then removal": {
+			first:   func(w *Writer) { w.PutSegment("s", []string{"k"}, nil, 5) },
+			second:  func(w *Writer) { w.PutSegment("s", nil, []string{"k"}, 5) },
+			keptAdd: true,
 		},
-		"removal then add": func(w *Writer) {
-			w.PutSegment("s", nil, []string{"k"}, 5)
-			w.PutSegment("s", []string{"k"}, nil, 5)
+		"removal then add": {
+			first:  func(w *Writer) { w.PutSegment("s", nil, []string{"k"}, 5) },
+			second: func(w *Writer) { w.PutSegment("s", []string{"k"}, nil, 5) },
 		},
 	}
-	for name, put := range cases {
+	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			e := newWtEnv(t, wtOptions())
-			put(e.w)
+			tc.first(e.w)
+			tc.second(e.w)
 			q := wtQueued(e.w)
 			require.Len(t, q, 1)
-			assert.Empty(t, q[0].adds, "the add at the tied change number is not kept")
-			require.Len(t, q[0].rems, 1)
-			assert.Equal(t, segmentKey{key: "k", cn: 5}, q[0].rems[0], "the removal wins at the tied change number")
 			assert.Equal(t, 1, q[0].size)
+			if tc.keptAdd {
+				assert.Empty(t, q[0].rems, "the removal at the equal cn does not replace the add")
+				require.Len(t, q[0].adds, 1)
+				assert.Equal(t, segmentKey{key: "k", cn: 5}, q[0].adds[0])
+				return
+			}
+			assert.Empty(t, q[0].adds, "the add at the equal cn does not replace the removal")
+			require.Len(t, q[0].rems, 1)
+			assert.Equal(t, segmentKey{key: "k", cn: 5}, q[0].rems[0])
 		})
 	}
 }

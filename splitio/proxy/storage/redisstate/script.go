@@ -110,6 +110,7 @@ return 1
 const RuleBasedSegmentScript = FlagScript
 
 // SegmentScript atomically applies key additions, removals (tombstones) and the cursor of one segment.
+// A key in both lists of one call ends active (add wins). Across calls a tie at an equal cn keeps the existing state.
 // KEYS come from Keys.SegmentKeys.
 const SegmentScript = luaPrelude + `-- KEYS: 1 meta, 2 active zset, 3 removed zset, 4 segat zset (removal ms)
 -- ARGV: 1 fingerprint, 2 retentionMs, 3 name, 4 cursorField, 5 cursor, 6 nAdd, 7 nRemove, then nAdd pairs (key, cn), then nRemove pairs (key, cn)
@@ -145,25 +146,31 @@ redis.call('HSET', KEYS[1], 'updatedAtMs', now)
 if redis.call('HEXISTS', KEYS[1], ARGV[4]) == 0 then
   redis.call('HSET', KEYS[1], ARGV[4], '-1')
 end
-for i = 0, nAdd - 1 do
-  local key = ARGV[8 + 2 * i]
-  local cn = tonumber(ARGV[9 + 2 * i])
-  local cur = math.max(tonumber(redis.call('ZSCORE', KEYS[2], key) or '-1'), tonumber(redis.call('ZSCORE', KEYS[3], key) or '-1'))
-  if cn > cur then
-    redis.call('ZADD', KEYS[2], cn, key)
-    redis.call('ZREM', KEYS[3], key)
-    redis.call('ZREM', KEYS[4], key)
-  end
-end
+-- Conflict rule for keys (add wins within one call):
+--   removals run first; a removal applies only when cn > cur, and the keys it applies to are remembered in removedNow.
+--   adds run second; an add applies when cn > cur, or when cn == cur and the same call removed the key (add wins).
+--   Across calls a tie at an equal cn keeps the existing state: a replayed add never replaces a tombstone at cn,
+--   and a replayed removal never replaces an active key at cn. A lower cn is always ignored.
+local removedNow = {}
 for i = 0, nRem - 1 do
   local key = ARGV[base + 1 + 2 * i]
   local cn = tonumber(ARGV[base + 2 + 2 * i])
   local cur = math.max(tonumber(redis.call('ZSCORE', KEYS[2], key) or '-1'), tonumber(redis.call('ZSCORE', KEYS[3], key) or '-1'))
-  -- on a change number tie the removal wins; a tombstone already at cn is not rewritten
-  if cn > cur or (cn == cur and redis.call('ZSCORE', KEYS[3], key) == false) then
+  if cn > cur then
     redis.call('ZADD', KEYS[3], cn, key)
     redis.call('ZADD', KEYS[4], now, key)
     redis.call('ZREM', KEYS[2], key)
+    removedNow[key] = true
+  end
+end
+for i = 0, nAdd - 1 do
+  local key = ARGV[8 + 2 * i]
+  local cn = tonumber(ARGV[9 + 2 * i])
+  local cur = math.max(tonumber(redis.call('ZSCORE', KEYS[2], key) or '-1'), tonumber(redis.call('ZSCORE', KEYS[3], key) or '-1'))
+  if cn > cur or (cn == cur and removedNow[key]) then
+    redis.call('ZADD', KEYS[2], cn, key)
+    redis.call('ZREM', KEYS[3], key)
+    redis.call('ZREM', KEYS[4], key)
   end
 end
 local till = tonumber(redis.call('HGET', KEYS[1], ARGV[4]))
@@ -183,10 +190,16 @@ return 1
 const countMismatchMarker = "PROXY_COUNT_MISMATCH"
 
 // SegmentCheckScript fails with PROXY_COUNT_MISMATCH unless the cursor field of the segment is present and not
-// -1, and its active key count is ARGV[1]. KEYS come from Keys.SegmentKeys, ARGV[2] is the segment name.
-const SegmentCheckScript = `-- KEYS: 1 meta, 2 active zset, 3 removed zset, 4 segat zset
+// -1, its active key count is ARGV[1] and its tombstone count is ARGV[3]. KEYS come from Keys.SegmentKeys, ARGV[2] is
+// the segment name. Comparing the tombstone count too catches a swap that keeps the active count (a lost removal leaves
+// one tombstone fewer); it is a count, not a member checksum.
+const SegmentCheckScript = luaPrelude + `-- KEYS: 1 meta, 2 active zset, 3 removed zset, 4 segat zset
+-- ARGV: 1 active count, 2 segment name, 3 tombstone count
+if #ARGV ~= 3 or not isint(ARGV[1]) or not isint(ARGV[3]) then
+  return redis.error_reply('PROXY_BAD_ARGS')
+end
 local till = redis.call('HGET', KEYS[1], 'seg.' .. ARGV[2] .. '.till')
-if not till or tonumber(till) < 0 or redis.call('ZCARD', KEYS[2]) ~= tonumber(ARGV[1]) then
+if not till or tonumber(till) < 0 or redis.call('ZCARD', KEYS[2]) ~= tonumber(ARGV[1]) or redis.call('ZCARD', KEYS[3]) ~= tonumber(ARGV[3]) then
   return redis.error_reply('PROXY_COUNT_MISMATCH')
 end
 return 1
@@ -198,6 +211,17 @@ const SegmentDropScript = luaPrelude + `-- KEYS: 1 meta, 2 active zset, 3 remove
 checkMeta(KEYS[1])
 redis.call('DEL', KEYS[2], KEYS[3], KEYS[4])
 redis.call('HDEL', KEYS[1], 'seg.' .. ARGV[1] .. '.till')
+return 1
+`
+
+// SegmentRepairScript deletes the keys of one segment and sets its cursor field to -1 in one atomic call, so no restart
+// can read a current cursor over a partially deleted segment. KEYS come from Keys.SegmentKeys, ARGV[1] is the cursor
+// field of the segment (Keys.SegmentCursorField).
+const SegmentRepairScript = luaPrelude + `-- KEYS: 1 meta, 2 active zset, 3 removed zset, 4 segat zset
+-- ARGV: 1 cursorField
+checkMeta(KEYS[1])
+redis.call('DEL', KEYS[2], KEYS[3], KEYS[4])
+redis.call('HSET', KEYS[1], ARGV[1], '-1')
 return 1
 `
 

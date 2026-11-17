@@ -222,11 +222,12 @@ func TestResyncRewritesSegmentWithCurrentCursorButMissingKeys(t *testing.T) {
 	if err := e.w.Start(src); err != nil {
 		t.Fatal(err)
 	}
-	wtWaitUntil(t, "the rewrite", func() bool { return e.client.count() == 3 && e.w.Status().PendingChanges == 0 })
+	wtWaitUntil(t, "the rewrite", func() bool { return e.client.count() == 4 && e.w.Status().PendingChanges == 0 })
 	e.stop()
 
 	assert.Len(t, e.client.checks, 1)
-	assert.Equal(t, SegmentScript, e.client.evals()[2].script)
+	assert.Equal(t, SegmentRepairScript, e.client.evals()[2].script, "the repair deletes the keys and resets the cursor in one call")
+	assert.Equal(t, SegmentScript, e.client.evals()[3].script)
 }
 
 // segDoneSource closes done once the segment listing has finished, which is after the last segment was written
@@ -1026,13 +1027,85 @@ func TestDeleteSegmentKeysLeavesOthers(t *testing.T) {
 	assert.Equal(t, map[string]float64{"q": 6}, d[s2[2]].Scores)
 	assert.Contains(t, d, s2[3])
 	meta := d[e.keys.Meta()].Fields
-	assert.Contains(t, meta, e.keys.SegmentCursorField("s1"), "meta is not touched")
-	assert.Contains(t, meta, e.keys.SegmentCursorField("s2"))
+	assert.Equal(t, "-1", meta[e.keys.SegmentCursorField("s1")], "the cursor of s1 is reset to -1")
+	assert.Equal(t, "6", meta[e.keys.SegmentCursorField("s2")], "the cursor of s2 is untouched")
 
 	for _, name := range []string{"s*", "", "a[b]"} {
 		assert.ErrorIs(t, w.DeleteSegmentKeys(name), ErrInvalidSegmentName, name)
 	}
 	assert.Equal(t, map[string]float64{"b": 6}, e.dump()[s2[1]].Scores, "an invalid name deletes nothing")
+}
+
+// the repair deletes the keys of one segment and resets its cursor to -1 in the same script; the other segment and the
+// fingerprint are untouched
+func TestRepairResetsCursorWithDelete(t *testing.T) {
+	e := newScriptEnv(t)
+	require.NoError(t, e.segment(wtFingerprint, "s1", 100, []segKey{{"a", 5}}, []segKey{{"r", 5}}))
+	require.NoError(t, e.segment(wtFingerprint, "s2", 6, []segKey{{"b", 6}}, []segKey{{"q", 6}}))
+	w, _ := newRealWriter(t, e, wtOptions())
+	before := e.dump()[e.keys.Meta()].Fields
+	require.NoError(t, w.DeleteSegmentKeys("s1"))
+
+	d := e.dump()
+	s1, s2 := e.keys.SegmentKeys("s1"), e.keys.SegmentKeys("s2")
+	for _, k := range s1[1:] {
+		assert.NotContains(t, d, k, "the keys of s1 are deleted")
+	}
+	assert.Equal(t, map[string]float64{"b": 6}, d[s2[1]].Scores)
+	want := map[string]string{}
+	for k, v := range before {
+		want[k] = v
+	}
+	want[e.keys.SegmentCursorField("s1")] = "-1"
+	assert.Equal(t, want, d[e.keys.Meta()].Fields, "only the cursor of s1 changes in meta")
+}
+
+// a meta key of another type makes the repair script fail with the typed marker, and it deletes nothing
+func TestRepairScriptWrongTypeMeta(t *testing.T) {
+	e := newScriptEnv(t)
+	require.NoError(t, e.segment(wtFingerprint, "s1", 5, []segKey{{"a", 5}}, []segKey{{"r", 5}}))
+	opts := wtOptions()
+	opts.MaxAttempts = 2
+	opts.BackoffMaxWait = 10 * time.Millisecond
+	w, _ := newRealWriter(t, e, opts)
+	require.NoError(t, e.client.Eval("return redis.call('SET', KEYS[1], 'x')", []string{e.keys.Meta()}))
+
+	err := w.DeleteSegmentKeys("s1")
+	assert.True(t, ErrorHasMarker(err, MetaWrongTypeMarker), "meta WRONGTYPE must return the typed marker, got %v", err)
+	s1 := e.keys.SegmentKeys("s1")
+	for _, k := range s1[1:] {
+		assert.Contains(t, e.names(), k, "a refused repair deletes nothing: %s", k)
+	}
+}
+
+// segFailClient fails the segment write and passes every other script through
+type segFailClient struct {
+	*redis.PrefixedRedisClient
+}
+
+func (c *segFailClient) Eval(script string, keys []string, args ...interface{}) error {
+	if script == SegmentScript {
+		return errors.New("injected segment write failure")
+	}
+	return c.PrefixedRedisClient.Eval(script, keys, args...)
+}
+
+// a segment with a current cursor but a wrong key count is repaired: when the rewrite then fails, the cursor stays -1
+// in Redis, so a restart does not read the partial segment as current
+func TestRepairCountMismatchSurvivesFailedRewrite(t *testing.T) {
+	e := newScriptEnv(t)
+	require.NoError(t, e.segment(wtFingerprint, "s", 100, []segKey{{"a", 5}, {"b", 5}}, nil))
+	opts := wtOptions()
+	opts.MaxAttempts = 2
+	opts.BackoffMaxWait = 10 * time.Millisecond
+	w, err := NewWriter(&segFailClient{PrefixedRedisClient: e.client}, e.keys, wtFingerprint, opts, &wtLogger{})
+	require.NoError(t, err)
+	t.Cleanup(w.Stop)
+
+	fields := e.dump()[e.keys.Meta()].Fields
+	seg := SegmentState{Name: "s", Active: map[string]int64{"a": 5}, ChangeNumber: 5}
+	require.Error(t, w.syncSegment(seg, e.keys.SegmentCursorField("s"), fields, false))
+	assert.Equal(t, "-1", e.dump()[e.keys.Meta()].Fields[e.keys.SegmentCursorField("s")])
 }
 
 // a key Redis holds beyond the source's members of a listed segment (same cursor, extra member) is removed by the
@@ -1228,4 +1301,12 @@ func TestResyncRewritesSegmentAfterDroppedWrite(t *testing.T) {
 	wtWaitUntil(t, "the resync rewrites the frozen segment", func() bool {
 		return e.dump()[e.keys.SegmentKeys("s")[1]].Scores["x"] == 6
 	})
+}
+
+func TestSegmentIntactSendsTombstoneCount(t *testing.T) {
+	e := newWtEnv(t, wtOptions())
+	_, err := e.w.segmentIntact(SegmentState{Name: "up", Active: map[string]int64{"a": 1}, Removed: map[string]int64{"r1": 2, "r2": 3}, ChangeNumber: 3})
+	require.NoError(t, err)
+	require.Len(t, e.client.checks, 1)
+	assert.Equal(t, []interface{}{1, "up", 2}, e.client.checks[0].args, "active count, name, tombstone count")
 }
