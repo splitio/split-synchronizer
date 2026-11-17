@@ -319,7 +319,9 @@ func (s *BootState) skipSegment(name, reason string) {
 	s.SkipReasons[name] = reason
 }
 
-// retryTorn repeats an entity group read on errTorn only, up to tornReadAttempts. Other errors return at once.
+// retryTorn repeats an entity group read on errTorn only, up to tornReadAttempts. Other errors return at once. After the
+// last attempt a torn flag or rule-based segment group fails the boot, while a torn user segment is skipped (recorded in
+// SkipReasons) and resynced from the origin.
 func (r *Reader) retryTorn(ctx context.Context, read func() error) error {
 	var err error
 	for attempt := 1; attempt <= tornReadAttempts; attempt++ {
@@ -355,7 +357,7 @@ type segmentRead struct {
 
 // readSegments reads the named segments, up to r.parallelism at a time, and delivers them to the sink one at a time in
 // the order given, so the sink and the boot state need no locking and the result does not depend on timing. The
-// window of started but undelivered segments is r.parallelism, which bounds memory. The first error in delivery
+// next segment starts before the current one is delivered, so at most r.parallelism+1 segment payloads are resident, which bounds memory. The first error in delivery
 // order cancels the segments still being read and is returned after they stop.
 func (r *Reader) readSegments(ctx context.Context, meta map[string]string, names []string, sink RestoreSink, retain bool, state *BootState) error {
 	if len(names) == 0 {

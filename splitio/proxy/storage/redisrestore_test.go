@@ -634,6 +634,8 @@ func TestRestoreSinkBoltFailureIsReturned(t *testing.T) {
 // in redisstate, but this one reads into a RedisRestoreSink backed by an in-memory Bolt.
 // PROXY_BENCH_RETAIN=1 keeps all segments, then restores (the retained path).
 // PROXY_BENCH_SEGMENTS and PROXY_BENCH_KEYS set the size (default 5 x 20k).
+// PROXY_BENCH_FLAGS sets the flag count (positive int, default 20). Flag 0 references the segments; the other flags
+// carry a whitelist matcher and are about 500 bytes of JSON each.
 
 const benchFingerprint = "restore-bench-fp"
 
@@ -690,9 +692,9 @@ func benchReaderBootIntoBolt(b *testing.B, segments, keysPerSeg int) {
 		segNames[s] = fmt.Sprintf("seg-%03d", s)
 		matchers[s] = dtos.MatcherDTO{UserDefinedSegment: &dtos.UserDefinedSegmentMatcherDataDTO{SegmentName: segNames[s]}}
 	}
-	flags := make([]dtos.SplitDTO, 0, 20)
+	flags := make([]dtos.SplitDTO, 0, benchFlagCount())
 	for i := 0; i < cap(flags); i++ {
-		flags = append(flags, dtos.SplitDTO{Name: fmt.Sprintf("flag-%03d", i), Status: "ACTIVE", ChangeNumber: int64(i + 1)})
+		flags = append(flags, benchFlagSized(i))
 	}
 	flags[0].Conditions = []dtos.ConditionDTO{{MatcherGroup: dtos.MatcherGroupDTO{Matchers: matchers}}}
 	w.PutFlags(flags, nil, int64(len(flags)))
@@ -891,4 +893,30 @@ func TestApplyCommittedCursorsNegativeFlagCursorIsSkipped(t *testing.T) {
 	flagCN, err := st.splits.ChangeNumber()
 	require.Nil(t, err)
 	assert.Equal(t, int64(9), flagCN, "a negative flag cursor must not overwrite the restored change number")
+}
+
+// benchFlagCount returns PROXY_BENCH_FLAGS when it is a positive int, otherwise 20.
+func benchFlagCount() int {
+	if n, err := strconv.Atoi(os.Getenv("PROXY_BENCH_FLAGS")); err == nil && n > 0 {
+		return n
+	}
+	return 20
+}
+
+// benchFlagSized builds flag i. Flag 0 gets its conditions from the caller. Other flags get a whitelist matcher with
+// 12 user keys so the serialized flag is about 500 bytes.
+func benchFlagSized(i int) dtos.SplitDTO {
+	d := dtos.SplitDTO{Name: fmt.Sprintf("flag-%06d", i), Status: "ACTIVE", ChangeNumber: int64(i + 1)}
+	if i == 0 {
+		return d
+	}
+	users := make([]string, 12)
+	for u := range users {
+		users[u] = fmt.Sprintf("user-%04d-%010d", i%10000, u)
+	}
+	d.Conditions = []dtos.ConditionDTO{{MatcherGroup: dtos.MatcherGroupDTO{Combiner: "AND", Matchers: []dtos.MatcherDTO{{
+		MatcherType: "WHITELIST",
+		Whitelist:   &dtos.WhitelistMatcherDataDTO{Whitelist: users},
+	}}}}}
+	return d
 }
