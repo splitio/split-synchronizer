@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -18,6 +19,7 @@ import (
 	pconf "github.com/splitio/split-synchronizer/v5/splitio/proxy/conf"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/redisstate"
 	"github.com/splitio/split-synchronizer/v5/splitio/util"
+	"github.com/stretchr/testify/assert"
 )
 
 type syncManagerMock struct {
@@ -385,7 +387,7 @@ func TestSecondResyncSkippedOnWarmBoot(t *testing.T) {
 	defer w.Stop()
 
 	waitForFlagCalls(t, src, 1)
-	requestSecondResync(w, true)
+	requestSecondResync(w, true, time.Second, logging.NewLogger(nil))
 	time.Sleep(200 * time.Millisecond)
 	if got := atomic.LoadInt64(&src.flagCalls); got != 1 {
 		t.Fatalf("expected no second resync on warm boot, got %d source reads", got)
@@ -408,11 +410,124 @@ func TestSecondResyncRunsOnColdBoot(t *testing.T) {
 	defer w.Stop()
 
 	waitForFlagCalls(t, src, 1)
-	requestSecondResync(w, false)
+	requestSecondResync(w, false, time.Second, logging.NewLogger(nil))
 	waitForFlagCalls(t, src, 2)
 }
 
 func TestSecondResyncNilWriter(t *testing.T) {
-	requestSecondResync(nil, true)
-	requestSecondResync(nil, false)
+	requestSecondResync(nil, true, time.Second, logging.NewLogger(nil))
+	requestSecondResync(nil, false, time.Second, logging.NewLogger(nil))
+}
+
+// dropRecordingClient reports a segment that only Redis knows about and records every drop script call
+type dropRecordingClient struct {
+	resyncCountingClient
+	mtx   sync.Mutex
+	drops []string
+}
+
+func (c *dropRecordingClient) Eval(script string, keys []string, args ...interface{}) error {
+	if script == redisstate.SegmentDropScript {
+		c.mtx.Lock()
+		c.drops = append(c.drops, fmt.Sprint(args[len(args)-1]))
+		c.mtx.Unlock()
+	}
+	return nil
+}
+
+func (c *dropRecordingClient) HGetAll(key string) (map[string]string, error) {
+	return map[string]string{"seg.unfetched.till": "5"}, nil
+}
+
+func (c *dropRecordingClient) dropped() []string {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	return append([]string(nil), c.drops...)
+}
+
+// partialSource lists one fetched segment while "unfetched" is still missing, as a cold boot does mid-sync
+type partialSource struct{ resyncCountingSource }
+
+func (s *partialSource) Segments(visit func(redisstate.SegmentState) error) error {
+	return visit(redisstate.SegmentState{Name: "fetched", Active: map[string]int64{"k": 1}, Removed: map[string]int64{}, ChangeNumber: 1})
+}
+
+func TestGatedSourceIsEmptyUntilOpened(t *testing.T) {
+	gate := newSourceGate(false)
+	src := gate.wrap(&partialSource{})
+
+	flags, cn, err := src.Flags()
+	assert.NoError(t, err)
+	assert.Empty(t, flags)
+	assert.EqualValues(t, 0, cn)
+	visited := 0
+	assert.NoError(t, src.Segments(func(redisstate.SegmentState) error { visited++; return nil }))
+	assert.Equal(t, 0, visited)
+
+	gate.open()
+	assert.NoError(t, src.Segments(func(redisstate.SegmentState) error { visited++; return nil }))
+	assert.Equal(t, 1, visited)
+	assert.True(t, newSourceGate(true).isOpen())
+}
+
+func TestColdBootResyncBeforeSyncCompletesDoesNotDropUnfetchedSegments(t *testing.T) {
+	keys, err := redisstate.NewKeys("prefix", "apikey", "ns")
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := &dropRecordingClient{}
+	w, err := redisstate.NewWriter(client, keys, "fingerprint", redisstate.DefaultOptions(), logging.NewLogger(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	gate := newSourceGate(false)
+	src := &partialSource{}
+	if err := w.Start(gate.wrap(src)); err != nil {
+		t.Fatal(err)
+	}
+	defer w.Stop()
+
+	// the startup resync and an overflow style resync both run while the sync is still in progress
+	w.RequestResync()
+	time.Sleep(300 * time.Millisecond)
+	assert.Empty(t, client.dropped(), "a resync on a partial source must not delete segments")
+
+	// once the sync is complete the same resync is allowed to drop what the source does not list
+	gate.open()
+	w.RequestResync()
+	deadline := time.Now().Add(3 * time.Second)
+	for len(client.dropped()) == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	assert.Equal(t, []string{"unfetched"}, client.dropped())
+}
+
+func TestSecondResyncWaitsForQueueAndExpires(t *testing.T) {
+	keys, err := redisstate.NewKeys("prefix", "apikey", "ns")
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := redisstate.NewWriter(resyncCountingClient{}, keys, "fingerprint", redisstate.DefaultOptions(), logging.NewLogger(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := &resyncCountingSource{}
+	if err := w.Start(src); err != nil {
+		t.Fatal(err)
+	}
+	defer w.Stop()
+	waitForFlagCalls(t, src, 1)
+
+	// an empty queue returns at once and requests the resync
+	start := time.Now()
+	requestSecondResync(w, false, 2*time.Second, logging.NewLogger(nil))
+	assert.Less(t, time.Since(start), time.Second)
+	waitForFlagCalls(t, src, 2)
+
+	// a bound that expires still requests the resync, and logs it
+	var buf strings.Builder
+	logger := logging.NewLogger(&logging.LoggerOptions{LogLevel: logging.LevelWarning, WarningWriter: &buf})
+	requestSecondResyncWith(w, false, 50*time.Millisecond, logger, func() bool { return false })
+	assert.Contains(t, buf.String(), "queue did not drain")
+	waitForFlagCalls(t, src, 3)
 }

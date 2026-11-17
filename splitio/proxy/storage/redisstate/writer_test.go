@@ -4575,3 +4575,26 @@ func TestWriterWrongTypeKeyIsPermanentAndBounded(t *testing.T) {
 	assert.Contains(t, joined, DataWrongTypeMarker)
 	_ = cfg
 }
+
+func TestStartWarnsWhenAnotherWriterMayShareTheNamespace(t *testing.T) {
+	warnsOf := func(updatedAt func(now time.Time) string) []string {
+		e := newWtEnv(t, wtOptions())
+		if v := updatedAt(e.clock.Now()); v != "" {
+			e.client.meta = map[string]string{UpdatedAtField: v}
+		}
+		require.NoError(t, e.w.Start(nil))
+		e.stop()
+		e.log.mu.Lock()
+		defer e.log.mu.Unlock()
+		return append([]string(nil), e.log.warns...)
+	}
+	ms := func(tm time.Time) string { return strconv.FormatInt(tm.UnixMilli(), 10) }
+
+	recent := warnsOf(func(now time.Time) string { return ms(now.Add(-5 * time.Second)) })
+	require.Len(t, recent, 1)
+	assert.Contains(t, recent[0], "another writer")
+
+	assert.Empty(t, warnsOf(func(now time.Time) string { return ms(now.Add(-time.Hour)) }), "an old updatedAtMs is a restart, not a second writer")
+	assert.Empty(t, warnsOf(func(time.Time) string { return "" }), "an absent updatedAtMs is a fresh namespace")
+	assert.Empty(t, warnsOf(func(time.Time) string { return "not-a-number" }), "an unparsable updatedAtMs is ignored")
+}

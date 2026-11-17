@@ -2,7 +2,9 @@ package persistent
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/splitio/go-toolkit/v5/datastructures/set"
@@ -250,6 +252,65 @@ func TestSegmentChangesCollectionFetchDecodeErrorIsReturned(t *testing.T) {
 	}
 	if item != nil {
 		t.Errorf("expected no item on decode error, got %+v", item)
+	}
+}
+
+type signalingCollection struct {
+	CollectionWrapper
+	fetched chan struct{}
+	once    sync.Once
+}
+
+func (s *signalingCollection) FetchBy(key []byte) ([]byte, error) {
+	data, err := s.CollectionWrapper.FetchBy(key)
+	s.once.Do(func() { close(s.fetched) })
+	return data, err
+}
+
+func TestSegmentChangesCollectionFetchDoesNotHoldLockWhileDecoding(t *testing.T) {
+	dbw, err := NewBoltWrapper(BoltInMemoryMode, nil)
+	if err != nil {
+		t.Fatal("error creating bolt wrapper: ", err)
+	}
+	logger := logging.NewLogger(nil)
+	segmentC := NewSegmentChangesCollection(dbw, logger)
+
+	keys := set.NewSet()
+	for i := 0; i < 200000; i++ {
+		keys.Add(fmt.Sprintf("key-%d", i))
+	}
+	if err := segmentC.Update("big", keys, set.NewSet(), 1); err != nil {
+		t.Fatal("error seeding segment: ", err)
+	}
+
+	signaling := &signalingCollection{CollectionWrapper: segmentC.collection, fetched: make(chan struct{})}
+	segmentC.collection = signaling
+
+	type result struct {
+		item *SegmentChangesItem
+		err  error
+	}
+	fetchDone := make(chan result, 1)
+	go func() {
+		item, err := segmentC.Fetch("big")
+		fetchDone <- result{item, err}
+	}()
+
+	<-signaling.fetched
+	segmentC.SetChangeNumber("big", 2)
+
+	select {
+	case <-fetchDone:
+		t.Fatal("SetChangeNumber acquired the lock only after Fetch finished decoding: decode ran while the RLock was held")
+	default:
+	}
+
+	res := <-fetchDone
+	if res.err != nil {
+		t.Fatal("unexpected fetch error: ", res.err)
+	}
+	if res.item == nil || len(res.item.Keys) != 200000 {
+		t.Fatalf("expected 200000 keys in fetched item, got %v", res.item)
 	}
 }
 

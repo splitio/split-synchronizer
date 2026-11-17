@@ -127,16 +127,25 @@ func (c *SegmentChangesCollectionImpl) Update(name string, toAdd *set.ThreadUnsa
 // Fetch return a SegmentChangesItem
 func (c *SegmentChangesCollectionImpl) Fetch(name string) (*SegmentChangesItem, error) {
 	c.mutex.RLock()
-	defer c.mutex.RUnlock()
-	return c.fetch(name)
+	item, err := c.collection.FetchBy([]byte(name))
+	c.mutex.RUnlock()
+	if err != nil {
+		return nil, err
+	}
+	return decodeSegmentItem(name, item)
 }
 
+// fetch must be called with c.mutex held (read or write)
 func (c *SegmentChangesCollectionImpl) fetch(name string) (*SegmentChangesItem, error) {
 	item, err := c.collection.FetchBy([]byte(name))
 	if err != nil {
 		return nil, err
 	}
+	return decodeSegmentItem(name, item)
+}
 
+// decodeSegmentItem decodes gob bytes returned by FetchBy. It does not touch shared state.
+func decodeSegmentItem(name string, item []byte) (*SegmentChangesItem, error) {
 	var decodeBuffer bytes.Buffer
 	decodeBuffer.Write(item)
 	dec := gob.NewDecoder(&decodeBuffer)

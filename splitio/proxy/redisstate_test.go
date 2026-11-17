@@ -84,7 +84,7 @@ func TestSetupRedisStateDisabled(t *testing.T) {
 	cfg := redisStateTestConfig(t)
 	cfg.Storage.Redis.Enabled = false
 
-	writer, err := setupRedisState(cfg, logging.NewLogger(nil), nil, nil, nil)
+	writer, err := setupRedisState(cfg, logging.NewLogger(nil), nil, nil, nil, nil)
 	assert.NoError(t, err)
 	assert.True(t, writer == nil)
 }
@@ -115,7 +115,7 @@ func TestSetupRedisStateInvalidConfig(t *testing.T) {
 			cfg := redisStateTestConfig(t)
 			tc.setup(cfg)
 
-			writer, err := setupRedisState(cfg, logging.NewLogger(nil), nil, nil, nil)
+			writer, err := setupRedisState(cfg, logging.NewLogger(nil), nil, nil, nil, nil)
 			assert.True(t, writer == nil)
 			assertInitError(t, err, common.ExitInvalidConfiguration)
 		})
@@ -147,7 +147,7 @@ func TestSetupRedisStateRejectsNonPositiveSettings(t *testing.T) {
 			cfg := redisStateTestConfig(t)
 			tc.setup(cfg)
 
-			writer, err := setupRedisState(cfg, logging.NewLogger(nil), nil, nil, nil)
+			writer, err := setupRedisState(cfg, logging.NewLogger(nil), nil, nil, nil, nil)
 			assert.True(t, writer == nil)
 			assertInitError(t, err, common.ExitInvalidConfiguration)
 		})
@@ -168,7 +168,7 @@ func TestSetupRedisStateRetentionHoursOverflow(t *testing.T) {
 			cfg := redisStateTestConfig(t)
 			cfg.Storage.Redis.RetentionHours = tc.hours
 
-			writer, err := setupRedisState(cfg, logging.NewLogger(nil), nil, nil, nil)
+			writer, err := setupRedisState(cfg, logging.NewLogger(nil), nil, nil, nil, nil)
 			assert.True(t, writer == nil)
 			assertInitError(t, err, common.ExitInvalidConfiguration)
 		})
@@ -191,7 +191,7 @@ func TestSetupRedisStateRejectsNonPositiveRetrySettings(t *testing.T) {
 			cfg := redisStateTestConfig(t)
 			tc.setup(cfg)
 
-			writer, err := setupRedisState(cfg, logging.NewLogger(nil), nil, nil, nil)
+			writer, err := setupRedisState(cfg, logging.NewLogger(nil), nil, nil, nil, nil)
 			assert.True(t, writer == nil)
 			assertInitError(t, err, common.ExitInvalidConfiguration)
 		})
@@ -221,7 +221,7 @@ func TestSetupRedisStateRejectsOutOfRangeRetryAndConnectionSettings(t *testing.T
 			cfg := redisStateTestConfig(t)
 			tc.setup(cfg)
 
-			writer, err := setupRedisState(cfg, logging.NewLogger(nil), nil, nil, nil)
+			writer, err := setupRedisState(cfg, logging.NewLogger(nil), nil, nil, nil, nil)
 			assert.True(t, writer == nil)
 			assertInitError(t, err, common.ExitInvalidConfiguration)
 		})
@@ -243,7 +243,7 @@ func TestRedisStateLimitsFollowWriterLimits(t *testing.T) {
 			cfg := redisStateTestConfig(t)
 			tc.setup(cfg)
 
-			writer, err := setupRedisState(cfg, logging.NewLogger(nil), nil, nil, nil)
+			writer, err := setupRedisState(cfg, logging.NewLogger(nil), nil, nil, nil, nil)
 			assert.True(t, writer == nil)
 			assertInitError(t, err, common.ExitInvalidConfiguration)
 		})
@@ -324,7 +324,7 @@ func TestSetupRedisStateStartFailureIsInitError(t *testing.T) {
 
 		logger, splits, rbs, segments := newRedisStateTestStorages(t)
 		cfg := redisStateTestConfig(t)
-		writer, err := setupRedisState(cfg, logger, splits, rbs, segments)
+		writer, err := setupRedisState(cfg, logger, splits, rbs, segments, nil)
 		assert.True(t, writer == nil)
 		assertInitError(t, err, common.ExitRedisInitializationFailed)
 		if err != nil {
@@ -338,7 +338,7 @@ func TestSetupRedisStateStartFailureIsInitError(t *testing.T) {
 		cfg.Storage.Redis.Connection.Host = "127.0.0.1"
 		cfg.Storage.Redis.Connection.Port = fakeRedisProbeFailureServer(t)
 
-		writer, err := setupRedisState(cfg, logger, splits, rbs, segments)
+		writer, err := setupRedisState(cfg, logger, splits, rbs, segments, nil)
 		assert.True(t, writer == nil)
 		initErr, ok := err.(*common.InitializationError)
 		if !assert.True(t, ok, "start failure must be returned unwrapped, got %T: %v", err, err) {
@@ -363,7 +363,7 @@ func TestSetupRedisStateUnreachable(t *testing.T) {
 	cfg.Storage.Redis.Connection.Host = "127.0.0.1"
 	cfg.Storage.Redis.Connection.Port = port
 
-	writer, err := setupRedisState(cfg, logging.NewLogger(nil), nil, nil, nil)
+	writer, err := setupRedisState(cfg, logging.NewLogger(nil), nil, nil, nil, nil)
 	assert.True(t, writer == nil)
 	assertInitError(t, err, common.ExitRedisInitializationFailed)
 }
@@ -379,7 +379,7 @@ func TestSetupRedisStateWiresStorages(t *testing.T) {
 	segments := storage.NewProxySegmentStorage(db, logger, false)
 
 	cfg := redisStateTestConfig(t)
-	writer, err := setupRedisState(cfg, logger, splits, rbs, segments)
+	writer, err := setupRedisState(cfg, logger, splits, rbs, segments, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -447,7 +447,7 @@ func TestSetupRedisStateStopOnShutdown(t *testing.T) {
 	segments := storage.NewProxySegmentStorage(db, logger, false)
 
 	cfg := redisStateTestConfig(t)
-	writer, err := setupRedisState(cfg, logger, splits, rbs, segments)
+	writer, err := setupRedisState(cfg, logger, splits, rbs, segments, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -672,7 +672,7 @@ func TestSetupRedisStateRejectsInvalidNamespaceBeforeConnecting(t *testing.T) {
 	logger, splits, rbs, segments := newRedisStateTestStorages(t)
 	cfg := redisStateTestConfig(t)
 	cfg.Storage.Redis.Namespace = "bad namespace!"
-	writer, err := setupRedisState(cfg, logger, splits, rbs, segments)
+	writer, err := setupRedisState(cfg, logger, splits, rbs, segments, nil)
 	assert.True(t, writer == nil)
 	assertInitError(t, err, common.ExitInvalidConfiguration)
 	assert.False(t, connected, "invalid namespace must be rejected before the Redis client is created")

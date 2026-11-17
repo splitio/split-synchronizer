@@ -69,7 +69,7 @@ type Storage struct {
 // RedisState configuration options (the proxy writes its state to Redis; read support comes later)
 type RedisState struct {
 	Enabled           bool       `json:"enabled" s-cli:"redis-state-enabled" s-def:"false" s-desc:"Write the proxy state to Redis"`
-	Namespace         string     `json:"namespace" s-cli:"redis-state-namespace" s-def:"" s-desc:"Optional readable name for this environment in Redis (letters, digits, - and _); default is a hash of the API key"`
+	Namespace         string     `json:"namespace" s-cli:"redis-state-namespace" s-def:"" s-desc:"Optional readable name for this environment in Redis (letters, digits, - and _); default is a hash of the API key, so proxies with the same API key share it. Only one proxy may write to a namespace: give each writer its own"`
 	RetentionHours    int64      `json:"retentionHours" s-cli:"redis-state-retention-hours" s-def:"168" s-desc:"How long removed flags and segment keys stay in Redis"`
 	WriteMaxAttempts  int64      `json:"writeMaxAttempts" s-cli:"redis-state-write-max-attempts" s-def:"3" s-desc:"Attempts per Redis write before the change is dropped; the next resync repairs a dropped change"`
 	WriteBackoffMaxMs int64      `json:"writeBackoffMaxMs" s-cli:"redis-state-write-backoff-max-ms" s-def:"60000" s-desc:"Maximum wait between Redis write attempts"`

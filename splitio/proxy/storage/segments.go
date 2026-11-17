@@ -152,6 +152,9 @@ func (s *ProxySegmentStorageImpl) Update(name string, toAdd *set.ThreadUnsafeSet
 	errCache := s.mysegments.Update(name, toAdd, toRemove)
 	errDB := s.db.Update(name, toAdd, toRemove, changeNumber)
 	if s.redis != nil {
+		// Equal change numbers: if two separate calls carry the same cn for one segment (not reachable in practice,
+		// the fetcher advances cn on every change), Bolt and mySegments keep the last arrival while Redis keeps the
+		// state it already holds.
 		s.redis.PutSegment(name, stringsFrom(toAdd), stringsFrom(toRemove), changeNumber)
 	}
 	if errCache == nil && errDB == nil {
@@ -236,13 +239,13 @@ func stringsFrom(s *set.ThreadUnsafeSet) []string {
 	if s == nil {
 		return nil
 	}
-	items := s.List()
-	out := make([]string, 0, len(items))
-	for _, item := range items {
+	out := make([]string, 0, s.Size())
+	s.Each(func(item interface{}) bool {
 		if str, ok := item.(string); ok {
 			out = append(out, str)
 		}
-	}
+		return true
+	})
 	return out
 }
 

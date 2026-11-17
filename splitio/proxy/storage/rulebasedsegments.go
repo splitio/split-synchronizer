@@ -214,10 +214,12 @@ func (p *ProxyRuleBasedSegmentsStorageImpl) Update(toAdd []dtos.RuleBasedSegment
 	p.snapshot.Update(toAdd, toRemove, changeNumber)
 	p.historic.Update(toAdd, toRemove, changeNumber)
 	p.db.Update(toAdd, toRemove, changeNumber)
-	if p.redis != nil {
-		p.redis.PutRuleBasedSegments(toAdd, toRemove, changeNumber)
-	}
+	redis := p.redis
 	p.mtx.Unlock()
+	// enqueue to the Redis writer outside the lock so the sink never blocks storage readers
+	if redis != nil {
+		redis.PutRuleBasedSegments(toAdd, toRemove, changeNumber)
+	}
 	return nil
 }
 

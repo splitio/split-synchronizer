@@ -38,7 +38,7 @@ func TestResyncWritesFullStateFromSource(t *testing.T) {
 	e.stop()
 
 	// a resync reads meta, then the flag and rule-based segment data hashes
-	assert.Equal(t, []string{e.w.keys.MetaUnprefixed(), e.w.keys.Unprefixed().FlagData(), e.w.keys.Unprefixed().RuleBasedSegmentData()}, e.client.hgetKeys(), "meta is read once per resync, then the flag and rule-based segment hashes")
+	assert.Equal(t, []string{e.w.keys.MetaUnprefixed(), e.w.keys.MetaUnprefixed(), e.w.keys.Unprefixed().FlagData(), e.w.keys.Unprefixed().RuleBasedSegmentData()}, e.client.hgetKeys(), "Start reads meta once for the shared namespace check, then the resync reads meta, the flag and the rule-based segment hashes")
 	assert.Equal(t, int64(0), e.w.Status().Resyncs, "the startup resync is not counted")
 
 	calls := e.client.evals()
@@ -121,7 +121,7 @@ func TestResyncSkipsUpToDateSegments(t *testing.T) {
 	}
 	assert.Equal(t, map[string]bool{"behind": true, "bogus": true, "absent": true}, written)
 	// the resync reads meta, then the flag and rule-based segment hashes, before it decides which segments to skip
-	assert.Equal(t, []string{e.w.keys.MetaUnprefixed(), e.w.keys.Unprefixed().FlagData(), e.w.keys.Unprefixed().RuleBasedSegmentData()}, e.client.hgetKeys())
+	assert.Equal(t, []string{e.w.keys.MetaUnprefixed(), e.w.keys.MetaUnprefixed(), e.w.keys.Unprefixed().FlagData(), e.w.keys.Unprefixed().RuleBasedSegmentData()}, e.client.hgetKeys())
 }
 
 func TestResyncDetectsMismatchBeforeWriting(t *testing.T) {

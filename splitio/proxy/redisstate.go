@@ -3,6 +3,7 @@ package proxy
 import (
 	"fmt"
 	"math"
+	"sync/atomic"
 	"time"
 
 	"github.com/splitio/go-toolkit/v5/logging"
@@ -14,6 +15,7 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/redisstate"
 	"github.com/splitio/split-synchronizer/v5/splitio/util"
 
+	"github.com/splitio/go-split-commons/v10/dtos"
 	commonredis "github.com/splitio/go-split-commons/v10/storage/redis"
 )
 
@@ -102,7 +104,8 @@ var newRedisStateClient = commonredis.NewRedisClient
 
 // setupRedisState builds the Redis writer that mirrors the proxy state. It returns (nil, nil) when the
 // feature is disabled. The writer is started (after an optional fresh-startup reset) before it is returned.
-func setupRedisState(cfg *pconf.Main, logger logging.LoggerInterface, splits *storage.ProxySplitStorageImpl, rbs *storage.ProxyRuleBasedSegmentsStorageImpl, segments *storage.ProxySegmentStorageImpl) (*redisstate.Writer, error) {
+// A nil gate gives the writer the local state as it is; a closed gate hides it until the first sync completes.
+func setupRedisState(cfg *pconf.Main, logger logging.LoggerInterface, splits *storage.ProxySplitStorageImpl, rbs *storage.ProxyRuleBasedSegmentsStorageImpl, segments *storage.ProxySegmentStorageImpl, gate *sourceGate) (*redisstate.Writer, error) {
 	if !cfg.Storage.Redis.Enabled {
 		return nil, nil
 	}
@@ -161,8 +164,62 @@ func setupRedisState(cfg *pconf.Main, logger logging.LoggerInterface, splits *st
 	rbs.WithRedisWriter(writer)
 	segments.WithRedisWriter(writer)
 
-	if err := writer.Start(storage.NewRedisStateSource(splits, rbs, segments)); err != nil {
+	if err := writer.Start(gate.wrap(storage.NewRedisStateSource(splits, rbs, segments))); err != nil {
 		return nil, err
 	}
 	return writer, nil
+}
+
+// sourceGate keeps the Redis writer from reading a partial local state. On a cold boot the storages fill while the
+// first sync runs, and a resync scheduled in that window (the startup one, or one after a queue overflow) would see
+// only part of the segments and delete the rest from Redis. While the gate is closed the source reads as empty, and the
+// writer treats an empty source as no evidence of removal. It is opened when the sync reports ready.
+type sourceGate struct{ ready atomic.Bool }
+
+func newSourceGate(ready bool) *sourceGate {
+	g := &sourceGate{}
+	g.ready.Store(ready)
+	return g
+}
+
+func (g *sourceGate) open() {
+	if g != nil {
+		g.ready.Store(true)
+	}
+}
+
+func (g *sourceGate) isOpen() bool { return g == nil || g.ready.Load() }
+
+// wrap returns src behind the gate. A nil gate returns src unchanged.
+func (g *sourceGate) wrap(src redisstate.Source) redisstate.Source {
+	if g == nil {
+		return src
+	}
+	return &gatedSource{Source: src, gate: g}
+}
+
+type gatedSource struct {
+	redisstate.Source
+	gate *sourceGate
+}
+
+func (s *gatedSource) Flags() ([]dtos.SplitDTO, int64, error) {
+	if !s.gate.isOpen() {
+		return nil, 0, nil
+	}
+	return s.Source.Flags()
+}
+
+func (s *gatedSource) RuleBasedSegments() ([]dtos.RuleBasedSegmentDTO, int64, error) {
+	if !s.gate.isOpen() {
+		return nil, 0, nil
+	}
+	return s.Source.RuleBasedSegments()
+}
+
+func (s *gatedSource) Segments(visit func(redisstate.SegmentState) error) error {
+	if !s.gate.isOpen() {
+		return nil
+	}
+	return s.Source.Segments(visit)
 }

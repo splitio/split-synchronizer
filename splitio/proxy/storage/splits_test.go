@@ -447,6 +447,44 @@ func TestProxySplitStorageForwardsToRedisWriter(t *testing.T) {
 	assert.Equal(t, int64(5), w.cn)
 }
 
+// lockProbeFlagWriter records whether the storage mutex is free when the sink is invoked
+type lockProbeFlagWriter struct {
+	pss       *ProxySplitStorageImpl
+	mutexFree []bool
+	calls     []probeCall
+}
+
+type probeCall struct {
+	cn      int64
+	added   int
+	removed int
+}
+
+func (r *lockProbeFlagWriter) PutFlags(toAdd, toRemove []dtos.SplitDTO, cn int64) {
+	free := r.pss.mtx.TryLock()
+	if free {
+		r.pss.mtx.Unlock()
+	}
+	r.mutexFree = append(r.mutexFree, free)
+	r.calls = append(r.calls, probeCall{cn: cn, added: len(toAdd), removed: len(toRemove)})
+}
+
+func TestProxySplitStorageRedisWriterCalledAfterUnlock(t *testing.T) {
+	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
+	assert.Nil(t, err)
+	pss := NewProxySplitStorage(dbw, logging.NewLogger(nil), flagsets.NewFlagSetFilter(nil), false)
+
+	w := &lockProbeFlagWriter{pss: pss}
+	pss.WithRedisWriter(w)
+
+	pss.Update([]dtos.SplitDTO{{Name: "f1", ChangeNumber: 7, Status: "ACTIVE", TrafficTypeName: "ttt"}}, nil, 7)
+	pss.Update(nil, []dtos.SplitDTO{{Name: "f1", ChangeNumber: 8, Status: "ARCHIVED", TrafficTypeName: "ttt"}}, 8)
+
+	// sink must run with p.mtx released, and calls must arrive in Update order
+	assert.Equal(t, []bool{true, true}, w.mutexFree)
+	assert.Equal(t, []probeCall{{cn: 7, added: 1, removed: 0}, {cn: 8, added: 0, removed: 1}}, w.calls)
+}
+
 func TestProxySplitStorageEmptyUpdateDoesNotForward(t *testing.T) {
 	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
 	assert.Nil(t, err)

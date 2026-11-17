@@ -60,7 +60,9 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 
 	// Initialization of DB
 	var dbpath = persistent.BoltInMemoryMode
-	var snapshotValid = false
+	// haveLocalState is true when the Bolt storages start with a complete snapshot. It is the one fact the Redis
+	// writer gate, the unlimited sync retries and the second resync all depend on, so they cannot disagree.
+	var haveLocalState = false
 	if snapFile := cfg.Initialization.Snapshot; snapFile != "" {
 		snap, err := snapshot.DecodeFromFile(snapFile)
 		if err != nil {
@@ -83,7 +85,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 			if err != nil {
 				return fmt.Errorf("error writing temporary snapshot file: %w", err)
 			}
-			snapshotValid = true
+			haveLocalState = true
 			logger.Debug("Database created from snapshot at", dbpath)
 		}
 	}
@@ -112,10 +114,12 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	splitAPI := api.NewSplitAPI(cfg.Apikey, *advanced, logger, metadata)
 
 	// Proxy storages already implement the observable interface, so no need to wrap them
-	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, flagsets.NewFlagSetFilter(cfg.FlagSetsFilter), snapshotValid)
-	ruleBasedStorage := storage.NewProxyRuleBasedSegmentsStorage(dbInstance, logger, snapshotValid)
-	segmentStorage := storage.NewProxySegmentStorage(dbInstance, logger, snapshotValid)
-	redisWriter, err := setupRedisState(cfg, logger, splitStorage, ruleBasedStorage, segmentStorage)
+	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, flagsets.NewFlagSetFilter(cfg.FlagSetsFilter), haveLocalState)
+	ruleBasedStorage := storage.NewProxyRuleBasedSegmentsStorage(dbInstance, logger, haveLocalState)
+	segmentStorage := storage.NewProxySegmentStorage(dbInstance, logger, haveLocalState)
+	// on a cold boot the writer sees an empty source until the first sync completes (see sourceGate)
+	redisGate := newSourceGate(haveLocalState)
+	redisWriter, err := setupRedisState(cfg, logger, splitStorage, ruleBasedStorage, segmentStorage, redisGate)
 	if err != nil {
 		return err
 	}
@@ -212,10 +216,11 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	// health monitors are only started after successful init (otherwise they'll fail if the app doesn't sync correctly within the
 	/// specified refresh period)
 	before := time.Now()
-	err = startBGSync(syncManager, mstatus, snapshotValid, func() {
+	err = startBGSync(syncManager, mstatus, haveLocalState, func() {
 		logger.Info("Synchronizer tasks started")
-		// The writer's startup resync can run against an empty source on a cold boot, so repair it once sync has populated the storages.
-		requestSecondResync(redisWriter, snapshotValid)
+		// The writer's startup resync ran against an empty source on a cold boot, so repair it once sync has populated the storages.
+		redisGate.open()
+		go requestSecondResync(redisWriter, haveLocalState, secondResyncWait, logger)
 		appMonitor.Start()
 		servicesMonitor.Start()
 		flagSetsAfterSanitize, _ := flagsets.SanitizeMany(cfg.FlagSetsFilter)
@@ -367,15 +372,39 @@ func requestRedisResync(w *redisstate.Writer) {
 	}
 }
 
-// requestSecondResync requests the post-sync repair resync only on a cold boot: a valid Bolt snapshot means the writer's startup resync already ran with full data.
-func requestSecondResync(w *redisstate.Writer, snapshotValid bool) {
-	if snapshotValid {
+// secondResyncWait bounds how long the cold boot repair waits for the writer queue to drain before it asks for the resync
+const secondResyncWait = 2 * time.Minute
+
+// secondResyncPoll is how often the wait looks at the writer queue
+const secondResyncPoll = 100 * time.Millisecond
+
+// requestSecondResync requests the post-sync repair resync only on a cold boot: with local state the writer's startup resync already ran with full data.
+// It first waits, up to bound, for the changes queued during the sync to be written, so the resync finds most of the
+// state in place instead of rewriting it twice. When the bound expires it logs and requests the resync anyway: the
+// source is complete by now, so the resync is safe at any point. It blocks, so call it in its own goroutine.
+func requestSecondResync(w *redisstate.Writer, haveLocalState bool, bound time.Duration, logger logging.LoggerInterface) {
+	if w == nil {
 		return
+	}
+	requestSecondResyncWith(w, haveLocalState, bound, logger, func() bool { return w.Status().PendingChanges == 0 })
+}
+
+func requestSecondResyncWith(w *redisstate.Writer, haveLocalState bool, bound time.Duration, logger logging.LoggerInterface, drained func() bool) {
+	if haveLocalState || w == nil {
+		return
+	}
+	deadline := time.Now().Add(bound)
+	for !drained() {
+		if time.Now().After(deadline) {
+			logger.Warning(fmt.Sprintf("redis state: the writer queue did not drain within %s after the first sync, requesting the repair resync anyway", bound))
+			break
+		}
+		time.Sleep(secondResyncPoll)
 	}
 	requestRedisResync(w)
 }
 
-func startBGSync(m synchronizer.Manager, mstatus chan int, haveSnapshot bool, onReady func()) error {
+func startBGSync(m synchronizer.Manager, mstatus chan int, haveLocalState bool, onReady func()) error {
 	attemptInit := func() bool {
 		go m.Start()
 		status := <-mstatus
@@ -393,7 +422,7 @@ func startBGSync(m synchronizer.Manager, mstatus chan int, haveSnapshot bool, on
 		return nil
 	}
 
-	if !haveSnapshot {
+	if !haveLocalState {
 		return errUnrecoverable
 	}
 

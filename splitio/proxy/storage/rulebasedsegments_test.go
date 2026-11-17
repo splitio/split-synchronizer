@@ -261,3 +261,33 @@ func TestRBSStorageRedisIndependentOfLocalStoreFailure(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, int64(5), cn, "the in-memory snapshot is updated as before")
 }
+
+// lockProbeRBSWriter records whether the storage mutex is free when the sink is invoked
+type lockProbeRBSWriter struct {
+	p         *ProxyRuleBasedSegmentsStorageImpl
+	mutexFree []bool
+	cns       []int64
+}
+
+func (r *lockProbeRBSWriter) PutRuleBasedSegments(toAdd, toRemove []dtos.RuleBasedSegmentDTO, cn int64) {
+	free := r.p.mtx.TryLock()
+	if free {
+		r.p.mtx.Unlock()
+	}
+	r.mutexFree = append(r.mutexFree, free)
+	r.cns = append(r.cns, cn)
+}
+
+func TestProxyRuleBasedSegmentsRedisWriterCalledAfterUnlock(t *testing.T) {
+	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
+	assert.Nil(t, err)
+	p := NewProxyRuleBasedSegmentsStorage(dbw, logging.NewLogger(nil), false)
+	w := &lockProbeRBSWriter{p: p}
+	p.WithRedisWriter(w)
+
+	assert.NoError(t, p.Update([]dtos.RuleBasedSegmentDTO{{Name: "r1", ChangeNumber: 7, Status: "ACTIVE"}}, nil, 7))
+	assert.NoError(t, p.Update(nil, []dtos.RuleBasedSegmentDTO{{Name: "r1", ChangeNumber: 8, Status: "ARCHIVED"}}, 8))
+
+	assert.Equal(t, []bool{true, true}, w.mutexFree)
+	assert.Equal(t, []int64{7, 8}, w.cns)
+}

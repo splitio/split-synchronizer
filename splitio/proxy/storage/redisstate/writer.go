@@ -398,6 +398,7 @@ func NewWriter(client Client, keys Keys, fingerprint string, opts Options, logge
 // Start(nil) is for tests: with no Source no resync can run, so a drop freeze is never lifted. Production always passes a Source.
 // Start runs the startup probe, then launches the single background worker. The worker first calls source.Resync (if source != nil), then drains the queue.
 // A probe that fails with a script error returns a minimum-version InitError and starts no worker.
+// One writer per namespace: there is no lease, and the default namespace comes from the API key, so replicas with one key share it.
 func (w *Writer) Start(source Source) error {
 	if !hasSource(source) {
 		source = nil
@@ -434,6 +435,27 @@ func (w *Writer) Start(source Source) error {
 	w.mtx.Unlock()
 	go w.run(source)
 	return nil
+}
+
+// sharedNamespaceWindow is how recent meta.updatedAtMs must be for Start to suspect a second writer
+const sharedNamespaceWindow = time.Minute
+
+// warnIfNamespaceInUse logs a warning when the namespace was written to within sharedNamespaceWindow. The writer
+// has no lease: one writer per namespace is a deployment rule, and the default namespace is derived from the API
+// key, so replicas that share a key share the namespace. A proxy restarted within the window warns too, which is
+// harmless. It reads the meta hash once on the worker goroutine and never fails Start.
+func (w *Writer) warnIfNamespaceInUse() {
+	fields, err := w.client.HGetAll(w.keys.MetaUnprefixed())
+	if err != nil {
+		return
+	}
+	ms, err := strconv.ParseInt(fields[UpdatedAtField], 10, 64)
+	if err != nil || ms <= 0 {
+		return
+	}
+	if age := w.now().Sub(time.UnixMilli(ms)); age >= 0 && age < sharedNamespaceWindow {
+		w.logger.Warning(fmt.Sprintf("redis state: the namespace was written %s ago; if another writer shares it (for example a replica with the same apikey and no namespace set) the two will overwrite each other, use one writer per namespace", age.Round(time.Second)))
+	}
 }
 
 // probe runs startProbeScript once under the namespace. A non-transient Redis error reply fails Start with an
@@ -647,12 +669,18 @@ func (w *Writer) PutSegment(name string, toAdd, toRemove []string, cn int64) {
 		return
 	}
 	adds := make([]segmentKey, len(toAdd))
-	added := make(map[string]struct{}, len(toAdd))
 	for i, k := range toAdd {
 		adds[i] = segmentKey{key: k, cn: cn}
-		added[k] = struct{}{}
 	}
 	rems := make([]segmentKey, 0, len(toRemove))
+	// a key in both lists is kept as an add; the lookup is only needed when both lists have entries
+	var added map[string]struct{}
+	if len(toAdd) > 0 && len(toRemove) > 0 {
+		added = make(map[string]struct{}, len(toAdd))
+		for _, k := range toAdd {
+			added[k] = struct{}{}
+		}
+	}
 	for _, k := range toRemove {
 		if _, both := added[k]; both {
 			continue
@@ -1152,6 +1180,8 @@ func (w *Writer) run(source Source) {
 	// registered after close, so it runs first: a panic in the worker, a resync pass or a Source callback (all of them
 	// run on this goroutine) is recovered and the worker exits through close(w.done)
 	defer w.recoverWorker()
+	// the check reads Redis, so it runs here and never blocks Start
+	w.warnIfNamespaceInUse()
 	// the startup purge runs after the first resync completes, or at once when there is no Source
 	purgePending := true
 	if source == nil {
@@ -1494,11 +1524,16 @@ func buildEntityArgs(fingerprint string, retentionMs int64, cursorField string, 
 func buildSegmentArgs(fingerprint string, retentionMs int64, name, cursorField string, cursor int64, adds, rems []segmentKey) []interface{} {
 	args := make([]interface{}, 0, 7+2*(len(adds)+len(rems)))
 	args = append(args, fingerprint, retentionMs, name, cursorField, cursor, len(adds), len(rems))
-	for _, k := range adds {
-		args = append(args, k.key, k.cn)
-	}
-	for _, k := range rems {
-		args = append(args, k.key, k.cn)
+	// a live change gives every key one change number: box it once per run of equal values instead of once per key
+	var boxed interface{}
+	var last int64
+	for _, ks := range [][]segmentKey{adds, rems} {
+		for _, k := range ks {
+			if boxed == nil || k.cn != last {
+				boxed, last = k.cn, k.cn
+			}
+			args = append(args, k.key, boxed)
+		}
 	}
 	return args
 }
