@@ -77,28 +77,11 @@ func TestNewReadClientSentinel(t *testing.T) {
 	assert.ErrorIs(t, err, ErrInvalidReadConfig, "sentinel and cluster are mutually exclusive")
 }
 
-func TestNewReadClientCluster(t *testing.T) {
-	rc, err := NewReadClient(&config.RedisConfig{ClusterNodes: []string{"c1:7000", "c2:7000"}, Prefix: "pfx"})
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = rc.Close() })
-	_, ok := rc.client.(*goredis.ClusterClient)
-	assert.True(t, ok, "cluster config must build a cluster client")
-	assert.Equal(t, "{SPLITIO}pfx", rc.Prefix(), "default hash tag goes in front of the prefix")
-
-	noPrefix, err := NewReadClient(&config.RedisConfig{ClusterNodes: []string{"c1:7000"}})
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = noPrefix.Close() })
-	assert.Equal(t, "{SPLITIO}", noPrefix.Prefix())
-
-	custom, err := NewReadClient(&config.RedisConfig{ClusterNodes: []string{"c1:7000"}, Prefix: "pfx", ClusterKeyHashTag: "{app}"})
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = custom.Close() })
-	assert.Equal(t, "{app}pfx", custom.Prefix(), "custom hash tag replaces the default")
-
-	for _, tag := range []string{"app", "{a}{b}", "{a", "{}", "{a}b}"} {
-		_, _, err := universalOptions(&config.RedisConfig{ClusterNodes: []string{"c1:7000"}, ClusterKeyHashTag: tag})
-		assert.ErrorIs(t, err, ErrInvalidReadConfig, "hash tag %q must be rejected", tag)
-	}
+func TestNewReadClientRejectsCluster(t *testing.T) {
+	_, err := NewReadClient(&config.RedisConfig{ClusterNodes: []string{"c1:7000", "c2:7000"}, Prefix: "pfx"})
+	assert.ErrorIs(t, err, ErrInvalidReadConfig)
+	_, _, err = universalOptions(&config.RedisConfig{ClusterNodes: []string{"c1:7000"}, ClusterKeyHashTag: "{app}"})
+	assert.ErrorIs(t, err, ErrInvalidReadConfig)
 }
 
 func TestNewReadClientTLS(t *testing.T) {
@@ -126,10 +109,6 @@ func TestNewReadClientTLS(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Same(t, tlsCfg, sentinelOpts.TLSConfig)
-
-	clusterOpts, _, err := universalOptions(&config.RedisConfig{ClusterNodes: []string{"c1:7000"}, TLSConfig: tlsCfg})
-	require.NoError(t, err)
-	assert.Same(t, tlsCfg, clusterOpts.TLSConfig)
 
 	plain, _, err := universalOptions(&config.RedisConfig{Host: "redis.internal", Port: 6379})
 	require.NoError(t, err)
@@ -171,8 +150,6 @@ func TestReadClientOptionMappingMatchesLibrary(t *testing.T) {
 	}{
 		{"standalone", with(func(c *config.RedisConfig) { c.Host, c.Port = "h", 6380 }), []string{"h:6380"}, "", "pfx"},
 		{"sentinel", with(func(c *config.RedisConfig) { c.SentinelAddresses, c.SentinelMaster = []string{"s1:1", "s2:1"}, "m" }), []string{"s1:1", "s2:1"}, "m", "pfx"},
-		{"cluster default tag", with(func(c *config.RedisConfig) { c.ClusterNodes = []string{"c1:7000"} }), []string{"c1:7000"}, "", "{SPLITIO}pfx"},
-		{"cluster custom tag", with(func(c *config.RedisConfig) { c.ClusterNodes, c.ClusterKeyHashTag = []string{"c1:7000"}, "{app}" }), []string{"c1:7000"}, "", "{app}pfx"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -233,8 +210,6 @@ func TestReadClientPrefixMatchesWriterKeys(t *testing.T) {
 	}{
 		{"standalone", &config.RedisConfig{Host: "h", Port: 6379, Prefix: "pfx"}, "pfx"},
 		{"sentinel", &config.RedisConfig{SentinelAddresses: []string{"s1:26379"}, SentinelMaster: "m", Prefix: "pfx"}, "pfx"},
-		{"cluster default tag", &config.RedisConfig{ClusterNodes: []string{"c1:7000"}, Prefix: "pfx"}, "{SPLITIO}pfx"},
-		{"cluster custom tag", &config.RedisConfig{ClusterNodes: []string{"c1:7000"}, Prefix: "pfx", ClusterKeyHashTag: "{app}"}, "{app}pfx"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

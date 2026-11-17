@@ -225,7 +225,7 @@ func gapsPages(n int) [][]string {
 // gapsReader builds a Reader on the fake with a 1ms retry pause unless opts overrides it.
 func gapsReader(t *testing.T, c *gapsFakeClient, keys Keys, opts ...ReaderOption) *Reader {
 	t.Helper()
-	r, err := NewReader(c, keys, "fp", append([]ReaderOption{withRetryPause(time.Millisecond)}, opts...)...)
+	r, err := NewReader(c, keys, "fp", append([]ReaderOption{withSegmentParallelism(1), withRetryPause(time.Millisecond)}, opts...)...)
 	if err != nil {
 		t.Fatalf("NewReader: %v", err)
 	}
@@ -255,7 +255,7 @@ func gapsGeneration(c *gapsFakeClient, keys Keys, g int64) {
 
 func TestUnreferencedSegmentIsNotRead(t *testing.T) {
 	c, keys := gapsState(t)
-	r, err := NewReader(c, keys, "fp", withRetryPause(time.Millisecond))
+	r, err := NewReader(c, keys, "fp", withSegmentParallelism(1), withRetryPause(time.Millisecond))
 	if err != nil {
 		t.Fatalf("NewReader: %v", err)
 	}
@@ -284,7 +284,7 @@ func TestUnreferencedSegmentIsNotRead(t *testing.T) {
 
 func TestReferencedSegmentsAreRestored(t *testing.T) {
 	c, keys := gapsState(t)
-	r, err := NewReader(c, keys, "fp", withRetryPause(time.Millisecond))
+	r, err := NewReader(c, keys, "fp", withSegmentParallelism(1), withRetryPause(time.Millisecond))
 	if err != nil {
 		t.Fatalf("NewReader: %v", err)
 	}
@@ -620,7 +620,7 @@ func TestBudgetExhaustedDuringRetryIsCorrupt(t *testing.T) {
 	c.faults[metaCall] = gapsRepeat("read tcp 127.0.0.1:6379: i/o timeout", 10)
 
 	start := time.Now()
-	state, err := gapsReader(t, c, keys, withRetryPause(10*time.Second), withRestoreBudget(50*time.Millisecond)).Read(context.Background(), nil)
+	state, err := gapsReader(t, c, keys, withSegmentParallelism(1), withRetryPause(10*time.Second), withRestoreBudget(50*time.Millisecond)).Read(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("Read: %v", err)
 	}
@@ -744,7 +744,7 @@ func TestCancelDuringRetryPauseIsUnreachable(t *testing.T) {
 	time.AfterFunc(20*time.Millisecond, cancel)
 
 	start := time.Now()
-	state, err := gapsReader(t, c, keys, withRetryPause(10*time.Second)).Read(ctx, nil)
+	state, err := gapsReader(t, c, keys, withSegmentParallelism(1), withRetryPause(10*time.Second)).Read(ctx, nil)
 	if state.Status != BootUnreachable || !errors.Is(err, ErrUnreachable) {
 		t.Fatalf("status = %s, err = %v, want unreachable", state.Status, err)
 	}
@@ -762,7 +762,7 @@ func TestBudgetExpiryDuringRetryPauseIsCorruptWithBudgetFlag(t *testing.T) {
 	metaCall := "hgetall " + keys.Meta()
 	c.faults[metaCall] = gapsRepeat("read tcp 127.0.0.1:6379: i/o timeout", 10)
 
-	state, err := gapsReader(t, c, keys, withRetryPause(10*time.Second), withRestoreBudget(30*time.Millisecond)).Read(context.Background(), nil)
+	state, err := gapsReader(t, c, keys, withSegmentParallelism(1), withRetryPause(10*time.Second), withRestoreBudget(30*time.Millisecond)).Read(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("Read: %v", err)
 	}
@@ -780,7 +780,7 @@ func TestCancelDuringTornReadPauseIsUnreachable(t *testing.T) {
 	defer cancel()
 	time.AfterFunc(20*time.Millisecond, cancel)
 
-	state, err := gapsReader(t, c, keys, withRetryPause(10*time.Second)).Read(ctx, nil)
+	state, err := gapsReader(t, c, keys, withSegmentParallelism(1), withRetryPause(10*time.Second)).Read(ctx, nil)
 	if state.Status != BootUnreachable || !errors.Is(err, ErrUnreachable) {
 		t.Fatalf("status = %s, err = %v, want unreachable", state.Status, err)
 	}

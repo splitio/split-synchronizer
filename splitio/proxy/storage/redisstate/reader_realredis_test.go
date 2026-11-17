@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"testing"
 	"time"
 
@@ -60,7 +61,12 @@ func newRealRedisEnv(tb testing.TB) *realRedisEnv {
 
 	wkeys, err := NewKeys(wclient.Prefix(), "realredis-key", "")
 	require.NoError(tb, err)
-	w, err := NewWriter(wclient, wkeys, rdFp, DefaultOptions(), logger)
+	wopts := DefaultOptions()
+	// PROXY_BENCH_MAX_PENDING raises the writer queue limit so a very large seed is not dropped and resynced.
+	if n, err := strconv.Atoi(os.Getenv("PROXY_BENCH_MAX_PENDING")); err == nil && n > 0 {
+		wopts.MaxPendingChanges = n
+	}
+	w, err := NewWriter(wclient, wkeys, rdFp, wopts, logger)
 	require.NoError(tb, err)
 	require.NoError(tb, w.Start(nil))
 	tb.Cleanup(w.Stop)
@@ -70,15 +76,46 @@ func newRealRedisEnv(tb testing.TB) *realRedisEnv {
 	tb.Cleanup(func() { _ = rc.Close() })
 	rkeys, err := NewKeys(rc.Prefix(), "realredis-key", "")
 	require.NoError(tb, err)
-	r, err := NewReader(rc, rkeys, rdFp)
+	var readClient ReadClient = rc
+	// PROXY_BENCH_LATENCY_MS simulates a remote Redis by delaying every Reader read call.
+	if n, err := strconv.Atoi(os.Getenv("PROXY_BENCH_LATENCY_MS")); err == nil && n > 0 {
+		readClient = &latencyReadClient{inner: rc, d: time.Duration(n) * time.Millisecond}
+	}
+	r, err := NewReader(readClient, rkeys, rdFp)
 	require.NoError(tb, err)
 	return &realRedisEnv{cfg: cfg, writer: w, reader: r, readCli: rc}
+}
+
+// latencyReadClient wraps a ReadClient and sleeps d before delegating each call. Test-only.
+type latencyReadClient struct {
+	inner ReadClient
+	d     time.Duration
+}
+
+func (l *latencyReadClient) HGetAll(ctx context.Context, key string) (map[string]string, error) {
+	time.Sleep(l.d)
+	return l.inner.HGetAll(ctx, key)
+}
+
+func (l *latencyReadClient) ZScan(ctx context.Context, key string, cursor uint64, count int64) ([]string, uint64, error) {
+	time.Sleep(l.d)
+	return l.inner.ZScan(ctx, key, cursor, count)
+}
+
+func (l *latencyReadClient) HGet(ctx context.Context, key, field string) (string, bool, error) {
+	time.Sleep(l.d)
+	return l.inner.HGet(ctx, key, field)
 }
 
 // drain waits until the writer has applied every queued change.
 func (e *realRedisEnv) drain(tb testing.TB) {
 	tb.Helper()
-	deadline := time.Now().Add(30 * time.Second)
+	wait := 30 * time.Second
+	// PROXY_BENCH_DRAIN_SECONDS lengthens the wait for a very large benchmark seed.
+	if n, err := strconv.Atoi(os.Getenv("PROXY_BENCH_DRAIN_SECONDS")); err == nil && n > 0 {
+		wait = time.Duration(n) * time.Second
+	}
+	deadline := time.Now().Add(wait)
 	for e.writer.Status().PendingChanges > 0 {
 		require.True(tb, time.Now().Before(deadline), "writer did not drain its queue")
 		time.Sleep(5 * time.Millisecond)
@@ -233,4 +270,24 @@ func sortedRBS(in []dtos.RuleBasedSegmentDTO) []dtos.RuleBasedSegmentDTO {
 // rdFlagWithSegments returns an ACTIVE flag whose condition matches the given segments, so the Reader restores them.
 func rdFlagWithSegments(name string, cn int64, segments ...string) dtos.SplitDTO {
 	return dtos.SplitDTO{Name: name, Status: "ACTIVE", ChangeNumber: cn, Conditions: []dtos.ConditionDTO{{MatcherGroup: dtos.MatcherGroupDTO{Matchers: rdMatchers(segments)}}}}
+}
+
+// TestRealRedis_RepairedSegmentIsNotTrusted is the reader side of the PR 1 R1 fix: after the writer's count mismatch
+// repair deleted a segment's keys, a boot must skip that segment, never restore it empty under its old committed
+// cursor. A healthy segment next to it is still restored.
+func TestRealRedis_RepairedSegmentIsNotTrusted(t *testing.T) {
+	e := newRealRedisEnv(t)
+	e.writer.PutFlags([]dtos.SplitDTO{rdFlagWithSegments("f1", 3, "s1", "s2")}, nil, 3)
+	e.writer.PutSegment("s1", []string{"a", "b"}, []string{"gone"}, 5)
+	e.writer.PutSegment("s2", []string{"c"}, nil, 6)
+	e.drain(t)
+	require.NoError(t, e.writer.DeleteSegmentKeys("s1"))
+
+	state, segs := e.readAll(t)
+	require.Equal(t, BootValid, state.Status, state.Reason)
+	assert.Equal(t, []string{"s1"}, state.SkippedSegments, "the repaired segment must be skipped")
+	assert.NotContains(t, segs, "s1")
+	assert.NotContains(t, state.SegmentCursors, "s1", "no cursor may be trusted for the repaired segment")
+	require.Contains(t, segs, "s2")
+	assert.Equal(t, int64(6), state.SegmentCursors["s2"])
 }

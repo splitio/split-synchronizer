@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/splitio/go-split-commons/v10/dtos"
@@ -65,8 +66,12 @@ var ErrBudgetExhausted = errors.New("restore budget exhausted")
 var errTorn = errors.New("redis state changed while it was read")
 
 const (
-	// zscanCount is the ZSCAN page size. It only bounds each round trip.
-	zscanCount = 500
+	// zscanCount is the ZSCAN page size. Each page is one round trip, so a bigger page cuts the read time on a remote
+	// redis; it is bounded so a single call does not block the server for long.
+	zscanCount = 5000
+	// defaultSegmentParallelism is how many segments are read from redis at once. The sink still receives them one at a
+	// time and in order, so the sink needs no locking. At most this many segment payloads are held at once.
+	defaultSegmentParallelism = 4
 	// readCallTimeout bounds each redis call. Scans have no total bound, so a progressing scan never fails.
 	readCallTimeout = 30 * time.Second
 	// defaultRestoreBudget bounds the whole read. A local Redis reads and restores 2M segment keys in about 2.5 s
@@ -120,14 +125,20 @@ type Reader struct {
 	fingerprint string
 	budget      time.Duration
 	retryPause  time.Duration
+	parallelism int
 }
 
 // ReaderOption changes a Reader default. The options are unexported: only tests change the defaults.
 type ReaderOption func(*readerConfig)
 
 type readerConfig struct {
-	budget     time.Duration
-	retryPause time.Duration
+	budget      time.Duration
+	retryPause  time.Duration
+	parallelism int
+}
+
+func withSegmentParallelism(n int) ReaderOption {
+	return func(c *readerConfig) { c.parallelism = n }
 }
 
 func withRestoreBudget(d time.Duration) ReaderOption {
@@ -146,11 +157,14 @@ func NewReader(client ReadClient, keys Keys, fingerprint string, opts ...ReaderO
 	if fingerprint == "" {
 		return nil, errors.New("redis state reader needs a fingerprint")
 	}
-	cfg := readerConfig{budget: defaultRestoreBudget, retryPause: defaultRetryPause}
+	cfg := readerConfig{budget: defaultRestoreBudget, retryPause: defaultRetryPause, parallelism: defaultSegmentParallelism}
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	return &Reader{client: client, keys: keys, fingerprint: fingerprint, budget: cfg.budget, retryPause: cfg.retryPause}, nil
+	if cfg.parallelism < 1 {
+		cfg.parallelism = 1
+	}
+	return &Reader{client: client, keys: keys, fingerprint: fingerprint, budget: cfg.budget, retryPause: cfg.retryPause, parallelism: cfg.parallelism}, nil
 }
 
 // RestoreSink receives a valid state as it is read. Entities is called once, after the flags and rule-based segments
@@ -282,14 +296,16 @@ func (r *Reader) read(ctx context.Context, sink RestoreSink, retain bool) (BootS
 	for _, name := range names {
 		inMeta[name] = true
 	}
+	var toRead []string
 	for _, name := range referencedSegmentNames(flags, rbs) {
 		if !inMeta[name] {
 			state.skipSegment(name, "referenced by a flag or rule-based segment but has no cursor in meta")
 			continue
 		}
-		if err := r.readSegment(ctx, meta, name, sink, retain, &state); err != nil {
-			return BootState{}, err
-		}
+		toRead = append(toRead, name)
+	}
+	if err := r.readSegments(ctx, meta, toRead, sink, retain, &state); err != nil {
+		return BootState{}, err
 	}
 	return state, nil
 }
@@ -327,17 +343,84 @@ func (r *Reader) retryTorn(ctx context.Context, read func() error) error {
 	return err
 }
 
-// readSegment visits one segment, or records it in SkippedSegments when it cannot be trusted. A segment whose cursor
-// is -1 is held by a full replace in progress or was never committed, so it is skipped whatever its sets hold.
-// The cursor is read again after both scans; a change means a writer touched the segment meanwhile (torn read:
-// retried, then skipped).
-func (r *Reader) readSegment(ctx context.Context, meta map[string]string, name string, sink RestoreSink, retain bool, state *BootState) error {
-	skip := func(reason string) { state.skipSegment(name, reason) }
+// segmentRead is the outcome of reading one segment from redis, before it is handed to the sink.
+type segmentRead struct {
+	name   string
+	seg    SegmentState
+	cursor int64
+	// skip is the reason the segment was not restored; empty when seg is valid.
+	skip string
+	err  error
+}
+
+// readSegments reads the named segments, up to r.parallelism at a time, and delivers them to the sink one at a time in
+// the order given, so the sink and the boot state need no locking and the result does not depend on timing. The
+// window of started but undelivered segments is r.parallelism, which bounds memory. The first error in delivery
+// order cancels the segments still being read and is returned after they stop.
+func (r *Reader) readSegments(ctx context.Context, meta map[string]string, names []string, sink RestoreSink, retain bool, state *BootState) error {
+	if len(names) == 0 {
+		return nil
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	var wg sync.WaitGroup
+	defer func() {
+		cancel()
+		wg.Wait()
+	}()
+	slots := make([]chan segmentRead, len(names))
+	start := func(i int) {
+		slots[i] = make(chan segmentRead, 1)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			slots[i] <- r.fetchSegment(ctx, meta, names[i])
+		}()
+	}
+	for i := 0; i < len(names) && i < r.parallelism; i++ {
+		start(i)
+	}
+	for i := range names {
+		res := <-slots[i]
+		if next := i + r.parallelism; next < len(names) {
+			start(next)
+		}
+		if err := r.deliverSegment(res, sink, retain, state); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// deliverSegment hands one read segment to the sink and records it in the boot state. It runs on the caller's
+// goroutine only.
+func (r *Reader) deliverSegment(res segmentRead, sink RestoreSink, retain bool, state *BootState) error {
+	if res.err != nil {
+		return res.err
+	}
+	if res.skip != "" {
+		state.skipSegment(res.name, res.skip)
+		return nil
+	}
+	if err := sink.Segment(res.seg); err != nil {
+		return fmt.Errorf("restoring segment %s: %w", res.name, err)
+	}
+	if retain {
+		state.Segments = append(state.Segments, res.seg)
+	}
+	state.SegmentCount++
+	state.SegmentCursors[res.name] = res.cursor
+	return nil
+}
+
+// fetchSegment reads one segment, or reports why it cannot be trusted. A segment whose cursor is -1 is held by a full
+// replace in progress or was never committed, so it is skipped whatever its sets hold. The cursor is read again
+// after both scans; a change means a writer touched the segment meanwhile (torn read: retried, then skipped). It is
+// safe to run concurrently for different segments: it only reads meta and uses the redis client.
+func (r *Reader) fetchSegment(ctx context.Context, meta map[string]string, name string) segmentRead {
 	field := r.keys.SegmentCursorField(name)
 	cursor, err := storedCursorOf(meta, field)
 	if err != nil {
-		skip(err.Error())
-		return nil
+		return segmentRead{name: name, skip: err.Error()}
 	}
 	var seg SegmentState
 	var held bool
@@ -368,24 +451,14 @@ func (r *Reader) readSegment(ctx context.Context, meta map[string]string, name s
 	})
 	if err != nil {
 		if errors.Is(err, errCorrupt) && ctx.Err() == nil {
-			skip(err.Error())
-			return nil
+			return segmentRead{name: name, skip: err.Error()}
 		}
-		return err
+		return segmentRead{name: name, err: err}
 	}
 	if held {
-		skip("segment cursor is -1: a full replace is in progress or nothing was committed")
-		return nil
+		return segmentRead{name: name, skip: "segment cursor is -1: a full replace is in progress or nothing was committed"}
 	}
-	if err := sink.Segment(seg); err != nil {
-		return fmt.Errorf("restoring segment %s: %w", name, err)
-	}
-	if retain {
-		state.Segments = append(state.Segments, seg)
-	}
-	state.SegmentCount++
-	state.SegmentCursors[name] = cursor
-	return nil
+	return segmentRead{name: name, seg: seg, cursor: cursor}
 }
 
 // currentSegmentCursor reads a segment cursor straight from meta, to detect a writer that moved it during the scans.

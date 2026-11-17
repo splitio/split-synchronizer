@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"strings"
 	"time"
 
 	goredis "github.com/redis/go-redis/v9"
@@ -17,10 +16,6 @@ import (
 // ErrInvalidReadConfig is returned when the Redis configuration cannot be turned into a read client.
 var ErrInvalidReadConfig = errors.New("invalid redis configuration for reading the redis state")
 
-// defaultClusterHashTag matches the go-split-commons cluster default. The writer and reader must derive the same
-// prefix.
-const defaultClusterHashTag = "{SPLITIO}"
-
 // RedisReadClient reads redis state with go-redis directly; go-toolkit's prefixed client lacks ZSCAN and HGETALL for
 // this layout. Keys passed in already carry the prefix from Prefix(). Close releases the pool.
 type RedisReadClient struct {
@@ -28,8 +23,8 @@ type RedisReadClient struct {
 	prefix string
 }
 
-// NewReadClient builds a read client from the Redis config (standalone, sentinel, cluster, TLS). It opens no
-// connection until the first command.
+// NewReadClient builds a read client from the Redis config (standalone, sentinel, TLS). Cluster mode is rejected: the
+// proxy refuses it at boot, so the reader never needs a hash tag. It opens no connection until the first command.
 func NewReadClient(cfg *config.RedisConfig) (*RedisReadClient, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("%w: nil config", ErrInvalidReadConfig)
@@ -38,13 +33,10 @@ func NewReadClient(cfg *config.RedisConfig) (*RedisReadClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(cfg.ClusterNodes) > 0 && len(cfg.SentinelAddresses) == 0 {
-		return &RedisReadClient{client: goredis.NewClusterClient(opts.Cluster()), prefix: prefix}, nil
-	}
 	return &RedisReadClient{client: goredis.NewUniversalClient(opts), prefix: prefix}, nil
 }
 
-// Prefix returns the writer's key prefix, with the cluster hash tag in front in cluster mode. Build Keys with it.
+// Prefix returns the writer's key prefix. Build Keys with it.
 func (c *RedisReadClient) Prefix() string {
 	return c.prefix
 }
@@ -81,8 +73,8 @@ func (c *RedisReadClient) Close() error {
 // universalOptions maps the config to go-redis options and returns the writer's prefix. It mirrors go-split-commons
 // NewRedisClient, which does not export this mapping.
 func universalOptions(cfg *config.RedisConfig) (*goredis.UniversalOptions, string, error) {
-	if len(cfg.SentinelAddresses) > 0 && len(cfg.ClusterNodes) > 0 {
-		return nil, "", fmt.Errorf("%w: sentinel and cluster are mutually exclusive", ErrInvalidReadConfig)
+	if len(cfg.ClusterNodes) > 0 {
+		return nil, "", fmt.Errorf("%w: redis cluster is not supported", ErrInvalidReadConfig)
 	}
 
 	// The socket read timeout must not be shorter than readCallTimeout: a single HGETALL of a very large flag hash
@@ -112,27 +104,8 @@ func universalOptions(cfg *config.RedisConfig) (*goredis.UniversalOptions, strin
 		}
 		opts.MasterName = cfg.SentinelMaster
 		opts.Addrs = cfg.SentinelAddresses
-	case len(cfg.ClusterNodes) > 0:
-		tag, err := clusterHashTag(cfg.ClusterKeyHashTag)
-		if err != nil {
-			return nil, "", err
-		}
-		prefix = tag + prefix
-		opts.Addrs = cfg.ClusterNodes
 	default:
 		opts.Addrs = []string{net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port))}
 	}
 	return opts, prefix, nil
-}
-
-// clusterHashTag returns the configured hash tag or the default. A custom tag must be exactly one {...} pair.
-func clusterHashTag(tag string) (string, error) {
-	if tag == "" {
-		return defaultClusterHashTag, nil
-	}
-	if len(tag) < 3 || tag[0] != '{' || tag[len(tag)-1] != '}' ||
-		strings.Count(tag, "{") != 1 || strings.Count(tag, "}") != 1 {
-		return "", fmt.Errorf("%w: cluster key hash tag must be one {...} pair", ErrInvalidReadConfig)
-	}
-	return tag, nil
 }

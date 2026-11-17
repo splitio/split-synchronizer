@@ -118,7 +118,7 @@ func (s *rdFixture) scores(key string, members map[string]int64) {
 
 func (s *rdFixture) reader() *Reader {
 	s.t.Helper()
-	r, err := NewReader(s.fake, s.keys, rdFp, withRetryPause(0))
+	r, err := NewReader(s.fake, s.keys, rdFp, withSegmentParallelism(1), withRetryPause(0))
 	require.NoError(s.t, err)
 	return r
 }
@@ -712,7 +712,7 @@ func (h *hgetScript) HGet(ctx context.Context, key, field string) (string, bool,
 
 func (s *rdFixture) readerOn(c ReadClient) *Reader {
 	s.t.Helper()
-	r, err := NewReader(c, s.keys, rdFp, withRetryPause(0))
+	r, err := NewReader(c, s.keys, rdFp, withSegmentParallelism(1), withRetryPause(0))
 	require.NoError(s.t, err)
 	return r
 }
@@ -859,7 +859,7 @@ func TestReader_BudgetSentinel(t *testing.T) {
 	s := newRdFixture(t)
 	s.seedValid()
 	s.fake.inject("HGetAll "+s.keys.Meta(), errors.New("read tcp: i/o timeout"), errors.New("read tcp: i/o timeout"))
-	r, err := NewReader(s.fake, s.keys, rdFp, withRetryPause(10*time.Second), withRestoreBudget(50*time.Millisecond))
+	r, err := NewReader(s.fake, s.keys, rdFp, withSegmentParallelism(1), withRetryPause(10*time.Second), withRestoreBudget(50*time.Millisecond))
 	require.NoError(t, err)
 	state, err := r.Read(context.Background(), nil)
 	require.NoError(t, err)
@@ -981,7 +981,7 @@ func (c rdOddScan) ZScan(ctx context.Context, key string, cursor uint64, count i
 func TestReader_OddLengthScanPageIsCorrupt(t *testing.T) {
 	s := newRdFixture(t)
 	s.seedValid()
-	r, err := NewReader(rdOddScan{rdFake: s.fake, key: s.keys.FlagIndex()}, s.keys, rdFp, withRetryPause(0))
+	r, err := NewReader(rdOddScan{rdFake: s.fake, key: s.keys.FlagIndex()}, s.keys, rdFp, withSegmentParallelism(1), withRetryPause(0))
 	require.NoError(t, err)
 	state, segs, err := rdRead(context.Background(), r)
 	require.NoError(t, err)
