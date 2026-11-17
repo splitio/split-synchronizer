@@ -1010,3 +1010,41 @@ func TestSegmentCheckBadTombstoneArg(t *testing.T) {
 		assert.True(t, ErrorHasMarker(err, BadArgsMarker), name)
 	}
 }
+
+// a repair with a foreign stored fingerprint returns the env mismatch marker and changes nothing
+func TestRepairScriptForeignFingerprint(t *testing.T) {
+	e := newScriptEnv(t)
+	require.NoError(t, e.segment("other-fp", "s1", 5, []segKey{{"a", 5}}, []segKey{{"r", 5}}))
+	before := e.dump()
+
+	err := e.client.Eval(SegmentRepairScript, e.keys.SegmentKeys("s1"), wtFingerprint, e.keys.SegmentCursorField("s1"))
+	assert.True(t, ErrorHasMarker(err, EnvMismatchMarker), "foreign fingerprint must return the env mismatch marker, got %v", err)
+	assert.Equal(t, before, e.dump(), "a refused repair deletes nothing and keeps the cursor")
+}
+
+// a repair with no stored fingerprint proceeds, and does not write the writer fingerprint
+func TestRepairScriptAbsentFingerprint(t *testing.T) {
+	e := newScriptEnv(t)
+	require.NoError(t, e.segment(wtFingerprint, "s1", 5, []segKey{{"a", 5}}, []segKey{{"r", 5}}))
+	require.NoError(t, e.client.Eval("return redis.call('HDEL', KEYS[1], 'fingerprint')", []string{e.keys.Meta()}))
+
+	require.NoError(t, e.client.Eval(SegmentRepairScript, e.keys.SegmentKeys("s1"), wtFingerprint, e.keys.SegmentCursorField("s1")))
+	d := e.dump()
+	s1 := e.keys.SegmentKeys("s1")
+	for _, k := range s1[1:] {
+		assert.NotContains(t, e.names(), k, "repair deletes the segment key %s", k)
+	}
+	assert.Equal(t, "-1", d[e.keys.Meta()].Fields[e.keys.SegmentCursorField("s1")], "repair resets the cursor")
+	assert.NotContains(t, d[e.keys.Meta()].Fields, "fingerprint", "an absent fingerprint is not written by repair")
+}
+
+// a drop with a foreign stored fingerprint returns the env mismatch marker and deletes nothing
+func TestDropScriptForeignFingerprint(t *testing.T) {
+	e := newScriptEnv(t)
+	require.NoError(t, e.segment("other-fp", "s1", 5, []segKey{{"a", 5}}, []segKey{{"r", 5}}))
+	before := e.dump()
+
+	err := e.client.Eval(SegmentDropScript, e.keys.SegmentKeys("s1"), wtFingerprint, "s1")
+	assert.True(t, ErrorHasMarker(err, EnvMismatchMarker), "foreign fingerprint must return the env mismatch marker, got %v", err)
+	assert.Equal(t, before, e.dump(), "a refused drop deletes nothing and keeps the cursor")
+}

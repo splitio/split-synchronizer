@@ -1001,10 +1001,10 @@ func TestWriterOverflowTriggersResync(t *testing.T) {
 	if err := e.w.Start(src); err != nil {
 		t.Fatal(err)
 	}
-	wtWaitUntil(t, "the resync", func() bool { return e.client.count() == 5 && e.w.Status().PendingChanges == 0 })
+	wtWaitUntil(t, "the resync", func() bool { return e.client.count() == 7 && e.w.Status().PendingChanges == 0 })
 	e.stop()
 
-	assert.Equal(t, 5, e.client.count(), "flags, rule-based segments, both segments and the queued triggering change B")
+	assert.Equal(t, 7, e.client.count(), "flags, rule-based segments, a repair and a write per segment, and the queued triggering change B")
 	assert.Equal(t, int64(0), e.w.Status().Resyncs, "the startup resync is not counted")
 	assert.Equal(t, 1, src.flagsCalls)
 	assert.Equal(t, 1, e.log.errorCount())

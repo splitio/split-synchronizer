@@ -323,8 +323,8 @@ type Writer struct {
 }
 
 // NewWriter validates opts (all > 0, else an error wrapping ErrInvalidOptions) and builds a Writer. It does not touch Redis.
-// The writer assumes a single-node (non-cluster) Redis: the client does not prefix the Eval KEYS in cluster mode, so
-// sentinel and cluster deployments are unsupported for now.
+// The writer assumes a single-master Redis (standalone or Sentinel-managed master, both accepted by common/redis.go):
+// the client does not prefix the Eval KEYS in cluster mode, so cluster deployments are unsupported for now.
 func NewWriter(client Client, keys Keys, fingerprint string, opts Options, logger logging.LoggerInterface) (*Writer, error) {
 	switch {
 	case client == nil:
@@ -520,9 +520,15 @@ func (w *Writer) DeleteSegmentKeys(name string) error {
 	if !validSegmentName(name) {
 		return ErrInvalidSegmentName
 	}
-	return w.retry("segment key delete", func() error {
-		return w.client.Eval(SegmentRepairScript, w.keys.SegmentKeys(name), w.keys.SegmentCursorField(name))
+	field := w.keys.SegmentCursorField(name)
+	err := w.retry("segment key delete", func() error {
+		return w.client.Eval(SegmentRepairScript, w.keys.SegmentKeys(name), w.fingerprint, field)
 	})
+	if err == nil {
+		// the stored cursor is -1 now, so the last cursor this process sent no longer describes Redis
+		w.freezeOf(field).hasLast = false
+	}
+	return err
 }
 
 // segmentNameOfCursorField returns the segment name of a meta field "seg.<name>.till"

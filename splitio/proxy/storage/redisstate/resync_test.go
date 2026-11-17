@@ -34,7 +34,7 @@ func TestResyncWritesFullStateFromSource(t *testing.T) {
 	if err := e.w.Start(src); err != nil {
 		t.Fatal(err)
 	}
-	wtWaitUntil(t, "the resync", func() bool { return e.client.count() == 3 && e.w.Status().PendingChanges == 0 })
+	wtWaitUntil(t, "the resync", func() bool { return e.client.count() == 4 && e.w.Status().PendingChanges == 0 })
 	e.stop()
 
 	// a resync reads meta, then the flag and rule-based segment data hashes
@@ -42,7 +42,7 @@ func TestResyncWritesFullStateFromSource(t *testing.T) {
 	assert.Equal(t, int64(0), e.w.Status().Resyncs, "the startup resync is not counted")
 
 	calls := e.client.evals()
-	require.Len(t, calls, 3)
+	require.Len(t, calls, 4)
 
 	flagCall := calls[0]
 	assert.Equal(t, FlagScript, flagCall.script)
@@ -59,7 +59,8 @@ func TestResyncWritesFullStateFromSource(t *testing.T) {
 	assert.Equal(t, RuleBasedSegmentScript, rbsCall.script)
 	assert.Equal(t, int64(12), wtFlagCursor(rbsCall.args))
 
-	segCall := calls[2]
+	assert.Equal(t, SegmentRepairScript, calls[2].script, "a segment rewrite starts with the repair call")
+	segCall := calls[3]
 	assert.Equal(t, SegmentScript, segCall.script)
 	name, cursor, adds, rems := wtSegArgs(segCall.args)
 	assert.Equal(t, "s1", name)
@@ -80,16 +81,16 @@ func TestResyncSourceErrorIsRetried(t *testing.T) {
 	if err := e.w.Start(src); err != nil {
 		t.Fatal(err)
 	}
-	wtWaitUntil(t, "the resync", func() bool { return e.client.count() == 3 && e.w.Status().PendingChanges == 0 })
+	wtWaitUntil(t, "the resync", func() bool { return e.client.count() == 4 && e.w.Status().PendingChanges == 0 })
 	e.stop()
 
 	assert.Equal(t, 3, src.flagsCalls, "two failed reads, then a successful one")
 	assert.Equal(t, int64(0), e.w.Status().FailedRounds, "source errors are retried inside the round")
 	assert.Equal(t, 3, e.log.errorCount(), "two flag read errors and one segment listing error are logged")
 	calls := e.client.evals()
-	require.Len(t, calls, 3)
-	assert.Equal(t, SegmentScript, calls[2].script)
-	name, _, _, _ := wtSegArgs(calls[2].args)
+	require.Len(t, calls, 4)
+	assert.Equal(t, SegmentScript, calls[3].script)
+	name, _, _, _ := wtSegArgs(calls[3].args)
 	assert.Equal(t, "s", name, "the segment is written after the retried listing")
 }
 
@@ -108,7 +109,7 @@ func TestResyncSkipsUpToDateSegments(t *testing.T) {
 	if err := e.w.Start(src); err != nil {
 		t.Fatal(err)
 	}
-	wtWaitUntil(t, "the resync", func() bool { return e.client.count() == 5 && e.w.Status().PendingChanges == 0 })
+	wtWaitUntil(t, "the resync", func() bool { return e.client.count() == 8 && e.w.Status().PendingChanges == 0 })
 	e.stop()
 
 	written := map[string]bool{}
@@ -183,7 +184,7 @@ func TestResyncIsolatesBadEntity(t *testing.T) {
 	if err := e.w.Start(src); err != nil {
 		t.Fatal(err)
 	}
-	wtWaitUntil(t, "the resync", func() bool { return e.client.count() == 8 })
+	wtWaitUntil(t, "the resync", func() bool { return e.client.count() == 9 })
 	e.stop()
 
 	var flagsWritten, keysWritten []string
@@ -859,7 +860,7 @@ func TestResyncCrashMidwayRestartKeepsCursorsBehindData(t *testing.T) {
 	assert.Len(t, d[fk[2]].Scores, 2, "both flags are in Redis")
 	assert.Equal(t, "1", meta[e.keys.SegmentCursorField("s1")], "s1 was written before the cut")
 	assert.Len(t, d[e.keys.SegmentKeys("s1")[1]].Scores, 1)
-	assert.NotContains(t, meta, e.keys.SegmentCursorField("s2"), "the cut segment has no cursor")
+	assert.Equal(t, "-1", meta[e.keys.SegmentCursorField("s2")], "the repair ran before the cut, so the cut segment has no current cursor")
 	assert.NotContains(t, meta, e.keys.SegmentCursorField("s3"), "a segment after the cut has no cursor")
 	assert.Empty(t, d[e.keys.SegmentKeys("s2")[1]].Scores, "no data for the cut segment")
 	assert.Empty(t, d[e.keys.SegmentKeys("s3")[1]].Scores, "no data for a later segment")
@@ -1309,4 +1310,182 @@ func TestSegmentIntactSendsTombstoneCount(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, e.client.checks, 1)
 	assert.Equal(t, []interface{}{1, "up", 2}, e.client.checks[0].args, "active count, name, tombstone count")
+}
+
+// midRewriteClient is a real client that logs the cursor of every segment write. Once armed it can run a hook after the
+// first segment write of the rewrite, and refuse every later segment write with a transient error.
+type midRewriteClient struct {
+	*redis.PrefixedRedisClient
+	mu      sync.Mutex
+	armed   bool
+	refuse  bool
+	calls   int
+	onFirst func()
+	sent    []int64
+}
+
+func (c *midRewriteClient) Eval(script string, keys []string, args ...interface{}) error {
+	if script != SegmentScript {
+		return c.PrefixedRedisClient.Eval(script, keys, args...)
+	}
+	c.mu.Lock()
+	if c.armed {
+		c.calls++
+	}
+	n, refuse, onFirst := c.calls, c.armed && c.refuse, c.onFirst
+	c.mu.Unlock()
+	if refuse && n > 1 {
+		return &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}
+	}
+	err := c.PrefixedRedisClient.Eval(script, keys, args...)
+	_, cursor, _, _ := wtSegArgs(args)
+	c.mu.Lock()
+	c.sent = append(c.sent, cursor)
+	c.mu.Unlock()
+	if n == 1 && onFirst != nil {
+		onFirst()
+	}
+	return err
+}
+
+func (c *midRewriteClient) lastCursor() int64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.sent[len(c.sent)-1]
+}
+
+// newMidRewriteWriter builds an unstarted Writer with one-key chunks over a segment "s" that a live change wrote up to cursor 5
+func newMidRewriteWriter(t *testing.T, e *scriptEnv) (*Writer, *midRewriteClient) {
+	t.Helper()
+	opts := wtOptions()
+	opts.ChunkSize = 1
+	opts.BackoffMaxWait = 5 * time.Millisecond
+	c := &midRewriteClient{PrefixedRedisClient: e.client}
+	w, err := NewWriter(c, e.keys, wtFingerprint, opts, &wtLogger{})
+	require.NoError(t, err)
+	t.Cleanup(w.Stop)
+	_, err = w.writeSegment("s", []segmentKey{{key: "a", cn: 5}}, nil, 5, false)
+	require.NoError(t, err)
+	require.Equal(t, "5", e.dump()[e.keys.Meta()].Fields[e.keys.SegmentCursorField("s")])
+	return w, c
+}
+
+// a Stop during a segment rewrite leaves the segment partly written; the next live change for it must not raise the
+// stored cursor over that partial rewrite
+func TestResyncSegmentStopMidRewriteFreezesLiveChange(t *testing.T) {
+	e := newScriptEnv(t)
+	w, c := newMidRewriteWriter(t, e)
+	seg := SegmentState{Name: "s", Active: map[string]int64{"a": 5, "b": 9, "c": 9}, ChangeNumber: 9}
+	field := e.keys.SegmentCursorField("s")
+	c.armed, c.onFirst = true, w.Stop
+	w.resyncPass = true
+
+	err := w.resyncSegment(seg, e.dump()[e.keys.Meta()].Fields)
+	require.ErrorIs(t, err, errStopped)
+
+	w.resyncPass = false
+	_, err = w.writeSegment("s", []segmentKey{{key: "z", cn: 10}}, nil, 10, false)
+	require.NoError(t, err)
+	assert.Equal(t, noCursor, c.lastCursor(), "the live change carries no cursor over a partial rewrite")
+	cursor, perr := ParseCursor(e.dump()[e.keys.Meta()].Fields[field])
+	require.NoError(t, perr)
+	assert.LessOrEqual(t, cursor, int64(5), "the stored cursor did not pass the data the rewrite had written")
+}
+
+// a rewrite dropped after transient errors leaves the segment partly written; the next live change must not send the
+// cursor of an earlier write (g.last) or its own
+func TestResyncSegmentDroppedMidRewriteFreezesLiveChange(t *testing.T) {
+	e := newScriptEnv(t)
+	w, c := newMidRewriteWriter(t, e)
+	seg := SegmentState{Name: "s", Active: map[string]int64{"a": 5, "b": 9, "c": 9}, ChangeNumber: 9}
+	field := e.keys.SegmentCursorField("s")
+	c.armed, c.refuse = true, true
+	w.resyncPass = true
+
+	err := w.resyncSegment(seg, e.dump()[e.keys.Meta()].Fields)
+	require.ErrorIs(t, err, errDropped)
+
+	c.mu.Lock()
+	c.refuse = false
+	c.mu.Unlock()
+	w.resyncPass = false
+	_, err = w.writeSegment("s", []segmentKey{{key: "z", cn: 10}}, nil, 10, false)
+	require.NoError(t, err)
+	assert.Equal(t, noCursor, c.lastCursor(), "the live change sends neither its own cursor nor the stale last one")
+	cursor, perr := ParseCursor(e.dump()[e.keys.Meta()].Fields[field])
+	require.NoError(t, perr)
+	assert.LessOrEqual(t, cursor, int64(5))
+}
+
+// a segment whose stored cursor is behind the source is rewritten from scratch: a key the cloud removed while the
+// proxy was down must not stay active under the new cursor
+func TestResyncBehindSegmentDropsKeyRemovedInSource(t *testing.T) {
+	e := newScriptEnv(t)
+	require.NoError(t, e.segment(wtFingerprint, "s", 5, []segKey{{"a", 5}, {"b", 5}}, nil))
+	seg := SegmentState{Name: "s", Active: map[string]int64{"a": 5}, ChangeNumber: 6}
+	src := newSegDoneSource(&wtSource{segs: []SegmentState{seg}})
+	w, _ := newRealWriter(t, e, wtOptions())
+	require.NoError(t, w.Start(src))
+	src.wait(t)
+	w.Stop()
+
+	d := e.dump()
+	assert.Equal(t, map[string]float64{"a": 5}, d[e.keys.SegmentKeys("s")[1]].Scores, "the key the source no longer holds is gone")
+	assert.Equal(t, "6", d[e.keys.Meta()].Fields[e.keys.SegmentCursorField("s")])
+}
+
+// a frozen segment (a dropped write) is rewritten from scratch too, and a rewrite that fails after the repair leaves the cursor at -1
+func TestRepairBeforeEveryRewriteSurvivesFailedRewrite(t *testing.T) {
+	e := newScriptEnv(t)
+	require.NoError(t, e.segment(wtFingerprint, "s", 5, []segKey{{"a", 5}, {"b", 5}}, nil))
+	opts := wtOptions()
+	opts.MaxAttempts = 2
+	opts.BackoffMaxWait = 10 * time.Millisecond
+	w, err := NewWriter(&segFailClient{PrefixedRedisClient: e.client}, e.keys, wtFingerprint, opts, &wtLogger{})
+	require.NoError(t, err)
+	t.Cleanup(w.Stop)
+
+	field := e.keys.SegmentCursorField("s")
+	fields := e.dump()[e.keys.Meta()].Fields
+	seg := SegmentState{Name: "s", Active: map[string]int64{"a": 5}, ChangeNumber: 6}
+	require.Error(t, w.syncSegment(seg, field, fields, false), "behind: the cursor 5 is below the source cursor 6")
+	assert.Equal(t, "-1", e.dump()[e.keys.Meta()].Fields[field])
+	assert.NotContains(t, e.dump(), e.keys.SegmentKeys("s")[1], "the old keys went with the repair")
+}
+
+// A purge removes tombstones the source still lists, so the tombstone count no longer matches and the next resync
+// rewrites the segment once. The rewrite writes the tombstones again, so the resync after it finds the counts equal and
+// writes nothing: the mismatch is not a loop.
+func TestResyncAfterPurgeRewritesOnceThenSettles(t *testing.T) {
+	e := newScriptEnv(t)
+	require.NoError(t, e.segment(wtFingerprint, "s", 5, []segKey{{"a", 5}}, []segKey{{"r", 5}}))
+	time.Sleep(5 * time.Millisecond)
+	opts := wtOptions()
+	opts.Retention = time.Millisecond
+	rec := &recordingClient{PrefixedRedisClient: e.client}
+	w, err := NewWriter(rec, e.keys, wtFingerprint, opts, &wtLogger{})
+	require.NoError(t, err)
+	t.Cleanup(w.Stop)
+	field := e.keys.SegmentCursorField("s")
+	tombstones := e.keys.SegmentKeys("s")[2]
+
+	require.NoError(t, w.purge(map[string]string{field: "5"}))
+	require.NotContains(t, e.dump(), tombstones, "the purge removed the tombstone the source still lists")
+
+	seg := SegmentState{Name: "s", Active: map[string]int64{"a": 5}, Removed: map[string]int64{"r": 5}, ChangeNumber: 5}
+	segmentWrites := func() int {
+		n := 0
+		for _, c := range rec.recorded() {
+			if c.script == SegmentScript {
+				n++
+			}
+		}
+		return n
+	}
+	require.NoError(t, w.resyncSegment(seg, e.dump()[e.keys.Meta()].Fields))
+	assert.Equal(t, 1, segmentWrites(), "the first resync after the purge rewrites the segment")
+	assert.Equal(t, map[string]float64{"r": 5}, e.dump()[tombstones].Scores, "the tombstone is back")
+
+	require.NoError(t, w.resyncSegment(seg, e.dump()[e.keys.Meta()].Fields))
+	assert.Equal(t, 1, segmentWrites(), "the next resync finds the counts equal and writes nothing")
 }

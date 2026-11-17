@@ -151,6 +151,7 @@ end
 --   adds run second; an add applies when cn > cur, or when cn == cur and the same call removed the key (add wins).
 --   Across calls a tie at an equal cn keeps the existing state: a replayed add never replaces a tombstone at cn,
 --   and a replayed removal never replaces an active key at cn. A lower cn is always ignored.
+--   Add wins applies to segment keys only; flags and rule-based segments keep last arrival at an equal change number.
 local removedNow = {}
 for i = 0, nRem - 1 do
   local key = ARGV[base + 1 + 2 * i]
@@ -206,22 +207,34 @@ return 1
 `
 
 // SegmentDropScript deletes a segment Redis holds but the local state no longer lists: its three keys and its cursor
-// field. KEYS come from Keys.SegmentKeys, ARGV[1] is the segment name.
+// field. KEYS come from Keys.SegmentKeys. It checks the stored fingerprint like the write scripts: a foreign one returns
+// the env mismatch marker and deletes nothing, and an absent one is accepted without being written.
+// ARGV: 1 fingerprint, 2 segment name.
 const SegmentDropScript = luaPrelude + `-- KEYS: 1 meta, 2 active zset, 3 removed zset, 4 segat zset
+-- ARGV: 1 fingerprint, 2 segment name
 checkMeta(KEYS[1])
+local fp = redis.call('HGET', KEYS[1], 'fingerprint')
+if fp and fp ~= ARGV[1] then
+  return redis.error_reply('PROXY_ENV_MISMATCH')
+end
 redis.call('DEL', KEYS[2], KEYS[3], KEYS[4])
-redis.call('HDEL', KEYS[1], 'seg.' .. ARGV[1] .. '.till')
+redis.call('HDEL', KEYS[1], 'seg.' .. ARGV[2] .. '.till')
 return 1
 `
 
 // SegmentRepairScript deletes the keys of one segment and sets its cursor field to -1 in one atomic call, so no restart
-// can read a current cursor over a partially deleted segment. KEYS come from Keys.SegmentKeys, ARGV[1] is the cursor
-// field of the segment (Keys.SegmentCursorField).
+// can read a current cursor over a partially deleted segment. KEYS come from Keys.SegmentKeys. It checks the stored
+// fingerprint like the write scripts: a foreign one returns the env mismatch marker and deletes nothing, and an absent
+// one is accepted without being written. ARGV: 1 fingerprint, 2 cursor field of the segment (Keys.SegmentCursorField).
 const SegmentRepairScript = luaPrelude + `-- KEYS: 1 meta, 2 active zset, 3 removed zset, 4 segat zset
--- ARGV: 1 cursorField
+-- ARGV: 1 fingerprint, 2 cursorField
 checkMeta(KEYS[1])
+local fp = redis.call('HGET', KEYS[1], 'fingerprint')
+if fp and fp ~= ARGV[1] then
+  return redis.error_reply('PROXY_ENV_MISMATCH')
+end
 redis.call('DEL', KEYS[2], KEYS[3], KEYS[4])
-redis.call('HSET', KEYS[1], ARGV[1], '-1')
+redis.call('HSET', KEYS[1], ARGV[2], '-1')
 return 1
 `
 

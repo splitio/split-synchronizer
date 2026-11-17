@@ -293,7 +293,7 @@ func (w *Writer) dropUnlistedSegments(fields map[string]string, listed map[strin
 			continue
 		}
 		err := w.retry("segment drop", func() error {
-			return w.client.Eval(SegmentDropScript, w.keys.SegmentKeys(name), name)
+			return w.client.Eval(SegmentDropScript, w.keys.SegmentKeys(name), w.fingerprint, name)
 		})
 		if err != nil {
 			return fmt.Errorf("deleting segment %q: %w", name, err)
@@ -318,12 +318,20 @@ func (w *Writer) resyncSegment(s SegmentState, fields map[string]string) error {
 	err := w.syncSegment(s, field, fields, frozen)
 	if err != nil {
 		w.restoreGroup(field, released)
+		// the rewrite may have stopped half way, so the stored data is not the source state. Freeze the whole group
+		// and forget the last cursor: a live change before the next resync must send no cursor, neither its own nor a stale one.
+		g := w.freezeOf(field)
+		g.freezeWhole()
+		g.hasLast = false
 	}
 	return err
 }
 
 // syncSegment is the body of resyncSegment. A segment whose group a dropped write froze is rewritten even when Redis
-// looks current, because the lost change may have swapped keys without changing the count.
+// looks current, because the lost change may have swapped keys without changing the count. Every rewrite starts with
+// the repair call: the write only adds keys, so the keys Redis holds beyond the source (removed in the cloud while the
+// proxy was down) are deleted first, and the cursor is reset to -1 in the same call so no restart sees a current
+// cursor over a partial segment.
 func (w *Writer) syncSegment(s SegmentState, field string, fields map[string]string, frozen bool) error {
 	if !frozen && storedCursor(fields, field) >= s.ChangeNumber {
 		intact, err := w.segmentIntact(s)
@@ -334,10 +342,9 @@ func (w *Writer) syncSegment(s SegmentState, field string, fields map[string]str
 			return nil
 		}
 		w.logger.Warning(fmt.Sprintf("redis state: segment %s has a current cursor but a different key count in Redis, rewriting it", s.Name))
-		// the rewrite only adds keys, so the keys Redis holds beyond the source are deleted first, and the cursor is reset to -1 in the same call so no restart sees a current cursor over a partial segment.
-		if err := w.DeleteSegmentKeys(s.Name); err != nil {
-			return fmt.Errorf("deleting keys of segment %q: %w", s.Name, err)
-		}
+	}
+	if err := w.DeleteSegmentKeys(s.Name); err != nil {
+		return fmt.Errorf("deleting keys of segment %q: %w", s.Name, err)
 	}
 	_, err := w.writeSegment(s.Name, toSegmentKeys(s.Active), toSegmentKeys(s.Removed), s.ChangeNumber, false)
 	if err != nil {
