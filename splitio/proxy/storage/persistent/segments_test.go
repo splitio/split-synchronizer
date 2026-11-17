@@ -508,7 +508,7 @@ func TestRestoreEmptySegmentNameReturnsError(t *testing.T) {
 	if err != nil {
 		t.Fatal("error creating bolt wrapper: ", err)
 	}
-	defer dbw.Discard()
+	defer func() { _ = dbw.Discard() }()
 
 	segmentC := NewSegmentChangesCollection(dbw, logging.NewLogger(nil))
 	err = segmentC.Restore(SegmentChangesItem{Name: "", Keys: map[string]SegmentKey{"k1": {Name: "k1", ChangeNumber: 3}}})

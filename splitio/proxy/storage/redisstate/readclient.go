@@ -52,6 +52,11 @@ func (c *RedisReadClient) ZScan(ctx context.Context, key string, cursor uint64, 
 	return c.client.ZScan(ctx, key, cursor, "", count).Result()
 }
 
+// ZCard returns the number of members of the sorted set at key (0 when it does not exist).
+func (c *RedisReadClient) ZCard(ctx context.Context, key string) (int64, error) {
+	return c.client.ZCard(ctx, key).Result()
+}
+
 // HGet returns one hash field. found is false when the key or the field does not exist.
 func (c *RedisReadClient) HGet(ctx context.Context, key, field string) (string, bool, error) {
 	v, err := c.client.HGet(ctx, key, field).Result()
@@ -94,6 +99,8 @@ func universalOptions(cfg *config.RedisConfig) (*goredis.UniversalOptions, strin
 		DialTimeout:  time.Duration(cfg.DialTimeout) * time.Second,
 		ReadTimeout:  readTimeout,
 		WriteTimeout: time.Duration(cfg.WriteTimeout) * time.Second,
+		// Lets the per-call context deadline cut a stuck socket read; without it the 30 s socket timeout governs.
+		ContextTimeoutEnabled: true,
 	}
 	prefix := cfg.Prefix
 

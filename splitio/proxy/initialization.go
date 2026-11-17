@@ -139,8 +139,7 @@ func start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	bootAdminServer.setPhase(bootPhaseInitialSync)
 	if boot.Source == BootSourceRedis {
 		// Valid Redis state wins; the snapshot file is not parsed, so a bad file cannot abort the boot.
-		// A state with skipped segments is incomplete, so it does not excuse a failed first cloud sync.
-		haveLocalState = len(boot.State.SkippedSegments) == 0
+		haveLocalState = redisBootIsLocalState(boot)
 	}
 	if snapFile := cfg.Initialization.Snapshot; snapFile != "" && boot.Source != BootSourceRedis {
 		snap, err := snapshot.DecodeFromFile(snapFile)
@@ -500,6 +499,14 @@ func requestRedisResync(w resyncTarget) {
 
 // secondResyncWait bounds how long the cold boot repair waits for the writer queue to drain before it asks for the resync
 const secondResyncWait = 2 * time.Minute
+
+// redisBootIsLocalState reports whether a boot decision gives the proxy a complete local state. A valid Redis restore
+// with no skipped segment does: the writer's startup resync then runs with full data, so the second resync is not
+// needed (R8: it runs only without a valid local state). A state with skipped segments is incomplete, so it does not
+// excuse a failed first cloud sync and still gets the second resync.
+func redisBootIsLocalState(boot BootDecision) bool {
+	return boot.Source == BootSourceRedis && boot.State != nil && len(boot.State.SkippedSegments) == 0
+}
 
 // secondResyncPoll is how often the wait looks at the writer queue
 const secondResyncPoll = 100 * time.Millisecond

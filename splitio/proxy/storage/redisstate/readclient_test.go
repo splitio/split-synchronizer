@@ -1,7 +1,9 @@
 package redisstate
 
 import (
+	"context"
 	"crypto/tls"
+	"net"
 	"runtime/debug"
 	"strings"
 	"testing"
@@ -241,4 +243,32 @@ func TestReadClientCloseTwice(t *testing.T) {
 	var second error
 	require.NotPanics(t, func() { second = rc.Close() }, "second Close must not panic")
 	assert.ErrorIs(t, second, goredis.ErrClosed, "second Close returns go-redis ErrClosed")
+}
+
+// A server that accepts and never answers must not hold a call past its context deadline: the socket read timeout is
+// 30 s or more, so only ContextTimeoutEnabled lets the per-call deadline cut the read.
+func TestReadClientCallReturnsAtContextDeadline(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ln.Close() })
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			t.Cleanup(func() { _ = conn.Close() })
+		}
+	}()
+	addr := ln.Addr().(*net.TCPAddr)
+	rc, err := NewReadClient(&config.RedisConfig{Host: "127.0.0.1", Port: addr.Port, Prefix: "p", PoolSize: 2, DialTimeout: 2, ReadTimeout: 1})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rc.Close() })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	_, err = rc.HGetAll(ctx, "k")
+	require.Error(t, err)
+	assert.Less(t, time.Since(start), 5*time.Second, "the call must end near the 300 ms deadline, not at the 30 s socket timeout")
 }

@@ -75,6 +75,16 @@ func openRedisBootReadClient(cfg *pconf.Main) (bootReadClient, error) {
 // With a sink, flags, rule-based segments and each segment are restored while the read runs and BootState.Segments
 // stays empty. The sink may hold partial data when the decision is not BootSourceRedis or an error is returned, so the
 // caller must discard what it wrote. A nil sink keeps every segment payload in BootState.Segments.
+//
+// Operations notes: The boot read keeps flags and rule-based segments in memory, plus up to parallelism+1 segment
+// payloads. Set GOMEMLIMIT to about 0.85 x the container memory limit, so the Go GC works harder before the kernel
+// OOM-kills the process. Redis must run with maxmemory-policy noeviction, because an evicting Redis can drop state
+// silently. Use AOF with appendfsync always, or restart the proxy after any Redis restart or failover: the writer
+// cursors can be ahead of data after a Redis flush or failover (known gap, docs only). Only a single Redis primary is
+// supported (no replica reads, no cluster); cluster is rejected at boot. Run one writer proxy per Redis namespace.
+// Shutdown: the process manager grace period must exceed the redis-state stop timeout (redis-state-stop-timeout-ms)
+// plus the other shutdown stops. A crash can leave temporary splitio_*.db files in the temp directory (the in-memory
+// boot database); they are safe to delete.
 func resolveRedisBootInto(cfg *pconf.Main, logger logging.LoggerInterface, open bootClientOpener, sink redisstate.RestoreSink) (BootDecision, error) {
 	if !cfg.Storage.Redis.Enabled {
 		return fallbackBootDecision(cfg, nil, "redis state is disabled"), nil

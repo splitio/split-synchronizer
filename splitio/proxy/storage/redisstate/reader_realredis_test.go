@@ -102,6 +102,11 @@ func (l *latencyReadClient) ZScan(ctx context.Context, key string, cursor uint64
 	return l.inner.ZScan(ctx, key, cursor, count)
 }
 
+func (l *latencyReadClient) ZCard(ctx context.Context, key string) (int64, error) {
+	time.Sleep(l.d)
+	return l.inner.ZCard(ctx, key)
+}
+
 func (l *latencyReadClient) HGet(ctx context.Context, key, field string) (string, bool, error) {
 	time.Sleep(l.d)
 	return l.inner.HGet(ctx, key, field)

@@ -361,10 +361,10 @@ func TestUnreachableRedisReturnsUnreachable(t *testing.T) {
 	})
 }
 
-// A key in both the active and tombstone sets is resolved by the higher change number; a tie is a removal.
+// A key in both the active and tombstone sets is resolved by the higher change number; a tie is an add (add wins, as in the writer script).
 func TestKeyInBothSetsResolvedByChangeNumber(t *testing.T) {
 	c, keys := gapsState(t)
-	// k3: active 7 beats removed 5. k4: tie at 3, so removal. k5: removed 4 beats active 2, so removal.
+	// k3: active 7 beats removed 5. k4: tie at 3, so add. k5: removed 4 beats active 2, so removal.
 	c.sets[keys.SegmentActive("ref_seg")] = []string{"k1", "1", "k2", "2", "k3", "7", "k4", "3", "k5", "2"}
 	c.sets[keys.SegmentTombstones("ref_seg")] = []string{"k3", "5", "k4", "3", "k5", "4"}
 
@@ -387,10 +387,10 @@ func TestKeyInBothSetsResolvedByChangeNumber(t *testing.T) {
 		t.Errorf("visited = %v, want %v", visited, want)
 	}
 	seg := gapsSegment(t, state, "ref_seg")
-	if want := map[string]int64{"k1": 1, "k2": 2, "k3": 7}; !maps.Equal(seg.Active, want) {
+	if want := map[string]int64{"k1": 1, "k2": 2, "k3": 7, "k4": 3}; !maps.Equal(seg.Active, want) {
 		t.Errorf("ref_seg active = %v, want %v", seg.Active, want)
 	}
-	if want := map[string]int64{"k4": 3, "k5": 4}; !maps.Equal(seg.Removed, want) {
+	if want := map[string]int64{"k5": 4}; !maps.Equal(seg.Removed, want) {
 		t.Errorf("ref_seg removed = %v, want %v", seg.Removed, want)
 	}
 }
@@ -483,6 +483,37 @@ func TestTornFlagsReadRetriedThenValid(t *testing.T) {
 	}
 	if len(state.Flags) != 1 || state.Flags[0].ChangeNumber != 6 {
 		t.Errorf("flags = %+v, want one flag at change number 6", state.Flags)
+	}
+	if n := c.countCall(dataCall); n != 2 {
+		t.Errorf("flag data read %d times, want 2", n)
+	}
+}
+
+// A flag removed and then added back while it is read looks like an ARCHIVED entry that is not in the removed set. That
+// is a cross-key disagreement a live writer causes, so it is retried, not corrupt.
+func TestFlagRemovedThenReAddedDuringReadIsRetriedThenValid(t *testing.T) {
+	c, keys := gapsState(t)
+	dataCall := "hgetall " + keys.FlagData()
+	c.mutate(func() {
+		c.hash[keys.FlagData()] = map[string]string{"flag1": strings.Replace(gapsFlagJSON, `"ACTIVE"`, `"ARCHIVED"`, 1)}
+	})
+	dataReads := 0
+	c.hook = func(_ context.Context, call string) {
+		if call != dataCall {
+			return
+		}
+		dataReads++
+		if dataReads == 2 {
+			c.mutate(func() { c.hash[keys.FlagData()] = map[string]string{"flag1": gapsFlagJSON} })
+		}
+	}
+
+	state, err := gapsReader(t, c, keys).Read(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	if state.Status != BootValid {
+		t.Fatalf("status = %s (reason %q), want valid after the retry", state.Status, state.Reason)
 	}
 	if n := c.countCall(dataCall); n != 2 {
 		t.Errorf("flag data read %d times, want 2", n)

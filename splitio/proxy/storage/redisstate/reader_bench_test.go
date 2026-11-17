@@ -24,7 +24,20 @@ import (
 // This benchmark uses a no-op visitor, so it excludes the restore sink (Bolt transaction, key maps and sets built per
 // segment). Peak-heap numbers from here understate the real boot peak. The restore benchmark in the storage package
 // (splitio/proxy/storage/redisrestore_test.go) covers the sink.
+// This benchmark calls Reader.Read, which retains every segment payload in BootState.Segments. Production boot uses
+// Reader.ReadInto, which streams each segment to the sink and lets it go, so peak heap in production is lower than
+// this benchmark reports. Use BenchmarkReaderBootInto for production timing and memory figures.
 func BenchmarkReaderBoot(b *testing.B) {
+	benchReaderBootSized(b, false)
+}
+
+// BenchmarkReaderBootInto is BenchmarkReaderBoot through Reader.ReadInto with a counting sink, the production path:
+// each segment is handed over and released, nothing is retained. It still excludes the real restore sink.
+func BenchmarkReaderBootInto(b *testing.B) {
+	benchReaderBootSized(b, true)
+}
+
+func benchReaderBootSized(b *testing.B, into bool) {
 	segments, keysPerSeg := 5, 20000
 	if os.Getenv("PROXY_BENCH_BIG") == "1" {
 		segments, keysPerSeg = 50, 500000
@@ -36,11 +49,20 @@ func BenchmarkReaderBoot(b *testing.B) {
 		keysPerSeg = n
 	}
 	b.Run(fmt.Sprintf("segments=%d_keys=%d", segments, keysPerSeg), func(b *testing.B) {
-		benchReaderBoot(b, segments, keysPerSeg)
+		benchReaderBoot(b, segments, keysPerSeg, into)
 	})
 }
 
-func benchReaderBoot(b *testing.B, segments, keysPerSeg int) {
+// countingSink counts the segment keys it is handed and keeps nothing.
+type countingSink struct{ total *int }
+
+func (countingSink) Entities([]dtos.SplitDTO, []dtos.RuleBasedSegmentDTO) error { return nil }
+func (s countingSink) Segment(seg SegmentState) error {
+	*s.total += len(seg.Active)
+	return nil
+}
+
+func benchReaderBoot(b *testing.B, segments, keysPerSeg int, into bool) {
 	e := newRealRedisEnv(b)
 	segNames := make([]string, segments)
 	for s := range segNames {
@@ -68,7 +90,13 @@ func benchReaderBoot(b *testing.B, segments, keysPerSeg int) {
 		total += len(seg.Active)
 		return nil
 	}
-	warm, err := e.reader.Read(ctx, visit)
+	read := func() (BootState, error) {
+		if into {
+			return e.reader.ReadInto(ctx, countingSink{total: &total})
+		}
+		return e.reader.Read(ctx, visit)
+	}
+	warm, err := read()
 	if err != nil {
 		b.Fatalf("warm-up read: %v", err)
 	}
@@ -105,7 +133,7 @@ func benchReaderBoot(b *testing.B, segments, keysPerSeg int) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		total = 0
-		state, err := e.reader.Read(ctx, visit)
+		state, err := read()
 		if err != nil {
 			b.Fatalf("boot read: %v", err)
 		}

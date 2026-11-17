@@ -67,10 +67,17 @@ var errTorn = errors.New("redis state changed while it was read")
 
 const (
 	// zscanCount is the ZSCAN page size. Each page is one round trip, so a bigger page cuts the read time on a remote
-	// redis; it is bounded so a single call does not block the server for long.
+	// redis; it is bounded so a single call does not block the server for long. Measured with 5 segments of 200k keys
+	// (BenchmarkReaderBootInto): on a local Redis the page size barely matters once 2 or more segments are read at once,
+	// but with 5 ms per call a boot takes 2.5 s at 5000 against 11.9 s at 500 with one reader. 10000 gains a further
+	// 1.3 to 1.5x only on huge segments over a slow link, at the price of longer blocking calls, so 5000 is kept.
+	// Segments under one page (the common case) are unaffected by this value.
 	zscanCount = 5000
 	// defaultSegmentParallelism is how many segments are read from redis at once. The sink still receives them one at a
 	// time and in order, so the sink needs no locking. At most this many segment payloads are held at once.
+	// Measured: with 5 ms per call, 200 small segments boot in 3.5 s at 1, 0.9 s at 4 and 0.5 s at 8; on a local Redis 4
+	// is already at the floor (about 320 ms for 1M keys). Peak heap grows with it, about 15 MB per 200k-key segment held
+	// (16 MB at 1, 66 MB at 4, 81 MB at 8), so 8 trades memory for speed only on a slow link. 4 is the default.
 	defaultSegmentParallelism = 4
 	// readCallTimeout bounds each redis call. Scans have no total bound, so a progressing scan never fails.
 	readCallTimeout = 30 * time.Second
@@ -84,6 +91,8 @@ const (
 	readAttempts = 3
 	// tornReadAttempts is the total attempts (first read included) per entity group.
 	tornReadAttempts = 3
+	// maxPresize caps the map size taken from ZCARD, so a wrong count cannot cause a huge allocation.
+	maxPresize = 1 << 24
 	// maxExactScore (2^53): float64 cannot tell it from 2^53+1, so it and above are rejected.
 	maxExactScore = 1 << 53
 )
@@ -92,6 +101,9 @@ const (
 type ReadClient interface {
 	HGetAll(ctx context.Context, key string) (map[string]string, error)
 	ZScan(ctx context.Context, key string, cursor uint64, count int64) ([]string, uint64, error)
+	// ZCard returns the member count of a sorted set. The reader calls it only for a set larger than one ZSCAN page,
+	// to size the result map once instead of growing it.
+	ZCard(ctx context.Context, key string) (int64, error)
 	// HGet returns one hash field; found is false when the key or field does not exist.
 	HGet(ctx context.Context, key, field string) (value string, found bool, err error)
 }
@@ -540,14 +552,15 @@ func addMatcherReferences(referenced map[string]bool, matchers []dtos.MatcherDTO
 }
 
 // resolveBothSets drops the stale side of a key present in both sets, which a writer moving it between two ZSCANs can
-// cause. The higher change number wins; a tie is a removal.
+// cause. The higher change number wins; a tie is an add (add wins, the same rule as the writer script). The sink
+// still rejects a key left in both sets, so the reader must resolve every one.
 func resolveBothSets(active, removed map[string]int64) {
 	for key, removedAt := range removed {
 		activeAt, both := active[key]
 		if !both {
 			continue
 		}
-		if removedAt >= activeAt {
+		if removedAt > activeAt {
 			delete(active, key)
 		} else {
 			delete(removed, key)
@@ -623,7 +636,8 @@ func readEntities[T any](ctx context.Context, r *Reader, label, dataKey, indexKe
 			return nil, corruptf("%s entry name does not match its key", label)
 		}
 		if !isRemoved && status != statusActive {
-			return nil, corruptf("%s entry is not removed but its status is not ACTIVE", label)
+			// A flag removed and added back between the data read and the removed scan looks like this: torn, not corrupt.
+			return nil, tornf("%s entry is not removed but its status is not ACTIVE", label)
 		}
 		out = append(out, entity)
 	}
@@ -663,6 +677,15 @@ func (r *Reader) scanScores(ctx context.Context, key, label string) (map[string]
 		}
 		if page.next == 0 {
 			return out, nil
+		}
+		if len(seenCursors) == 0 {
+			// More than one page: size the map once from ZCARD instead of growing it page by page. A failed or odd
+			// count only skips the optimization, it never fails the read.
+			if card, cerr := r.client.ZCard(ctx, key); cerr == nil && card > int64(len(out)) {
+				sized := make(map[string]int64, min(card, maxPresize))
+				maps.Copy(sized, out)
+				out = sized
+			}
 		}
 		if seenCursors[page.next] {
 			return nil, corruptf("%s scan returned the cursor %d twice", label, page.next)

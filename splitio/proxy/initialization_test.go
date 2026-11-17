@@ -1628,3 +1628,56 @@ func TestStartBootPhaseIsInitialSyncWhileFirstCloudSyncInFlight(t *testing.T) {
 	releaseOnce()
 	waitForStartLog(t, done, logger, "Synchronizer tasks started", 60*time.Second)
 }
+
+// A valid Redis restore with no skipped segment is a complete local state, so the second resync is skipped (R8). A
+// restore with skipped segments, or any other source, is not, so the second resync runs.
+func TestRedisBootIsLocalStateDrivesSecondResync(t *testing.T) {
+	valid := &redisstate.BootState{Status: redisstate.BootValid}
+	skipped := &redisstate.BootState{Status: redisstate.BootValid, SkippedSegments: []string{"seg"}}
+	cases := []struct {
+		name string
+		boot BootDecision
+		want bool
+	}{
+		{"redis valid, nothing skipped", BootDecision{Source: BootSourceRedis, State: valid}, true},
+		{"redis valid, one segment skipped", BootDecision{Source: BootSourceRedis, State: skipped}, false},
+		{"redis source without a state", BootDecision{Source: BootSourceRedis}, false},
+		{"snapshot file", BootDecision{Source: BootSourceSnapshotFile}, false},
+		{"cold", BootDecision{Source: BootSourceCold}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := redisBootIsLocalState(tc.boot); got != tc.want {
+				t.Fatalf("redisBootIsLocalState = %v, want %v", got, tc.want)
+			}
+		})
+	}
+
+	keys, err := redisstate.NewKeys("prefix", "apikey", "ns")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range cases {
+		t.Run("second resync "+tc.name, func(t *testing.T) {
+			w, err := redisstate.NewWriter(resyncCountingClient{}, keys, "fingerprint", redisstate.DefaultOptions(), logging.NewLogger(nil))
+			if err != nil {
+				t.Fatal(err)
+			}
+			src := &resyncCountingSource{}
+			if err := w.Start(src); err != nil {
+				t.Fatal(err)
+			}
+			defer w.Stop()
+			waitForFlagCalls(t, src, 1)
+			requestSecondResync(w, redisBootIsLocalState(tc.boot), time.Second, logging.NewLogger(nil))
+			if tc.want {
+				time.Sleep(200 * time.Millisecond)
+				if got := atomic.LoadInt64(&src.flagCalls); got != 1 {
+					t.Fatalf("second resync ran on a complete local state: %d source reads", got)
+				}
+				return
+			}
+			waitForFlagCalls(t, src, 2)
+		})
+	}
+}

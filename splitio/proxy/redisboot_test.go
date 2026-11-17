@@ -456,6 +456,8 @@ func (f *bootPopulatedClient) HGetAll(_ context.Context, key string) (map[string
 	return out, nil
 }
 
+func (f *bootPopulatedClient) ZCard(_ context.Context, _ string) (int64, error) { return 0, nil }
+
 func (f *bootPopulatedClient) ZScan(_ context.Context, key string, _ uint64, _ int64) ([]string, uint64, error) {
 	return f.zsets[key], 0, nil
 }
