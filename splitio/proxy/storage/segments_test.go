@@ -2,6 +2,7 @@ package storage
 
 import (
 	"errors"
+	"sync/atomic"
 	"testing"
 
 	"github.com/splitio/go-toolkit/v5/datastructures/set"
@@ -307,4 +308,37 @@ func TestProxySegmentStorageRedisIndependentOfLocalStoreFailure(t *testing.T) {
 		_, err := ss.ChangesSince("seg", -1)
 		assert.ErrorIs(t, err, ErrSegmentNotFound)
 	})
+}
+
+type countingSegmentWriter struct{ calls atomic.Int64 }
+
+func (c *countingSegmentWriter) PutSegment(string, []string, []string, int64) { c.calls.Add(1) }
+
+// The writer can be attached while the sync is already calling Update (Redis came back after startup): no race, no panic.
+func TestSegmentWriterAttachedAfterStartupIsRaceFree(t *testing.T) {
+	psm := &mocks.SegmentChangesCollectionMock{}
+	psm.On("Update", "seg", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	ss := &ProxySegmentStorageImpl{
+		logger:         logging.NewLogger(nil),
+		db:             psm,
+		mysegments:     optimized.NewMySegmentsCache(),
+		nameCountCache: observability.NewActiveSegmentTracker(10),
+	}
+	w := &countingSegmentWriter{}
+
+	started := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		close(started)
+		for cn := int64(1); cn <= 500; cn++ {
+			assert.Nil(t, ss.Update("seg", set.NewSet("k1"), set.NewSet(), cn))
+		}
+	}()
+	<-started
+	ss.WithRedisWriter(w)
+	<-done
+
+	assert.Nil(t, ss.Update("seg", set.NewSet("k1"), set.NewSet(), 501))
+	assert.Greater(t, w.calls.Load(), int64(0), "updates after the attach reach the writer")
 }

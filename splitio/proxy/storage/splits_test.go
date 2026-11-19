@@ -2,6 +2,7 @@ package storage
 
 import (
 	"errors"
+	"sync/atomic"
 	"testing"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/optimized"
@@ -530,4 +531,29 @@ func TestProxySplitStorageRedisIndependentOfLocalStoreFailure(t *testing.T) {
 	cn, err := pss.ChangeNumber()
 	assert.Nil(t, err)
 	assert.Equal(t, int64(5), cn, "the in-memory snapshot is updated as before")
+}
+
+type countingFlagWriter struct{ calls atomic.Int64 }
+
+func (c *countingFlagWriter) PutFlags(_, _ []dtos.SplitDTO, _ int64) { c.calls.Add(1) }
+
+// The writer can be attached while the sync is already calling Update (Redis came back after startup).
+func TestFlagWriterAttachedAfterStartupIsRaceFree(t *testing.T) {
+	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
+	assert.Nil(t, err)
+	pss := NewProxySplitStorage(dbw, logging.NewLogger(nil), flagsets.NewFlagSetFilter(nil), false)
+	w := &countingFlagWriter{}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for cn := int64(1); cn <= 200; cn++ {
+			pss.Update([]dtos.SplitDTO{{Name: "f1", ChangeNumber: cn, Status: "ACTIVE", TrafficTypeName: "ttt"}}, nil, cn)
+		}
+	}()
+	pss.WithRedisWriter(w)
+	<-done
+
+	pss.Update([]dtos.SplitDTO{{Name: "f1", ChangeNumber: 201, Status: "ACTIVE", TrafficTypeName: "ttt"}}, nil, 201)
+	assert.Greater(t, w.calls.Load(), int64(0), "updates after the attach reach the writer")
 }

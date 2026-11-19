@@ -52,7 +52,7 @@ type TLS struct {
 type Redis struct {
 	Host                  string   `json:"host" s-cli:"redis-host" s-def:"localhost" s-desc:"Redis server hostname"`
 	Port                  int      `json:"port" s-cli:"redis-port" s-def:"6379" s-desc:"Redis Server port"`
-	Db                    int      `json:"db" s-cli:"redis-db" s-def:"0" s-desc:"Redis DB"`
+	Db                    int      `json:"db" s-cli:"redis-db" s-def:"0" s-desc:"Redis DB (>= 0)"`
 	Username              string   `json:"username" s-cli:"redis-user" s-def:"" s-desc:"Redis username"`
 	Pass                  string   `json:"password" s-cli:"redis-pass" s-def:"" s-desc:"Redis password"`
 	Prefix                string   `json:"prefix" s-cli:"redis-prefix" s-def:"" s-desc:"Redis key prefix"`
@@ -61,7 +61,7 @@ type Redis struct {
 	DialTimeout           int      `json:"dialTimeout" s-cli:"redis-dial-timeout" s-def:"5" s-desc:"Redis connection dial timeout"`
 	ReadTimeout           int      `json:"readTimeout" s-cli:"redis-read-timeout" s-def:"10" s-desc:"Redis connection read timeout"`
 	WriteTimeout          int      `json:"writeTimeout" s-cli:"redis-write-timeout" s-def:"5" s-desc:"Redis connection write timeout"`
-	PoolSize              int      `json:"poolSize" s-cli:"redis-pool" s-def:"10" s-desc:"Redis connection pool size"`
+	PoolSize              int      `json:"poolSize" s-cli:"redis-pool" s-def:"10" s-desc:"Redis connection pool size (1..10000)"`
 	SentinelReplication   bool     `json:"sentinelReplication" s-cli:"redis-sentinel-replication" s-def:"false" s-desc:"Redis sentinel replication enabled."`
 	SentinelAddresses     string   `json:"sentinelAddresses" s-cli:"redis-sentinel-addresses" s-def:"" s-desc:"List of redis sentinels"`
 	SentinelMaster        string   `json:"sentinelMaster" s-cli:"redis-sentinel-master" s-def:"" s-desc:"Name of master"`

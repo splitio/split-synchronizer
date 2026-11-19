@@ -411,9 +411,26 @@ func TestSetupRedisStateUnreachable(t *testing.T) {
 	cfg.Storage.Redis.Connection.Host = "127.0.0.1"
 	cfg.Storage.Redis.Connection.Port = port
 
-	writer, err := setupRedisState(cfg, logging.NewLogger(nil), nil, nil, nil, nil)
-	assert.True(t, writer == nil)
-	assertInitError(t, err, common.ExitRedisInitializationFailed)
+	sup, err := setupRedisState(cfg, logging.NewLogger(nil), nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("an unreachable Redis must not fail startup, got %v", err)
+	}
+	if sup == nil {
+		t.Fatal("expected a supervisor that retries in the background")
+	}
+	assert.False(t, sup.Status().Healthy)
+	assert.Nil(t, sup.Writer())
+
+	done := make(chan struct{})
+	go func() {
+		sup.Stop()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Stop did not return while Redis is unreachable")
+	}
 }
 
 func TestSetupRedisStateWiresStorages(t *testing.T) {
@@ -427,15 +444,16 @@ func TestSetupRedisStateWiresStorages(t *testing.T) {
 	segments := storage.NewProxySegmentStorage(db, logger, false)
 
 	cfg := redisStateTestConfig(t)
-	writer, err := setupRedisState(cfg, logger, splits, rbs, segments, nil)
+	sup, err := setupRedisState(cfg, logger, splits, rbs, segments, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if writer == nil {
+	if sup == nil || sup.Writer() == nil {
 		t.Fatal("expected a redis state writer when enabled")
 	}
+	writer := sup.Writer()
 	t.Cleanup(func() {
-		writer.Stop()
+		sup.Stop()
 		if err := writer.Reset(); err != nil {
 			t.Errorf("error cleaning up redis state: %v", err)
 		}
@@ -495,23 +513,24 @@ func TestSetupRedisStateStopOnShutdown(t *testing.T) {
 	segments := storage.NewProxySegmentStorage(db, logger, false)
 
 	cfg := redisStateTestConfig(t)
-	writer, err := setupRedisState(cfg, logger, splits, rbs, segments, nil)
+	sup, err := setupRedisState(cfg, logger, splits, rbs, segments, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if writer == nil {
+	if sup == nil || sup.Writer() == nil {
 		t.Fatal("expected a redis state writer when enabled")
 	}
+	writer := sup.Writer()
 	t.Cleanup(func() {
 		if err := writer.Reset(); err != nil {
 			t.Errorf("error cleaning up redis state: %v", err)
 		}
 	})
 
-	assert.True(t, stopRedisState(writer, logger, 10*time.Second))
+	assert.True(t, stopRedisState(sup, logger, 10*time.Second))
 
 	// A second stop must return immediately and not hang on the already-closed worker.
-	assert.True(t, stopRedisState(writer, logger, 10*time.Second))
+	assert.True(t, stopRedisState(sup, logger, 10*time.Second))
 	assert.True(t, stopRedisState(nil, logger, time.Second))
 }
 
@@ -724,4 +743,253 @@ func TestSetupRedisStateRejectsInvalidNamespaceBeforeConnecting(t *testing.T) {
 	assert.True(t, writer == nil)
 	assertInitError(t, err, common.ExitInvalidConfiguration)
 	assert.False(t, connected, "invalid namespace must be rejected before the Redis client is created")
+}
+
+// replaceRedisStateClient swaps the client factory for the duration of the test.
+func replaceRedisStateClient(t *testing.T, factory func(*commonconf.RedisConfig, logging.LoggerInterface) (*redis.PrefixedRedisClient, error)) {
+	t.Helper()
+	original := newRedisStateClient
+	t.Cleanup(func() { newRedisStateClient = original })
+	newRedisStateClient = factory
+}
+
+// fakeRedisReachability answers like an unreachable server while reachable is false and delegates to the real
+// client once it is true. calls counts every factory invocation.
+type fakeRedisReachability struct {
+	reachable atomic.Bool
+	calls     atomic.Int32
+}
+
+func fakeRedisReachabilityFactory(t *testing.T, initiallyReachable bool) *fakeRedisReachability {
+	t.Helper()
+	f := &fakeRedisReachability{}
+	f.reachable.Store(initiallyReachable)
+	original := newRedisStateClient
+	replaceRedisStateClient(t, func(opts *commonconf.RedisConfig, logger logging.LoggerInterface) (*redis.PrefixedRedisClient, error) {
+		f.calls.Add(1)
+		if !f.reachable.Load() {
+			return nil, &net.OpError{Op: "dial", Err: errors.New("connection refused")}
+		}
+		return original(opts, logger)
+	})
+	return f
+}
+
+func withFastRedisStateRetry(t *testing.T) {
+	t.Helper()
+	original := redisStateRetryDelay
+	redisStateRetryDelay = func(time.Duration) time.Duration { return time.Millisecond }
+	t.Cleanup(func() { redisStateRetryDelay = original })
+}
+
+func waitForCondition(t *testing.T, what string, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s", what)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+func redisFlagDataExists(t *testing.T, cfg *pconf.Main, logger logging.LoggerInterface) int64 {
+	t.Helper()
+	opts, err := common.ParseRedisOptions(&cfg.Storage.Redis.Connection)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := commonredis.NewRedisClient(opts, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prefix := client.Prefix()
+	keys, err := redisstate.NewKeys(prefix, cfg.Apikey, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, err := client.Exists(unprefixedKeys(prefix, []string{keys.FlagData()})...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+func TestRedisStateConnectionFailureThenSuccessAttachesAndStartsWriter(t *testing.T) {
+	withFastRedisStateRetry(t)
+	fake := fakeRedisReachabilityFactory(t, false)
+	logger, splits, rbs, segments := newRedisStateTestStorages(t)
+	cfg := redisStateTestConfig(t)
+
+	sup, err := setupRedisState(cfg, logger, splits, rbs, segments, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		sup.Stop()
+		if w := sup.Writer(); w != nil {
+			if err := w.Reset(); err != nil {
+				t.Errorf("error cleaning up redis state: %v", err)
+			}
+		}
+	})
+
+	waitForCondition(t, "retries while Redis is down", func() bool { return fake.calls.Load() >= 3 })
+	st := sup.Status()
+	assert.False(t, st.Healthy)
+	assert.Contains(t, st.LastError, "waiting for Redis")
+	assert.Nil(t, sup.Writer())
+
+	fake.reachable.Store(true)
+	waitForCondition(t, "the writer to attach", func() bool { return sup.Writer() != nil })
+
+	splits.Update([]dtos.SplitDTO{{Name: "late_flag"}}, nil, 10)
+	waitForRedisStateFlush(t, sup.Writer())
+	assert.True(t, sup.Status().Healthy)
+	assert.Greater(t, redisFlagDataExists(t, cfg, logger), int64(0))
+}
+
+func TestRedisStateConfigErrorStaysFatal(t *testing.T) {
+	withFastRedisStateRetry(t)
+	calls := 0
+	replaceRedisStateClient(t, func(*commonconf.RedisConfig, logging.LoggerInterface) (*redis.PrefixedRedisClient, error) {
+		calls++
+		return nil, errors.New("x")
+	})
+	logger, splits, rbs, segments := newRedisStateTestStorages(t)
+	cfg := redisStateTestConfig(t)
+
+	sup, err := setupRedisState(cfg, logger, splits, rbs, segments, nil)
+	assert.Nil(t, sup)
+	assertInitError(t, err, common.ExitRedisInitializationFailed)
+	assert.Equal(t, 1, calls, "a non-connection client error must not be retried")
+}
+
+func TestRedisStateStopWhileRetrying(t *testing.T) {
+	withFastRedisStateRetry(t)
+	fake := fakeRedisReachabilityFactory(t, false)
+	logger, splits, rbs, segments := newRedisStateTestStorages(t)
+	cfg := redisStateTestConfig(t)
+
+	sup, err := setupRedisState(cfg, logger, splits, rbs, segments, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitForCondition(t, "retries while Redis is down", func() bool { return fake.calls.Load() >= 2 })
+
+	stopped := make(chan struct{})
+	go func() {
+		sup.Stop()
+		close(stopped)
+	}()
+	select {
+	case <-stopped:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Stop did not return within 2s while retrying")
+	}
+
+	calls := fake.calls.Load()
+	time.Sleep(20 * time.Millisecond)
+	assert.Equal(t, calls, fake.calls.Load(), "no retry may run after Stop")
+	assert.Nil(t, sup.Writer())
+}
+
+func TestRedisStateForceFreshResetOnlyAfterConnect(t *testing.T) {
+	withFastRedisStateRetry(t)
+	fake := fakeRedisReachabilityFactory(t, true)
+	logger, splits, rbs, segments := newRedisStateTestStorages(t)
+	cfg := redisStateTestConfig(t)
+
+	// A previous run leaves a flag in Redis.
+	previous, err := setupRedisState(cfg, logger, splits, rbs, segments, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	splits.Update([]dtos.SplitDTO{{Name: "previous_run_flag"}}, nil, 10)
+	waitForRedisStateFlush(t, previous.Writer())
+	previous.Stop()
+	assert.Greater(t, redisFlagDataExists(t, cfg, logger), int64(0))
+
+	// The next run starts fresh while Redis is down: the reset must wait for a connection.
+	fake.reachable.Store(false)
+	fake.calls.Store(0)
+	cfg.Initialization.ForceFreshStartup = true
+	logger, splits, rbs, segments = newRedisStateTestStorages(t)
+	sup, err := setupRedisState(cfg, logger, splits, rbs, segments, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		sup.Stop()
+		if w := sup.Writer(); w != nil {
+			if err := w.Reset(); err != nil {
+				t.Errorf("error cleaning up redis state: %v", err)
+			}
+		}
+	})
+	waitForCondition(t, "retries while Redis is down", func() bool { return fake.calls.Load() >= 2 })
+	assert.Nil(t, sup.Writer(), "no writer exists, so the reset cannot have run")
+	assert.Greater(t, redisFlagDataExists(t, cfg, logger), int64(0), "the previous state must be untouched while Redis is down")
+
+	fake.reachable.Store(true)
+	waitForCondition(t, "the writer to attach", func() bool { return sup.Writer() != nil })
+	assert.Equal(t, int64(0), redisFlagDataExists(t, cfg, logger), "the reset runs once the connection is up")
+}
+
+func TestRedisStateStatusWhileWaiting(t *testing.T) {
+	withFastRedisStateRetry(t)
+	fakeRedisReachabilityFactory(t, false)
+	logger, splits, rbs, segments := newRedisStateTestStorages(t)
+	cfg := redisStateTestConfig(t)
+
+	sup, err := setupRedisState(cfg, logger, splits, rbs, segments, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(sup.Stop)
+	assert.Equal(t, redisstate.Status{LastError: "redis state writer waiting for Redis"}, sup.Status())
+}
+
+func TestRedisStateAttachVersusPut(t *testing.T) {
+	withFastRedisStateRetry(t)
+	fake := fakeRedisReachabilityFactory(t, false)
+	logger, splits, rbs, segments := newRedisStateTestStorages(t)
+	cfg := redisStateTestConfig(t)
+
+	sup, err := setupRedisState(cfg, logger, splits, rbs, segments, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		sup.Stop()
+		if w := sup.Writer(); w != nil {
+			if err := w.Reset(); err != nil {
+				t.Errorf("error cleaning up redis state: %v", err)
+			}
+		}
+	})
+
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := int64(0); ; i++ {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			splits.Update([]dtos.SplitDTO{{Name: fmt.Sprintf("race_flag_%d", i%50)}}, nil, i+1)
+		}
+	}()
+
+	waitForCondition(t, "retries while Redis is down", func() bool { return fake.calls.Load() >= 2 })
+	fake.reachable.Store(true)
+	waitForCondition(t, "the writer to attach", func() bool { return sup.Writer() != nil })
+	close(stop)
+	wg.Wait()
+
+	waitForRedisStateFlush(t, sup.Writer())
+	assert.True(t, sup.Status().Healthy)
 }

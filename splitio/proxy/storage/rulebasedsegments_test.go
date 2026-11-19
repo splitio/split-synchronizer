@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"sync/atomic"
 	"testing"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/persistent"
@@ -290,4 +291,31 @@ func TestProxyRuleBasedSegmentsRedisWriterCalledAfterUnlock(t *testing.T) {
 
 	assert.Equal(t, []bool{true, true}, w.mutexFree)
 	assert.Equal(t, []int64{7, 8}, w.cns)
+}
+
+type countingRBWriter struct{ calls atomic.Int64 }
+
+func (c *countingRBWriter) PutRuleBasedSegments(_, _ []dtos.RuleBasedSegmentDTO, _ int64) {
+	c.calls.Add(1)
+}
+
+// The writer can be attached while the sync is already calling Update (Redis came back after startup).
+func TestRBSWriterAttachedAfterStartupIsRaceFree(t *testing.T) {
+	dbw, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
+	assert.Nil(t, err)
+	rbs := NewProxyRuleBasedSegmentsStorage(dbw, logging.NewLogger(nil), false)
+	w := &countingRBWriter{}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for cn := int64(1); cn <= 200; cn++ {
+			assert.Nil(t, rbs.Update([]dtos.RuleBasedSegmentDTO{{Name: "rb1", ChangeNumber: cn, Status: "ACTIVE"}}, nil, cn))
+		}
+	}()
+	rbs.WithRedisWriter(w)
+	<-done
+
+	assert.Nil(t, rbs.Update([]dtos.RuleBasedSegmentDTO{{Name: "rb1", ChangeNumber: 201, Status: "ACTIVE"}}, nil, 201))
+	assert.Greater(t, w.calls.Load(), int64(0), "updates after the attach reach the writer")
 }

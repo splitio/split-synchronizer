@@ -62,9 +62,11 @@ func NewProxySplitStorage(db persistent.DBWrapper, logger logging.LoggerInterfac
 	}
 }
 
-// WithRedisWriter sets the writer that mirrors flag changes to Redis (nil disables it) and returns the receiver
+// WithRedisWriter sets the writer that mirrors flag changes to Redis (nil disables it) and returns the receiver. It is safe to call while updates are running, the writer may be attached after startup
 func (p *ProxySplitStorageImpl) WithRedisWriter(w redisstate.FlagWriter) *ProxySplitStorageImpl {
+	p.mtx.Lock()
 	p.redis = w
+	p.mtx.Unlock()
 	return p
 }
 

@@ -3,6 +3,7 @@ package storage
 import (
 	"errors"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/provisional/observability"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/optimized"
@@ -32,12 +33,16 @@ type ProxySegmentStorageImpl struct {
 	nameCountCache *observability.ActiveSegmentTracker
 	db             persistent.SegmentChangesCollection
 	mysegments     optimized.MySegmentsCache
-	redis          redisstate.SegmentWriter // nil when the Redis state is disabled
+	redis          atomic.Pointer[redisstate.SegmentWriter] // nil when the Redis state is disabled or not attached yet
 }
 
-// WithRedisWriter sets the writer that mirrors segment key changes to Redis (nil disables it) and returns the receiver
+// WithRedisWriter sets the writer that mirrors segment key changes to Redis (nil disables it) and returns the receiver. It is safe to call while updates are running, the writer may be attached after startup
 func (s *ProxySegmentStorageImpl) WithRedisWriter(w redisstate.SegmentWriter) *ProxySegmentStorageImpl {
-	s.redis = w
+	if w == nil {
+		s.redis.Store(nil)
+	} else {
+		s.redis.Store(&w)
+	}
 	return s
 }
 
@@ -151,14 +156,14 @@ func (s *ProxySegmentStorageImpl) SegmentContainsKey(segmentName string, key str
 func (s *ProxySegmentStorageImpl) Update(name string, toAdd *set.ThreadUnsafeSet, toRemove *set.ThreadUnsafeSet, changeNumber int64) error {
 	errCache := s.mysegments.Update(name, toAdd, toRemove)
 	errDB := s.db.Update(name, toAdd, toRemove, changeNumber)
-	if s.redis != nil {
+	if redis := s.redis.Load(); redis != nil {
 		// Equal change numbers: if two separate calls carry the same cn for one segment (not reachable in practice,
 		// the fetcher advances cn on every change), Bolt and mySegments keep the last arrival while Redis keeps the
 		// state it already holds.
 		// The Redis enqueue is deliberately independent of errCache and errDB: a Bolt or cache failure does not
 		// stop the Redis mirror, so Redis can be one change number ahead of a failed Bolt write. This is harmless
 		// because the fetcher retries the change, and the Bolt file is not reused as a source of truth for Redis.
-		s.redis.PutSegment(name, stringsFrom(toAdd), stringsFrom(toRemove), changeNumber)
+		(*redis).PutSegment(name, stringsFrom(toAdd), stringsFrom(toRemove), changeNumber)
 	}
 	if errCache == nil && errDB == nil {
 		s.nameCountCache.Update(name, toAdd.Size(), toRemove.Size())

@@ -33,9 +33,11 @@ type ProxyRuleBasedSegmentsStorageImpl struct {
 	redis         redisstate.RuleBasedSegmentWriter // nil when the Redis state is disabled
 }
 
-// WithRedisWriter sets the writer that mirrors rule-based segment changes to Redis (nil disables it) and returns the receiver
+// WithRedisWriter sets the writer that mirrors rule-based segment changes to Redis (nil disables it) and returns the receiver. It is safe to call while updates are running, the writer may be attached after startup
 func (p *ProxyRuleBasedSegmentsStorageImpl) WithRedisWriter(w redisstate.RuleBasedSegmentWriter) *ProxyRuleBasedSegmentsStorageImpl {
+	p.mtx.Lock()
 	p.redis = w
+	p.mtx.Unlock()
 	return p
 }
 

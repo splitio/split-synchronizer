@@ -223,7 +223,9 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		logger.Info("Synchronizer tasks started")
 		// The writer's startup resync ran against an empty source on a cold boot, so repair it once sync has populated the storages.
 		redisGate.open()
-		go requestSecondResync(redisWriter, haveLocalState, secondResyncWait, secondResyncStop, logger)
+		if redisWriter != nil {
+			go requestSecondResync(redisWriter, haveLocalState, secondResyncWait, secondResyncStop, logger)
+		}
 		appMonitor.Start()
 		servicesMonitor.Start()
 		flagSetsAfterSanitize, _ := flagsets.SanitizeMany(cfg.FlagSetsFilter)
@@ -380,8 +382,14 @@ func maskAdminConfigSecrets(cfg *pconf.Main) {
 	}
 }
 
+// resyncTarget is the part of the Redis state writer, or of its supervisor, that the cold boot repair uses.
+type resyncTarget interface {
+	RequestResync()
+	Status() redisstate.Status
+}
+
 // requestRedisResync asks a non-nil Redis writer for a full resync. A nil writer (feature disabled) is a no-op.
-func requestRedisResync(w *redisstate.Writer) {
+func requestRedisResync(w resyncTarget) {
 	if w != nil {
 		w.RequestResync()
 	}
@@ -398,14 +406,14 @@ const secondResyncPoll = 100 * time.Millisecond
 // state in place instead of rewriting it twice. When the bound expires it logs and requests the resync anyway: the
 // source is complete by now, so the resync is safe at any point. It blocks, so call it in its own goroutine.
 // It returns without requesting when stop is closed, so a shutdown does not leave the wait running.
-func requestSecondResync(w *redisstate.Writer, haveLocalState bool, bound time.Duration, stop <-chan struct{}, logger logging.LoggerInterface) {
+func requestSecondResync(w resyncTarget, haveLocalState bool, bound time.Duration, stop <-chan struct{}, logger logging.LoggerInterface) {
 	if w == nil {
 		return
 	}
 	requestSecondResyncWith(w, haveLocalState, bound, stop, logger, func() bool { return w.Status().PendingChanges == 0 })
 }
 
-func requestSecondResyncWith(w *redisstate.Writer, haveLocalState bool, bound time.Duration, stop <-chan struct{}, logger logging.LoggerInterface, drained func() bool) {
+func requestSecondResyncWith(w resyncTarget, haveLocalState bool, bound time.Duration, stop <-chan struct{}, logger logging.LoggerInterface, drained func() bool) {
 	if haveLocalState || w == nil {
 		return
 	}
