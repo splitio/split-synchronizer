@@ -12,7 +12,6 @@ entrypoint.sync.sh
 entrypoint.synchronizer.sh
 run.sh
 bin/*
-*.yaml
 /vendor
 .worktrees/
 
