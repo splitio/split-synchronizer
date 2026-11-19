@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/splitio/go-split-commons/v10/dtos"
@@ -72,7 +74,9 @@ func (w *Writer) resync(source Source) error {
 	var gone []dtos.SplitDTO
 	var goneSkipped []string
 	if !sourceEmpty(len(flags), flagsCn) {
-		gone, goneSkipped = w.unlistedFlags(storedFlags, flags)
+		gone, goneSkipped = w.unlistedFlags(storedFlags, flags, flagsCn)
+	} else {
+		w.logSkippedRemovals("flags", len(storedFlags))
 	}
 	all, removals := withRemovals(flags, gone)
 	ents, skipped := w.flagEntities(all, removals)
@@ -103,7 +107,9 @@ func (w *Writer) resync(source Source) error {
 	var goneRBS []dtos.RuleBasedSegmentDTO
 	var goneRBSSkipped []string
 	if !sourceEmpty(len(rbs), rbsCn) {
-		goneRBS, goneRBSSkipped = w.unlistedRuleBasedSegments(storedRBS, rbs)
+		goneRBS, goneRBSSkipped = w.unlistedRuleBasedSegments(storedRBS, rbs, rbsCn)
+	} else {
+		w.logSkippedRemovals("rule-based segments", len(storedRBS))
 	}
 	allRBS, rbsRemovals := withRemovals(rbs, goneRBS)
 	rbsEnts, rbsSkipped := w.rbsEntities(allRBS, rbsRemovals)
@@ -159,6 +165,8 @@ func (w *Writer) clearOverflowIfUnchanged(epoch uint64) {
 	defer w.mtx.Unlock()
 	if w.overflowEpoch == epoch {
 		w.overflow = false
+		w.degraded = false
+		w.degradedReason = ""
 	}
 }
 
@@ -193,9 +201,18 @@ func withRemovals[T any](listed, gone []T) ([]T, []bool) {
 	return all, removals
 }
 
-// unlistedFlags returns the stored flags the source does not list. Each keeps the change number of its own stored JSON,
-// because the source has no entry for it. An unreadable JSON is returned as a skip, so the cursor does not pass it.
-func (w *Writer) unlistedFlags(stored map[string]string, listed []dtos.SplitDTO) ([]dtos.SplitDTO, []string) {
+// logSkippedRemovals says that an empty source left count stored entities of a group in Redis. An empty source is not
+// evidence that they were removed, so nothing is tombstoned or deleted.
+func (w *Writer) logSkippedRemovals(group string, count int) {
+	if count > 0 {
+		w.logger.Info(fmt.Sprintf("redis state: the local state lists no %s, %d stored %s are kept in Redis", group, count, group))
+	}
+}
+
+// unlistedFlags returns the stored flags the source does not list. Each gets the change number max(stored, cursor):
+// the removal happened at or before the source cursor, and a tombstone scored at a lower stored change number would be
+// missed by a client that already holds a newer one. An unreadable JSON is returned as a skip, so the cursor does not pass it.
+func (w *Writer) unlistedFlags(stored map[string]string, listed []dtos.SplitDTO, cursor int64) ([]dtos.SplitDTO, []string) {
 	in := make(map[string]bool, len(listed))
 	for _, d := range listed {
 		in[d.Name] = true
@@ -213,13 +230,14 @@ func (w *Writer) unlistedFlags(stored map[string]string, listed []dtos.SplitDTO)
 			continue
 		}
 		d.Name = name
+		d.ChangeNumber = max(d.ChangeNumber, cursor)
 		out = append(out, d)
 	}
 	return out, skipped
 }
 
 // unlistedRuleBasedSegments is unlistedFlags for rule-based segments
-func (w *Writer) unlistedRuleBasedSegments(stored map[string]string, listed []dtos.RuleBasedSegmentDTO) ([]dtos.RuleBasedSegmentDTO, []string) {
+func (w *Writer) unlistedRuleBasedSegments(stored map[string]string, listed []dtos.RuleBasedSegmentDTO, cursor int64) ([]dtos.RuleBasedSegmentDTO, []string) {
 	in := make(map[string]bool, len(listed))
 	for _, d := range listed {
 		in[d.Name] = true
@@ -237,6 +255,7 @@ func (w *Writer) unlistedRuleBasedSegments(stored map[string]string, listed []dt
 			continue
 		}
 		d.Name = name
+		d.ChangeNumber = max(d.ChangeNumber, cursor)
 		out = append(out, d)
 	}
 	return out, skipped
@@ -274,8 +293,15 @@ func (w *Writer) resyncSegments(source Source, fields map[string]string) (map[st
 // dropUnlistedSegments deletes the segments the meta hash registers but the source did not list. The
 // names come from the meta read at the start of the pass, so no key scan is needed. It runs only after a complete stream.
 func (w *Writer) dropUnlistedSegments(fields map[string]string, listed map[string]struct{}) error {
-	if len(listed) == 0 {
+	if sourceEmpty(len(listed), 0) {
 		// an empty source is not evidence that the segments were removed; Reset clears them on a full boot
+		registered := 0
+		for field := range fields {
+			if name, ok := segmentNameOfCursorField(field); ok && validSegmentName(name) {
+				registered++
+			}
+		}
+		w.logSkippedRemovals("segments", registered)
 		return nil
 	}
 	dropped := 0
@@ -284,7 +310,7 @@ func (w *Writer) dropUnlistedSegments(fields map[string]string, listed map[strin
 			w.logger.Warning(fmt.Sprintf("redis state: deleted %d segments that are in Redis but not in the local state", dropped))
 		}
 	}()
-	for field := range fields {
+	for _, field := range slices.Sorted(maps.Keys(fields)) {
 		name, ok := segmentNameOfCursorField(field)
 		if !ok || !validSegmentName(name) {
 			continue
@@ -296,8 +322,9 @@ func (w *Writer) dropUnlistedSegments(fields map[string]string, listed map[strin
 			return w.client.Eval(SegmentDropScript, w.keys.SegmentKeys(name), w.fingerprint, name)
 		})
 		if err != nil {
-			return fmt.Errorf("deleting segment %q: %w", name, err)
+			return fmt.Errorf("deleting segment %q (%d segments dropped before): %w", name, dropped, err)
 		}
+		w.logger.Info(fmt.Sprintf("redis state: dropped segment %q, it is in Redis but not in the local state", name))
 		// the segment is gone from Redis, so its skipped names and whole-group freeze no longer apply
 		delete(w.groups, field)
 		dropped++
@@ -316,7 +343,12 @@ func (w *Writer) resyncSegment(s SegmentState, fields map[string]string) error {
 	released := w.releaseGroup(field)
 	frozen := released.whole || len(released.names) > 0
 	err := w.syncSegment(s, field, fields, frozen)
-	if err != nil {
+	if err == nil {
+		if !w.freezeOf(field).whole {
+			// a retry of the stream sees this segment as current and only checks it, instead of rewriting it
+			fields[field] = strconv.FormatInt(s.ChangeNumber, 10)
+		}
+	} else {
 		w.restoreGroup(field, released)
 		// the rewrite may have stopped half way, so the stored data is not the source state. Freeze the whole group
 		// and forget the last cursor: a live change before the next resync must send no cursor, neither its own nor a stale one.
@@ -343,7 +375,7 @@ func (w *Writer) syncSegment(s SegmentState, field string, fields map[string]str
 		}
 		w.logger.Warning(fmt.Sprintf("redis state: segment %s has a current cursor but a different key count in Redis, rewriting it", s.Name))
 	}
-	if err := w.DeleteSegmentKeys(s.Name); err != nil {
+	if err := w.deleteSegmentKeys(s.Name); err != nil {
 		return fmt.Errorf("deleting keys of segment %q: %w", s.Name, err)
 	}
 	_, err := w.writeSegment(s.Name, toSegmentKeys(s.Active), toSegmentKeys(s.Removed), s.ChangeNumber, false)

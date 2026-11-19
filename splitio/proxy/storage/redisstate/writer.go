@@ -53,10 +53,22 @@ var (
 	// ErrInvalidSegmentName is returned by DeleteSegmentKeys for an empty name or one with glob characters
 	ErrInvalidSegmentName = errors.New("redis state segment name is empty or contains glob characters")
 
+	// ErrWorkerRunning is returned by DeleteSegmentKeys while the worker runs: a repair that interleaves with a live
+	// segment write could leave a current cursor over partial keys
+	ErrWorkerRunning = errors.New("redis state writer is running")
+
 	errStopped       = errors.New("redis state writer stopped")
 	errChunkRejected = errors.New("redis state chunk rejected by the script")
 	// errDropped is returned once transient retries ran out: the change is not in Redis, which is behind
 	errDropped = errors.New("redis state change dropped after transient errors, Redis is behind")
+)
+
+const (
+	// maxConsecutiveRefusals bounds the single-entity calls after a refused chunk: when this many in a row are refused too,
+	// the cause is not one bad entity, so the rest of the chunk is skipped and the group is frozen
+	maxConsecutiveRefusals = 5
+	// maxResyncDrops bounds the automatic resync retries after consecutive resyncs dropped on transient errors
+	maxResyncDrops = 10
 )
 
 // errClass is the class of a Redis error
@@ -89,7 +101,7 @@ var (
 	transientHeads = []string{"READONLY", "LOADING", "OOM", "TRYAGAIN", "CLUSTERDOWN", "MASTERDOWN", "MISCONF", "BUSY", "MOVED", "ASK", "NOREPLICAS", "EXECABORT", "NOAUTH", "PROXY_META_WRONGTYPE"}
 	// transientTexts are matched by their exact full text (the go-redis texts include the "redis: " prefix)
 	transientTexts = []string{"ERR max number of clients reached", "redis: connection pool timeout", "redis: client is closed"}
-	permanentHeads = []string{"PROXY_BAD_ARGS", "WRONGTYPE", "CROSSSLOT"}
+	permanentHeads = []string{"PROXY_BAD_ARGS", "PROXY_DATA_WRONGTYPE", "WRONGTYPE", "CROSSSLOT", "NOPERM"}
 )
 
 // classify maps a Redis or client error to its class. The order is the table: transient first (even inside a Lua
@@ -105,10 +117,17 @@ func classify(err error) errClass {
 		return errTransient
 	case ErrorHasMarker(err, EnvMismatchMarker):
 		return errEnvMismatch
-	case strings.Contains(msg, "@user_script:"), slices.Contains(permanentHeads, head):
+	case strings.Contains(msg, "@user_script:"), slices.Contains(permanentHeads, head), evalUnavailable(msg):
 		return errPermanent
 	}
 	return errUnknown
+}
+
+// evalUnavailable reports a reply that says EVAL cannot run on this server or for this user: retrying cannot help.
+// It matches the start of the reply only, so entity text echoed inside an error does not count.
+func evalUnavailable(msg string) bool {
+	body := strings.ToLower(strings.TrimPrefix(msg, "ERR "))
+	return strings.HasPrefix(body, "unknown command") || (strings.HasPrefix(body, "eval") && strings.Contains(body, "disabled"))
 }
 
 // errHead returns the first word of a Redis error after the optional "ERR " prefix and any Lua wrapper
@@ -171,6 +190,8 @@ var (
 )
 
 // Status is a point-in-time view of the writer; the JSON tags are what /observability serves under "redisState".
+// Healthy is false from the first lost or refused change until a resync with a Source completes cleanly, even when later writes succeed.
+// DroppedChanges counts live changes lost before reaching Redis (overflow, retries exhausted, Stop, mismatch, worker panic), not resync source read failures.
 // Resyncs counts overflow events (every time queued changes were dropped) and resyncs scheduled after a refused live chunk; the startup resync is not counted.
 type Status struct {
 	Healthy             bool   `json:"healthy"`
@@ -191,10 +212,10 @@ type Options struct {
 	Retention         time.Duration // how long removals are kept, default 168h
 	MaxAttempts       int           // attempts per script call before the change is dropped, default 3
 	BackoffMaxWait    time.Duration // default 60s
-	MaxPendingChanges int           // default 3000000 (entities + keys queued)
+	MaxPendingChanges int           // default 3000000 (entities + keys queued; approximate, the in-flight change and merge index are not counted)
 	ChunkSize         int           // default 1000 (entities or keys per script call)
 	PurgeBatch        int           // default 500 (entries removed per PurgeScript call), 1..5000
-	StopTimeoutMs     int64         // default 10000 (drain bound on Stop), 1..60000
+	StopTimeoutMs     int64         // default 10000 (drain bound on Stop only; a blocked Redis call is bounded by the client timeouts), 1..60000
 }
 
 // DefaultOptions returns the default writer options
@@ -316,6 +337,12 @@ type Writer struct {
 	// dead is set by recoverWorker after a worker panic: nothing is queued again, the mirror stays stopped
 	dead          bool
 	refusedLogged bool
+	// deadRefusedLogged limits the Error line for changes refused after a worker panic to the first one
+	deadRefusedLogged bool
+	// degraded is sticky: a change was lost or refused and Redis is behind the source. Only a clean resync clears it
+	// (clearOverflowIfUnchanged) or Reset; a later successful write does not, so Status stays unhealthy while data is missing.
+	degraded       bool
+	degradedReason string
 	// stopRefusedLogged is guarded by mtx; woken is owned by the worker goroutine (see sleep)
 	stopRefusedLogged bool
 	woken             bool
@@ -368,6 +395,7 @@ func NewWriter(client Client, keys Keys, fingerprint string, opts Options, logge
 	return w, nil
 }
 
+// Start(nil) is for tests: with no Source no resync can run, so a drop freeze is never lifted. Production always passes a Source.
 // Start runs the startup probe, then launches the single background worker. The worker first calls source.Resync (if source != nil), then drains the queue.
 // A probe that fails with a script error returns a minimum-version InitError and starts no worker.
 func (w *Writer) Start(source Source) error {
@@ -375,6 +403,13 @@ func (w *Writer) Start(source Source) error {
 		source = nil
 	}
 	if w.stopped() {
+		return nil
+	}
+	w.mtx.Lock()
+	alreadyStarted := w.started
+	w.mtx.Unlock()
+	if alreadyStarted {
+		w.logger.Warning("redis state writer already started")
 		return nil
 	}
 	if err := w.probe(); err != nil {
@@ -448,8 +483,14 @@ func (w *Writer) Stop() {
 		w.inflight = nil
 	}
 	w.clearQueueLocked()
+	w.stats.DroppedChanges += int64(dropped)
 	w.mtx.Unlock()
-	w.logger.Info(fmt.Sprintf("redis state writer stopped, %d queued changes dropped (drain bound %d ms), their cursors were not written so Redis stays behind the source", dropped, w.opts.StopTimeoutMs))
+	msg := fmt.Sprintf("redis state writer stopped, %d queued changes dropped (drain bound %d ms), their cursors were not written so Redis stays behind the source", dropped, w.opts.StopTimeoutMs)
+	if dropped > 0 {
+		w.logger.Error(msg)
+	} else {
+		w.logger.Info(msg)
+	}
 }
 
 // RequestResync asks the worker to run a full resync of Redis against the Source given to Start, through the same
@@ -460,7 +501,7 @@ func (w *Writer) Stop() {
 // requested resync is not counted in Status.Resyncs.
 func (w *Writer) RequestResync() {
 	w.mtx.Lock()
-	ok := w.canResync && !w.mismatch && !w.stopped()
+	ok := w.canResync && !w.mismatch && !w.dead && !w.stopped()
 	if ok {
 		w.scheduleResyncLocked()
 	}
@@ -479,6 +520,8 @@ func (w *Writer) Reset() error {
 	w.clearQueueLocked()
 	w.mismatch = false
 	w.refusedLogged = false
+	w.degraded = false
+	w.degradedReason = ""
 	w.stats.Healthy = true
 	w.stats.LastError = ""
 	w.stats.FailedRounds = 0
@@ -515,8 +558,33 @@ func (w *Writer) deleteKnown() error {
 
 // DeleteSegmentKeys deletes the active, tombstone and removal clock keys of one segment and resets its cursor to -1
 // in the same script, so a restart never reads a current cursor over a partial segment. No other key is touched.
-// The segment write that follows rewrites the segment. It uses the worker's retry state, so call it before Start or from the worker (resync) only.
+// The segment write that follows rewrites the segment. It uses the worker's retry state, so it runs before Start or after
+// Stop only; while the worker runs it returns ErrWorkerRunning and deletes nothing. The resync repairs through deleteSegmentKeys.
 func (w *Writer) DeleteSegmentKeys(name string) error {
+	if w.workerRunning() {
+		return ErrWorkerRunning
+	}
+	return w.deleteSegmentKeys(name)
+}
+
+// workerRunning reports whether Start launched the worker and it has not exited yet
+func (w *Writer) workerRunning() bool {
+	w.mtx.Lock()
+	started := w.started
+	w.mtx.Unlock()
+	if !started {
+		return false
+	}
+	select {
+	case <-w.done:
+		return false
+	default:
+		return true
+	}
+}
+
+// deleteSegmentKeys is DeleteSegmentKeys without the running check, for the worker's own repair
+func (w *Writer) deleteSegmentKeys(name string) error {
 	if !validSegmentName(name) {
 		return ErrInvalidSegmentName
 	}
@@ -540,6 +608,7 @@ func segmentNameOfCursorField(field string) (string, bool) {
 	return field[len(prefix) : len(field)-len(suffix)], true
 }
 
+// The Put methods copy the slices but not the DTOs they point to: callers must treat DTOs as immutable after Put, because marshalling happens on the worker.
 // PutFlags enqueues a feature flag change. It never blocks and never calls Redis.
 func (w *Writer) PutFlags(toAdd, toRemove []dtos.SplitDTO, cn int64) {
 	if w.refuse() {
@@ -598,6 +667,12 @@ func (w *Writer) Status() Status {
 	w.mtx.Lock()
 	defer w.mtx.Unlock()
 	s := w.stats
+	if w.degraded {
+		s.Healthy = false
+		if s.LastError == "" {
+			s.LastError = w.degradedReason
+		}
+	}
 	s.EnvironmentMismatch = w.mismatch
 	s.PendingChanges = len(w.queue)
 	if w.inflight != nil {
@@ -635,30 +710,67 @@ func validSegmentName(name string) bool {
 	return name != "" && !strings.ContainsAny(name, globChars)
 }
 
-// refuse counts and reports a change refused because of an environment mismatch
+// refuse counts and reports a change refused because of an environment mismatch or a dead worker
 func (w *Writer) refuse() bool {
 	w.mtx.Lock()
-	if !w.mismatch {
-		w.mtx.Unlock()
-		return false
-	}
-	w.stats.RefusedChanges++
-	first := !w.refusedLogged
-	w.refusedLogged = true
+	msg, level := w.refuseLocked()
 	w.mtx.Unlock()
-	if first {
-		w.logger.Error("redis state: change refused because Redis holds the state of another environment or configuration; further refusals are logged at debug level")
-	} else {
-		w.logger.Debug("redis state: change refused (environment mismatch)")
+	w.logRefusal(msg, level)
+	return msg != ""
+}
+
+const (
+	refusalNone = iota
+	refusalFirst
+	refusalRepeat
+)
+
+// Accepted trade-off: both states last until an operator acts (new namespace, forced fresh start, restart), so only the
+// first refusal logs at Error. Repeats log at Debug and are counted in RefusedChanges; Status shows Healthy=false and LastError.
+// refuseLocked counts a change refused by a mismatch or a dead worker and returns the log line and whether it is the
+// first one of its kind (Error) or a repeat (Debug). It returns "" when the change is accepted. The caller holds mtx
+// and logs after the unlock.
+func (w *Writer) refuseLocked() (string, int) {
+	switch {
+	case w.mismatch:
+		w.stats.RefusedChanges++
+		if !w.refusedLogged {
+			w.refusedLogged = true
+			return "redis state: change refused because Redis holds the state of another environment or configuration; further refusals are logged at debug level", refusalFirst
+		}
+		return "redis state: change refused (environment mismatch)", refusalRepeat
+	case w.dead:
+		w.stats.RefusedChanges++
+		if !w.deadRefusedLogged {
+			w.deadRefusedLogged = true
+			return "redis state: change refused because the writer worker stopped after a panic, Redis is no longer updated; further refusals are logged at debug level", refusalFirst
+		}
+		return "redis state: change refused (writer worker stopped)", refusalRepeat
 	}
-	return true
+	return "", refusalNone
+}
+
+func (w *Writer) logRefusal(msg string, level int) {
+	switch level {
+	case refusalFirst:
+		w.logger.Error(msg)
+	case refusalRepeat:
+		w.logger.Debug(msg)
+	}
 }
 
 func (w *Writer) reject(msg string) {
+	w.rejectN(1, msg)
+}
+
+// rejectN counts n rejected entities and logs msg once; an empty msg logs nothing
+func (w *Writer) rejectN(n int, msg string) {
 	w.mtx.Lock()
-	w.stats.RejectedChanges++
+	w.stats.RejectedChanges += int64(n)
 	w.mtx.Unlock()
-	w.logger.Error(msg)
+	if msg != "" {
+		w.logger.Error(msg)
+	}
 }
 
 func (w *Writer) enqueue(c *change) {
@@ -673,18 +785,19 @@ func (w *Writer) enqueue(c *change) {
 		w.stopRefusedLogged = true
 		w.mtx.Unlock()
 		if first {
-			w.logger.Info("redis state: change refused after Stop, the writer is draining or stopped; further refusals are not logged")
+			w.logger.Error("redis state: change refused after Stop, the writer is draining or stopped; further refusals are not logged")
 		}
 		return
 	}
-	if w.mismatch || w.dead {
-		w.stats.RefusedChanges++
+	if msg, level := w.refuseLocked(); msg != "" {
 		w.mtx.Unlock()
+		w.logRefusal(msg, level)
 		return
 	}
 	if len(w.queue) > 0 && w.sizeAfterLocked(c) > w.opts.MaxPendingChanges {
 		dropped := len(w.queue)
 		w.clearQueueLocked()
+		w.stats.DroppedChanges += int64(dropped)
 		w.overflow = true
 		w.overflowEpoch++
 		if w.canResync {
@@ -696,6 +809,7 @@ func (w *Writer) enqueue(c *change) {
 			outcome = "no resync is scheduled because no source is configured"
 		}
 		overflowMsg = fmt.Sprintf("redis state: more than %d changes pending, %d queued changes dropped and %s", w.opts.MaxPendingChanges, dropped, outcome)
+		w.markDegradedLocked(fmt.Sprintf("more than %d changes pending, %d queued changes dropped", w.opts.MaxPendingChanges, dropped))
 	}
 	if target := w.groupIdx[groupOf(c)]; target != nil {
 		w.mergeLocked(target, c)
@@ -955,6 +1069,14 @@ func (w *Writer) wake() {
 	}
 }
 
+// markDegradedLocked records why Redis is behind the source. The first reason is kept. The caller holds mtx.
+func (w *Writer) markDegradedLocked(reason string) {
+	if !w.degraded {
+		w.degraded = true
+		w.degradedReason = reason
+	}
+}
+
 // scheduleResyncLocked must be called with mtx held
 func (w *Writer) scheduleResyncLocked() {
 	if !w.canResync {
@@ -971,7 +1093,7 @@ func (w *Writer) scheduleResyncLocked() {
 // skipped and never schedules another pass, so a bad entity cannot loop.
 func (w *Writer) scheduleRefusedResync() {
 	w.mtx.Lock()
-	if w.canResync && !w.mismatch {
+	if w.canResync && !w.mismatch && !w.dead {
 		w.stats.Resyncs++
 		w.scheduleResyncLocked()
 	}
@@ -1040,6 +1162,7 @@ func (w *Writer) run(source Source) {
 	}
 	// dropBo paces the resync requests while a resync keeps dropping, so an outage is not hammered
 	dropBo := backoff.New(2, w.opts.BackoffMaxWait)
+	resyncDrops := 0
 	for {
 		j, ok := w.next()
 		if !ok {
@@ -1047,17 +1170,25 @@ func (w *Writer) run(source Source) {
 		}
 		if j.resync {
 			err := w.resync(source)
-			w.finishResync()
+			w.finishResync(err)
 			if errors.Is(err, errStopped) {
 				w.logger.Info("redis state: resync cut short by Stop, it reruns at the next start")
 				continue
 			}
 			if errors.Is(err, errDropped) {
+				resyncDrops++
+				if resyncDrops >= maxResyncDrops {
+					if resyncDrops == maxResyncDrops {
+						w.logger.Error(fmt.Sprintf("redis state: %d resyncs in a row were dropped on Redis errors, stopped retrying automatically; the next successful live write, request or restart runs a new resync: %v", resyncDrops, err))
+					}
+					continue
+				}
 				if w.wait(dropBo.Next()) {
 					w.RequestResync()
 				}
 				continue
 			}
+			resyncDrops = 0
 			if err != nil && !errors.Is(err, ErrEnvironmentMismatch) {
 				w.logger.Error(fmt.Sprintf("redis state: resync failed, it reruns at the next request or start: %v", err))
 			}
@@ -1076,9 +1207,16 @@ func (w *Writer) run(source Source) {
 			w.finishChange()
 			if errors.Is(err, errDropped) {
 				// the drop freezes the group; a resync releases it and rewrites the lost change
+				w.mtx.Lock()
+				w.stats.DroppedChanges++
+				w.mtx.Unlock()
 				w.RequestResync()
 			} else if refused {
 				w.scheduleRefusedResync()
+			} else if err == nil && resyncDrops >= maxResyncDrops {
+				// a live write got through, so Redis is back: the capped resync retries start again
+				resyncDrops = 0
+				w.RequestResync()
 			}
 		}
 	}
@@ -1095,6 +1233,16 @@ func (w *Writer) recoverWorker() {
 	w.stats.Healthy = false
 	w.stats.LastError = fmt.Sprintf("redis state writer stopped after a panic (%T)", r)
 	w.dead = true
+	dropped := len(w.queue)
+	if w.inflight != nil {
+		dropped++
+	}
+	w.stats.DroppedChanges += int64(dropped)
+	w.clearQueueLocked()
+	w.inflight = nil
+	w.needResync = false
+	w.resyncSince = time.Time{}
+	w.markDegradedLocked(w.stats.LastError)
 	w.mtx.Unlock()
 	w.logger.Error(fmt.Sprintf("redis state: writer worker panicked, the mirror stops and the proxy keeps running: %T\n%s", r, debug.Stack()))
 }
@@ -1114,7 +1262,7 @@ func (w *Writer) next() (job, bool) {
 					// draining: a pending resync is skipped so the queue is served first
 					w.resyncSince = time.Time{}
 					w.mtx.Unlock()
-					w.logger.Info("redis state: pending resync skipped during the shutdown drain, the queued changes are written first")
+					w.logger.Error("redis state: pending resync skipped during the shutdown drain, the queued changes are written first; Redis stays behind the source until the next start")
 					continue
 				}
 				w.mtx.Unlock()
@@ -1152,9 +1300,10 @@ func (w *Writer) finishChange() {
 	w.mtx.Unlock()
 }
 
-func (w *Writer) finishResync() {
+// finishResync ends the lag clock only for a resync that succeeded: after a failed or dropped one Redis is still behind
+func (w *Writer) finishResync(err error) {
 	w.mtx.Lock()
-	if !w.needResync {
+	if err == nil && !w.needResync {
 		w.resyncSince = time.Time{}
 	}
 	w.mtx.Unlock()
@@ -1166,6 +1315,10 @@ func (w *Writer) enterMismatch() {
 	first := !w.mismatch
 	w.mismatch = true
 	dropped := len(w.queue)
+	if w.inflight != nil {
+		dropped++
+	}
+	w.stats.DroppedChanges += int64(dropped)
 	w.clearQueueLocked()
 	w.inflight = nil
 	w.needResync = false
@@ -1193,6 +1346,7 @@ func (w *Writer) recordDrop(what string, attempts int, last error) {
 	w.stats.Healthy = false
 	w.stats.FailedRounds++
 	w.stats.LastError = last.Error()
+	w.markDegradedLocked(fmt.Sprintf("%s dropped: %s", what, last.Error()))
 	w.mtx.Unlock()
 	w.logger.Error(fmt.Sprintf("redis state: %s dropped after %d attempts, Redis is behind the source until the next resync: %s", what, attempts, last.Error()))
 }
@@ -1202,6 +1356,7 @@ func (w *Writer) recordRefused(last error) {
 	w.mtx.Lock()
 	w.stats.Healthy = false
 	w.stats.LastError = last.Error()
+	w.markDegradedLocked("a write was refused by Redis: " + last.Error())
 	w.mtx.Unlock()
 }
 
@@ -1229,7 +1384,8 @@ func (w *Writer) retry(what string, op func() error) error {
 			return ErrEnvironmentMismatch
 		case errPermanent:
 			w.recordRefused(err)
-			return errChunkRejected
+			// the wrapped error keeps the Redis text for the caller's log, and errors.Is still sees errChunkRejected
+			return fmt.Errorf("%w: %w", errChunkRejected, err)
 		}
 		last = err
 		lastClass = class
@@ -1237,8 +1393,10 @@ func (w *Writer) retry(what string, op func() error) error {
 			return errStopped
 		}
 	}
-	// a change that runs out of tries while Stop drains stays in flight, so Stop counts it as dropped
-	if w.stopped() {
+	// past the drain deadline the change stays in flight, so Stop counts it as dropped; before it the change is dropped
+	// like any other and the worker goes on with the queue
+	if w.aborted() {
+		w.logger.Error(fmt.Sprintf("redis state: %s gave up after %d attempts while stopping, the change is lost and Redis stays behind the source: %s", what, w.opts.MaxAttempts, last.Error()))
 		return errStopped
 	}
 	// the cap ends the retries, so a long outage cannot stall the queue; the resync repairs the dropped change
@@ -1396,6 +1554,7 @@ func span[T any](list []T, lo, hi, offset int) []T {
 	return list[s:e]
 }
 
+// A segment group freezes as a whole on any rejected key, while flag groups track the refused names, so a hot segment's cursor stays behind until a resync.
 // groupFreeze is the in-memory state of one flag or rule-based segment group. names holds the entities refused
 // or skipped and not yet written cleanly. last is the last cursor sent with a real value. While names is not empty
 // the group sends last, so the stored cursor stays behind the skipped entity. whole is set when the skipped set grows past MaxPendingChanges: the names are dropped and the group stays frozen until a resync releases it. Lost on restart (mirror-only gap).
@@ -1529,10 +1688,10 @@ func (w *Writer) writeEntities(what, script string, keys []string, cursorField s
 		g.written(part, cur)
 		return nil
 	}
-	skipEntity := func(name string) {
+	skipEntity := func(name string, cause error) {
 		skipped = true
 		g.addSkip(name, w.opts.MaxPendingChanges)
-		w.reject(fmt.Sprintf("redis state: %s entity %q was rejected by the script because of inconsistent arguments, skipped", what, name))
+		w.reject(fmt.Sprintf("redis state: %s entity %q was refused by Redis, skipped: %v", what, name, cause))
 	}
 	for i := 0; i < n; i++ {
 		part := span(ents, i*w.opts.ChunkSize, (i+1)*w.opts.ChunkSize, 0)
@@ -1545,20 +1704,42 @@ func (w *Writer) writeEntities(what, script string, keys []string, cursorField s
 			return refused, err
 		}
 		refused = true
+		if len(part) == 0 {
+			// the cursor-only call was refused: nothing can be isolated, the cursor must not move
+			skipped = true
+			g.freezeWhole()
+			w.logger.Error(fmt.Sprintf("redis state: %s cursor update was refused by Redis, the group is frozen until the next resync: %v", what, err))
+			continue
+		}
 		if len(part) < 2 {
 			for _, e := range part {
-				skipEntity(e.name)
+				skipEntity(e.name, err)
 			}
 			continue
 		}
+		w.logger.Error(fmt.Sprintf("redis state: %s chunk of %d entities was refused by Redis, retrying one entity at a time: %v", what, len(part), err))
+		consecutive := 0
 		for j := range part {
 			err := send(part[j:j+1], last && j == len(part)-1)
-			if errors.Is(err, errChunkRejected) {
-				skipEntity(part[j].name)
+			if err == nil {
+				consecutive = 0
 				continue
 			}
-			if err != nil {
+			if !errors.Is(err, errChunkRejected) {
 				return refused, err
+			}
+			skipEntity(part[j].name, err)
+			consecutive++
+			if consecutive >= maxConsecutiveRefusals && j < len(part)-1 {
+				// the cause is not one bad entity: skip the rest of the chunk without calling Redis and freeze the group
+				rest := part[j+1:]
+				for _, e := range rest {
+					g.addSkip(e.name, w.opts.MaxPendingChanges)
+				}
+				skipped = true
+				g.freezeWhole()
+				w.rejectN(len(rest), fmt.Sprintf("redis state: %s stopped isolating after %d consecutive refusals, %d more entities skipped and the group is frozen until the next resync: %v", what, consecutive, len(rest), err))
+				break
 			}
 		}
 	}
@@ -1594,11 +1775,23 @@ func (w *Writer) writeSegment(name string, adds, rems []segmentKey, cursor int64
 		g.written(nil, cur)
 		return nil
 	}
-	skipKey := func() {
+	skipKey := func(cause error) {
 		skipped = true
 		w.skipsSeen = true
 		g.freezeWhole()
-		w.reject(fmt.Sprintf("redis state: segment %s has a key rejected by the script because of inconsistent arguments, skipped", name))
+		w.reject(fmt.Sprintf("redis state: segment %s has a key refused by Redis, skipped: %v", name, cause))
+	}
+	consecutive := 0
+	// tooMany reports whether the cap is reached; the rest of the chunk is then skipped without calling Redis
+	tooMany := func(rest int, cause error) bool {
+		if consecutive < maxConsecutiveRefusals || rest == 0 {
+			return false
+		}
+		skipped = true
+		w.skipsSeen = true
+		g.freezeWhole()
+		w.rejectN(rest, fmt.Sprintf("redis state: segment %s stopped isolating after %d consecutive refusals, %d more keys skipped and the segment is frozen until the next resync: %v", name, consecutive, rest, cause))
+		return true
 	}
 	for i := 0; i < n; i++ {
 		lo, hi := i*size, (i+1)*size
@@ -1613,34 +1806,44 @@ func (w *Writer) writeSegment(name string, adds, rems []segmentKey, cursor int64
 			return refused, err
 		}
 		refused = true
+		if len(a)+len(r) == 0 {
+			// the cursor-only call was refused: nothing can be isolated, the cursor must not move
+			skipped = true
+			w.skipsSeen = true
+			g.freezeWhole()
+			w.logger.Error(fmt.Sprintf("redis state: segment %s cursor update was refused by Redis, the segment is frozen until the next resync: %v", name, err))
+			continue
+		}
 		if len(a)+len(r) < 2 {
 			for range a {
-				skipKey()
+				skipKey(err)
 			}
 			for range r {
-				skipKey()
+				skipKey(err)
 			}
 			continue
 		}
-		for j := range a {
-			err := send(a[j:j+1], nil, last && len(r) == 0 && j == len(a)-1)
-			if errors.Is(err, errChunkRejected) {
-				skipKey()
+		w.logger.Error(fmt.Sprintf("redis state: segment %s chunk of %d keys was refused by Redis, retrying one key at a time: %v", name, len(a)+len(r), err))
+		consecutive = 0
+		stop := false
+		for j := 0; j < len(a)+len(r) && !stop; j++ {
+			var err error
+			if j < len(a) {
+				err = send(a[j:j+1], nil, last && len(r) == 0 && j == len(a)-1)
+			} else {
+				k := j - len(a)
+				err = send(nil, r[k:k+1], last && k == len(r)-1)
+			}
+			if err == nil {
+				consecutive = 0
 				continue
 			}
-			if err != nil {
+			if !errors.Is(err, errChunkRejected) {
 				return refused, err
 			}
-		}
-		for j := range r {
-			err := send(nil, r[j:j+1], last && j == len(r)-1)
-			if errors.Is(err, errChunkRejected) {
-				skipKey()
-				continue
-			}
-			if err != nil {
-				return refused, err
-			}
+			skipKey(err)
+			consecutive++
+			stop = tooMany(len(a)+len(r)-j-1, err)
 		}
 	}
 	if skipped {

@@ -10,6 +10,9 @@ const (
 	// MetaWrongTypeMarker is the error text a script returns when the meta hash key holds another type. Unlike a plain
 	// WRONGTYPE (an entity key), it is a round failure: the writer retries it and skips nothing.
 	MetaWrongTypeMarker = "PROXY_META_WRONGTYPE"
+	// DataWrongTypeMarker is the error text the write scripts return when the data, index or removal key of an entity
+	// set holds another type. The script checks all of them before its first write, so a refused call writes nothing.
+	DataWrongTypeMarker = "PROXY_DATA_WRONGTYPE"
 )
 
 // wrongTypeMarker is the Redis error for a key that holds another type. Retrying can not fix it, so the writer treats
@@ -21,10 +24,21 @@ func ErrorHasMarker(err error, marker string) bool {
 	return err != nil && strings.Contains(err.Error(), marker)
 }
 
-// luaPrelude defines the helpers every script shares: isint accepts only optionally signed decimal integers (so
-// "1.5", "1e3" and "" are refused) and nowMs reads the Redis clock, so the removal clock is the one Redis clock.
+// maxIntDigits bounds the digits isint accepts: Lua numbers are doubles, which hold integers exactly up to 2^53
+// (16 digits), so a longer number would be stored rounded.
+const maxIntDigits = 15
+
+// luaPrelude defines the helpers every script shares: isint accepts only optionally signed decimal integers of at most
+// 15 digits (so "1.5", "1e3", "" and numbers a double would round are refused) and nowMs reads the Redis clock, so the
+// removal clock is the one Redis clock. checkType refuses a key that holds a type other than the expected one (or none).
 const luaPrelude = `local function isint(s)
-  return s ~= false and s ~= nil and string.match(s, '^%-?%d+$') ~= nil
+  return s ~= false and s ~= nil and string.match(s, '^%-?%d+$') ~= nil and #(string.gsub(s, '^%-', '')) <= 15
+end
+local function checkType(key, want)
+  local ty = redis.call('TYPE', key)['ok']
+  if ty ~= want and ty ~= 'none' then
+    error('PROXY_DATA_WRONGTYPE')
+  end
 end
 local function nowMs()
   local t = redis.call('TIME')
@@ -61,6 +75,9 @@ local fp = redis.call('HGET', KEYS[1], 'fingerprint')
 if fp and fp ~= ARGV[1] then
   return redis.error_reply('PROXY_ENV_MISMATCH')
 end
+checkType(KEYS[2], 'hash')
+checkType(KEYS[3], 'zset')
+checkType(KEYS[4], 'zset')
 if not fp then
   redis.call('HSET', KEYS[1], 'fingerprint', ARGV[1])
 end
@@ -71,7 +88,8 @@ for i = 0, n - 1 do
   local cn = tonumber(ARGV[b + 1])
   local cur = tonumber(redis.call('ZSCORE', KEYS[3], name) or '-1')
   local removed = ARGV[b + 2] == '1'
-  local apply = cn > cur
+  -- Redis never moves back: cn > cur. A source change number that regresses is a non-goal and is not corrected by resync.
+local apply = cn > cur
   if (not apply) and cn == cur then
     if removed then
       apply = (redis.call('ZSCORE', KEYS[4], name) == false)
@@ -92,7 +110,7 @@ end
 if redis.call('HEXISTS', KEYS[1], ARGV[3]) == 0 then
   redis.call('HSET', KEYS[1], ARGV[3], '-1')
 end
-local till = tonumber(redis.call('HGET', KEYS[1], ARGV[3]))
+local till = tonumber(redis.call('HGET', KEYS[1], ARGV[3])) or -1
 if tonumber(ARGV[4]) > till then
   redis.call('HSET', KEYS[1], ARGV[3], ARGV[4])
 end
@@ -139,6 +157,9 @@ local fp = redis.call('HGET', KEYS[1], 'fingerprint')
 if fp and fp ~= ARGV[1] then
   return redis.error_reply('PROXY_ENV_MISMATCH')
 end
+checkType(KEYS[2], 'zset')
+checkType(KEYS[3], 'zset')
+checkType(KEYS[4], 'zset')
 if not fp then
   redis.call('HSET', KEYS[1], 'fingerprint', ARGV[1])
 end
@@ -174,7 +195,7 @@ for i = 0, nAdd - 1 do
     redis.call('ZREM', KEYS[4], key)
   end
 end
-local till = tonumber(redis.call('HGET', KEYS[1], ARGV[4]))
+local till = tonumber(redis.call('HGET', KEYS[1], ARGV[4])) or -1
 if tonumber(ARGV[5]) > till then
   redis.call('HSET', KEYS[1], ARGV[4], ARGV[5])
 end
@@ -190,8 +211,8 @@ return 1
 // countMismatchMarker is the error marker SegmentCheckScript returns when Redis does not hold the expected segment
 const countMismatchMarker = "PROXY_COUNT_MISMATCH"
 
-// SegmentCheckScript fails with PROXY_COUNT_MISMATCH unless the cursor field of the segment is present and not
-// -1, its active key count is ARGV[1] and its tombstone count is ARGV[3]. KEYS come from Keys.SegmentKeys, ARGV[2] is
+// SegmentCheckScript fails with PROXY_COUNT_MISMATCH unless the cursor field of the segment is a number and not
+// negative, its active key count is ARGV[1] and its tombstone count is ARGV[3]. KEYS come from Keys.SegmentKeys, ARGV[2] is
 // the segment name. Comparing the tombstone count too catches a swap that keeps the active count (a lost removal leaves
 // one tombstone fewer); it is a count, not a member checksum.
 const SegmentCheckScript = luaPrelude + `-- KEYS: 1 meta, 2 active zset, 3 removed zset, 4 segat zset
@@ -199,8 +220,9 @@ const SegmentCheckScript = luaPrelude + `-- KEYS: 1 meta, 2 active zset, 3 remov
 if #ARGV ~= 3 or not isint(ARGV[1]) or not isint(ARGV[3]) then
   return redis.error_reply('PROXY_BAD_ARGS')
 end
-local till = redis.call('HGET', KEYS[1], 'seg.' .. ARGV[2] .. '.till')
-if not till or tonumber(till) < 0 or redis.call('ZCARD', KEYS[2]) ~= tonumber(ARGV[1]) or redis.call('ZCARD', KEYS[3]) ~= tonumber(ARGV[3]) then
+checkMeta(KEYS[1])
+local till = tonumber(redis.call('HGET', KEYS[1], 'seg.' .. ARGV[2] .. '.till'))
+if not till or till < 0 or redis.call('ZCARD', KEYS[2]) ~= tonumber(ARGV[1]) or redis.call('ZCARD', KEYS[3]) ~= tonumber(ARGV[3]) then
   return redis.error_reply('PROXY_COUNT_MISMATCH')
 end
 return 1

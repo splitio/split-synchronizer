@@ -2,6 +2,7 @@ package common
 
 import (
 	"crypto/tls"
+	"fmt"
 	"testing"
 
 	"github.com/splitio/split-synchronizer/v5/splitio/common/conf"
@@ -96,4 +97,79 @@ func TestParseRedisOptionsEmptyAddressListsAreErrors(t *testing.T) {
 
 	_, err = ParseRedisOptions(&conf.Redis{ClusterMode: true, ClusterNodes: ""})
 	assert.EqualError(t, err, "cluster nodes must not be empty")
+}
+
+func TestParseRedisOptionsSentinelMasterValidation(t *testing.T) {
+	t.Run("blank master is rejected", func(t *testing.T) {
+		_, err := ParseRedisOptions(&conf.Redis{SentinelReplication: true, SentinelAddresses: "s1:26379", SentinelMaster: "  "})
+		assert.EqualError(t, err, "sentinel master must not be empty")
+	})
+
+	t.Run("master is stored trimmed", func(t *testing.T) {
+		opts, err := ParseRedisOptions(&conf.Redis{SentinelReplication: true, SentinelAddresses: "s1:26379", SentinelMaster: " mymaster "})
+		assert.NoError(t, err)
+		assert.Equal(t, "mymaster", opts.SentinelMaster)
+	})
+}
+
+func TestParseRedisOptionsPortValidation(t *testing.T) {
+	for _, port := range []int{0, -1, 65536} {
+		t.Run(fmt.Sprintf("rejects port %d", port), func(t *testing.T) {
+			_, err := ParseRedisOptions(&conf.Redis{Host: "h", Port: port})
+			assert.EqualError(t, err, fmt.Sprintf("redis port must be 1..65535, got %d", port))
+		})
+	}
+
+	for _, port := range []int{1, 6379, 65535} {
+		t.Run(fmt.Sprintf("accepts port %d", port), func(t *testing.T) {
+			opts, err := ParseRedisOptions(&conf.Redis{Host: "h", Port: port})
+			assert.NoError(t, err)
+			assert.Equal(t, port, opts.Port)
+		})
+	}
+}
+
+func TestParseRedisOptionsTLSServerNameDefault(t *testing.T) {
+	cases := []struct {
+		name     string
+		cfg      conf.Redis
+		expected string
+	}{
+		{
+			name:     "sentinel first address with port",
+			cfg:      conf.Redis{TLS: true, SentinelReplication: true, SentinelAddresses: "s1.example:26379, s2.example:26379", SentinelMaster: "m"},
+			expected: "s1.example",
+		},
+		{
+			name:     "sentinel first address without port",
+			cfg:      conf.Redis{TLS: true, SentinelReplication: true, SentinelAddresses: "s1.example", SentinelMaster: "m"},
+			expected: "s1.example",
+		},
+		{
+			name:     "cluster first node with port",
+			cfg:      conf.Redis{TLS: true, ClusterMode: true, ClusterNodes: "c1.example:6379,c2.example:6379"},
+			expected: "c1.example",
+		},
+		{
+			name:     "explicit server name wins",
+			cfg:      conf.Redis{TLS: true, TLSServerName: "custom.example", ClusterMode: true, ClusterNodes: "c1.example:6379"},
+			expected: "custom.example",
+		},
+		{
+			name:     "host wins over addresses",
+			cfg:      conf.Redis{TLS: true, Host: "h.example", ClusterMode: true, ClusterNodes: "c1.example:6379"},
+			expected: "h.example",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := tc.cfg
+			tlsCfg, err := parseTLSConfig(&cfg)
+			assert.NoError(t, err)
+			if assert.NotNil(t, tlsCfg) {
+				assert.Equal(t, tc.expected, tlsCfg.ServerName)
+			}
+		})
+	}
 }

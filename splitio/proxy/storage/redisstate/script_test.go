@@ -743,7 +743,7 @@ func TestSegmentCheckUsesCursorField(t *testing.T) {
 	}
 }
 
-func TestScriptMetaWrongTypeIsTypedDataWrongTypeIsPlain(t *testing.T) {
+func TestScriptMetaWrongTypeIsTypedDataWrongTypeIsTyped(t *testing.T) {
 	e := newScriptEnv(t)
 	fk := e.keys.FlagKeys()
 	cf := e.keys.FlagCursorField()
@@ -754,8 +754,86 @@ func TestScriptMetaWrongTypeIsTypedDataWrongTypeIsPlain(t *testing.T) {
 	require.Nil(t, e.client.Eval(`return redis.call('DEL', KEYS[1])`, fk[0:1]))
 	require.Nil(t, e.client.Eval(`return redis.call('SET', KEYS[1], 'x')`, fk[1:2]))
 	err = e.client.Eval(FlagScript, fk, args...)
-	assert.True(t, ErrorHasMarker(err, wrongTypeMarker), "entity WRONGTYPE stays plain, got %v", err)
+	assert.True(t, ErrorHasMarker(err, DataWrongTypeMarker), "entity WRONGTYPE must return its own typed marker, got %v", err)
 	assert.False(t, ErrorHasMarker(err, MetaWrongTypeMarker), "entity WRONGTYPE must not carry the meta marker")
+}
+
+// F3-03: a data, index or removal key of another type is refused before the first write, so no earlier HSET survives
+func TestScriptEntityKeyWrongTypeWritesNothing(t *testing.T) {
+	flagArgs := func(e *scriptEnv) []interface{} {
+		return entityArgs(testFp, testRetention, e.keys.FlagCursorField(), 6, ent{"a", 5, false, `{}`})
+	}
+	segArgs := func(e *scriptEnv) []interface{} {
+		return segmentArgs(testFp, testRetention, "s", e.keys.SegmentCursorField("s"), 6, []segKey{{"k", 5}}, []segKey{{"r", 5}})
+	}
+	cases := []struct {
+		name   string
+		script string
+		keys   func(*scriptEnv) []string
+		args   func(*scriptEnv) []interface{}
+		bad    int
+	}{
+		{"flag data", FlagScript, func(e *scriptEnv) []string { return e.keys.FlagKeys() }, flagArgs, 1},
+		{"flag index", FlagScript, func(e *scriptEnv) []string { return e.keys.FlagKeys() }, flagArgs, 2},
+		{"flag removed", FlagScript, func(e *scriptEnv) []string { return e.keys.FlagKeys() }, flagArgs, 3},
+		{"segment active", SegmentScript, func(e *scriptEnv) []string { return e.keys.SegmentKeys("s") }, segArgs, 1},
+		{"segment removed", SegmentScript, func(e *scriptEnv) []string { return e.keys.SegmentKeys("s") }, segArgs, 2},
+		{"segment clock", SegmentScript, func(e *scriptEnv) []string { return e.keys.SegmentKeys("s") }, segArgs, 3},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			e := newScriptEnv(t)
+			keys := c.keys(e)
+			require.Nil(t, e.client.Eval(`return redis.call('SET', KEYS[1], 'x')`, keys[c.bad+0:c.bad+1]))
+			before := e.dump()
+			err := e.client.Eval(c.script, keys, c.args(e)...)
+			assert.True(t, ErrorHasMarker(err, DataWrongTypeMarker), "got %v", err)
+			assert.Equal(t, before, e.dump(), "a refused call writes nothing, not even the fingerprint or the cursor")
+		})
+	}
+}
+
+// F3-01: a stored cursor that is not a number counts as -1, so a write repairs it and the check script reports a mismatch
+func TestScriptNonNumericStoredTillIsMinusOne(t *testing.T) {
+	e := newScriptEnv(t)
+	setTill := func(field string) {
+		t.Helper()
+		require.Nil(t, e.client.Eval(`return redis.call('HSET', KEYS[1], ARGV[1], 'abc')`, []string{e.keys.Meta()}, field))
+	}
+	till := func(field string) string { return e.dump()[e.keys.Meta()].Fields[field] }
+
+	setTill(e.keys.FlagCursorField())
+	require.Nil(t, e.flags(testFp, 5, ent{"a", 5, false, `{}`}))
+	assert.Equal(t, "5", till(e.keys.FlagCursorField()), "the flag script replaces the corrupt cursor")
+
+	setTill(e.keys.SegmentCursorField("s"))
+	err := e.client.Eval(SegmentCheckScript, e.keys.SegmentKeys("s"), 0, "s", 0)
+	assert.True(t, ErrorHasMarker(err, countMismatchMarker), "the check script reports a mismatch, got %v", err)
+	require.Nil(t, e.segment(testFp, "s", 7, []segKey{{"k", 7}}, nil))
+	assert.Equal(t, "7", till(e.keys.SegmentCursorField("s")), "the segment script replaces the corrupt cursor")
+}
+
+// F3-10: the check script checks the meta key type like the other scripts
+func TestSegmentCheckScriptMetaWrongType(t *testing.T) {
+	e := newScriptEnv(t)
+	require.Nil(t, e.client.Eval(`return redis.call('SET', KEYS[1], 'x')`, e.keys.SegmentKeys("s")[0:1]))
+	err := e.client.Eval(SegmentCheckScript, e.keys.SegmentKeys("s"), 0, "s", 0)
+	assert.True(t, ErrorHasMarker(err, MetaWrongTypeMarker), "got %v", err)
+}
+
+// F3-09: numbers past 15 digits would be rounded by Lua doubles, so the scripts refuse them
+func TestScriptRefusesTooLongIntegers(t *testing.T) {
+	e := newScriptEnv(t)
+	cf := e.keys.FlagCursorField()
+	cursor := func(v string) error {
+		args := entityArgs(testFp, testRetention, cf, 6, ent{"a", 5, false, `{}`})
+		args[3] = v
+		return e.client.Eval(FlagScript, e.keys.FlagKeys(), args...)
+	}
+	assert.True(t, ErrorHasMarker(cursor("9007199254740993"), BadArgsMarker), "16 digits")
+	assert.True(t, ErrorHasMarker(cursor("-1000000000000000"), BadArgsMarker), "16 digits with a sign")
+	assert.Nil(t, cursor("999999999999999"), "15 digits are accepted")
+	assert.Equal(t, "999999999999999", e.dump()[e.keys.Meta()].Fields[cf])
 }
 
 func TestScriptRejectsInvalidNumbers(t *testing.T) {

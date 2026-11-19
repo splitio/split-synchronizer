@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 
@@ -38,7 +39,10 @@ func ParseRedisOptions(cfg *conf.Redis) (*config.RedisConfig, error) {
 		if len(redisCfg.SentinelAddresses) == 0 {
 			return nil, errors.New("sentinel addresses must not be empty")
 		}
-		redisCfg.SentinelMaster = cfg.SentinelMaster
+		redisCfg.SentinelMaster = strings.TrimSpace(cfg.SentinelMaster)
+		if redisCfg.SentinelMaster == "" {
+			return nil, errors.New("sentinel master must not be empty")
+		}
 	} else if cfg.ClusterMode {
 		redisCfg.ClusterKeyHashTag = cfg.ClusterKeyHashTag
 		redisCfg.ClusterNodes = splitAddresses(cfg.ClusterNodes)
@@ -46,6 +50,9 @@ func ParseRedisOptions(cfg *conf.Redis) (*config.RedisConfig, error) {
 			return nil, errors.New("cluster nodes must not be empty")
 		}
 	} else {
+		if cfg.Port < 1 || cfg.Port > 65535 {
+			return nil, fmt.Errorf("redis port must be 1..65535, got %d", cfg.Port)
+		}
 		redisCfg.Host = cfg.Host
 		redisCfg.Port = cfg.Port
 		redisCfg.Database = cfg.Db
@@ -64,6 +71,23 @@ func splitAddresses(list string) []string {
 	return out
 }
 
+// firstAddress returns the first element of addrs, or an empty string when the list is empty
+func firstAddress(addrs []string) string {
+	if len(addrs) == 0 {
+		return ""
+	}
+	return addrs[0]
+}
+
+// hostOf strips the port from a host:port address, returning the whole string when it has no port
+func hostOf(addr string) string {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return addr
+	}
+	return host
+}
+
 func parseTLSConfig(opt *conf.Redis) (*tls.Config, error) {
 	if !opt.TLS {
 		return nil, nil
@@ -72,6 +96,15 @@ func parseTLSConfig(opt *conf.Redis) (*tls.Config, error) {
 	cfg := tls.Config{ServerName: opt.TLSServerName, MinVersion: tls.VersionTLS12}
 	if cfg.ServerName == "" {
 		cfg.ServerName = opt.Host
+	}
+	if cfg.ServerName == "" {
+		var first string
+		if opt.SentinelReplication {
+			first = firstAddress(splitAddresses(opt.SentinelAddresses))
+		} else if opt.ClusterMode {
+			first = firstAddress(splitAddresses(opt.ClusterNodes))
+		}
+		cfg.ServerName = hostOf(first)
 	}
 
 	if len(opt.TLSCACertificates) > 0 {

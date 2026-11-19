@@ -739,13 +739,14 @@ func TestWriterRecoversAfterOutage(t *testing.T) {
 
 	// the outage is over: eval 4 succeeds for the second change
 	e.w.PutFlags(wtFlags("f2"), nil, 2)
-	wtWaitUntil(t, "recovery", func() bool { return e.w.Status().Healthy && e.w.Status().PendingChanges == 0 })
+	wtWaitUntil(t, "recovery", func() bool { return e.client.count() == 4 && e.w.Status().PendingChanges == 0 })
 	e.stop()
 
 	assert.Equal(t, 4, e.client.count(), "three failed tries for the dropped change and one applied write for the next change")
 	st := e.w.Status()
-	assert.True(t, st.Healthy)
-	assert.Equal(t, "", st.LastError, "a successful write clears the last error")
+	// the dropped change is still missing from Redis and Start(nil) has no resync to repair it, so the status stays degraded
+	assert.False(t, st.Healthy, "a later successful write does not hide the dropped change")
+	assert.NotEmpty(t, st.LastError, "the degraded reason replaces the cleared last error")
 	assert.Equal(t, int64(0), st.FailedRounds, "a successful write clears the failed rounds")
 	assert.Equal(t, int64(0), st.LagMs)
 	assert.Equal(t, e.clock.Now().UnixMilli(), st.LastSuccessUnixMs)
@@ -781,7 +782,9 @@ func TestWriterPartialFailure(t *testing.T) {
 
 	// the outage is over: a following change writes all three chunks; the f0 chunk is sent again because the change is new
 	e.w.PutFlags(wtFlags("f0", "f1", "f2", "f3", "f4"), nil, 7)
-	wtWaitUntil(t, "the following change", func() bool { return e.w.Status().Healthy && e.w.Status().PendingChanges == 0 })
+	wtWaitUntil(t, "the following change", func() bool {
+		return e.client.count() == 1+opts.MaxAttempts+3 && e.w.Status().PendingChanges == 0
+	})
 	e.stop()
 
 	assert.Equal(t, 1+opts.MaxAttempts+3, e.client.count(), "the following change writes its three chunks once each, with no further failures")
@@ -910,13 +913,13 @@ func TestSuccessClearsLastError(t *testing.T) {
 
 	// eval 4 succeeds for the next change: the success clears the error of the dropped change
 	e.w.PutFlags(wtFlags("b"), nil, 2)
-	wtWaitUntil(t, "the write after the drop", func() bool { return e.w.Status().Healthy && e.w.Status().PendingChanges == 0 })
+	wtWaitUntil(t, "the write after the drop", func() bool { return e.client.count() == 4 && e.w.Status().PendingChanges == 0 })
 	e.stop()
 
 	assert.Equal(t, 4, e.client.count(), "three BUSY tries, then one successful write of the next change")
 	st = e.w.Status()
-	assert.True(t, st.Healthy)
-	assert.Equal(t, "", st.LastError, "the successful write clears LastError")
+	assert.False(t, st.Healthy, "the success does not clear the degraded state of the dropped change")
+	assert.Contains(t, st.LastError, "BUSY redis is busy", "the sticky reason names the dropped change")
 	assert.Equal(t, int64(0), st.FailedRounds, "the successful write clears FailedRounds")
 }
 
@@ -1490,8 +1493,9 @@ func TestWriterRefusedChunkIsolatesBadEntity(t *testing.T) {
 	e.log.mu.Lock()
 	msgs := append([]string(nil), e.log.errors...)
 	e.log.mu.Unlock()
-	require.Len(t, msgs, 2, "the refused entity and the skipped data are logged")
-	assert.Contains(t, msgs[0], `"bad"`)
+	require.Len(t, msgs, 3, "the refused chunk, the refused entity and the skipped data are logged")
+	assert.Contains(t, msgs[0], "chunk of 3 entities", "the chunk refusal is logged once, with the Redis text")
+	assert.Contains(t, msgs[1], `"bad"`)
 }
 
 func TestWriterOverflowWithoutSourceDoesNotScheduleResync(t *testing.T) {
@@ -1643,7 +1647,7 @@ func TestWriterMaxAttemptsExhaustedDropsChange(t *testing.T) {
 	require.Equal(t, opts.MaxAttempts, e.client.count(), "exactly MaxAttempts tries, no retry after the cap")
 
 	e.w.PutFlags(wtFlags("b"), nil, 8)
-	wtWaitUntil(t, "the later change", func() bool { return e.w.Status().Healthy && e.w.Status().PendingChanges == 0 })
+	wtWaitUntil(t, "the later change", func() bool { return e.client.count() == opts.MaxAttempts+1 && e.w.Status().PendingChanges == 0 })
 	e.stop()
 
 	calls := e.client.evals()
@@ -1652,7 +1656,7 @@ func TestWriterMaxAttemptsExhaustedDropsChange(t *testing.T) {
 		assert.Equal(t, "a", wtEntities(c.args)[0].name, "the tries are for the dropped change")
 	}
 	assert.Equal(t, "b", wtEntities(calls[opts.MaxAttempts].args)[0].name, "the dropped change is not sent again; the later change is")
-	assert.True(t, e.w.Status().Healthy)
+	assert.False(t, e.w.Status().Healthy, "the dropped change is not repaired, so the status stays degraded")
 	assert.Equal(t, int64(0), e.w.Status().FailedRounds, "a successful write clears the failed rounds")
 }
 
@@ -1893,7 +1897,7 @@ func TestUnknownErrorPersistentDropsAfterMaxAttempts(t *testing.T) {
 	opts := wtOptions()
 	e := newWtEnv(t, opts)
 	data := e.w.keys.FlagData()
-	e.client.fail = func(int, wtCall) error { return errors.New("NOPERM User has no permissions to run the script") }
+	e.client.fail = func(int, wtCall) error { return errors.New("ERR something Redis has no marker for") }
 	err := e.w.eval("flag write", "flag-script", []string{data}, nil)
 	assert.ErrorIs(t, err, errDropped, "an unknown error that persists is dropped, not rejected")
 	assert.NotErrorIs(t, err, errChunkRejected, "no per-entity isolation for an unknown error")
@@ -1971,8 +1975,13 @@ func TestHealthRecoversAfterSuccess(t *testing.T) {
 	failing = false
 	require.NoError(t, e.w.eval("flag write", "flag-script", []string{data}, nil))
 	st := e.w.Status()
-	assert.True(t, st.Healthy)
-	assert.Empty(t, st.LastError)
+	assert.False(t, st.Healthy, "a success after a drop does not clear the degraded state")
+	assert.Contains(t, st.LastError, "connection pool timeout")
+	e.w.mtx.Lock()
+	e.w.degraded, e.w.degradedReason = false, ""
+	e.w.mtx.Unlock()
+	assert.True(t, e.w.Status().Healthy, "once a resync clears the degraded state the success shows again")
+	assert.Empty(t, e.w.Status().LastError)
 }
 
 func TestPermanentRejectionMarksUnhealthy(t *testing.T) {
@@ -2049,7 +2058,9 @@ func TestDropTriggersBoundedResync(t *testing.T) {
 	down.Store(false)
 	e.w.PutFlags(wtFlags("y"), nil, 9)
 	wtWaitUntil(t, "the cursor catches up after recovery", func() bool {
-		return cursorWritten(9) && e.w.Status().PendingChanges == 0 && e.w.Status().Healthy
+		// Healthy returns only after a clean resync. The drops hit the resync cap while Redis was down, so the live write
+		// of y is what restarts the resync; the static source holds cursor 7, so the cursor 9 of y is not asserted
+		return e.w.Status().PendingChanges == 0 && e.w.Status().Healthy
 	})
 	e.stop()
 
@@ -2142,6 +2153,8 @@ func TestClassifyTablePinnedToRealErrorStrings(t *testing.T) {
 		{"lua WRONGTYPE", "ERR user_script:1: WRONGTYPE Operation against a key holding the wrong kind of value script: 691ad66b169ddb9e0d5fb480aeb7c7887a2c4b59, on @user_script:1.", errPermanent},
 		{"proxy bad args", "ERR PROXY_BAD_ARGS", errPermanent},
 		{"proxy meta wrongtype", "ERR user_script:1: PROXY_META_WRONGTYPE script: 0, on @user_script:1.", errTransient},
+		{"proxy data wrongtype", "ERR user_script:1: PROXY_DATA_WRONGTYPE script: 0, on @user_script:1.", errPermanent},
+		{"proxy data wrongtype reply", "PROXY_DATA_WRONGTYPE", errPermanent},
 		{"lua runtime error", "ERR user_script:1: boom script: 82903a0434f1503e152f89c03c9acd881a0e8150, on @user_script:1.", errPermanent},
 		{"lua integer error", "ERR value is not an integer or out of range script: da8455f0535fd532821b3713a4eccd80fc4b8457, on @user_script:1.", errPermanent},
 		{"lua unknown command", "ERR Unknown Redis command called from script script: ee4002f488cb0514b4fbe5979e61c3bf43204edb, on @user_script:1.", errPermanent},
@@ -2221,7 +2234,7 @@ func TestPutAfterStopDoesNotEnqueue(t *testing.T) {
 	}
 	assert.Zero(t, e.w.Status().PendingChanges, "a change put after Stop is not queued")
 	assert.Equal(t, int64(1), e.w.Status().DroppedChanges, "a refused change is counted as dropped")
-	assert.Equal(t, 1, strings.Count(e.log.infoText(), wtRefusedAfterStop), "the refusal is logged once")
+	assert.Equal(t, 1, strings.Count(e.log.errorText(), wtRefusedAfterStop), "the refusal is logged once, at Error")
 	e.stop()
 }
 
@@ -2276,7 +2289,7 @@ func TestPutDuringDrainIsRefused(t *testing.T) {
 	}
 	assert.Equal(t, []string{"s1"}, names, "only the change queued before Stop is written")
 	assert.Equal(t, int64(2), e.w.Status().DroppedChanges, "both refused changes are counted as dropped")
-	assert.Equal(t, 1, strings.Count(e.log.infoText(), wtRefusedAfterStop), "the refusals are logged once")
+	assert.Equal(t, 1, strings.Count(e.log.errorText(), wtRefusedAfterStop), "the refusals are logged once, at Error")
 }
 
 // TestStopDrainsQueueWithinTimeout: Stop keeps the worker draining until the drain deadline (StopTimeoutMs after
@@ -2328,7 +2341,7 @@ func TestStopDrainsQueueWithinTimeout(t *testing.T) {
 		names = append(names, name)
 	}
 	assert.Equal(t, []string{"s1", "s2", "s3"}, names, "changes are written while the drain deadline has not passed; s4 is cut off at the deadline and s5 is never sent")
-	assert.Contains(t, e.log.infoText(), "2 queued changes dropped", "the cut-off change in flight and the queued s5 are counted")
+	assert.Contains(t, e.log.errorText(), "2 queued changes dropped", "the cut-off change in flight and the queued s5 are counted")
 }
 
 // TestStopReportsLeftoverCount: a healthy Redis takes every queued change before Stop returns, so nothing is left,
@@ -2447,7 +2460,9 @@ func TestStopDrainDeadlineCapsBackoffWait(t *testing.T) {
 		t.Fatal("Stop did not return within 3s: the 60s backoff was not capped at the 1s drain deadline")
 	}
 	assert.GreaterOrEqual(t, time.Since(start), 500*time.Millisecond, "the waits left before the deadline are paced in real time, not spun through")
-	assert.Contains(t, e.log.infoText(), "2 queued changes dropped", "the change in flight and the queued change are counted")
+	assert.Contains(t, e.log.errorText(), "1 queued changes dropped", "the change cut off at the deadline is counted by Stop")
+	assert.Equal(t, int64(2), e.w.Status().DroppedChanges, "the first change ran out of tries before the deadline and was dropped, the second was cut off")
+	assert.Contains(t, e.log.errorText(), "dropped after 3 attempts", "a change that runs out of tries before the deadline is dropped and logged like any other")
 }
 
 // TestStopNotBlockedByHungEvalWriterSide: an Eval that never returns keeps the worker inside the
@@ -2853,7 +2868,7 @@ func TestStopWithPendingResync(t *testing.T) {
 	}
 	assert.Equal(t, []string{"s1", "s2", "s3"}, names, "the queue is served first")
 	assert.Equal(t, 1, src.flagsCalls, "the pending resync is skipped, so the source is read by one resync only")
-	assert.Contains(t, e.log.infoText(), "pending resync skipped during the shutdown drain")
+	assert.Contains(t, e.log.errorText(), "pending resync skipped during the shutdown drain")
 	assert.Contains(t, e.log.infoText(), "resync cut short by Stop")
 	assert.Contains(t, e.log.infoText(), "0 queued changes dropped")
 }
@@ -3397,7 +3412,7 @@ func TestOutageQueueBoundedByDistinctEntities(t *testing.T) {
 	}
 	e.w.PutFlags(final, nil, 2010)
 	wtWaitUntil(t, "the final change is written after the outage", func() bool {
-		return e.w.Status().Healthy && e.w.Status().PendingChanges == 0
+		return e.w.Status().FailedRounds == 0 && e.w.Status().PendingChanges == 0 && e.w.Status().LastSuccessUnixMs != 0
 	})
 	e.stop()
 
@@ -3702,7 +3717,9 @@ func TestQueueLossOnStopLogsAndReportsPending(t *testing.T) {
 				return s.PendingChanges == 2 && s.LagMs > 0
 			})
 			w.Stop()
-			assert.Contains(t, log.infoText(), "2 queued changes dropped")
+			// the tries of both changes end before the drain deadline, so each is dropped and logged by the worker, not by Stop
+			assert.Contains(t, log.errorText(), "dropped after 3 attempts")
+			assert.Equal(t, int64(2), w.Status().DroppedChanges)
 			assert.Equal(t, 0, w.Status().PendingChanges, "Stop empties the queue it reported as dropped")
 
 			fk := e.keys.FlagKeys()
@@ -3847,4 +3864,296 @@ func TestStartupPurgeRepeatsWhileBatchIsFull(t *testing.T) {
 	for _, call := range calls {
 		assert.Equal(t, int64(2), call.args[2])
 	}
+}
+
+// errorText returns every Error message logged so far, joined by newlines
+func (l *wtLogger) errorText() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return strings.Join(l.errors, "\n")
+}
+
+// wtPanicOnEval makes the first Eval panic, which kills the worker through recoverWorker
+func wtPanicOnEval(e *wtEnv) {
+	e.client.fail = func(int, wtCall) error { panic("status test panic") }
+}
+
+func TestStatusStaysDegradedAfterOverflowWithoutSource(t *testing.T) {
+	opts := wtOptions()
+	opts.MaxPendingChanges = 10
+	e := newWtEnv(t, opts)
+	e.w.PutSegment("A", wtKeysOf(6, "a"), nil, 1)
+	e.w.PutSegment("B", wtKeysOf(6, "b"), nil, 2)
+
+	st := e.w.Status()
+	assert.False(t, st.Healthy, "an overflow with no Source to repair it is unhealthy")
+	assert.Contains(t, st.LastError, "pending", "the reason names the overflow")
+
+	require.NoError(t, e.w.Start(nil))
+	wtWaitUntil(t, "the queued change is written", func() bool { return e.client.count() == 1 && e.w.Status().PendingChanges == 0 })
+
+	st = e.w.Status()
+	assert.False(t, st.Healthy, "a later successful Eval must not hide the lost changes")
+	assert.NotEmpty(t, st.LastError)
+}
+
+func TestStatusHealthyAgainAfterCleanResync(t *testing.T) {
+	opts := wtOptions()
+	opts.MaxPendingChanges = 10
+	e := newWtEnv(t, opts)
+	e.w.PutSegment("A", wtKeysOf(6, "a"), nil, 1)
+	e.w.PutSegment("B", wtKeysOf(6, "b"), nil, 2)
+	assert.False(t, e.w.Status().Healthy, "unhealthy after the overflow")
+
+	require.NoError(t, e.w.Start(&wtSource{}))
+	wtWaitUntil(t, "the resync repairs the overflow", func() bool {
+		st := e.w.Status()
+		return st.Healthy && st.PendingChanges == 0
+	})
+	assert.Empty(t, e.w.Status().LastError)
+}
+
+func TestStatusUnhealthyAfterDropSurvivesNextSuccess(t *testing.T) {
+	e := newWtEnv(t, wtOptions())
+	e.client.fail = func(n int, _ wtCall) error {
+		if n <= 3 {
+			return &net.OpError{Op: "dial", Err: errors.New("down")}
+		}
+		return nil
+	}
+	e.w.PutFlags(wtFlags("a"), nil, 1)
+	require.NoError(t, e.w.Start(nil))
+	wtWaitUntil(t, "the change is dropped", func() bool { return e.w.Status().DroppedChanges == 1 })
+	e.w.PutFlags(wtFlags("b"), nil, 2)
+	wtWaitUntil(t, "the next change is written", func() bool { return e.client.count() == 4 && e.w.Status().PendingChanges == 0 })
+	assert.False(t, e.w.Status().Healthy, "the dropped change is still missing from Redis, no resync ran")
+}
+
+func TestDroppedChangesCountsOverflow(t *testing.T) {
+	opts := wtOptions()
+	opts.MaxPendingChanges = 10
+	e := newWtEnv(t, opts)
+	e.w.PutSegment("A", wtKeysOf(6, "a"), nil, 1)
+	e.w.PutSegment("B", wtKeysOf(6, "b"), nil, 2)
+	assert.Equal(t, int64(1), e.w.Status().DroppedChanges, "the queued change A was dropped by the overflow")
+}
+
+func TestDroppedChangesCountsRetryExhaustion(t *testing.T) {
+	e := newWtEnv(t, wtOptions())
+	e.client.fail = func(int, wtCall) error { return &net.OpError{Op: "dial", Err: errors.New("down")} }
+	e.w.PutFlags(wtFlags("a"), nil, 1)
+	require.NoError(t, e.w.Start(nil))
+	wtWaitUntil(t, "the change is dropped", func() bool { return e.w.Status().FailedRounds == 1 })
+	assert.Equal(t, int64(1), e.w.Status().DroppedChanges)
+}
+
+func TestDroppedChangesNotCountedForResyncDrop(t *testing.T) {
+	e := newWtEnv(t, wtOptions())
+	e.client.fail = func(int, wtCall) error { return &net.OpError{Op: "dial", Err: errors.New("down")} }
+	require.NoError(t, e.w.Start(&wtSource{flags: wtFlags("a"), flagsCn: 1}))
+	wtWaitUntil(t, "the resync drops", func() bool { return e.w.Status().FailedRounds >= 1 })
+	assert.Equal(t, int64(0), e.w.Status().DroppedChanges, "a resync pass holds no queued change, so nothing is counted")
+}
+
+func TestStopCountsDroppedChangesAndLogsError(t *testing.T) {
+	e := newWtEnv(t, wtOptions())
+	e.w.PutSegment("s1", []string{"m"}, nil, 1)
+	e.w.PutSegment("s2", []string{"m"}, nil, 1)
+	e.w.Stop()
+
+	assert.Equal(t, int64(2), e.w.Status().DroppedChanges)
+	assert.Contains(t, e.log.errorText(), "2 queued changes dropped")
+}
+
+func TestStopWithoutDropsLogsInfo(t *testing.T) {
+	e := newWtEnv(t, wtOptions())
+	require.NoError(t, e.w.Start(nil))
+	e.w.Stop()
+	assert.Zero(t, e.log.errorCount())
+	assert.Contains(t, e.log.infoText(), "0 queued changes dropped")
+}
+
+func TestStopCountsDroppedChangesOnEnterMismatch(t *testing.T) {
+	e := newWtEnv(t, wtOptions())
+	e.w.PutSegment("s1", []string{"m"}, nil, 1)
+	e.w.PutSegment("s2", []string{"m"}, nil, 1)
+	e.w.enterMismatch()
+	assert.Equal(t, int64(2), e.w.Status().DroppedChanges)
+}
+
+func TestDeadWorkerRefusalsAreCountedAndLoggedOnce(t *testing.T) {
+	e := newWtEnv(t, wtOptions())
+	wtPanicOnEval(e)
+	require.NoError(t, e.w.Start(nil))
+	e.w.PutFlags(wtFlags("a"), nil, 1)
+	wtWithinDeadline(t, "the worker to exit", e.w.done, 5*time.Second)
+	before := e.log.errorCount()
+
+	e.w.PutFlags(wtFlags("b"), nil, 2)
+	e.w.PutSegment("s", []string{"k"}, nil, 3)
+	e.w.PutRuleBasedSegments(nil, nil, 4)
+
+	assert.Equal(t, int64(3), e.w.Status().RefusedChanges)
+	assert.Equal(t, before+1, e.log.errorCount(), "the first refusal logs one Error line, the others stay at debug")
+	assert.Contains(t, e.log.errors[before], "worker")
+}
+
+func TestRecoverWorkerClearsQueueAndPendingWork(t *testing.T) {
+	e := newWtEnv(t, wtOptions())
+	wtPanicOnEval(e)
+	e.w.PutFlags(wtFlags("a"), nil, 1)
+	e.w.PutSegment("s", []string{"k"}, nil, 2)
+	require.NoError(t, e.w.Start(&wtSource{}))
+	wtWithinDeadline(t, "the worker to exit", e.w.done, 5*time.Second)
+
+	st := e.w.Status()
+	assert.Zero(t, st.PendingChanges, "a dead worker holds no pending change")
+	assert.Zero(t, st.LagMs, "a dead worker reports no lag")
+	assert.Equal(t, int64(2), st.DroppedChanges, "the in-flight change and the queued one are counted")
+	e.w.mtx.Lock()
+	needResync, since := e.w.needResync, e.w.resyncSince
+	e.w.mtx.Unlock()
+	assert.False(t, needResync)
+	assert.True(t, since.IsZero())
+}
+
+func TestRequestResyncAfterPanicSchedulesNothing(t *testing.T) {
+	e := newWtEnv(t, wtOptions())
+	wtPanicOnEval(e)
+	require.NoError(t, e.w.Start(&wtSource{}))
+	e.w.PutFlags(wtFlags("a"), nil, 1)
+	wtWithinDeadline(t, "the worker to exit", e.w.done, 5*time.Second)
+
+	e.w.RequestResync()
+	e.w.scheduleRefusedResync()
+
+	e.w.mtx.Lock()
+	needResync := e.w.needResync
+	e.w.mtx.Unlock()
+	assert.False(t, needResync, "no resync is scheduled for a dead worker")
+	assert.Zero(t, e.w.Status().LagMs)
+	assert.Zero(t, e.w.Status().Resyncs)
+}
+
+func TestPanicStaysUnhealthyWithReason(t *testing.T) {
+	e := newWtEnv(t, wtOptions())
+	wtPanicOnEval(e)
+	require.NoError(t, e.w.Start(nil))
+	e.w.PutFlags(wtFlags("a"), nil, 1)
+	wtWithinDeadline(t, "the worker to exit", e.w.done, 5*time.Second)
+	st := e.w.Status()
+	assert.False(t, st.Healthy)
+	assert.Contains(t, st.LastError, "panic")
+}
+
+func TestPutAfterStopLogsErrorOnce(t *testing.T) {
+	e := newWtEnv(t, wtOptions())
+	require.NoError(t, e.w.Start(nil))
+	e.w.Stop()
+	e.w.PutFlags(wtFlags("a"), nil, 1)
+	e.w.PutFlags(wtFlags("b"), nil, 2)
+	assert.Equal(t, 1, strings.Count(e.log.errorText(), wtRefusedAfterStop))
+	assert.Equal(t, int64(2), e.w.Status().DroppedChanges)
+}
+
+func TestPermanentChunkRefusalIsBounded(t *testing.T) {
+	opts := wtOptions()
+	opts.ChunkSize = 50
+	e := newWtEnv(t, opts)
+	e.client.fail = func(int, wtCall) error {
+		return errors.New("WRONGTYPE Operation against a key holding the wrong kind of value")
+	}
+	names := wtKeysOf(40, "f")
+	e.w.PutFlags(wtFlags(names...), nil, 9)
+	require.NoError(t, e.w.Start(nil))
+	wtWaitUntil(t, "the chunk is refused", func() bool { return e.w.Status().RejectedChanges >= 40 && e.w.Status().PendingChanges == 0 })
+	e.stop()
+
+	// the probe is one call, then the chunk and at most maxConsecutiveRefusals single-entity calls
+	assert.LessOrEqual(t, e.client.count(), 1+1+maxConsecutiveRefusals, "isolation stops after the cap")
+	text := e.log.errorText()
+	assert.Contains(t, text, "WRONGTYPE", "the Redis text is logged")
+	assert.Contains(t, text, "consecutive", "the cap is reported")
+	assert.Less(t, e.log.errorCount(), 15, "not one Error line per entity")
+	e.w.mtx.Lock()
+	whole := e.w.freezeOf(e.w.keys.FlagCursorField()).whole
+	e.w.mtx.Unlock()
+	assert.True(t, whole, "the group is frozen so the cursor does not pass the skipped data")
+}
+
+func TestCursorOnlyRefusalIsLoggedAndFreezes(t *testing.T) {
+	e := newWtEnv(t, wtOptions())
+	e.client.fail = func(int, wtCall) error { return errors.New("PROXY_BAD_ARGS cursor") }
+	field := e.w.keys.FlagCursorField()
+	refused, err := e.w.writeEntities("flag write", FlagScript, e.w.keys.FlagKeys(), field, nil, 5, nil)
+	require.NoError(t, err)
+	assert.True(t, refused)
+	assert.Contains(t, e.log.errorText(), "PROXY_BAD_ARGS", "the refusal of the cursor-only call is logged with the Redis text")
+	assert.True(t, e.w.freezeOf(field).whole)
+	assert.True(t, e.w.skipsSeen)
+}
+
+func TestExhaustedRetriesWhileStoppingContinueUntilDeadline(t *testing.T) {
+	opts := wtOptions()
+	opts.StopTimeoutMs = 10000
+	e := newWtEnv(t, opts)
+	stopStarted := make(chan struct{})
+	e.client.fail = func(n int, _ wtCall) error {
+		if n <= 3 {
+			if n == 3 {
+				go e.w.Stop()
+				wtWithinDeadline(t, "stop requested", stopStarted, 5*time.Second)
+			}
+			return &net.OpError{Op: "dial", Err: errors.New("down")}
+		}
+		return nil
+	}
+	go func() {
+		wtWaitUntil(t, "stop requested", e.w.stopped)
+		close(stopStarted)
+	}()
+	e.w.PutSegment("s1", []string{"m"}, nil, 1)
+	e.w.PutSegment("s2", []string{"m"}, nil, 1)
+	require.NoError(t, e.w.Start(nil))
+	wtWaitUntil(t, "the second change is written", func() bool { return e.client.count() == 4 })
+	e.stop()
+
+	assert.Equal(t, int64(1), e.w.Status().DroppedChanges, "only s1 is lost, s2 was served within the drain time")
+	assert.Contains(t, e.log.errorText(), "dropped after 3 attempts")
+}
+
+func TestClassifyNopermAndDisabledEvalArePermanent(t *testing.T) {
+	for _, msg := range []string{
+		"NOPERM this user has no permissions to run the 'eval' command",
+		"ERR unknown command 'EVAL', with args beginning with:",
+		"ERR EVAL is disabled",
+	} {
+		assert.Equal(t, errPermanent, classify(errors.New(msg)), msg)
+	}
+	assert.Equal(t, errTransient, classify(errors.New("NOAUTH Authentication required")), "NOAUTH stays transient")
+}
+
+func TestResyncDropsAreCapped(t *testing.T) {
+	e := newWtEnv(t, wtOptions())
+	e.client.fail = func(n int, _ wtCall) error {
+		if n == 1 {
+			return nil // the probe
+		}
+		return &net.OpError{Op: "dial", Err: errors.New("down")}
+	}
+	require.NoError(t, e.w.Start(&wtSource{flags: wtFlags("a"), flagsCn: 1}))
+	wtWaitUntil(t, "the cap is reached", func() bool { return strings.Contains(e.log.errorText(), "stopped retrying") })
+	before := e.client.count()
+	time.Sleep(100 * time.Millisecond)
+	assert.Equal(t, before, e.client.count(), "no further automatic resync after the cap")
+	assert.Positive(t, e.w.Status().LagMs, "the lag clock keeps running while Redis is behind")
+	assert.False(t, e.w.Status().Healthy)
+}
+
+func TestSecondStartDoesNotProbeRedis(t *testing.T) {
+	e := newWtEnv(t, wtOptions())
+	require.NoError(t, e.w.Start(nil))
+	before := e.client.count()
+	require.NoError(t, e.w.Start(nil))
+	assert.Equal(t, before, e.client.count(), "the second Start returns before touching Redis")
 }

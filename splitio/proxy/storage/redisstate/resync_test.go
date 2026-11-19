@@ -1489,3 +1489,152 @@ func TestResyncAfterPurgeRewritesOnceThenSettles(t *testing.T) {
 	require.NoError(t, w.resyncSegment(seg, e.dump()[e.keys.Meta()].Fields))
 	assert.Equal(t, 1, segmentWrites(), "the next resync finds the counts equal and writes nothing")
 }
+
+// partialSegSource lists its segments in order and fails once, after the first segment was visited
+type partialSegSource struct {
+	segs   []SegmentState
+	failed bool
+}
+
+func (s *partialSegSource) Flags() ([]dtos.SplitDTO, int64, error) { return nil, -1, nil }
+
+func (s *partialSegSource) RuleBasedSegments() ([]dtos.RuleBasedSegmentDTO, int64, error) {
+	return nil, -1, nil
+}
+
+func (s *partialSegSource) Segments(visit func(SegmentState) error) error {
+	for i, seg := range s.segs {
+		if err := visit(seg); err != nil {
+			return err
+		}
+		if i == 0 && !s.failed {
+			s.failed = true
+			return errors.New("local state busy")
+		}
+	}
+	return nil
+}
+
+// F3-02: a retry of the segment stream skips the segments the failed attempt already rewrote
+func TestResyncSegmentStreamRetrySkipsFinishedSegments(t *testing.T) {
+	e := newScriptEnv(t)
+	cut := &cutClient{PrefixedRedisClient: e.client}
+	opts := wtOptions()
+	opts.BackoffMaxWait = 10 * time.Millisecond
+	w, err := NewWriter(cut, e.keys, wtFingerprint, opts, &wtLogger{})
+	require.NoError(t, err)
+	t.Cleanup(w.Stop)
+	src := &partialSegSource{segs: []SegmentState{
+		{Name: "a", Active: map[string]int64{"k": 5}, ChangeNumber: 5},
+		{Name: "b", Active: map[string]int64{"k": 6}, ChangeNumber: 6},
+	}}
+
+	require.NoError(t, w.resync(src))
+
+	repairs := map[string]int{}
+	for _, c := range cut.evals {
+		if c.script == SegmentRepairScript {
+			repairs[c.keys[1]]++
+		}
+	}
+	assert.Equal(t, 1, repairs[e.keys.SegmentKeys("a")[1]], "the finished segment is not rewritten by the retry")
+	assert.Equal(t, 1, repairs[e.keys.SegmentKeys("b")[1]])
+	d := e.dump()
+	assert.Equal(t, map[string]float64{"k": 5}, d[e.keys.SegmentKeys("a")[1]].Scores)
+	assert.Equal(t, map[string]float64{"k": 6}, d[e.keys.SegmentKeys("b")[1]].Scores)
+}
+
+// F3-04: a flag Redis holds but the source does not list is tombstoned at the source cursor, so a restored proxy that
+// serves "since N" with N below the cursor reports the removal. A stored change number above the cursor is kept.
+func TestResyncTombstonesRedisOnlyEntitiesAtSourceCursor(t *testing.T) {
+	e := newScriptEnv(t)
+	json := func(name string, cn int64) string {
+		return fmt.Sprintf(`{"name":%q,"changeNumber":%d,"status":"ACTIVE"}`, name, cn)
+	}
+	require.NoError(t, e.flags(wtFingerprint, 200, ent{"gone", 100, false, json("gone", 100)}, ent{"ahead", 200, false, json("ahead", 200)}))
+	require.NoError(t, e.rbs(wtFingerprint, 100, ent{"rgone", 100, false, json("rgone", 100)}))
+	w, _ := newRealWriter(t, e, wtOptions())
+	src := &wtSource{
+		flags: []dtos.SplitDTO{wtFlag("keep", 150, "ACTIVE")}, flagsCn: 150,
+		rbs: []dtos.RuleBasedSegmentDTO{{Name: "rkeep", ChangeNumber: 150, Status: "ACTIVE"}}, rbsCn: 150,
+	}
+
+	require.NoError(t, w.resync(src))
+
+	d := e.dump()
+	assert.Equal(t, float64(150), d[e.keys.FlagKeys()[2]].Scores["gone"], "tombstone at the source cursor")
+	assert.Contains(t, d[e.keys.FlagKeys()[3]].Scores, "gone")
+	assert.Equal(t, float64(200), d[e.keys.FlagKeys()[2]].Scores["ahead"], "a stored change number above the cursor is kept")
+	assert.Contains(t, d[e.keys.FlagKeys()[3]].Scores, "ahead")
+	assert.Equal(t, float64(150), d[e.keys.RuleBasedSegmentKeys()[2]].Scores["rgone"])
+	assert.Contains(t, d[e.keys.RuleBasedSegmentKeys()[3]].Scores, "rgone")
+}
+
+// F3-06: an empty source keeps what Redis holds in every group and says so, with the counts
+func TestResyncEmptySourceLogsSkippedRemovals(t *testing.T) {
+	e := newScriptEnv(t)
+	require.NoError(t, e.flags(wtFingerprint, 100, ent{"a", 100, false, `{"name":"a","changeNumber":100,"status":"ACTIVE"}`}))
+	require.NoError(t, e.rbs(wtFingerprint, 100, ent{"r", 100, false, `{"name":"r","changeNumber":100,"status":"ACTIVE"}`}))
+	require.NoError(t, e.segment(wtFingerprint, "s1", 5, []segKey{{"k", 5}}, nil))
+	require.NoError(t, e.segment(wtFingerprint, "s2", 5, []segKey{{"k", 5}}, nil))
+	w, log := newRealWriter(t, e, wtOptions())
+
+	require.NoError(t, w.resync(&wtSource{flagsCn: -1, rbsCn: -1}))
+
+	text := log.infoText()
+	assert.Contains(t, text, "1 stored flags are kept", text)
+	assert.Contains(t, text, "1 stored rule-based segments are kept", text)
+	assert.Contains(t, text, "2 stored segments are kept", text)
+}
+
+// dropNthClient lets the first n SegmentDropScript calls through and fails the rest with a permanent error
+type dropNthClient struct {
+	*redis.PrefixedRedisClient
+	pass  int
+	drops int
+}
+
+func (c *dropNthClient) Eval(script string, keys []string, args ...interface{}) error {
+	if script == SegmentDropScript {
+		c.drops++
+		if c.drops > c.pass {
+			return errors.New("NOPERM no permission")
+		}
+	}
+	return c.PrefixedRedisClient.Eval(script, keys, args...)
+}
+
+// F3-12: every drop is logged, and a failure names how many segments were dropped before it
+func TestDropUnlistedSegmentsLogsDropsAndCountsOnError(t *testing.T) {
+	e := newScriptEnv(t)
+	for _, n := range []string{"keep", "g1", "g2"} {
+		require.NoError(t, e.segment(wtFingerprint, n, 5, []segKey{{"a", 5}}, nil))
+	}
+	client := &dropNthClient{PrefixedRedisClient: e.client, pass: 1}
+	log := &wtLogger{}
+	w, err := NewWriter(client, e.keys, wtFingerprint, wtOptions(), log)
+	require.NoError(t, err)
+	t.Cleanup(w.Stop)
+	fields := e.dump()[e.keys.Meta()].Fields
+
+	err = w.dropUnlistedSegments(fields, map[string]struct{}{"keep": {}})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "1 segments dropped before", "the error names the count")
+	assert.Contains(t, log.infoText(), `dropped segment "g1"`, "names come in sorted order")
+	assert.NotContains(t, log.infoText(), `"g2"`)
+}
+
+// F3-11: the exported repair refuses to run while the worker runs, so it can not interleave with a live segment write
+func TestDeleteSegmentKeysRefusedWhileWorkerRuns(t *testing.T) {
+	e := newScriptEnv(t)
+	require.NoError(t, e.segment(wtFingerprint, "s1", 5, []segKey{{"a", 5}}, nil))
+	w, _ := newRealWriter(t, e, wtOptions())
+	require.NoError(t, w.Start(nil))
+
+	assert.ErrorIs(t, w.DeleteSegmentKeys("s1"), ErrWorkerRunning)
+	assert.Contains(t, e.dump(), e.keys.SegmentKeys("s1")[1], "nothing is deleted")
+
+	w.Stop()
+	assert.NoError(t, w.DeleteSegmentKeys("s1"), "allowed again once the worker has stopped")
+}
