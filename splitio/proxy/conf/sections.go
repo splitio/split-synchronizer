@@ -72,10 +72,10 @@ type Storage struct {
 type RedisState struct {
 	Enabled           bool       `json:"enabled" s-cli:"redis-state-enabled" s-def:"false" s-desc:"Write the proxy state to Redis and read it back at boot. The Redis database must not evict keys (maxmemory-policy noeviction)"`
 	Namespace         string     `json:"namespace" s-cli:"redis-state-namespace" s-def:"" s-desc:"Optional readable name for this environment in Redis (letters, digits, - and _); default is a hash of the API key, so proxies with the same API key share it. Only one proxy may write to a namespace: give each writer its own"`
-	RetentionHours    int64      `json:"retentionHours" s-cli:"redis-state-retention-hours" s-def:"168" s-desc:"How long removed flags and segment keys stay in Redis"`
-	WriteMaxAttempts  int64      `json:"writeMaxAttempts" s-cli:"redis-state-write-max-attempts" s-def:"3" s-desc:"Attempts per Redis write before the change is dropped; the next resync repairs a dropped change"`
-	WriteBackoffMaxMs int64      `json:"writeBackoffMaxMs" s-cli:"redis-state-write-backoff-max-ms" s-def:"60000" s-desc:"Maximum wait between Redis write attempts"`
-	MaxPendingChanges int64      `json:"maxPendingChanges" s-cli:"redis-state-max-pending-changes" s-def:"3000000" s-desc:"Queued changes above which the queue is dropped, the affected entities stop advancing in Redis and a resync is scheduled"`
+	RetentionHours    int64      `json:"retentionHours" s-cli:"redis-state-retention-hours" s-def:"168" s-desc:"How long removed flags and segment keys stay in Redis (1 to 2562047 hours)"`
+	WriteMaxAttempts  int64      `json:"writeMaxAttempts" s-cli:"redis-state-write-max-attempts" s-def:"3" s-desc:"Attempts per Redis write (1 to 100) before the change is dropped; the next resync repairs a dropped change"`
+	WriteBackoffMaxMs int64      `json:"writeBackoffMaxMs" s-cli:"redis-state-write-backoff-max-ms" s-def:"60000" s-desc:"Maximum wait between Redis write attempts in milliseconds (1 to 3600000)"`
+	MaxPendingChanges int64      `json:"maxPendingChanges" s-cli:"redis-state-max-pending-changes" s-def:"3000000" s-desc:"Queued changes (1 to 10000000) above which the queue is dropped, the affected entities stop advancing in Redis and a resync is scheduled"`
 	ChunkSize         int64      `json:"chunkSize" s-cli:"redis-state-chunk-size" s-def:"1000" s-desc:"Entities written per Redis script call (1 to 10000)"`
 	PurgeBatch        int64      `json:"purgeBatch" s-cli:"redis-state-purge-batch" s-def:"500" s-desc:"Expired entries removed per Redis purge script call (1 to 5000)"`
 	StopTimeoutMs     int64      `json:"stopTimeoutMs" s-cli:"redis-state-stop-timeout-ms" s-def:"10000" s-desc:"Maximum time to drain queued Redis writes on shutdown (1 to 60000); the process manager grace period must exceed it plus the other shutdown stops"`

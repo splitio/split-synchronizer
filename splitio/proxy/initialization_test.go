@@ -688,7 +688,7 @@ func startTestConfig(t *testing.T, cloudURL string, prefix string) *pconf.Main {
 	cfg.Sync.Advanced.StreamingEnabled = false
 	cfg.Storage.Redis.Enabled = true
 	cfg.Storage.Redis.Namespace = "startns"
-	cfg.Storage.Redis.Connection = commonconf.Redis{Host: "localhost", Port: 6379, Prefix: prefix}
+	cfg.Storage.Redis.Connection = commonconf.Redis{Host: "localhost", Port: 6379, Prefix: prefix, PoolSize: 10}
 	t.Setenv("SPLIT_PROXY_SDK_URL", cloudURL)
 	t.Setenv("SPLIT_PROXY_EVENTS_URL", cloudURL)
 	t.Setenv("SPLIT_PROXY_AUTH_SERVICE_URL", cloudURL)
@@ -1106,6 +1106,7 @@ func startBootMatrixCell(t *testing.T, state, cloud string) {
 	wantErr := 0
 	switch {
 	case state == "unreachable":
+		// The boot read falls back, but the redis writer still requires redis (redisstate.go:137) and exits.
 		wantErr = common.ExitRedisInitializationFailed
 	case cloud == "down" && (state == "absent" || state == "corrupt" || state == "foreign"):
 		wantErr = common.ExitTaskInitialization
@@ -1161,6 +1162,9 @@ func startBootMatrixCell(t *testing.T, state, cloud string) {
 	if wantErr != 0 {
 		err := start(logger, cfg)
 		assertStartExit(t, err, wantErr, logger)
+		if state == "unreachable" && !logger.has("could not be read at boot") {
+			t.Errorf("expected the unreachable redis read to fall back with an error log\nlogs:\n%s", logger.dump())
+		}
 		return
 	}
 
@@ -1203,6 +1207,13 @@ func startBootMatrixCell(t *testing.T, state, cloud string) {
 	if got[0] != wantSince {
 		t.Errorf("first splitChanges since = %q, want %q\nlogs:\n%s", got[0], wantSince, logger.dump())
 	}
+}
+
+// The boot read no longer exits on unreachable redis: it logs the fallback and continues. The redis writer still
+// requires redis and exits (redisstate.go:137, "error instantiating redis state client"). Known gap for the orchestrator:
+// with redis enabled, the proxy exits at the writer, not at the boot read.
+func TestStartRedisUnreachableFallsBackThenWriterExits(t *testing.T) {
+	startBootMatrixCell(t, "unreachable", "up")
 }
 
 // TestStartBootMatrix covers the boot-matrix cells not covered by the tests above. Covered by name elsewhere:
@@ -1412,10 +1423,15 @@ func TestStartRedisBootFailureAfterRestoreDiscardsBootDB(t *testing.T) {
 	t.Setenv("TMPDIR", tmp)
 	cfg := startTestConfig(t, closedCloudURL(t), startTestPrefix(t))
 	client := bootPopulatedRedis(t, cfg, 0)
-	delete(client.hashes[bootTestKeys(t, cfg).Meta()], bootTestKeys(t, cfg).SegmentCursorField("s2"))
 	orig := newBootReadClient
 	newBootReadClient = func(*pconf.Main) (bootReadClient, error) { return client, nil }
 	t.Cleanup(func() { newBootReadClient = orig })
+	// A failure after the restore (applying the committed cursors) is the fatal boot path that must drop the boot db.
+	origCursors := applyCommittedCursors
+	applyCommittedCursors = func(redisstate.BootState, *storage.ProxySplitStorageImpl, *storage.ProxyRuleBasedSegmentsStorageImpl, *storage.ProxySegmentStorageImpl) error {
+		return errors.New("injected cursor failure")
+	}
+	t.Cleanup(func() { applyCommittedCursors = origCursors })
 
 	logger := &startTestLogger{}
 	done := make(chan error, 1)
@@ -1423,9 +1439,9 @@ func TestStartRedisBootFailureAfterRestoreDiscardsBootDB(t *testing.T) {
 
 	select {
 	case err := <-done:
-		assertStartExit(t, err, common.ExitTaskInitialization, logger)
+		assertStartExit(t, err, common.ExitRedisInitializationFailed, logger)
 	case <-time.After(60 * time.Second):
-		t.Fatalf("start did not return after a failed cloud sync\nlogs:\n%s", logger.dump())
+		t.Fatalf("start did not return after a failed cursor apply\nlogs:\n%s", logger.dump())
 	}
 
 	left, globErr := filepath.Glob(filepath.Join(tmp, "splitio_*.db"))
@@ -1477,9 +1493,9 @@ func TestStartRedisRestoreSinkFailureIsRedisInitError(t *testing.T) {
 	}
 }
 
-// A redis boot that skipped a segment is incomplete, so a failed first cloud sync is fatal instead of
-// retried in the background with partial data.
-func TestStartSkippedSegmentMakesFailedCloudSyncFatal(t *testing.T) {
+// A redis boot that skipped a segment has no complete local state, but the failed first cloud sync is still retried
+// in the background (not fatal): the first sync fetches the skipped segments, and the proxy serves the restored state.
+func TestStartSkippedSegmentAllowsRetryOnFailedCloudSync(t *testing.T) {
 	startRequireRedis(t)
 	cfg := startTestConfig(t, closedCloudURL(t), startTestPrefix(t))
 	client := bootPopulatedRedis(t, cfg, 0)
@@ -1489,17 +1505,44 @@ func TestStartSkippedSegmentMakesFailedCloudSyncFatal(t *testing.T) {
 	t.Cleanup(func() { newBootReadClient = orig })
 
 	logger := &startTestLogger{}
-	done := make(chan error, 1)
-	go func() { done <- start(logger, cfg) }()
+	done := startInBackground(logger, cfg)
+	waitForStartLog(t, done, logger, "Failed to perform initial sync", 60*time.Second)
 
+	if !logger.has("were not restored from redis") {
+		t.Errorf("expected the skipped segment warning\nlogs:\n%s", logger.dump())
+	}
+	if !logger.has("starting from redis state") {
+		t.Errorf("expected redis to be the boot source\nlogs:\n%s", logger.dump())
+	}
 	select {
 	case err := <-done:
-		assertStartExit(t, err, common.ExitTaskInitialization, logger)
-		if !logger.has("were not restored from redis") {
-			t.Errorf("expected the skipped segment warning\nlogs:\n%s", logger.dump())
-		}
-	case <-time.After(60 * time.Second):
-		t.Fatalf("start kept running after a failed cloud sync with a skipped segment\nlogs:\n%s", logger.dump())
+		t.Fatalf("Start returned while the cloud is down: %v\nlogs:\n%s", err, logger.dump())
+	case <-time.After(500 * time.Millisecond):
+	}
+}
+
+// firstSyncMayRetry decides the retry of a failed first cloud sync, independently of the writer gate.
+func TestFirstSyncMayRetry(t *testing.T) {
+	valid := &redisstate.BootState{Status: redisstate.BootValid}
+	skipped := &redisstate.BootState{Status: redisstate.BootValid, SkippedSegments: []string{"seg"}}
+	cases := []struct {
+		name  string
+		local bool
+		boot  BootDecision
+		want  bool
+	}{
+		{"snapshot local state", true, BootDecision{Source: BootSourceSnapshotFile}, true},
+		{"redis valid, nothing skipped", true, BootDecision{Source: BootSourceRedis, State: valid}, true},
+		{"redis valid, one segment skipped", false, BootDecision{Source: BootSourceRedis, State: skipped}, true},
+		{"cold", false, BootDecision{Source: BootSourceCold}, false},
+		{"redis decision with nil state", false, BootDecision{Source: BootSourceRedis}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := firstSyncMayRetry(tc.local, tc.boot); got != tc.want {
+				t.Errorf("firstSyncMayRetry = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 
@@ -1669,7 +1712,7 @@ func TestRedisBootIsLocalStateDrivesSecondResync(t *testing.T) {
 			}
 			defer w.Stop()
 			waitForFlagCalls(t, src, 1)
-			requestSecondResync(w, redisBootIsLocalState(tc.boot), time.Second, logging.NewLogger(nil))
+			requestSecondResync(w, redisBootIsLocalState(tc.boot), time.Second, nil, logging.NewLogger(nil))
 			if tc.want {
 				time.Sleep(200 * time.Millisecond)
 				if got := atomic.LoadInt64(&src.flagCalls); got != 1 {

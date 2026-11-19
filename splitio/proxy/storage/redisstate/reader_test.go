@@ -79,7 +79,12 @@ func (f *rdFake) ZCard(_ context.Context, key string) (int64, error) {
 	if err := f.record("ZCard " + key); err != nil {
 		return 0, err
 	}
-	return int64(len(f.zsets[key]) / 2), nil
+	// ZCARD counts distinct members; a scan may repeat one across pages.
+	distinct := map[string]bool{}
+	for i := 0; i+1 < len(f.zsets[key]); i += 2 {
+		distinct[f.zsets[key][i]] = true
+	}
+	return int64(len(distinct)), nil
 }
 
 func (f *rdFake) HGet(_ context.Context, key, field string) (string, bool, error) {
@@ -638,8 +643,11 @@ func TestReader_SegmentNamesFromMetaOnly(t *testing.T) {
 		"HGetAll " + k.FlagData(), "ZScan " + k.FlagIndex(), "ZScan " + k.FlagRemoved(),
 		"HGetAll " + k.RuleBasedSegmentData(), "ZScan " + k.RuleBasedSegmentIndex(), "ZScan " + k.RuleBasedSegmentRemoved(),
 		"ZScan " + k.SegmentActive("empty"), "ZScan " + k.SegmentTombstones("empty"), "HGet " + k.Meta() + " " + k.SegmentCursorField("empty"),
+		"ZCard " + k.SegmentActive("empty"), "ZCard " + k.SegmentTombstones("empty"),
 		"ZScan " + k.SegmentActive("s1"), "ZScan " + k.SegmentTombstones("s1"), "HGet " + k.Meta() + " " + k.SegmentCursorField("s1"),
+		"ZCard " + k.SegmentActive("s1"), "ZCard " + k.SegmentTombstones("s1"),
 		"ZScan " + k.SegmentActive("s2"), "ZScan " + k.SegmentTombstones("s2"), "HGet " + k.Meta() + " " + k.SegmentCursorField("s2"),
+		"ZCard " + k.SegmentActive("s2"), "ZCard " + k.SegmentTombstones("s2"),
 	}
 	assert.Equal(t, want, s.fake.calls, "no SCAN or SMEMBERS-style key discovery: only meta-named segments are read")
 }

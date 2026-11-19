@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/splitio/go-split-commons/v10/dtos"
 	"github.com/splitio/go-split-commons/v10/flagsets"
 	"github.com/splitio/go-toolkit/v5/logging"
 
@@ -71,7 +72,10 @@ func openRedisBootReadClient(cfg *pconf.Main) (bootReadClient, error) {
 
 // resolveRedisBootInto reads redis state and picks the boot source, and runs before the snapshot file block. A valid
 // state wins over the snapshot file. Absent, corrupt, foreign or entity-less states are never served and fall back to
-// the snapshot file or cold start. Unreachable redis is fatal. Disabled redis or force-fresh-startup skips the read.
+// the snapshot file or cold start. Unreachable redis is not fatal at boot: with redis enabled the cloud is always an
+// alternative here (offline mode with redis is rejected earlier in start), so the proxy falls back to the snapshot file
+// or cold start and the redis writer keeps retrying. "Redis required" now applies to the writer only. The sink may hold
+// partial data after an unreachable read; the caller discards it because the source is not BootSourceRedis. Disabled redis or force-fresh-startup skips the read.
 // With a sink, flags, rule-based segments and each segment are restored while the read runs and BootState.Segments
 // stays empty. The sink may hold partial data when the decision is not BootSourceRedis or an error is returned, so the
 // caller must discard what it wrote. A nil sink keeps every segment payload in BootState.Segments.
@@ -117,15 +121,51 @@ func resolveRedisBootInto(cfg *pconf.Main, logger logging.LoggerInterface, open 
 	// No overall deadline; the reader bounds each call and its read budget.
 	logger.Info("reading the proxy state from redis")
 	var state redisstate.BootState
+	var recorded *recordingSink
 	if sink != nil {
-		state, err = reader.ReadInto(context.Background(), sink)
+		recorded = &recordingSink{next: sink}
+		state, err = reader.ReadInto(context.Background(), recorded)
 	} else {
 		state, err = reader.Read(context.Background(), func(redisstate.SegmentState) error { return nil })
 	}
+	if err != nil && recorded != nil && recorded.err != nil {
+		// A failed restore into the boot storages is a local failure, not a redis reachability one: it stays fatal.
+		return BootDecision{}, common.NewInitError(fmt.Errorf("error restoring redis state at boot: %w", recorded.err), common.ExitRedisInitializationFailed)
+	}
 	if err != nil {
-		return BootDecision{}, common.NewInitError(fmt.Errorf("error reading redis state at boot: %w", err), common.ExitRedisInitializationFailed)
+		// The reader sets a status before it returns an error. BootAbsent is the zero value, so it means nothing was set.
+		if state.Status == redisstate.BootAbsent {
+			state = redisstate.BootState{Status: redisstate.BootUnreachable, FlagCursor: -1, RuleBasedSegmentCursor: -1}
+		}
+		logger.Error(fmt.Sprintf("redis state could not be read at boot (%v), starting from the snapshot file or the cloud; the redis writer keeps retrying in the background", err))
+		return fallbackBootDecision(cfg, &state, "redis unreachable at boot"), nil
 	}
 	return decideFromState(cfg, logger, state)
+}
+
+// recordingSink forwards to the restore sink and keeps the first error it returned, so a failed restore can be told
+// apart from a failed read.
+type recordingSink struct {
+	next redisstate.RestoreSink
+	err  error
+}
+
+func (r *recordingSink) Entities(flags []dtos.SplitDTO, ruleBasedSegments []dtos.RuleBasedSegmentDTO) error {
+	err := r.next.Entities(flags, ruleBasedSegments)
+	r.note(err)
+	return err
+}
+
+func (r *recordingSink) Segment(s redisstate.SegmentState) error {
+	err := r.next.Segment(s)
+	r.note(err)
+	return err
+}
+
+func (r *recordingSink) note(err error) {
+	if err != nil && r.err == nil {
+		r.err = err
+	}
 }
 
 // decideFromState maps a redis boot state already read by resolveRedisBootInto to a boot decision. It logs why a state
@@ -209,6 +249,34 @@ func skippedSummary(state redisstate.BootState) string {
 	return strings.Join(parts, "; ")
 }
 
+// BootSummary is the one-line view of a boot decision, for the boot log line and the boot admin health.
+type BootSummary struct {
+	Source          BootSource
+	Reason          string
+	SkippedSegments int
+}
+
+// Summary returns the summary of the decision. SkippedSegments is 0 when there is no state.
+func (d BootDecision) Summary() BootSummary {
+	s := BootSummary{Source: d.Source, Reason: d.Reason}
+	if d.State != nil {
+		s.SkippedSegments = len(d.State.SkippedSegments)
+	}
+	return s
+}
+
+// logBootSummary logs the boot decision once. It is a warning when redis is enabled but the proxy did not boot from it,
+// unless the redis state was turned off or skipped on purpose.
+func logBootSummary(logger logging.LoggerInterface, cfg *pconf.Main, s BootSummary) {
+	msg := fmt.Sprintf("redis boot summary: source=%s reason=%q skippedSegments=%d", s.Source, s.Reason, s.SkippedSegments)
+	intentional := s.Reason == "force-fresh-startup" || s.Reason == "redis state is disabled"
+	if s.Source != BootSourceRedis && cfg.Storage.Redis.Enabled && !intentional {
+		logger.Warning(msg)
+		return
+	}
+	logger.Info(msg)
+}
+
 // Boot phases reported under "redis.bootPhase" on the boot admin health routes.
 const (
 	bootPhaseReading     = "reading"
@@ -228,11 +296,19 @@ const bootAdminUnavailable = "proxy is starting"
 // unauthenticated, like the real ones. startBootAdmin owns the serve goroutine; stop shuts the server down and joins
 // it. The full admin server replaces it once the storages it needs exist.
 type bootAdmin struct {
-	server *http.Server  // set before the serve goroutine starts, read-only afterwards
-	once   sync.Once     // makes stop idempotent
-	done   chan struct{} // closed when the serve goroutine exits
-	logger logging.LoggerInterface
-	phase  atomic.Value // current boot phase string, written by setPhase and read by the health handler
+	server  *http.Server  // set before the serve goroutine starts, read-only afterwards
+	once    sync.Once     // makes stop idempotent
+	done    chan struct{} // closed when the serve goroutine exits
+	logger  logging.LoggerInterface
+	phase   atomic.Value // current boot phase string, written by setPhase and read by the health handler
+	summary atomic.Value // BootSummary of the boot decision, written by setSummary and read by the health handler
+}
+
+// setSummary records the boot decision summary served under "redis" on the boot health routes. It is safe on a nil receiver.
+func (b *bootAdmin) setSummary(s BootSummary) {
+	if b != nil {
+		b.summary.Store(s)
+	}
 }
 
 // setPhase records the boot phase served under "redis.bootPhase". It is safe on a nil receiver.
@@ -258,11 +334,17 @@ func startBootAdmin(cfg *pconf.Main, logger logging.LoggerInterface) (*bootAdmin
 	b.phase.Store(bootPhaseReading)
 	health := func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		redis := map[string]interface{}{"enabled": true, "bootPhase": b.phase.Load()}
+		if s, ok := b.summary.Load().(BootSummary); ok {
+			redis["source"] = string(s.Source)
+			redis["reason"] = s.Reason
+			redis["skippedSegments"] = s.SkippedSegments
+		}
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"healthy":      false,
 			"healthySince": nil,
 			"items":        []interface{}{},
-			"redis":        map[string]interface{}{"enabled": true, "bootPhase": b.phase.Load()},
+			"redis":        redis,
 		})
 	}
 	mux := http.NewServeMux()

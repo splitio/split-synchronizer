@@ -118,7 +118,19 @@ func (c *gapsFakeClient) ZCard(ctx context.Context, key string) (int64, error) {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return int64(len(c.sets[key]) / 2), nil
+	// ZCARD counts distinct members, from the pages when the key is paged.
+	distinct := map[string]bool{}
+	for _, page := range c.pages[key] {
+		for i := 0; i+1 < len(page); i += 2 {
+			distinct[page[i]] = true
+		}
+	}
+	if len(c.pages[key]) == 0 {
+		for i := 0; i+1 < len(c.sets[key]); i += 2 {
+			distinct[c.sets[key][i]] = true
+		}
+	}
+	return int64(len(distinct)), nil
 }
 
 func (c *gapsFakeClient) HGet(ctx context.Context, key, field string) (string, bool, error) {

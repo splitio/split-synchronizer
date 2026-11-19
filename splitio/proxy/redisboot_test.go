@@ -119,7 +119,7 @@ func bootTestConfig(snapshot string) *pconf.Main {
 			WriteMaxAttempts:  3,
 			WriteBackoffMaxMs: 60000,
 			RetentionHours:    24,
-			Connection:        conf.Redis{Host: "localhost", Port: 6379},
+			Connection:        conf.Redis{Host: "localhost", Port: 6379, PoolSize: 10},
 		}},
 	}
 	cfg.Initialization.Snapshot = snapshot
@@ -194,7 +194,6 @@ func TestBootMatrix(t *testing.T) {
 		wantStatus redisstate.BootStatus
 		wantSource BootSource
 		wantLevel  string
-		wantCode   int
 	}
 	cases := []matrixCase{
 		{name: "absent", wantStatus: redisstate.BootAbsent, wantSource: BootSourceCold, wantLevel: "warning"},
@@ -202,7 +201,7 @@ func TestBootMatrix(t *testing.T) {
 		{name: "valid but empty", meta: bootValidMeta, wantStatus: redisstate.BootValid, wantSource: BootSourceCold, wantLevel: "warning"},
 		{name: "corrupt", meta: bootCorruptMeta, wantStatus: redisstate.BootCorrupt, wantSource: BootSourceCold, wantLevel: "warning"},
 		{name: "foreign", meta: bootForeignMeta, wantStatus: redisstate.BootForeign, wantSource: BootSourceCold, wantLevel: "warning"},
-		{name: "unreachable", readErr: errors.New("dial tcp 127.0.0.1:6379: connect: connection refused"), wantCode: common.ExitRedisInitializationFailed},
+		{name: "unreachable", readErr: errors.New("dial tcp 127.0.0.1:6379: connect: connection refused"), wantStatus: redisstate.BootUnreachable, wantSource: BootSourceCold, wantLevel: "error"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -220,11 +219,6 @@ func TestBootMatrix(t *testing.T) {
 
 			assert.Equal(t, 1, client.closes, "read client must be closed once (T33)")
 			assert.Equal(t, 1, calls)
-			if c.wantCode != 0 {
-				requireBootExitCode(t, err, c.wantCode)
-				assert.Empty(t, decision.Source)
-				return
-			}
 			require.NoError(t, err)
 			assert.NotEqual(t, BootSourceRedis, decision.Source, "a non-usable redis state is never served")
 			assert.Equal(t, c.wantSource, decision.Source)
@@ -263,14 +257,15 @@ func TestRedisDisabledSkipsRead(t *testing.T) {
 	assert.Nil(t, decision.State)
 }
 
-// Unreachable redis exits ExitRedisInitializationFailed; bad settings exit ExitInvalidConfiguration.
+// Unreachable redis falls back (no exit); bad settings exit ExitInvalidConfiguration.
 func TestBuildAndReadErrorCodes(t *testing.T) {
 	t.Run("unreachable", func(t *testing.T) {
 		cfg := bootTestConfig("")
 		client := &bootFakeClient{keys: bootTestKeys(t, cfg), err: errors.New("connection refused")}
 		calls := 0
-		_, err := resolveRedisBoot(cfg, &bootTestLogger{}, bootOpener(client, &calls))
-		requireBootExitCode(t, err, common.ExitRedisInitializationFailed)
+		boot, err := resolveRedisBoot(cfg, &bootTestLogger{}, bootOpener(client, &calls))
+		assert.NoError(t, err)
+		assert.Equal(t, BootSourceCold, boot.Source)
 		assert.Equal(t, 1, client.closes)
 	})
 
@@ -329,7 +324,7 @@ func TestOpenRedisBootReadClient(t *testing.T) {
 		assert.NoError(t, client.Close())
 	})
 
-	t.Run("unreachable redis is fatal at the first read", func(t *testing.T) {
+	t.Run("unreachable redis falls back at the first read", func(t *testing.T) {
 		cfg := bootTestConfig("")
 		cfg.Storage.Redis.Connection.Host = "127.0.0.1"
 		cfg.Storage.Redis.Connection.Port = 1
@@ -337,9 +332,10 @@ func TestOpenRedisBootReadClient(t *testing.T) {
 		cfg.Storage.Redis.Connection.DialTimeout = 1
 		cfg.Storage.Redis.Connection.ReadTimeout = 1
 
-		_, err := resolveRedisBoot(cfg, &bootTestLogger{}, openRedisBootReadClient)
+		boot, err := resolveRedisBoot(cfg, &bootTestLogger{}, openRedisBootReadClient)
 
-		requireBootExitCode(t, err, common.ExitRedisInitializationFailed)
+		assert.NoError(t, err)
+		assert.Equal(t, BootSourceCold, boot.Source)
 	})
 }
 
@@ -456,7 +452,10 @@ func (f *bootPopulatedClient) HGetAll(_ context.Context, key string) (map[string
 	return out, nil
 }
 
-func (f *bootPopulatedClient) ZCard(_ context.Context, _ string) (int64, error) { return 0, nil }
+// ZCard reports the member count of a sorted set, which the reader checks against what it scanned (torn-read check).
+func (f *bootPopulatedClient) ZCard(_ context.Context, key string) (int64, error) {
+	return int64(len(f.zsets[key]) / 2), nil
+}
 
 func (f *bootPopulatedClient) ZScan(_ context.Context, key string, _ uint64, _ int64) ([]string, uint64, error) {
 	return f.zsets[key], 0, nil
@@ -580,7 +579,6 @@ func TestClientClosedOnEveryDecisionPath(t *testing.T) {
 	cases := []struct {
 		name       string
 		client     func(t *testing.T, cfg *pconf.Main, keys redisstate.Keys) bootReadClient
-		wantErr    bool
 		wantSource BootSource
 	}{
 		{name: "valid", client: func(t *testing.T, cfg *pconf.Main, _ redisstate.Keys) bootReadClient {
@@ -597,7 +595,7 @@ func TestClientClosedOnEveryDecisionPath(t *testing.T) {
 		}, wantSource: BootSourceCold},
 		{name: "unreachable", client: func(_ *testing.T, _ *pconf.Main, keys redisstate.Keys) bootReadClient {
 			return &bootFakeClient{keys: keys, err: errors.New("connection refused")}
-		}, wantErr: true},
+		}, wantSource: BootSourceCold},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -607,10 +605,6 @@ func TestClientClosedOnEveryDecisionPath(t *testing.T) {
 			decision, err := resolveRedisBoot(cfg, &bootTestLogger{}, func(*pconf.Main) (bootReadClient, error) { return client, nil })
 
 			assert.Equal(t, 1, bootClosesOf(client), "read client must be closed exactly once (T33)")
-			if c.wantErr {
-				requireBootExitCode(t, err, common.ExitRedisInitializationFailed)
-				return
-			}
 			require.NoError(t, err)
 			assert.Equal(t, c.wantSource, decision.Source)
 		})
@@ -772,6 +766,48 @@ func bootAdminGet(t *testing.T, url string) (int, map[string]interface{}) {
 		_ = json.NewDecoder(resp.Body).Decode(&body)
 		return resp.StatusCode, body
 	}
+}
+
+// TestBootDecisionSummary covers every boot source, including a nil state and skipped segments.
+func TestBootDecisionSummary(t *testing.T) {
+	skipped := &redisstate.BootState{Status: redisstate.BootValid, SkippedSegments: []string{"s1", "s2"}}
+	cases := []struct {
+		name string
+		boot BootDecision
+		want BootSummary
+	}{
+		{"redis with skipped segments", BootDecision{Source: BootSourceRedis, State: skipped, Reason: "valid redis state"},
+			BootSummary{Source: BootSourceRedis, Reason: "valid redis state", SkippedSegments: 2}},
+		{"redis with nil state", BootDecision{Source: BootSourceRedis, Reason: "valid redis state"},
+			BootSummary{Source: BootSourceRedis, Reason: "valid redis state"}},
+		{"snapshot file", BootDecision{Source: BootSourceSnapshotFile, State: &redisstate.BootState{Status: redisstate.BootAbsent}, Reason: "absent redis state"},
+			BootSummary{Source: BootSourceSnapshotFile, Reason: "absent redis state"}},
+		{"cold", BootDecision{Source: BootSourceCold, Reason: "redis unreachable at boot"},
+			BootSummary{Source: BootSourceCold, Reason: "redis unreachable at boot"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, tc.boot.Summary())
+		})
+	}
+}
+
+// The boot health route carries the boot summary under "redis".
+func TestBootAdminHealthCarriesSummary(t *testing.T) {
+	cfg := bootTestConfig("")
+	cfg.Admin.Host = "127.0.0.1"
+	cfg.Admin.Port = freeTCPPort(t)
+	b, err := startBootAdmin(cfg, &bootTestLogger{})
+	require.NoError(t, err)
+	t.Cleanup(b.stop)
+	b.setSummary(BootSummary{Source: BootSourceRedis, Reason: "valid redis state", SkippedSegments: 3})
+
+	_, body := bootAdminGet(t, fmt.Sprintf("http://127.0.0.1:%d/health/application", cfg.Admin.Port))
+	redis, ok := body["redis"].(map[string]interface{})
+	require.True(t, ok, "redis section missing in %v", body)
+	assert.Equal(t, "redis", redis["source"])
+	assert.Equal(t, "valid redis state", redis["reason"])
+	assert.Equal(t, float64(3), redis["skippedSegments"])
 }
 
 func TestBootAdminPhaseIsServed(t *testing.T) {

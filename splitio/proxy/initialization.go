@@ -81,8 +81,8 @@ func start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	// Initialization of DB
 	var dbpath = persistent.BoltInMemoryMode
 	// haveLocalState is true when the storages start with a complete snapshot (a Bolt snapshot file, or a Redis restore
-	// with no skipped segment). It is the one fact the Redis writer gate, the unlimited sync retries and the second
-	// resync all depend on, so they cannot disagree.
+	// with no skipped segment). The Redis writer gate, the preload and the second resync depend on it. The retry of a
+	// failed first cloud sync uses firstSyncMayRetry, which also accepts a Redis restore with skipped segments.
 	var haveLocalState = false
 	var bootAdminServer *bootAdmin
 	if cfg.Storage.Redis.Enabled && !cfg.Initialization.ForceFreshStartup {
@@ -133,6 +133,9 @@ func start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	if err != nil {
 		return err
 	}
+	summary := boot.Summary()
+	bootAdminServer.setSummary(summary)
+	logBootSummary(logger, cfg, summary)
 	if boot.Source != BootSourceRedis {
 		discardBootDB()
 	}
@@ -314,7 +317,7 @@ func start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	// health monitors are only started after successful init (otherwise they'll fail if the app doesn't sync correctly within the
 	/// specified refresh period)
 	before := time.Now()
-	err = startBGSync(syncManager, mstatus, haveLocalState, func() {
+	err = startBGSync(syncManager, mstatus, firstSyncMayRetry(haveLocalState, boot), func() {
 		logger.Info("Synchronizer tasks started")
 		// The writer's startup resync ran against an empty source on a cold boot, so repair it once sync has populated the storages.
 		redisGate.open()
@@ -500,12 +503,20 @@ func requestRedisResync(w resyncTarget) {
 // secondResyncWait bounds how long the cold boot repair waits for the writer queue to drain before it asks for the resync
 const secondResyncWait = 2 * time.Minute
 
-// redisBootIsLocalState reports whether a boot decision gives the proxy a complete local state. A valid Redis restore
-// with no skipped segment does: the writer's startup resync then runs with full data, so the second resync is not
-// needed (R8: it runs only without a valid local state). A state with skipped segments is incomplete, so it does not
-// excuse a failed first cloud sync and still gets the second resync.
+// redisBootIsLocalState reports whether a boot decision gives the proxy a complete local state: a valid Redis restore
+// with no skipped segment. It gates the writer source gate, the preload and the second resync (R8). A skipped segment is
+// missing data, not a removal, so the writer must not treat it as complete. It does not decide the retry of a failed
+// first cloud sync; firstSyncMayRetry does.
 func redisBootIsLocalState(boot BootDecision) bool {
 	return boot.Source == BootSourceRedis && boot.State != nil && len(boot.State.SkippedSegments) == 0
+}
+
+// firstSyncMayRetry reports whether a failed first cloud sync is retried in the background instead of exiting. It is
+// true for any local state, and also for a valid Redis restore with skipped segments: the first sync fetches the
+// skipped segments, so the proxy can serve the restored state while it retries. It is deliberately not
+// redisBootIsLocalState, because the writer gate and the second resync need a complete state.
+func firstSyncMayRetry(haveLocalState bool, boot BootDecision) bool {
+	return haveLocalState || (boot.Source == BootSourceRedis && boot.State != nil)
 }
 
 // secondResyncPoll is how often the wait looks at the writer queue

@@ -245,6 +245,47 @@ func TestRestoreIntoBoltThenServe(t *testing.T) {
 
 // TestRestoreAppliesCommittedCursors checks that committed cursors below the max item cn are kept;
 // a skipped segment gets no cursor.
+// A segment listed as skipped has no committed cursor, so its change number stays -1 and the first sync fetches it.
+// The flag still references it, and the sync worker walks SegmentNames(), so it is reached on that first sync.
+// go-split-commons v10 UpdaterImpl.SynchronizeSegments (segment.go:197) syncs every SegmentNames() entry on the first sync.
+func TestSkippedSegmentHasNoCursorSoFirstSyncFetchesIt(t *testing.T) {
+	st := newRestoreStores(t)
+
+	state := redisstate.BootState{
+		Status: redisstate.BootValid,
+		Flags: []dtos.SplitDTO{
+			{
+				Name: "f1", ChangeNumber: 3, Status: "ACTIVE", TrafficTypeName: "ttt",
+				Conditions: []dtos.ConditionDTO{{MatcherGroup: dtos.MatcherGroupDTO{Matchers: []dtos.MatcherDTO{
+					{MatcherType: "IN_SEGMENT", UserDefinedSegment: &dtos.UserDefinedSegmentMatcherDataDTO{SegmentName: "s1"}},
+					{MatcherType: "IN_SEGMENT", UserDefinedSegment: &dtos.UserDefinedSegmentMatcherDataDTO{SegmentName: "s2"}},
+				}}}},
+			},
+		},
+		FlagCursor:      3,
+		SegmentCursors:  map[string]int64{"s1": 6},
+		SkippedSegments: []string{"s2"},
+		Segments: []redisstate.SegmentState{
+			{Name: "s1", Active: map[string]int64{"a": 4}, ChangeNumber: 6},
+		},
+	}
+
+	require.Nil(t, restoreFromRedisState(state, st.splits, st.rbs, st.segs))
+	require.Nil(t, ApplyCommittedCursors(state, st.splits, st.rbs, st.segs))
+
+	s1CN, err := st.segs.ChangeNumber("s1")
+	require.NoError(t, err)
+	assert.Equal(t, int64(6), s1CN)
+
+	s2CN, err := st.segs.ChangeNumber("s2")
+	require.NoError(t, err)
+	assert.Equal(t, int64(-1), s2CN, "a skipped segment has no cursor, so the first sync fetches it from scratch")
+
+	names := st.splits.SegmentNames()
+	assert.True(t, names.Has("s1"), "flag segment s1 must be in SegmentNames")
+	assert.True(t, names.Has("s2"), "flag segment s2 must be in SegmentNames so the first sync reaches it")
+}
+
 func TestRestoreAppliesCommittedCursors(t *testing.T) {
 	st := newRestoreStores(t)
 

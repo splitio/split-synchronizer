@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"math"
 	"net"
@@ -12,8 +13,10 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
+	goredis "github.com/redis/go-redis/v9"
 	"github.com/splitio/go-split-commons/v10/dtos"
 )
 
@@ -260,9 +263,6 @@ func (r *Reader) read(ctx context.Context, sink RestoreSink, retain bool) (BootS
 		return BootState{}, err
 	}
 	names := segmentNamesOf(meta)
-	if flagCursor == noCursor && rbsCursor == noCursor && len(names) == 0 {
-		return BootState{Status: BootAbsent, Reason: "no cursors stored", FlagCursor: noCursor, RuleBasedSegmentCursor: noCursor}, nil
-	}
 
 	var flags []dtos.SplitDTO
 	err = r.retryTorn(ctx, func() error {
@@ -290,6 +290,11 @@ func (r *Reader) read(ctx context.Context, sink RestoreSink, retain bool) (BootS
 	}
 	if rbsCursor == noCursor && len(rbs) > 0 {
 		return BootState{}, corruptf("rule-based segments stored without a cursor")
+	}
+	// Neither group has a cursor and neither holds entities: nothing was ever stored, so the state is absent. Segment
+	// names in meta do not change this, since segments nothing references are not restorable anyway.
+	if flagCursor == noCursor && rbsCursor == noCursor && len(flags) == 0 && len(rbs) == 0 {
+		return BootState{Status: BootAbsent, Reason: "no cursors stored", FlagCursor: noCursor, RuleBasedSegmentCursor: noCursor}, nil
 	}
 
 	if err := sink.Entities(flags, rbs); err != nil {
@@ -430,6 +435,11 @@ func (r *Reader) deliverSegment(res segmentRead, sink RestoreSink, retain bool, 
 // replace in progress or was never committed, so it is skipped whatever its sets hold. The cursor is read again
 // after both scans; a change means a writer touched the segment meanwhile (torn read: retried, then skipped). It is
 // safe to run concurrently for different segments: it only reads meta and uses the redis client.
+//
+// Contract: the stored cursor is <= the data (a writer that lands between reading meta and scanning leaves cursor <=
+// data), and the data may be a mix of change N and N+1 when a writer overlaps the scans; the cursor re-check and the
+// cardinality check below detect most overlaps, the rest is repaired by the first sync because the cursor is never
+// ahead of the data.
 func (r *Reader) fetchSegment(ctx context.Context, meta map[string]string, name string) segmentRead {
 	field := r.keys.SegmentCursorField(name)
 	cursor, err := storedCursorOf(meta, field)
@@ -459,6 +469,18 @@ func (r *Reader) fetchSegment(ctx context.Context, meta map[string]string, name 
 			cursor = current
 			return tornf("segment %s cursor changed while it was read", name)
 		}
+		// Checked before resolveBothSets, which drops entries and would hide a size change.
+		activeCard, err := r.scoreCard(ctx, r.keys.SegmentActive(name), "segment count")
+		if err != nil {
+			return err
+		}
+		removedCard, err := r.scoreCard(ctx, r.keys.SegmentTombstones(name), "segment tombstones count")
+		if err != nil {
+			return err
+		}
+		if activeCard != int64(len(active)) || removedCard != int64(len(removed)) {
+			return tornf("segment %s changed size while it was read", name)
+		}
 		resolveBothSets(active, removed)
 		seg = SegmentState{Name: name, Active: active, Removed: removed, ChangeNumber: cursor}
 		return nil
@@ -473,6 +495,13 @@ func (r *Reader) fetchSegment(ctx context.Context, meta map[string]string, name 
 		return segmentRead{name: name, skip: "segment cursor is -1: a full replace is in progress or nothing was committed"}
 	}
 	return segmentRead{name: name, seg: seg, cursor: cursor}
+}
+
+// scoreCard reads the member count of a sorted set through readCall. A failure is a read error for the caller.
+func (r *Reader) scoreCard(ctx context.Context, key, label string) (int64, error) {
+	return readCall(ctx, r.retryPause, label, func(c context.Context) (int64, error) {
+		return r.client.ZCard(c, key)
+	})
 }
 
 // currentSegmentCursor reads a segment cursor straight from meta, to detect a writer that moved it during the scans.
@@ -681,7 +710,10 @@ func (r *Reader) scanScores(ctx context.Context, key, label string) (map[string]
 		if len(seenCursors) == 0 {
 			// More than one page: size the map once from ZCARD instead of growing it page by page. A failed or odd
 			// count only skips the optimization, it never fails the read.
-			if card, cerr := r.client.ZCard(ctx, key); cerr == nil && card > int64(len(out)) {
+			card, cerr := readCall(ctx, r.retryPause, label+" count", func(c context.Context) (int64, error) {
+				return r.client.ZCard(c, key)
+			})
+			if cerr == nil && card > int64(len(out)) {
 				sized := make(map[string]int64, min(card, maxPresize))
 				maps.Copy(sized, out)
 				out = sized
@@ -695,9 +727,11 @@ func (r *Reader) scanScores(ctx context.Context, key, label string) (map[string]
 	}
 }
 
-// readCall runs one redis call, retrying transient errors up to readAttempts times with pause between attempts.
+// readCall runs one redis call, retrying transient errors up to readAttempts times. The n-th retry waits n * pause, so
+// with readAttempts 3 the waits are pause and 2 * pause: at most 3 * pause (600 ms at the default 200 ms) per call.
 // WRONGTYPE is corrupt and not retried. A connection error or a cancelled caller context is ErrUnreachable. Only a
-// spent restore budget is corrupt: a timeout after it, or a retry pause it cuts short, because the read was too slow.
+// spent restore budget is corrupt: any error once the budget (a DeadlineExceeded caller context) has expired, or a
+// retry pause it cuts short, because the read was too slow.
 func readCall[T any](ctx context.Context, pause time.Duration, what string, call func(context.Context) (T, error)) (T, error) {
 	var zero T
 	for attempt := 1; ; attempt++ {
@@ -709,12 +743,12 @@ func readCall[T any](ctx context.Context, pause time.Duration, what string, call
 			return zero, corruptf("%s has the wrong redis type", what)
 		}
 		if !isTransient(err) || attempt >= readAttempts || ctx.Err() != nil {
-			if ctx.Err() != nil && !errors.Is(ctx.Err(), context.Canceled) && isTimeout(err) {
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				return zero, budgetf("while reading %s", what)
 			}
 			return zero, fmt.Errorf("%w: reading %s: %w", ErrUnreachable, what, err)
 		}
-		timer := time.NewTimer(pause)
+		timer := time.NewTimer(time.Duration(attempt) * pause)
 		select {
 		case <-ctx.Done():
 			timer.Stop()
@@ -747,15 +781,57 @@ func isTimeout(err error) bool {
 	return errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &netErr) && netErr.Timeout())
 }
 
-// isTransient reports whether a retry can clear err: connection reset, I/O timeout, or LOADING, MOVED, ASK, TRYAGAIN.
+// transientReplyPrefixes are redis error replies a retry can clear. go-redis v9.7.3 exports no helper for them, so
+// they are matched on the reply text of a goredis.Error.
+var transientReplyPrefixes = []string{"LOADING", "BUSY", "READONLY", "TRYAGAIN", "MASTERDOWN", "CLUSTERDOWN", "MOVED", "ASK"}
+
+// poolTimeoutMsg is go-redis's pool wait timeout (internal/pool.ErrPoolTimeout). It is unexported, so it is matched
+// by its exact text.
+const poolTimeoutMsg = "redis: connection pool timeout"
+
+// isTransient reports whether a retry can clear err: a connection reset, refused, broken or timed out, an EOF, a
+// transient redis reply (LOADING, BUSY, READONLY, TRYAGAIN, MASTERDOWN, CLUSTERDOWN, MOVED, ASK) or a pool wait
+// timeout. Auth and type errors (NOAUTH, NOPERM, WRONGTYPE) are not transient. Typed checks run first; the text
+// matches are a fallback for errors that carry no type.
 func isTransient(err error) bool {
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) ||
+		errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.EPIPE) {
+		return true
+	}
+	// context.DeadlineExceeded also satisfies net.Error. It is not transient here: callWithRetry already retries a
+	// per call deadline once, and a second retry layer would multiply the calls.
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() && !errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var opErr *net.OpError
+	if errors.As(err, &opErr) && (opErr.Op == "dial" || opErr.Op == "read" || opErr.Op == "write") {
+		return true
+	}
+	var replyErr goredis.Error
+	if errors.As(err, &replyErr) && hasTransientReplyPrefix(replyErr.Error()) {
+		return true
+	}
 	msg := err.Error()
+	if msg == poolTimeoutMsg {
+		return true
+	}
 	for _, s := range []string{"connection reset", "connection refused", "broken pipe", "i/o timeout", "LOADING", "TRYAGAIN"} {
 		if strings.Contains(msg, s) {
 			return true
 		}
 	}
 	return msg == "EOF" || strings.HasSuffix(msg, ": EOF") || strings.HasPrefix(msg, "MOVED ") || strings.HasPrefix(msg, "ASK ")
+}
+
+// hasTransientReplyPrefix reports whether a redis reply starts with one of the transient reply words.
+func hasTransientReplyPrefix(reply string) bool {
+	for _, p := range transientReplyPrefixes {
+		if strings.HasPrefix(reply, p+" ") {
+			return true
+		}
+	}
+	return false
 }
 
 // optionalCursor returns the stored cursor, or noCursor when the field is absent.

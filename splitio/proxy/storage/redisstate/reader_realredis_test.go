@@ -286,6 +286,7 @@ func TestRealRedis_RepairedSegmentIsNotTrusted(t *testing.T) {
 	e.writer.PutSegment("s1", []string{"a", "b"}, []string{"gone"}, 5)
 	e.writer.PutSegment("s2", []string{"c"}, nil, 6)
 	e.drain(t)
+	e.writer.Stop()
 	require.NoError(t, e.writer.DeleteSegmentKeys("s1"))
 
 	state, segs := e.readAll(t)
