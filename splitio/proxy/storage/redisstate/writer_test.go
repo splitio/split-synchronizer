@@ -51,6 +51,7 @@ type wtClient struct {
 	checks     []wtCall
 	checkFail  func() error
 	meta       map[string]string
+	metaErr    error
 	fail       func(n int, c wtCall) error
 	scans      int
 	deleted    []string
@@ -134,6 +135,9 @@ func (c *wtClient) HGetAll(key string) (map[string]string, error) {
 	// only the meta hash has content in this fake; the data hashes read by resync are empty
 	if !strings.HasSuffix(key, ".meta") {
 		return out, nil
+	}
+	if c.metaErr != nil {
+		return nil, c.metaErr
 	}
 	for k, v := range c.meta {
 		out[k] = v
@@ -261,11 +265,12 @@ func (c *wtClient) purgeEvals() []wtCall {
 
 // wtLogger counts Error lines and Info lines
 type wtLogger struct {
-	mu       sync.Mutex
-	errors   []string
-	warns    []string
-	infos    int
-	infoMsgs []string
+	mu        sync.Mutex
+	errors    []string
+	warns     []string
+	infos     int
+	infoMsgs  []string
+	debugMsgs []string
 }
 
 func (l *wtLogger) Error(msg ...interface{}) {
@@ -294,8 +299,27 @@ func (l *wtLogger) infoText() string {
 	return strings.Join(l.infoMsgs, "\n")
 }
 
-func (l *wtLogger) Debug(msg ...interface{})   {}
+func (l *wtLogger) Debug(msg ...interface{}) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.debugMsgs = append(l.debugMsgs, fmt.Sprint(msg...))
+}
+
 func (l *wtLogger) Verbose(msg ...interface{}) {}
+
+// debugText returns every Debug message logged so far, joined by newlines
+func (l *wtLogger) debugText() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return strings.Join(l.debugMsgs, "\n")
+}
+
+// warnText returns every Warning message logged so far, joined by newlines
+func (l *wtLogger) warnText() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return strings.Join(l.warns, "\n")
+}
 
 func (l *wtLogger) errorCount() int {
 	l.mu.Lock()
@@ -666,6 +690,35 @@ func TestWriterDefaultOptions(t *testing.T) {
 			assert.ErrorIs(t, err, ErrInvalidOptions)
 		})
 	}
+}
+
+func TestWarnIfNamespaceInUseLogsReadErrors(t *testing.T) {
+	t.Run("hgetall error is debug logged", func(t *testing.T) {
+		e := newWtEnv(t, wtOptions())
+		e.client.metaErr = errors.New("connection refused")
+		e.w.warnIfNamespaceInUse()
+		assert.Contains(t, e.log.debugText(), "could not read the meta hash to check the namespace: connection refused")
+		assert.Empty(t, e.log.warnText())
+		e.stop()
+	})
+
+	t.Run("unparseable updatedAtMs is debug logged without the raw value", func(t *testing.T) {
+		e := newWtEnv(t, wtOptions())
+		e.client.meta = map[string]string{UpdatedAtField: "abc"}
+		e.w.warnIfNamespaceInUse()
+		assert.Contains(t, e.log.debugText(), "unreadable meta updatedAtMs, skipping the shared namespace check")
+		assert.NotContains(t, e.log.debugText(), "abc")
+		assert.Empty(t, e.log.warnText())
+		e.stop()
+	})
+
+	t.Run("missing field logs nothing", func(t *testing.T) {
+		e := newWtEnv(t, wtOptions())
+		e.w.warnIfNamespaceInUse()
+		assert.Empty(t, e.log.debugText())
+		assert.Empty(t, e.log.warnText())
+		e.stop()
+	})
 }
 
 func TestWriterSuccess(t *testing.T) {

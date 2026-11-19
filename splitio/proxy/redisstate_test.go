@@ -49,6 +49,7 @@ func redisStateTestConfig(t *testing.T) *pconf.Main {
 	cfg.Storage.Redis.Connection.DialTimeout = 5
 	cfg.Storage.Redis.Connection.ReadTimeout = 5
 	cfg.Storage.Redis.Connection.WriteTimeout = 5
+	cfg.Storage.Redis.Connection.PoolSize = 10
 	return cfg
 }
 
@@ -226,6 +227,53 @@ func TestSetupRedisStateRejectsOutOfRangeRetryAndConnectionSettings(t *testing.T
 			assertInitError(t, err, common.ExitInvalidConfiguration)
 		})
 	}
+}
+
+func TestValidateRedisStateSettingsPoolSizeAndDb(t *testing.T) {
+	tests := []struct {
+		name    string
+		setup   func(cfg *pconf.Main)
+		wantErr bool
+	}{
+		{name: "poolSize zero", setup: func(cfg *pconf.Main) { cfg.Storage.Redis.Connection.PoolSize = 0 }, wantErr: true},
+		{name: "poolSize negative", setup: func(cfg *pconf.Main) { cfg.Storage.Redis.Connection.PoolSize = -1 }, wantErr: true},
+		{name: "poolSize above upper bound", setup: func(cfg *pconf.Main) { cfg.Storage.Redis.Connection.PoolSize = 10001 }, wantErr: true},
+		{name: "poolSize lower bound", setup: func(cfg *pconf.Main) { cfg.Storage.Redis.Connection.PoolSize = 1 }},
+		{name: "poolSize upper bound", setup: func(cfg *pconf.Main) { cfg.Storage.Redis.Connection.PoolSize = 10000 }},
+		{name: "db negative", setup: func(cfg *pconf.Main) { cfg.Storage.Redis.Connection.Db = -1 }, wantErr: true},
+		{name: "db zero", setup: func(cfg *pconf.Main) { cfg.Storage.Redis.Connection.Db = 0 }},
+		{name: "db positive", setup: func(cfg *pconf.Main) { cfg.Storage.Redis.Connection.Db = 15 }},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := redisStateTestConfig(t)
+			tc.setup(cfg)
+
+			err := validateRedisStateSettings(&cfg.Storage.Redis)
+			if tc.wantErr {
+				assertInitError(t, err, common.ExitInvalidConfiguration)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestStopRedisStateLogsDrainWait(t *testing.T) {
+	keys, err := redisstate.NewKeys("prefix", "apikey", "ns")
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := redisstate.NewWriter(resyncCountingClient{}, keys, "fingerprint", redisstate.DefaultOptions(), logging.NewLogger(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var buf strings.Builder
+	logger := logging.NewLogger(&logging.LoggerOptions{LogLevel: logging.LevelInfo, InfoWriter: &buf})
+	stopRedisState(w, logger, 100*time.Millisecond)
+	assert.Contains(t, buf.String(), "stopping redis writer, waiting for the queue to drain")
 }
 
 func TestRedisStateLimitsFollowWriterLimits(t *testing.T) {

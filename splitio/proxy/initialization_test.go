@@ -284,33 +284,91 @@ func TestFeatureFlagRulesKeepLargeSegmentMatcher(t *testing.T) {
 	}
 }
 
-func TestMaskRedisStateSecretsMasksCopyOnly(t *testing.T) {
+func TestMaskAdminConfigSecrets(t *testing.T) {
 	live := &pconf.Main{}
 	live.Storage.Redis.Connection.Username = "redis-user"
 	live.Storage.Redis.Connection.Pass = "placeholder-pw"
 	live.Storage.Redis.Connection.TLSClientKey = "client-key-pem-placeholder"
 	live.Storage.Redis.Connection.Host = "redis.local"
+	live.Admin.Username = "admin-user"
+	live.Admin.Password = "admin-placeholder-pw"
+	live.Server.ClientApikeys = []string{"client-key-1", "client-key-2"}
 
 	cfgForAdmin := *live
-	maskRedisStateSecrets(&cfgForAdmin)
+	maskAdminConfigSecrets(&cfgForAdmin)
 
 	conn := cfgForAdmin.Storage.Redis.Connection
 	if conn.Username != maskedSecret || conn.Pass != maskedSecret || conn.TLSClientKey != maskedSecret {
-		t.Fatalf("expected masked credentials in admin copy, got user=%q pass=%q key=%q", conn.Username, conn.Pass, conn.TLSClientKey)
+		t.Fatalf("expected masked redis credentials in admin copy, got user=%q pass=%q key=%q", conn.Username, conn.Pass, conn.TLSClientKey)
 	}
 	if conn.Host != "redis.local" {
 		t.Errorf("non-secret host should not be masked, got %q", conn.Host)
 	}
+	if cfgForAdmin.Admin.Password != maskedSecret {
+		t.Errorf("expected admin password masked in admin copy, got %q", cfgForAdmin.Admin.Password)
+	}
+	if cfgForAdmin.Admin.Username != "admin-user" {
+		t.Errorf("admin username should not be masked, got %q", cfgForAdmin.Admin.Username)
+	}
+	for i, key := range cfgForAdmin.Server.ClientApikeys {
+		if key != maskedSecret {
+			t.Errorf("expected client apikey %d masked in admin copy, got %q", i, key)
+		}
+	}
 
 	orig := live.Storage.Redis.Connection
 	if orig.Username != "redis-user" || orig.Pass != "placeholder-pw" || orig.TLSClientKey != "client-key-pem-placeholder" {
-		t.Errorf("live config was mutated: user=%q pass=%q key=%q", orig.Username, orig.Pass, orig.TLSClientKey)
+		t.Errorf("live redis config was mutated: user=%q pass=%q key=%q", orig.Username, orig.Pass, orig.TLSClientKey)
+	}
+	if live.Admin.Password != "admin-placeholder-pw" {
+		t.Errorf("live admin password was mutated: %q", live.Admin.Password)
+	}
+	if live.Server.ClientApikeys[0] != "client-key-1" || live.Server.ClientApikeys[1] != "client-key-2" {
+		t.Errorf("live client apikeys shared backing array was mutated: %v", live.Server.ClientApikeys)
 	}
 
 	empty := &pconf.Main{}
-	maskRedisStateSecrets(empty)
-	if empty.Storage.Redis.Connection.Pass != "" || empty.Storage.Redis.Connection.Username != "" {
+	maskAdminConfigSecrets(empty)
+	if empty.Storage.Redis.Connection.Pass != "" || empty.Storage.Redis.Connection.Username != "" || empty.Admin.Password != "" {
 		t.Error("empty credentials should stay empty so the admin view shows they are unset")
+	}
+	if empty.Server.ClientApikeys != nil {
+		t.Errorf("nil client apikeys should stay nil, got %v", empty.Server.ClientApikeys)
+	}
+}
+
+func TestRequestSecondResyncStopsOnShutdown(t *testing.T) {
+	keys, err := redisstate.NewKeys("prefix", "apikey", "ns")
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := redisstate.NewWriter(resyncCountingClient{}, keys, "fingerprint", redisstate.DefaultOptions(), logging.NewLogger(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := &resyncCountingSource{}
+	if err := w.Start(src); err != nil {
+		t.Fatal(err)
+	}
+	defer w.Stop()
+	waitForFlagCalls(t, src, 1)
+
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		requestSecondResyncWith(w, false, time.Hour, stop, logging.NewLogger(nil), func() bool { return false })
+		close(done)
+	}()
+	close(stop)
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("requestSecondResyncWith did not return after shutdown was signalled")
+	}
+	time.Sleep(200 * time.Millisecond)
+	if got := atomic.LoadInt64(&src.flagCalls); got != 1 {
+		t.Fatalf("expected no resync after shutdown, got %d source reads", got)
 	}
 }
 
@@ -387,7 +445,7 @@ func TestSecondResyncSkippedOnWarmBoot(t *testing.T) {
 	defer w.Stop()
 
 	waitForFlagCalls(t, src, 1)
-	requestSecondResync(w, true, time.Second, logging.NewLogger(nil))
+	requestSecondResync(w, true, time.Second, nil, logging.NewLogger(nil))
 	time.Sleep(200 * time.Millisecond)
 	if got := atomic.LoadInt64(&src.flagCalls); got != 1 {
 		t.Fatalf("expected no second resync on warm boot, got %d source reads", got)
@@ -410,13 +468,13 @@ func TestSecondResyncRunsOnColdBoot(t *testing.T) {
 	defer w.Stop()
 
 	waitForFlagCalls(t, src, 1)
-	requestSecondResync(w, false, time.Second, logging.NewLogger(nil))
+	requestSecondResync(w, false, time.Second, nil, logging.NewLogger(nil))
 	waitForFlagCalls(t, src, 2)
 }
 
 func TestSecondResyncNilWriter(t *testing.T) {
-	requestSecondResync(nil, true, time.Second, logging.NewLogger(nil))
-	requestSecondResync(nil, false, time.Second, logging.NewLogger(nil))
+	requestSecondResync(nil, true, time.Second, nil, logging.NewLogger(nil))
+	requestSecondResync(nil, false, time.Second, nil, logging.NewLogger(nil))
 }
 
 // dropRecordingClient reports a segment that only Redis knows about and records every drop script call
@@ -520,14 +578,14 @@ func TestSecondResyncWaitsForQueueAndExpires(t *testing.T) {
 
 	// an empty queue returns at once and requests the resync
 	start := time.Now()
-	requestSecondResync(w, false, 2*time.Second, logging.NewLogger(nil))
+	requestSecondResync(w, false, 2*time.Second, nil, logging.NewLogger(nil))
 	assert.Less(t, time.Since(start), time.Second)
 	waitForFlagCalls(t, src, 2)
 
 	// a bound that expires still requests the resync, and logs it
 	var buf strings.Builder
 	logger := logging.NewLogger(&logging.LoggerOptions{LogLevel: logging.LevelWarning, WarningWriter: &buf})
-	requestSecondResyncWith(w, false, 50*time.Millisecond, logger, func() bool { return false })
+	requestSecondResyncWith(w, false, 50*time.Millisecond, nil, logger, func() bool { return false })
 	assert.Contains(t, buf.String(), "queue did not drain")
 	waitForFlagCalls(t, src, 3)
 }

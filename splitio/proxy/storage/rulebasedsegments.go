@@ -216,7 +216,10 @@ func (p *ProxyRuleBasedSegmentsStorageImpl) Update(toAdd []dtos.RuleBasedSegment
 	p.db.Update(toAdd, toRemove, changeNumber)
 	redis := p.redis
 	p.mtx.Unlock()
-	// enqueue to the Redis writer outside the lock so the sink never blocks storage readers
+	// enqueue to the Redis writer outside the lock so the sink never blocks storage readers.
+	// The enqueue runs after the lock is released and assumes a single writer: the sync manager calls Update
+	// from one goroutine, so enqueues keep the snapshot order. A second concurrent caller would need the
+	// enqueue moved under an ordered lock.
 	if redis != nil {
 		redis.PutRuleBasedSegments(toAdd, toRemove, changeNumber)
 	}

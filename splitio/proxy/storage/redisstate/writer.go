@@ -447,10 +447,19 @@ const sharedNamespaceWindow = time.Minute
 func (w *Writer) warnIfNamespaceInUse() {
 	fields, err := w.client.HGetAll(w.keys.MetaUnprefixed())
 	if err != nil {
+		w.logger.Debug(fmt.Sprintf("redis state: could not read the meta hash to check the namespace: %v", err))
 		return
 	}
-	ms, err := strconv.ParseInt(fields[UpdatedAtField], 10, 64)
-	if err != nil || ms <= 0 {
+	raw, ok := fields[UpdatedAtField]
+	if !ok || raw == "" {
+		return
+	}
+	ms, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		w.logger.Debug("redis state: unreadable meta updatedAtMs, skipping the shared namespace check")
+		return
+	}
+	if ms <= 0 {
 		return
 	}
 	if age := w.now().Sub(time.UnixMilli(ms)); age >= 0 && age < sharedNamespaceWindow {

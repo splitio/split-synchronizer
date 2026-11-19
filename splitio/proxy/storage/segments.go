@@ -155,6 +155,9 @@ func (s *ProxySegmentStorageImpl) Update(name string, toAdd *set.ThreadUnsafeSet
 		// Equal change numbers: if two separate calls carry the same cn for one segment (not reachable in practice,
 		// the fetcher advances cn on every change), Bolt and mySegments keep the last arrival while Redis keeps the
 		// state it already holds.
+		// The Redis enqueue is deliberately independent of errCache and errDB: a Bolt or cache failure does not
+		// stop the Redis mirror, so Redis can be one change number ahead of a failed Bolt write. This is harmless
+		// because the fetcher retries the change, and the Bolt file is not reused as a source of truth for Redis.
 		s.redis.PutSegment(name, stringsFrom(toAdd), stringsFrom(toRemove), changeNumber)
 	}
 	if errCache == nil && errDB == nil {
@@ -177,6 +180,8 @@ func (s *ProxySegmentStorageImpl) Update(name string, toAdd *set.ThreadUnsafeSet
 }
 
 // CountRemovedKeys method
+// It has no production caller since the admin dashboard ActiveKeys count excludes tombstones (removed keys).
+// It is kept for the storage interface and tests; remove it with the Bolt replacement.
 func (s *ProxySegmentStorageImpl) CountRemovedKeys(segmentName string) int {
 	segment, err := s.db.Fetch(segmentName)
 	if err != nil {

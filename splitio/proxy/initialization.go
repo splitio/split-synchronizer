@@ -126,6 +126,9 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	if redisWriter != nil {
 		defer stopRedisState(redisWriter, logger, stopWaitBound(cfg.Storage.Redis, cfg.Storage.Redis.Connection))
 	}
+	// Declared after the writer defer so it runs first at shutdown and ends the second resync wait.
+	secondResyncStop := make(chan struct{})
+	defer close(secondResyncStop)
 	largeSegmentStorage := inmemory.NewLargeSegmentsStorage()
 
 	// Local telemetry
@@ -220,7 +223,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		logger.Info("Synchronizer tasks started")
 		// The writer's startup resync ran against an empty source on a cold boot, so repair it once sync has populated the storages.
 		redisGate.open()
-		go requestSecondResync(redisWriter, haveLocalState, secondResyncWait, logger)
+		go requestSecondResync(redisWriter, haveLocalState, secondResyncWait, secondResyncStop, logger)
 		appMonitor.Start()
 		servicesMonitor.Start()
 		flagSetsAfterSanitize, _ := flagsets.SanitizeMany(cfg.FlagSetsFilter)
@@ -265,7 +268,7 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	cfgForAdmin := *cfg
 	hash := util.HashAPIKey(cfgForAdmin.Apikey + cfg.FlagSpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
 	cfgForAdmin.Apikey = logging.ObfuscateAPIKey(cfgForAdmin.Apikey)
-	maskRedisStateSecrets(&cfgForAdmin)
+	maskAdminConfigSecrets(&cfgForAdmin)
 
 	adminTLSConfig, err := util.TLSConfigForServer(&cfg.Admin.TLS)
 	if err != nil {
@@ -353,15 +356,27 @@ var (
 // maskedSecret replaces non-empty credentials in the config served by the admin API.
 const maskedSecret = "********"
 
-// maskRedisStateSecrets masks the Redis state connection credentials (username, password,
-// TLS client key). It mutates only the struct it is given, so callers pass a value copy
-// of the config and the live config keeps its secrets.
-func maskRedisStateSecrets(cfg *pconf.Main) {
+// maskAdminConfigSecrets masks the credentials in the config served by the admin API: the Redis
+// state connection credentials (username, password, TLS client key), the admin password and the
+// client apikeys. It mutates only the struct it is given, so callers pass a value copy of the
+// config. The apikeys slice is replaced rather than edited, because the copy shares its backing
+// array with the live config.
+func maskAdminConfigSecrets(cfg *pconf.Main) {
 	conn := &cfg.Storage.Redis.Connection
-	for _, secret := range []*string{&conn.Username, &conn.Pass, &conn.TLSClientKey} {
+	for _, secret := range []*string{&conn.Username, &conn.Pass, &conn.TLSClientKey, &cfg.Admin.Password} {
 		if *secret != "" {
 			*secret = maskedSecret
 		}
+	}
+	if cfg.Server.ClientApikeys != nil {
+		masked := make([]string, len(cfg.Server.ClientApikeys))
+		for i, key := range cfg.Server.ClientApikeys {
+			masked[i] = key
+			if key != "" {
+				masked[i] = maskedSecret
+			}
+		}
+		cfg.Server.ClientApikeys = masked
 	}
 }
 
@@ -382,14 +397,15 @@ const secondResyncPoll = 100 * time.Millisecond
 // It first waits, up to bound, for the changes queued during the sync to be written, so the resync finds most of the
 // state in place instead of rewriting it twice. When the bound expires it logs and requests the resync anyway: the
 // source is complete by now, so the resync is safe at any point. It blocks, so call it in its own goroutine.
-func requestSecondResync(w *redisstate.Writer, haveLocalState bool, bound time.Duration, logger logging.LoggerInterface) {
+// It returns without requesting when stop is closed, so a shutdown does not leave the wait running.
+func requestSecondResync(w *redisstate.Writer, haveLocalState bool, bound time.Duration, stop <-chan struct{}, logger logging.LoggerInterface) {
 	if w == nil {
 		return
 	}
-	requestSecondResyncWith(w, haveLocalState, bound, logger, func() bool { return w.Status().PendingChanges == 0 })
+	requestSecondResyncWith(w, haveLocalState, bound, stop, logger, func() bool { return w.Status().PendingChanges == 0 })
 }
 
-func requestSecondResyncWith(w *redisstate.Writer, haveLocalState bool, bound time.Duration, logger logging.LoggerInterface, drained func() bool) {
+func requestSecondResyncWith(w *redisstate.Writer, haveLocalState bool, bound time.Duration, stop <-chan struct{}, logger logging.LoggerInterface, drained func() bool) {
 	if haveLocalState || w == nil {
 		return
 	}
@@ -399,7 +415,16 @@ func requestSecondResyncWith(w *redisstate.Writer, haveLocalState bool, bound ti
 			logger.Warning(fmt.Sprintf("redis state: the writer queue did not drain within %s after the first sync, requesting the repair resync anyway", bound))
 			break
 		}
-		time.Sleep(secondResyncPoll)
+		select {
+		case <-stop:
+			return
+		case <-time.After(secondResyncPoll):
+		}
+	}
+	select {
+	case <-stop:
+		return
+	default:
 	}
 	requestRedisResync(w)
 }

@@ -35,6 +35,7 @@ func stopRedisState(writer *redisstate.Writer, logger logging.LoggerInterface, t
 	if writer == nil {
 		return true
 	}
+	logger.Info("stopping redis writer, waiting for the queue to drain")
 	done := make(chan struct{})
 	go func() {
 		writer.Stop()
@@ -59,6 +60,7 @@ const (
 	redisStateMaxBackoffMs      = 3600000
 	redisStateMaxConnTimeoutSec = 300
 	redisStateMaxConnRetries    = 10
+	redisStateMaxPoolSize       = 10000
 )
 
 // validateRedisStateSettings rejects values the writer can not run with. It runs before any Redis connection
@@ -91,6 +93,10 @@ func validateRedisStateSettings(cfg *pconf.RedisState) error {
 		return invalid("writeTimeout must be 0..%d seconds, got %d", redisStateMaxConnTimeoutSec, cfg.Connection.WriteTimeout)
 	case cfg.Connection.MaxRetries < 0 || cfg.Connection.MaxRetries > redisStateMaxConnRetries:
 		return invalid("maxRetries must be 0..%d, got %d", redisStateMaxConnRetries, cfg.Connection.MaxRetries)
+	case cfg.Connection.PoolSize <= 0 || cfg.Connection.PoolSize > redisStateMaxPoolSize:
+		return invalid("poolSize must be 1..%d, got %d", redisStateMaxPoolSize, cfg.Connection.PoolSize)
+	case cfg.Connection.Db < 0:
+		return invalid("db must be 0 or greater, got %d", cfg.Connection.Db)
 	case cfg.RetentionHours <= 0:
 		return invalid("retentionHours must be positive, got %d", cfg.RetentionHours)
 	case cfg.RetentionHours > math.MaxInt64/int64(time.Hour):
@@ -154,6 +160,8 @@ func setupRedisState(cfg *pconf.Main, logger logging.LoggerInterface, splits *st
 		stopWaitBound(redisCfg, redisCfg.Connection), redisCfg.StopTimeoutMs, redisCfg.Connection.DialTimeout,
 		redisCfg.Connection.ReadTimeout, redisCfg.Connection.WriteTimeout, redisCfg.Connection.MaxRetries))
 
+	// force-fresh-startup resets the Redis state before the first cloud sync, so if the cloud is unreachable the
+	// previous Redis state is already gone and the proxy exits; this is intended (fresh start means start from nothing).
 	if cfg.Initialization.ForceFreshStartup {
 		if err := writer.Reset(); err != nil {
 			return nil, common.NewInitError(fmt.Errorf("error resetting redis state: %w", err), common.ExitRedisInitializationFailed)
