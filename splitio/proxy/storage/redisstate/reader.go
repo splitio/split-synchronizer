@@ -18,6 +18,7 @@ import (
 
 	goredis "github.com/redis/go-redis/v9"
 	"github.com/splitio/go-split-commons/v10/dtos"
+	"github.com/splitio/go-split-commons/v10/engine/grammar/constants"
 )
 
 // BootStatus classifies the redis state found at boot.
@@ -571,9 +572,13 @@ func referencedSegmentNames(flags []dtos.SplitDTO, rbs []dtos.RuleBasedSegmentDT
 	return out
 }
 
-// addMatcherReferences marks the segments named by the user-defined segment matchers.
+// addMatcherReferences marks the segments named by the user-defined segment matchers. An IN_RULE_BASED_SEGMENT matcher
+// reuses the same field for a rule-based segment name, which is not a segment and has no cursor.
 func addMatcherReferences(referenced map[string]bool, matchers []dtos.MatcherDTO) {
 	for _, m := range matchers {
+		if m.MatcherType == constants.MatcherTypeInRuleBasedSegment {
+			continue
+		}
 		if m.UserDefinedSegment != nil {
 			referenced[m.UserDefinedSegment.SegmentName] = true
 		}

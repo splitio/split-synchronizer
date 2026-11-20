@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/splitio/go-split-commons/v10/dtos"
+	"github.com/splitio/go-split-commons/v10/engine/grammar/constants"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1047,4 +1048,38 @@ func TestReader_IsTimeout(t *testing.T) {
 			assert.Equal(t, c.want, isTimeout(c.err))
 		})
 	}
+}
+
+// IN_RULE_BASED_SEGMENT matchers carry a rule-based segment name in UserDefinedSegment; it is not a segment.
+func TestReferencedSegmentNamesIgnoresRuleBasedSegmentMatchers(t *testing.T) {
+	matchers := []dtos.MatcherDTO{
+		{MatcherType: constants.MatcherTypeInRuleBasedSegment, UserDefinedSegment: &dtos.UserDefinedSegmentMatcherDataDTO{SegmentName: "some-rbs"}},
+		{MatcherType: constants.MatcherTypeInSegment, UserDefinedSegment: &dtos.UserDefinedSegmentMatcherDataDTO{SegmentName: "real-seg"}},
+	}
+	cond := dtos.MatcherGroupDTO{Matchers: matchers}
+	t.Run("flag", func(t *testing.T) {
+		got := referencedSegmentNames([]dtos.SplitDTO{{Status: statusActive, Conditions: []dtos.ConditionDTO{{MatcherGroup: cond}}}}, nil)
+		assert.Equal(t, []string{"real-seg"}, got)
+	})
+	t.Run("rule-based segment", func(t *testing.T) {
+		got := referencedSegmentNames(nil, []dtos.RuleBasedSegmentDTO{{Status: statusActive, Conditions: []dtos.RuleBasedConditionDTO{{MatcherGroup: cond}}}})
+		assert.Equal(t, []string{"real-seg"}, got)
+	})
+}
+
+// A restore whose flags use an IN_RULE_BASED_SEGMENT matcher is complete: no skipped segment, so the proxy treats it as local state.
+func TestReader_RuleBasedSegmentMatcherDoesNotSkipSegments(t *testing.T) {
+	s := newRdFixture(t)
+	s.seedValid()
+	f := dtos.SplitDTO{Name: "f3", Status: statusActive, ChangeNumber: 11, Conditions: []dtos.ConditionDTO{{MatcherGroup: dtos.MatcherGroupDTO{Matchers: []dtos.MatcherDTO{
+		{MatcherType: constants.MatcherTypeInRuleBasedSegment, UserDefinedSegment: &dtos.UserDefinedSegmentMatcherDataDTO{SegmentName: "r1"}},
+	}}}}}
+	b, err := json.Marshal(f)
+	require.NoError(t, err)
+	s.fake.hashes[s.keys.FlagData()]["f3"] = string(b)
+	s.scores(s.keys.FlagIndex(), map[string]int64{"f1": 10, "f2": 9, "f3": 11})
+	state, _, err := rdRead(context.Background(), s.reader())
+	require.NoError(t, err)
+	assert.Equal(t, BootValid, state.Status)
+	assert.Empty(t, state.SkippedSegments)
 }
