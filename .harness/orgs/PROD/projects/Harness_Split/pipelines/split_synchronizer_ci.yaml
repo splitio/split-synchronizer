@@ -7,7 +7,6 @@ pipeline:
   properties:
     ci:
       codebase:
-        connectorRef: fmegithubrunnersci
         repoName: split-synchronizer
         build: <+input>
         depth: 0
