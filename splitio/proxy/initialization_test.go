@@ -1104,11 +1104,7 @@ func TestStartRedisBootLogsNoSnapshotLoadWarning(t *testing.T) {
 func startBootMatrixCell(t *testing.T, state, cloud string) {
 	t.Helper()
 	wantErr := 0
-	switch {
-	case state == "unreachable":
-		// The boot read falls back, but the redis writer still requires redis (redisstate.go:137) and exits.
-		wantErr = common.ExitRedisInitializationFailed
-	case cloud == "down" && (state == "absent" || state == "corrupt" || state == "foreign"):
+	if cloud == "down" && (state == "absent" || state == "corrupt" || state == "foreign" || state == "unreachable") {
 		wantErr = common.ExitTaskInitialization
 	}
 	if state != "unreachable" {
@@ -1181,6 +1177,14 @@ func startBootMatrixCell(t *testing.T, state, cloud string) {
 	if state == "corrupt" && !logger.has("redis state is corrupt") {
 		t.Errorf("expected the corrupt redis state to be logged\nlogs:\n%s", logger.dump())
 	}
+	if state == "unreachable" {
+		if !logger.has("could not be read at boot") {
+			t.Errorf("expected the unreachable redis read to fall back with an error log\nlogs:\n%s", logger.dump())
+		}
+		if !logger.has("Redis is not reachable, the proxy keeps running and retries in the background") {
+			t.Errorf("expected the writer to keep running and retry in the background\nlogs:\n%s", logger.dump())
+		}
+	}
 	fromRedis := state == "stale"
 	if logger.has("starting from redis state") != fromRedis {
 		t.Errorf("boot source from redis = %v, want %v\nlogs:\n%s", !fromRedis, fromRedis, logger.dump())
@@ -1209,10 +1213,9 @@ func startBootMatrixCell(t *testing.T, state, cloud string) {
 	}
 }
 
-// The boot read no longer exits on unreachable redis: it logs the fallback and continues. The redis writer still
-// requires redis and exits (redisstate.go:137, "error instantiating redis state client"). Known gap for the orchestrator:
-// with redis enabled, the proxy exits at the writer, not at the boot read.
-func TestStartRedisUnreachableFallsBackThenWriterExits(t *testing.T) {
+// Unreachable redis at boot no longer exits: the boot read falls back to the cloud and the redis writer keeps
+// retrying in the background (F5-02). With the cloud down and no other state the proxy still exits, like an absent state.
+func TestStartRedisUnreachableFallsBackAndWriterRetries(t *testing.T) {
 	startBootMatrixCell(t, "unreachable", "up")
 }
 

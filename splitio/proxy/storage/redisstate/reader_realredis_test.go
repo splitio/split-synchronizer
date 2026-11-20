@@ -9,6 +9,9 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -296,4 +299,283 @@ func TestRealRedis_RepairedSegmentIsNotTrusted(t *testing.T) {
 	assert.NotContains(t, state.SegmentCursors, "s1", "no cursor may be trusted for the repaired segment")
 	require.Contains(t, segs, "s2")
 	assert.Equal(t, int64(6), state.SegmentCursors["s2"])
+}
+
+// A LIVE torn segment read. A writer rewrites a 100k-member segment generation after generation while readers boot
+// the same namespace. Needs Redis on localhost:6379 (requireRedis skips without it). The window is 4 s to keep the package fast.
+//
+// Asserted contract, taken from the comment on Reader.fetchSegment (reader.go): "the stored cursor is <= the data (a
+// writer that lands between reading meta and scanning leaves cursor <= data), and the data may be a mix of change N and
+// N+1 when a writer overlaps the scans; the cursor re-check and the cardinality check detect most overlaps, the rest is
+// repaired by the first sync because the cursor is never ahead of the data."
+//
+// Model: generation 1 seeds every key active at cn 1. Generation g >= 2 flips every key with index%5 == g%5 (active ->
+// removed, removed -> active) at cn g, and the writer commits one generation at a time (cursor = g on the last chunk).
+// So for a delivered segment with cursor C, key i must be in state E(i,C) (the last committed touch), or in the state
+// of the in-flight touch at cn C+1, or be absent only when C+1 touches it. Anything else is not covered by the documented
+// contract and is reported as a violation.
+
+const (
+	s8Members  = 100000
+	s8Cohorts  = 5
+	s8Segment  = "s8big"
+	s8Duration = 4 * time.Second
+)
+
+func s8Key(i int) string { return fmt.Sprintf("member-%06d", i) }
+
+// s8Touches is the number of flips key cohort c got in generations 2..g.
+func s8Touches(c, g int) int {
+	n := 0
+	for x := 2; x <= g; x++ {
+		if x%s8Cohorts == c {
+			n++
+		}
+	}
+	return n
+}
+
+// s8Expected is the state of a key of cohort c once generation g is committed: score and active flag.
+func s8Expected(c, g int) (score int64, active bool) {
+	last := 0
+	for x := g; x >= 2; x-- {
+		if x%s8Cohorts == c {
+			last = x
+			break
+		}
+	}
+	n := s8Touches(c, g)
+	if last == 0 {
+		return 1, true
+	}
+	return int64(last), n%2 == 0
+}
+
+type s8Outcome struct {
+	consistent  int64 // delivered, exactly the committed state E(C)
+	inFlightMix int64 // delivered, with keys in the C+1 in-flight state (inside the documented contract)
+	tornSkipped int64 // reader reported the segment skipped with a torn reason
+	otherSkip   int64
+	notValid    int64
+	readErrors  int64
+	violations  int64
+	maxMixed    int64
+}
+
+func s8Verify(seg SegmentState, cursor int64, out *s8Outcome, samples *[]string, mu *sync.Mutex) {
+	C := int(cursor)
+	type exp struct {
+		score  int64
+		active bool
+	}
+	var base, flip [s8Cohorts]exp
+	var flipOK [s8Cohorts]bool
+	for c := 0; c < s8Cohorts; c++ {
+		s, a := s8Expected(c, C)
+		base[c] = exp{s, a}
+		if C+1 >= 2 && (C+1)%s8Cohorts == c {
+			flipOK[c] = true
+			flip[c] = exp{int64(C + 1), !a}
+		}
+	}
+	mixed := int64(0)
+	bad := 0
+	note := func(msg string) {
+		bad++
+		mu.Lock()
+		if len(*samples) < 8 {
+			*samples = append(*samples, msg)
+		}
+		mu.Unlock()
+	}
+	seen := 0
+	for i := 0; i < s8Members; i++ {
+		c := i % s8Cohorts
+		k := s8Key(i)
+		as, inA := seg.Active[k]
+		rs, inR := seg.Removed[k]
+		if inA && inR {
+			note(fmt.Sprintf("C=%d key %s in both sets", C, k))
+			continue
+		}
+		var got exp
+		switch {
+		case inA:
+			got = exp{as, true}
+			seen++
+		case inR:
+			got = exp{rs, false}
+			seen++
+		default:
+			if flipOK[c] {
+				mixed++ // lost by an in-flight move: the documented N/N+1 mix, repaired by replaying C+1
+				continue
+			}
+			note(fmt.Sprintf("C=%d key %s absent from both sets and not touched by the in-flight change", C, k))
+			continue
+		}
+		switch {
+		case got == base[c]:
+		case flipOK[c] && got == flip[c]:
+			mixed++
+		default:
+			note(fmt.Sprintf("C=%d key %s got %+v, committed %+v, in-flight %+v (flip possible %v)", C, k, got, base[c], flip[c], flipOK[c]))
+		}
+	}
+	if len(seg.Active)+len(seg.Removed) > seen {
+		note(fmt.Sprintf("C=%d segment holds %d keys outside the universe", C, len(seg.Active)+len(seg.Removed)-seen))
+	}
+	switch {
+	case bad > 0:
+		atomic.AddInt64(&out.violations, 1)
+	case mixed > 0:
+		atomic.AddInt64(&out.inFlightMix, 1)
+		for {
+			old := atomic.LoadInt64(&out.maxMixed)
+			if mixed <= old || atomic.CompareAndSwapInt64(&out.maxMixed, old, mixed) {
+				break
+			}
+		}
+	default:
+		atomic.AddInt64(&out.consistent, 1)
+	}
+}
+
+func TestLiveTornSegmentReadKeepsContract(t *testing.T) {
+	e := newRealRedisEnv(t)
+	keys, err := NewKeys(e.readCli.Prefix(), "realredis-key", "")
+	require.NoError(t, err)
+
+	all := make([]string, s8Members)
+	for i := range all {
+		all[i] = s8Key(i)
+	}
+	e.writer.PutFlags([]dtos.SplitDTO{rdFlagWithSegments("f1", 1, s8Segment)}, nil, 1)
+	e.writer.PutSegment(s8Segment, all, nil, 1)
+	seedStart := time.Now()
+	e.drain(t)
+	t.Logf("seeded %d members in %s", s8Members, time.Since(seedStart))
+
+	deadline := time.Now().Add(s8Duration)
+	started := time.Now()
+	var gens atomic.Int64
+	gens.Store(1)
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for g := 2; time.Now().Before(deadline); g++ {
+			c := g % s8Cohorts
+			n := s8Touches(c, g-1)
+			var add, rem []string
+			for i := c; i < s8Members; i += s8Cohorts {
+				if n%2 == 0 {
+					rem = append(rem, s8Key(i)) // active now: remove
+				} else {
+					add = append(add, s8Key(i))
+				}
+			}
+			e.writer.PutSegment(s8Segment, add, rem, int64(g))
+			for e.writer.Status().PendingChanges > 0 {
+				time.Sleep(time.Millisecond)
+			}
+			gens.Store(int64(g))
+			if g%2 == 0 {
+				time.Sleep(400 * time.Millisecond) // quiet window so some boots can finish consistent
+			}
+		}
+	}()
+
+	var out s8Outcome
+	var samples []string
+	var smu sync.Mutex
+	var boots atomic.Int64
+	var panics atomic.Int64
+	for r := 0; r < 2; r++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			reader, rerr := NewReader(e.readCli, keys, rdFp)
+			if rerr != nil {
+				atomic.AddInt64(&out.readErrors, 1)
+				return
+			}
+			for time.Now().Before(deadline) {
+				func() {
+					defer func() {
+						if p := recover(); p != nil {
+							panics.Add(1)
+							smu.Lock()
+							samples = append(samples, fmt.Sprintf("PANIC: %v", p))
+							smu.Unlock()
+						}
+					}()
+					var got *SegmentState
+					state, err := reader.Read(context.Background(), func(s SegmentState) error {
+						if s.Name == s8Segment {
+							cp := s
+							got = &cp
+						}
+						return nil
+					})
+					boots.Add(1)
+					switch {
+					case err != nil:
+						atomic.AddInt64(&out.readErrors, 1)
+						smu.Lock()
+						samples = append(samples, "read error: "+err.Error())
+						smu.Unlock()
+					case state.Status != BootValid:
+						atomic.AddInt64(&out.notValid, 1)
+						smu.Lock()
+						samples = append(samples, fmt.Sprintf("status %s: %s", state.Status, state.Reason))
+						smu.Unlock()
+					case got == nil:
+						reason := state.SkipReasons[s8Segment]
+						if strings.Contains(reason, "while it was read") {
+							atomic.AddInt64(&out.tornSkipped, 1)
+						} else {
+							atomic.AddInt64(&out.otherSkip, 1)
+							smu.Lock()
+							samples = append(samples, "skipped, reason: "+reason)
+							smu.Unlock()
+						}
+					default:
+						if state.SegmentCursors[s8Segment] != got.ChangeNumber {
+							atomic.AddInt64(&out.violations, 1)
+							return
+						}
+						s8Verify(*got, got.ChangeNumber, &out, &samples, &smu)
+					}
+				}()
+			}
+		}()
+	}
+	wg.Wait()
+	elapsed := time.Since(started)
+	e.drain(t)
+
+	// after the writer is quiet a boot must be exactly the last committed generation
+	state, segs := e.readAll(t)
+	require.Equal(t, BootValid, state.Status, state.Reason)
+	require.Contains(t, segs, s8Segment, "skipped: %v", state.SkipReasons)
+	var final s8Outcome
+	var fs []string
+	var fmu sync.Mutex
+	s8Verify(segs[s8Segment], segs[s8Segment].ChangeNumber, &final, &fs, &fmu)
+
+	t.Logf("S8 elapsed=%s generations=%d boots=%d consistent=%d in_flight_mix(allowed)=%d torn_skipped=%d other_skip=%d not_valid=%d read_errors=%d violations=%d panics=%d max_mixed_keys=%d",
+		elapsed.Round(time.Millisecond), gens.Load(), boots.Load(), out.consistent, out.inFlightMix, out.tornSkipped, out.otherSkip, out.notValid, out.readErrors, out.violations, panics.Load(), out.maxMixed)
+	t.Logf("final quiescent boot: cursor=%d consistent=%d mix=%d violations=%d writer status=%+v", segs[s8Segment].ChangeNumber, final.consistent, final.inFlightMix, final.violations, e.writer.Status())
+	for _, s := range samples {
+		t.Log("sample:", s)
+	}
+	require.Zero(t, panics.Load(), "reader panicked")
+	require.Zero(t, out.readErrors, "reader returned errors")
+	require.Zero(t, out.notValid)
+	require.Zero(t, out.otherSkip, "a segment was skipped for a reason other than a torn read")
+	require.Zero(t, out.violations, "a delivered segment is outside the documented cursor<=data / N,N+1 contract")
+	require.Equal(t, int64(1), final.consistent, "quiescent boot must match the last committed generation exactly; violations=%d", final.violations)
+	require.Greater(t, boots.Load(), int64(5))
 }

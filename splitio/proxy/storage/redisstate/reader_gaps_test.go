@@ -10,6 +10,11 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	config "github.com/splitio/go-split-commons/v10/conf"
+	"github.com/splitio/go-split-commons/v10/dtos"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // gapsFakeClient is an in-memory ReadClient that records every call. Methods are locked so tests can mutate state
@@ -907,4 +912,83 @@ func TestReader_TornRemovedEntryNotIndexedRetriedThenCorrupt(t *testing.T) {
 	if n := c.countCall("hgetall " + keys.FlagData()); n != tornReadAttempts {
 		t.Errorf("flag data read %d times, want %d", n, tornReadAttempts)
 	}
+}
+
+func ftBoot(t *testing.T, cfg *config.RedisConfig) (BootState, map[string]SegmentState) {
+	t.Helper()
+	rc, err := NewReadClient(cfg)
+	require.NoError(t, err)
+	defer func() { _ = rc.Close() }()
+	keys, err := NewKeys(rc.Prefix(), "ft-key", "")
+	require.NoError(t, err)
+	r, err := NewReader(rc, keys, wtFingerprint, withRetryPause(10*time.Millisecond))
+	require.NoError(t, err)
+	segs := map[string]SegmentState{}
+	st, err := r.Read(context.Background(), func(s SegmentState) error { segs[s.Name] = s; return nil })
+	require.NoError(t, err)
+	return st, segs
+}
+
+// A non-numeric stored cursor must not crash the reader or the writer: the reader skips or marks it corrupt, the Lua
+// treats it as missing, and a resync repairs it. Runs against its own redis-server on a free port.
+func TestWriterAndReaderSurviveNonNumericCursors(t *testing.T) {
+	srv := ftStartRedis(t)
+	log := &wtLogger{}
+	w, keys, cfg := ftWriter(t, srv, "ftnonnum", ftOpts(), log)
+	ctx := context.Background()
+	require.NoError(t, w.Start(nil))
+	w.PutFlags([]dtos.SplitDTO{rdFlagWithSegments("f1", 5, "s1")}, nil, 5)
+	w.PutSegment("s1", []string{"a", "b"}, nil, 5)
+	ftEventually(t, "initial write", 10*time.Second, func() bool { s := w.Status(); return s.Healthy && s.PendingChanges == 0 && s.LastSuccessUnixMs > 0 })
+
+	meta := keys.Meta()
+	flagField, segField := keys.FlagCursorField(), keys.SegmentCursorField("s1")
+	require.NoError(t, srv.admin.HSet(ctx, meta, segField, "abc").Err())
+
+	// reader: a segment with a non-numeric cursor is skipped, never a panic and never trusted
+	st, segs := ftBoot(t, cfg)
+	t.Logf("segment till=abc: status=%s skipped=%v reasons=%v", st.Status, st.SkippedSegments, st.SkipReasons)
+	require.Equal(t, BootValid, st.Status, st.Reason)
+	assert.Equal(t, []string{"s1"}, st.SkippedSegments)
+	assert.NotContains(t, segs, "s1")
+
+	require.NoError(t, srv.admin.HSet(ctx, meta, flagField, "abc").Err())
+	st, _ = ftBoot(t, cfg)
+	t.Logf("flag till=abc: status=%s reason=%q", st.Status, st.Reason)
+	assert.Equal(t, BootCorrupt, st.Status, "a non-numeric flag cursor makes the state corrupt, not a crash")
+	assert.Equal(t, int64(-1), st.FlagCursor)
+
+	// live writes over the non-numeric cursors: Lua reads them as -1, so the new cursor wins
+	w.PutFlags([]dtos.SplitDTO{rdFlagWithSegments("f1", 6, "s1")}, nil, 6)
+	w.PutSegment("s1", []string{"c"}, nil, 6)
+	ftEventually(t, "second write", 10*time.Second, func() bool { return w.Status().PendingChanges == 0 })
+	got, err := srv.admin.HMGet(ctx, meta, flagField, segField).Result()
+	require.NoError(t, err)
+	t.Logf("cursors after live write: %v status=%+v", got, w.Status())
+	assert.Equal(t, []interface{}{"6", "6"}, got)
+	assert.True(t, w.Status().Healthy)
+	st, segs = ftBoot(t, cfg)
+	require.Equal(t, BootValid, st.Status, st.Reason)
+	assert.Empty(t, st.SkippedSegments)
+	assert.Equal(t, int64(6), st.FlagCursor)
+	require.Contains(t, segs, "s1")
+
+	// resync over non-numeric cursors: a new writer with a Source must treat them as missing (-2), finish and fix them
+	w.Stop()
+	require.NoError(t, srv.admin.HSet(ctx, meta, flagField, "xyz", segField, "").Err())
+	log2 := &wtLogger{}
+	w2, _, cfg2 := ftWriter(t, srv, "ftnonnum", ftOpts(), log2)
+	src := &ftSource{flagsCn: 7, flags: []dtos.SplitDTO{rdFlagWithSegments("f1", 7, "s1")}, segs: []SegmentState{ftSeg("s1", 0, 10, 7)}}
+	require.NoError(t, w2.Start(src))
+	ftEventually(t, "resync", 15*time.Second, func() bool {
+		s := w2.Status()
+		return src.passes.Load() >= 1 && s.Healthy && s.PendingChanges == 0
+	})
+	st, segs = ftBoot(t, cfg2)
+	t.Logf("after resync: status=%s flagCursor=%d seg=%d writer=%+v errors=%d", st.Status, st.FlagCursor, segs["s1"].ChangeNumber, w2.Status(), len(log2.ftErrors()))
+	require.Equal(t, BootValid, st.Status, st.Reason)
+	assert.Equal(t, int64(7), st.FlagCursor)
+	require.Contains(t, segs, "s1")
+	assert.Len(t, segs["s1"].Active, 10)
+	assert.Empty(t, log2.ftErrors())
 }

@@ -1,16 +1,24 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
+	"os"
+	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
+
+	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/splitio/go-split-commons/v10/dtos"
 	"github.com/stretchr/testify/assert"
@@ -962,4 +970,409 @@ func TestDecideFromStateCorruptWithoutBudgetLogsWarning(t *testing.T) {
 	assert.Equal(t, "corrupt redis state", decision.Reason)
 	assert.True(t, logger.has("warning", "redis state is corrupt"), "expected a warning log")
 	assert.False(t, logger.has("error", ""), "no error log expected")
+}
+
+const appearsRedisPassword = "s3cr3t-pw-verify"
+
+// startPasswordRedisServer starts a throwaway redis-server on port with a password and kills it at cleanup.
+func startPasswordRedisServer(t *testing.T, port int64, password string) {
+	t.Helper()
+	bin, err := exec.LookPath("redis-server")
+	if err != nil {
+		t.Skipf("redis-server is not on PATH: %v", err)
+	}
+	cmd := exec.Command(bin, "--port", fmt.Sprint(port), "--bind", "127.0.0.1", "--requirepass", password,
+		"--save", "", "--appendonly", "no", "--maxmemory-policy", "noeviction", "--dir", t.TempDir())
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start redis-server: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+	})
+}
+
+// Redis is down at proxy start, the proxy keeps running, then Redis appears and the writer mirrors the state.
+func TestStartRedisAppearsAfterStartMirrorsState(t *testing.T) {
+	startRequireRedis(t)
+	if _, err := exec.LookPath("redis-server"); err != nil {
+		t.Skipf("redis-server is not on PATH: %v", err)
+	}
+	if !isolatedStartTest(t) {
+		return
+	}
+
+	cloud := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if !strings.HasSuffix(r.URL.Path, "/splitChanges") {
+			_, _ = w.Write([]byte(`{}`))
+			return
+		}
+		since := r.URL.Query().Get("since")
+		if since == "-1" {
+			_, _ = fmt.Fprint(w, `{"splits":[{"name":"startFlag","status":"ACTIVE","changeNumber":3,"trafficTypeName":"user","defaultTreatment":"off","conditions":[]}],"since":-1,"till":3}`)
+			return
+		}
+		_, _ = fmt.Fprintf(w, `{"splits":[],"since":%s,"till":%s}`, since, since)
+	}))
+	defer cloud.Close()
+
+	port := freeTCPPort(t)
+	prefix := startTestPrefix(t)
+	cfg := startTestConfig(t, cloud.URL, prefix)
+	cfg.Storage.Redis.Connection.Host = "127.0.0.1"
+	cfg.Storage.Redis.Connection.Port = int(port)
+	cfg.Storage.Redis.Connection.Pass = appearsRedisPassword
+	cfg.Storage.Redis.WriteBackoffMaxMs = 200
+
+	logger := &startTestLogger{}
+	done := startInBackground(logger, cfg)
+
+	// Phase 1: Redis is absent.
+	waitForStartLog(t, done, logger, "Synchronizer tasks started", 60*time.Second)
+	waitForStartLog(t, done, logger, "keeps running and retries", 30*time.Second)
+	select {
+	case err := <-done:
+		t.Fatalf("Start returned while Redis was absent: %v\nlogs:\n%s", err, logger.dump())
+	case <-time.After(500 * time.Millisecond):
+	}
+	adminURL := fmt.Sprintf("http://127.0.0.1:%d/admin/observability", cfg.Admin.Port)
+	waiting := readRedisStateStatus(t, adminURL)
+	t.Logf("status while waiting: %+v", waiting)
+	if waiting.Healthy || waiting.LastError != "redis state writer waiting for Redis" {
+		t.Errorf("status while Redis is absent = %+v, want unhealthy with the waiting error", waiting)
+	}
+
+	// Phase 2: Redis appears.
+	startPasswordRedisServer(t, port, appearsRedisPassword)
+	waitForStartLog(t, done, logger, "redis state writer attached after Redis became reachable", 30*time.Second)
+
+	raw := goredis.NewClient(&goredis.Options{Addr: fmt.Sprintf("127.0.0.1:%d", port), Password: appearsRedisPassword})
+	defer func() { _ = raw.Close() }()
+	keys, err := redisstate.NewKeys(prefix, cfg.Apikey, cfg.Storage.Redis.Namespace)
+	if err != nil {
+		t.Fatalf("NewKeys: %v", err)
+	}
+	ctx := context.Background()
+	deadline := time.Now().Add(30 * time.Second)
+	var cursor, flagJSON string
+	for {
+		cursor, _ = raw.HGet(ctx, keys.Meta(), keys.FlagCursorField()).Result()
+		flagJSON, _ = raw.HGet(ctx, keys.FlagData(), "startFlag").Result()
+		if cursor == "3" && flagJSON != "" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("redis never mirrored the state: cursor=%q flag=%q\nlogs:\n%s", cursor, flagJSON, logger.dump())
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	var stored struct {
+		Name         string `json:"name"`
+		ChangeNumber int64  `json:"changeNumber"`
+	}
+	if err := json.Unmarshal([]byte(flagJSON), &stored); err != nil || stored.Name != "startFlag" || stored.ChangeNumber != 3 {
+		t.Errorf("stored flag = %q (err %v), want startFlag at changeNumber 3", flagJSON, err)
+	}
+	if idx, err := raw.HGet(ctx, keys.FlagIndex(), "startFlag").Result(); err != nil && raw.Exists(ctx, keys.FlagIndex()).Val() == 0 {
+		t.Errorf("flag index key %q does not exist (%v %v)", keys.FlagIndex(), idx, err)
+	}
+
+	// The status turns healthy.
+	deadline = time.Now().Add(30 * time.Second)
+	for {
+		st := readRedisStateStatus(t, adminURL)
+		if st.Healthy && st.LastError == "" {
+			t.Logf("status after attach: %+v", st)
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("status never became healthy: %+v\nlogs:\n%s", st, logger.dump())
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	dump := logger.dump()
+	if strings.Contains(dump, appearsRedisPassword) {
+		t.Errorf("logs contain the Redis password")
+	}
+	if strings.Contains(dump, cfg.Apikey) {
+		t.Errorf("logs contain the Apikey")
+	}
+	select {
+	case err := <-done:
+		t.Fatalf("Start returned: %v", err)
+	default:
+	}
+}
+
+// readRedisStateStatus reads redisState from the admin observability endpoint.
+func readRedisStateStatus(t *testing.T, url string) redisstate.Status {
+	t.Helper()
+	resp, err := http.Get(url)
+	if err != nil {
+		t.Fatalf("GET %s: %v", url, err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	var out struct {
+		RedisState redisstate.Status `json:"redisState"`
+	}
+	if err := json.Unmarshal(body, &out); err != nil {
+		t.Fatalf("decode observability (%d): %v: %.200s", resp.StatusCode, err, body)
+	}
+	return out.RedisState
+}
+
+const (
+	parityRoleEnv   = "SPLIT_PROXY_PARITY_ROLE"
+	parityPrefixEnv = "SPLIT_PROXY_PARITY_PREFIX"
+	parityOutEnv    = "SPLIT_PROXY_PARITY_OUT"
+	paritySDKKey    = "sdk-client-key-verify"
+)
+
+type parityEndpoint struct {
+	Name string
+	Path string
+}
+
+// parityEndpoints are the SDK-facing endpoints compared between cold and warm boot.
+var parityEndpoints = []parityEndpoint{
+	{"splitChanges-1.3-since-1", "/api/splitChanges?since=-1&rbSince=-1&s=1.3"},
+	{"splitChanges-1.3-delta", "/api/splitChanges?since=3&rbSince=4&s=1.3"},
+	{"splitChanges-1.2-since-1", "/api/splitChanges?since=-1&s=1.2"},
+	{"segmentChanges-startSeg-since-1", "/api/segmentChanges/startSeg?since=-1"},
+	{"segmentChanges-startSeg-delta", "/api/segmentChanges/startSeg?since=10"},
+	{"segmentChanges-missing", "/api/segmentChanges/doesNotExist?since=-1"},
+	{"memberships-alice", "/api/memberships/alice"},
+	{"memberships-bob", "/api/memberships/bob"},
+	{"mySegments-alice", "/api/mySegments/alice"},
+	{"splitChanges-1.1-since-1", "/api/splitChanges?since=-1&s=1.1"},
+	{"splitChanges-1.3-flagset-filter", "/api/splitChanges?since=-1&rbSince=-1&s=1.3&sets=set_a"},
+	{"splitChanges-1.3-flagset-miss", "/api/splitChanges?since=-1&rbSince=-1&s=1.3&sets=nope"},
+}
+
+type parityResult struct {
+	Name   string `json:"name"`
+	Status int    `json:"status"`
+	Body   string `json:"body"`
+}
+
+const parityFlagJSON = `{"name":"startFlag","status":"ACTIVE","changeNumber":3,"trafficTypeName":"user","defaultTreatment":"off","sets":["set_a"],"conditions":[` +
+	`{"conditionType":"ROLLOUT","label":"in segment","matcherGroup":{"combiner":"AND","matchers":[{"matcherType":"IN_SEGMENT","negate":false,"userDefinedSegmentMatcherData":{"segmentName":"startSeg"}}]},"partitions":[{"treatment":"on","size":100}]},` +
+	`{"conditionType":"ROLLOUT","label":"in rbs","matcherGroup":{"combiner":"AND","matchers":[{"matcherType":"IN_RULE_BASED_SEGMENT","negate":false,"userDefinedSegmentMatcherData":{"segmentName":"startRbs"}}]},"partitions":[{"treatment":"on","size":100}]}]}`
+
+const parityRbsJSON = `{"name":"startRbs","status":"ACTIVE","changeNumber":4,"trafficTypeName":"user","excluded":{"keys":["mallory"],"segments":[]},` +
+	`"conditions":[{"conditionType":"WHITELIST","matcherGroup":{"combiner":"AND","matchers":[{"matcherType":"WHITELIST","negate":false,"whitelistMatcherData":{"whitelist":["carol","dave"]}}]}}]}`
+
+func parityCloudHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	q := r.URL.Query()
+	switch {
+	case strings.HasSuffix(r.URL.Path, "/splitChanges"):
+		since, rbSince := q.Get("since"), q.Get("rbSince")
+		ffD, ffT, rbD, rbT := "", since, "", rbSince
+		if since == "-1" {
+			ffD, ffT = parityFlagJSON, "3"
+		}
+		if rbSince == "-1" {
+			rbD, rbT = parityRbsJSON, "4"
+		}
+		_, _ = fmt.Fprintf(w, `{"ff":{"s":%s,"t":%s,"d":[%s]},"rbs":{"s":%s,"t":%s,"d":[%s]}}`, since, ffT, ffD, rbSince, rbT, rbD)
+	case strings.Contains(r.URL.Path, "/segmentChanges/startSeg"):
+		since := q.Get("since")
+		if since == "-1" {
+			_, _ = fmt.Fprint(w, `{"name":"startSeg","added":["alice","erin","frank"],"removed":[],"since":-1,"till":10}`)
+			return
+		}
+		_, _ = fmt.Fprintf(w, `{"name":"startSeg","added":[],"removed":[],"since":%s,"till":%s}`, since, since)
+	default:
+		_, _ = w.Write([]byte(`{}`))
+	}
+}
+
+// TestStartWarmBootResponseParity runs a cold boot child and then a warm (from Redis, cloud down) child and compares
+// what the proxy serves to SDKs.
+func TestStartWarmBootResponseParity(t *testing.T) {
+	startRequireRedis(t)
+	if os.Getenv(parityRoleEnv) != "" {
+		t.Skip("child process")
+	}
+	prefix := startTestPrefix(t)
+	out := t.TempDir()
+	run := func(role string) {
+		cmd := exec.Command(os.Args[0], "-test.run=^TestStartWarmBootResponseParityChild$", "-test.count=1", "-test.v")
+		cmd.Env = append(os.Environ(), parityRoleEnv+"="+role, parityPrefixEnv+"="+prefix, parityOutEnv+"="+out)
+		o, err := cmd.CombinedOutput()
+		if err != nil || !strings.Contains(string(o), "--- PASS: TestStartWarmBootResponseParityChild") {
+			t.Fatalf("%s child failed: %v\n%s", role, err, o)
+		}
+	}
+	run("cold")
+	run("warm")
+
+	load := func(role string) map[string]parityResult {
+		raw, err := os.ReadFile(filepath.Join(out, role+".json"))
+		if err != nil {
+			t.Fatalf("read %s results: %v", role, err)
+		}
+		var rs []parityResult
+		if err := json.Unmarshal(raw, &rs); err != nil {
+			t.Fatalf("decode %s results: %v", role, err)
+		}
+		m := map[string]parityResult{}
+		for _, r := range rs {
+			m[r.Name] = r
+		}
+		return m
+	}
+	cold, warm := load("cold"), load("warm")
+	for _, ep := range parityEndpoints {
+		c, w := cold[ep.Name], warm[ep.Name]
+		if ep.Name == "splitChanges-1.3-since-1" && !(strings.Contains(c.Body, `"startRbs"`) && strings.Contains(c.Body, "carol")) {
+			t.Errorf("the cold body does not carry the rule-based segment, the comparison would be vacuous: %s", c.Body)
+		}
+		t.Logf("%s: cold=%d warm=%d\n  cold body: %s\n  warm body: %s", ep.Name, c.Status, w.Status, c.Body, w.Body)
+		if c.Status != w.Status {
+			t.Errorf("DEFECT candidate %s: status cold=%d warm=%d", ep.Name, c.Status, w.Status)
+			continue
+		}
+		if c.Body == w.Body {
+			continue
+		}
+		// Normalization 1 (documented): string arrays are compared as sets, since segment members and segment
+		// lists are served from maps/sorted sets and JSON array order is not part of the contract.
+		if parityCanonical(t, c.Body) == parityCanonical(t, w.Body) {
+			t.Logf("NOTE %s: bodies differ only in array element order", ep.Name)
+			continue
+		}
+		t.Errorf("DEFECT candidate %s: bodies differ\n cold: %s\n warm: %s", ep.Name, c.Body, w.Body)
+	}
+}
+
+// parityCanonical decodes JSON and sorts every string-only array so order differences vanish.
+func parityCanonical(t *testing.T, body string) string {
+	t.Helper()
+	var v interface{}
+	if err := json.Unmarshal([]byte(body), &v); err != nil {
+		return body
+	}
+	var walk func(x interface{}) interface{}
+	walk = func(x interface{}) interface{} {
+		switch y := x.(type) {
+		case map[string]interface{}:
+			for k, e := range y {
+				y[k] = walk(e)
+			}
+		case []interface{}:
+			allStr := true
+			for i, e := range y {
+				y[i] = walk(e)
+				if _, ok := y[i].(string); !ok {
+					allStr = false
+				}
+			}
+			if allStr {
+				sort.Slice(y, func(i, j int) bool { return y[i].(string) < y[j].(string) })
+			}
+		}
+		return x
+	}
+	b, _ := json.Marshal(walk(v))
+	return string(b)
+}
+
+// TestStartWarmBootResponseParityChild is the body run by the parent in a separate process; it does nothing on its own.
+func TestStartWarmBootResponseParityChild(t *testing.T) {
+	role := os.Getenv(parityRoleEnv)
+	if role == "" {
+		t.Skip("only runs as a child of TestStartWarmBootResponseParity")
+	}
+	prefix, out := os.Getenv(parityPrefixEnv), os.Getenv(parityOutEnv)
+
+	cloudURL := closedCloudURL(t)
+	if role == "cold" {
+		srv := httptest.NewServer(http.HandlerFunc(parityCloudHandler))
+		defer srv.Close()
+		cloudURL = srv.URL
+	}
+	cfg := startTestConfig(t, cloudURL, prefix)
+	cfg.FlagSpecVersion = "1.3"
+	cfg.Server.ClientApikeys = []string{paritySDKKey}
+	cfg.Storage.Redis.WriteBackoffMaxMs = 200
+
+	logger := &startTestLogger{}
+	done := startInBackground(logger, cfg)
+	if role == "cold" {
+		waitForStartLog(t, done, logger, "Synchronizer tasks started", 60*time.Second)
+		if logger.has("starting from redis state") {
+			t.Fatalf("cold child booted from redis; the prefix was not empty\nlogs:\n%s", logger.dump())
+		}
+		parityWaitMirrored(t, prefix, done, logger)
+	} else {
+		waitForStartLog(t, done, logger, "starting from redis state", 60*time.Second)
+	}
+
+	base := fmt.Sprintf("http://127.0.0.1:%d", cfg.Server.Port)
+	var results []parityResult
+	for _, ep := range parityEndpoints {
+		var res parityResult
+		deadline := time.Now().Add(30 * time.Second)
+		for {
+			req, _ := http.NewRequest(http.MethodGet, base+ep.Path, nil)
+			req.Header.Set("Authorization", "Bearer "+paritySDKKey)
+			resp, err := http.DefaultClient.Do(req)
+			if err == nil {
+				b, _ := io.ReadAll(resp.Body)
+				_ = resp.Body.Close()
+				res = parityResult{Name: ep.Name, Status: resp.StatusCode, Body: string(bytes.TrimSpace(b))}
+				if resp.StatusCode != http.StatusUnauthorized {
+					break
+				}
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("%s: no usable response (%v)\nlogs:\n%s", ep.Name, err, logger.dump())
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+		results = append(results, res)
+	}
+	if role == "warm" && !logger.has("Failed to perform initial sync") {
+		t.Logf("note: warm child did not log a failed initial sync before fetching")
+	}
+	raw, _ := json.Marshal(results)
+	if err := os.WriteFile(filepath.Join(out, role+".json"), raw, 0o600); err != nil {
+		t.Fatalf("write results: %v", err)
+	}
+}
+
+// parityWaitMirrored waits until Redis holds the flag cursor, the rule-based segment cursor and the three segment members.
+func parityWaitMirrored(t *testing.T, prefix string, done <-chan error, logger *startTestLogger) {
+	t.Helper()
+	keys, err := redisstate.NewKeys(prefix, "startTestApikey-0123456789abcdef", "startns")
+	if err != nil {
+		t.Fatalf("NewKeys: %v", err)
+	}
+	raw := goredis.NewClient(&goredis.Options{Addr: "localhost:6379"})
+	defer func() { _ = raw.Close() }()
+	ctx := context.Background()
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		flags, _ := raw.HGet(ctx, keys.Meta(), keys.FlagCursorField()).Result()
+		rbs, _ := raw.HGet(ctx, keys.Meta(), keys.RuleBasedSegmentCursorField()).Result()
+		seg, _ := raw.HGet(ctx, keys.Meta(), keys.SegmentCursorField("startSeg")).Result()
+		card := raw.ZCard(ctx, keys.SegmentActive("startSeg")).Val()
+		if flags == "3" && rbs == "4" && seg == "10" && card == 3 {
+			return
+		}
+		select {
+		case err := <-done:
+			t.Fatalf("Start returned: %v", err)
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("redis not mirrored: flags=%q rbs=%q seg=%q card=%d\nlogs:\n%s", flags, rbs, seg, card, logger.dump())
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }
