@@ -1688,22 +1688,39 @@ func (w *Writer) writeEntities(what, script string, keys []string, cursorField s
 		g.written(part, cur)
 		return nil
 	}
-	skipEntity := func(name string, cause error) {
+	// skipEntity counts one refused entity; the chunk logs one line for all of its entities
+	skipEntity := func(name string) {
 		skipped = true
 		g.addSkip(name, w.opts.MaxPendingChanges)
-		w.reject(fmt.Sprintf("redis state: %s entity %q was refused by Redis, skipped: %v", what, name, cause))
+		w.reject("")
 	}
+	// refusedChunks counts the chunks in a row in which Redis took no entity; the first chunk Redis takes anything of resets it
+	refusedChunks, notWritten := 0, 0
+	var lastRefusal error
 	for i := 0; i < n; i++ {
+		if refusedChunks >= maxConsecutiveRefusals {
+			// the cause is not a bad entity: stop sending, count the rest and log once
+			rest := ents[i*w.opts.ChunkSize:]
+			for _, e := range rest {
+				g.addSkip(e.name, w.opts.MaxPendingChanges)
+			}
+			skipped = true
+			g.freezeWhole()
+			w.rejectN(len(rest), fmt.Sprintf("redis state: %s stopped after %d consecutive refused chunks, %d entities not written and the group is frozen until the next resync: %v", what, refusedChunks, notWritten+len(rest), lastRefusal))
+			break
+		}
 		part := span(ents, i*w.opts.ChunkSize, (i+1)*w.opts.ChunkSize, 0)
 		last := i == n-1
 		err := send(part, last)
 		if err == nil {
+			refusedChunks = 0
 			continue
 		}
 		if !errors.Is(err, errChunkRejected) {
 			return refused, err
 		}
 		refused = true
+		lastRefusal = err
 		if len(part) == 0 {
 			// the cursor-only call was refused: nothing can be isolated, the cursor must not move
 			skipped = true
@@ -1712,23 +1729,29 @@ func (w *Writer) writeEntities(what, script string, keys []string, cursorField s
 			continue
 		}
 		if len(part) < 2 {
-			for _, e := range part {
-				skipEntity(e.name, err)
-			}
+			skipEntity(part[0].name)
+			notWritten++
+			refusedChunks++
+			w.logger.Error(fmt.Sprintf("redis state: %s entity %q was refused by Redis, skipped: %v", what, part[0].name, err))
 			continue
 		}
-		w.logger.Error(fmt.Sprintf("redis state: %s chunk of %d entities was refused by Redis, retrying one entity at a time: %v", what, len(part), err))
-		consecutive := 0
+		consecutive, skippedInChunk, taken, first, early := 0, 0, false, "", ""
 		for j := range part {
 			err := send(part[j:j+1], last && j == len(part)-1)
 			if err == nil {
 				consecutive = 0
+				taken = true
 				continue
 			}
 			if !errors.Is(err, errChunkRejected) {
 				return refused, err
 			}
-			skipEntity(part[j].name, err)
+			lastRefusal = err
+			skipEntity(part[j].name)
+			if skippedInChunk == 0 {
+				first = part[j].name
+			}
+			skippedInChunk++
 			consecutive++
 			if consecutive >= maxConsecutiveRefusals && j < len(part)-1 {
 				// the cause is not one bad entity: skip the rest of the chunk without calling Redis and freeze the group
@@ -1738,10 +1761,19 @@ func (w *Writer) writeEntities(what, script string, keys []string, cursorField s
 				}
 				skipped = true
 				g.freezeWhole()
-				w.rejectN(len(rest), fmt.Sprintf("redis state: %s stopped isolating after %d consecutive refusals, %d more entities skipped and the group is frozen until the next resync: %v", what, consecutive, len(rest), err))
+				w.rejectN(len(rest), "")
+				skippedInChunk += len(rest)
+				early = fmt.Sprintf(", stopped isolating after %d consecutive refusals", consecutive)
 				break
 			}
 		}
+		notWritten += skippedInChunk
+		if taken {
+			refusedChunks = 0
+		} else {
+			refusedChunks++
+		}
+		w.logger.Error(fmt.Sprintf("redis state: %s chunk of %d entities was refused by Redis, %d skipped, the first of them %q%s: %v", what, len(part), skippedInChunk, first, early, lastRefusal))
 	}
 	if skipped {
 		w.skipsSeen = true
@@ -1775,31 +1807,45 @@ func (w *Writer) writeSegment(name string, adds, rems []segmentKey, cursor int64
 		g.written(nil, cur)
 		return nil
 	}
-	skipKey := func(cause error) {
+	// skipKey counts one refused key; the chunk logs one line for all of its keys
+	skipKey := func() {
 		skipped = true
 		w.skipsSeen = true
 		g.freezeWhole()
-		w.reject(fmt.Sprintf("redis state: segment %s has a key refused by Redis, skipped: %v", name, cause))
+		w.reject("")
 	}
 	consecutive := 0
 	// tooMany reports whether the cap is reached; the rest of the chunk is then skipped without calling Redis
-	tooMany := func(rest int, cause error) bool {
+	tooMany := func(rest int) bool {
 		if consecutive < maxConsecutiveRefusals || rest == 0 {
 			return false
 		}
 		skipped = true
 		w.skipsSeen = true
 		g.freezeWhole()
-		w.rejectN(rest, fmt.Sprintf("redis state: segment %s stopped isolating after %d consecutive refusals, %d more keys skipped and the segment is frozen until the next resync: %v", name, consecutive, rest, cause))
+		w.rejectN(rest, "")
 		return true
 	}
+	// refusedChunks counts the chunks in a row in which Redis took no key; the first chunk Redis takes anything of resets it
+	refusedChunks, notWritten := 0, 0
+	var lastRefusal error
 	for i := 0; i < n; i++ {
 		lo, hi := i*size, (i+1)*size
+		if refusedChunks >= maxConsecutiveRefusals {
+			// the cause is not a bad key: stop sending, count the rest and log once
+			rest := total - lo
+			skipped = true
+			w.skipsSeen = true
+			g.freezeWhole()
+			w.rejectN(rest, fmt.Sprintf("redis state: segment %s stopped after %d consecutive refused chunks, %d keys not written and the segment is frozen until the next resync: %v", name, refusedChunks, notWritten+rest, lastRefusal))
+			break
+		}
 		a := span(adds, lo, hi, 0)
 		r := span(rems, lo, hi, len(adds))
 		last := i == n-1
 		err := send(a, r, last)
 		if err == nil {
+			refusedChunks = 0
 			continue
 		}
 		if !errors.Is(err, errChunkRejected) {
@@ -1814,19 +1860,18 @@ func (w *Writer) writeSegment(name string, adds, rems []segmentKey, cursor int64
 			w.logger.Error(fmt.Sprintf("redis state: segment %s cursor update was refused by Redis, the segment is frozen until the next resync: %v", name, err))
 			continue
 		}
-		if len(a)+len(r) < 2 {
-			for range a {
-				skipKey(err)
-			}
-			for range r {
-				skipKey(err)
-			}
+		count := len(a) + len(r)
+		lastRefusal = err
+		if count < 2 {
+			skipKey()
+			notWritten++
+			refusedChunks++
+			w.logger.Error(fmt.Sprintf("redis state: segment %s chunk of %d key was refused by Redis, skipped: %v", name, count, err))
 			continue
 		}
-		w.logger.Error(fmt.Sprintf("redis state: segment %s chunk of %d keys was refused by Redis, retrying one key at a time: %v", name, len(a)+len(r), err))
 		consecutive = 0
-		stop := false
-		for j := 0; j < len(a)+len(r) && !stop; j++ {
+		stop, taken, skippedInChunk, early := false, false, 0, ""
+		for j := 0; j < count && !stop; j++ {
 			var err error
 			if j < len(a) {
 				err = send(a[j:j+1], nil, last && len(r) == 0 && j == len(a)-1)
@@ -1836,15 +1881,28 @@ func (w *Writer) writeSegment(name string, adds, rems []segmentKey, cursor int64
 			}
 			if err == nil {
 				consecutive = 0
+				taken = true
 				continue
 			}
 			if !errors.Is(err, errChunkRejected) {
 				return refused, err
 			}
-			skipKey(err)
+			lastRefusal = err
+			skipKey()
+			skippedInChunk++
 			consecutive++
-			stop = tooMany(len(a)+len(r)-j-1, err)
+			if stop = tooMany(count - j - 1); stop {
+				skippedInChunk += count - j - 1
+				early = fmt.Sprintf(", stopped isolating after %d consecutive refusals", consecutive)
+			}
 		}
+		notWritten += skippedInChunk
+		if taken {
+			refusedChunks = 0
+		} else {
+			refusedChunks++
+		}
+		w.logger.Error(fmt.Sprintf("redis state: segment %s chunk of %d keys was refused by Redis, %d keys skipped%s: %v", name, count, skippedInChunk, early, lastRefusal))
 	}
 	if skipped {
 		w.logger.Error(fmt.Sprintf("redis state: segment %s skipped some data, the stored cursor was not advanced; the skipped data is not retried until the next resync", name))

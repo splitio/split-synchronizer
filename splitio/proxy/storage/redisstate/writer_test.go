@@ -1,11 +1,13 @@
 package redisstate
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net"
+	"os/exec"
 	"reflect"
 	"runtime"
 	"slices"
@@ -17,7 +19,10 @@ import (
 	"testing"
 	"time"
 
+	goredis "github.com/redis/go-redis/v9"
+	config "github.com/splitio/go-split-commons/v10/conf"
 	"github.com/splitio/go-split-commons/v10/dtos"
+	commonsredis "github.com/splitio/go-split-commons/v10/storage/redis"
 	"github.com/splitio/split-synchronizer/v5/splitio/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1493,9 +1498,9 @@ func TestWriterRefusedChunkIsolatesBadEntity(t *testing.T) {
 	e.log.mu.Lock()
 	msgs := append([]string(nil), e.log.errors...)
 	e.log.mu.Unlock()
-	require.Len(t, msgs, 3, "the refused chunk, the refused entity and the skipped data are logged")
+	require.Len(t, msgs, 2, "the refused chunk (with its skipped entity) and the skipped data are logged")
 	assert.Contains(t, msgs[0], "chunk of 3 entities", "the chunk refusal is logged once, with the Redis text")
-	assert.Contains(t, msgs[1], `"bad"`)
+	assert.Contains(t, msgs[0], `"bad"`)
 }
 
 func TestWriterOverflowWithoutSourceDoesNotScheduleResync(t *testing.T) {
@@ -4081,6 +4086,58 @@ func TestPermanentChunkRefusalIsBounded(t *testing.T) {
 	assert.True(t, whole, "the group is frozen so the cursor does not pass the skipped data")
 }
 
+// wtNopermZadd is the reply of a user that may EVAL but not ZADD
+const wtNopermZadd = "ERR ACL failure in script: User nozadd has no permissions to run the 'zadd' command script: abc, on @user_script:65."
+
+func wtRefusedSegmentRun(t *testing.T, chunks int) *wtEnv {
+	t.Helper()
+	opts := wtOptions()
+	opts.ChunkSize = 10
+	e := newWtEnv(t, opts)
+	e.client.fail = func(int, wtCall) error { return errors.New(wtNopermZadd) }
+	members := wtKeysOf(chunks*opts.ChunkSize, "m")
+	e.w.PutSegment("big", members, nil, 3)
+	require.NoError(t, e.w.Start(nil))
+	wtWaitUntil(t, "the segment is refused", func() bool {
+		st := e.w.Status()
+		return st.RejectedChanges >= int64(len(members)) && st.PendingChanges == 0
+	})
+	e.stop()
+	return e
+}
+
+func TestPermanentRefusalLogVolumeIsBoundedBySegmentSize(t *testing.T) {
+	var lines, calls []int
+	for _, chunks := range []int{4, 12, 100} {
+		e := wtRefusedSegmentRun(t, chunks)
+		text := e.log.errorText()
+		assert.Contains(t, text, "nozadd", "the Redis text is logged (%d chunks)", chunks)
+		st := e.w.Status()
+		assert.False(t, st.Healthy, "stays unhealthy (%d chunks)", chunks)
+		assert.Equal(t, int64(chunks*10), st.RejectedChanges, "every key not written is counted (%d chunks)", chunks)
+		assert.Zero(t, st.DroppedChanges, "a permanent refusal is not a transient drop (%d chunks)", chunks)
+		lines = append(lines, e.log.errorCount())
+		calls = append(calls, e.client.count())
+		t.Logf("%d chunks: %d Error lines, %d Eval calls", chunks, e.log.errorCount(), e.client.count())
+		// at most one line per refused chunk, plus the summary and the skipped-data line
+		assert.LessOrEqual(t, e.log.errorCount(), min(chunks, maxConsecutiveRefusals)+2, "%d chunks", chunks)
+	}
+	assert.Equal(t, lines[1], lines[2], "the line count does not grow with the segment size")
+	assert.Equal(t, calls[1], calls[2], "the Eval calls do not grow with the segment size")
+}
+
+func TestPermanentRefusalSummaryCarriesCounts(t *testing.T) {
+	e := wtRefusedSegmentRun(t, 12)
+	text := e.log.errorText()
+	assert.Contains(t, text, "5 consecutive refused chunks")
+	assert.Contains(t, text, "120 keys not written")
+	assert.Contains(t, text, "nozadd")
+	e.w.mtx.Lock()
+	whole := e.w.freezeOf(e.w.keys.SegmentCursorField("big")).whole
+	e.w.mtx.Unlock()
+	assert.True(t, whole, "the segment stays frozen so the cursor does not pass the skipped data")
+}
+
 func TestCursorOnlyRefusalIsLoggedAndFreezes(t *testing.T) {
 	e := newWtEnv(t, wtOptions())
 	e.client.fail = func(int, wtCall) error { return errors.New("PROXY_BAD_ARGS cursor") }
@@ -4156,4 +4213,365 @@ func TestSecondStartDoesNotProbeRedis(t *testing.T) {
 	before := e.client.count()
 	require.NoError(t, e.w.Start(nil))
 	assert.Equal(t, before, e.client.count(), "the second Start returns before touching Redis")
+}
+
+// The tests below run against their own redis-server on a free port (never 6379): CLIENT PAUSE, ACL and wrong-typed keys
+// change server state. They skip when redis-server is not on PATH.
+
+type ftServer struct {
+	port  int
+	admin *goredis.Client
+}
+
+func ftStartRedis(t *testing.T) *ftServer {
+	t.Helper()
+	bin, err := exec.LookPath("redis-server")
+	if err != nil {
+		t.Skip("redis-server is not on PATH")
+	}
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	port := l.Addr().(*net.TCPAddr).Port
+	require.NoError(t, l.Close())
+	require.NotEqual(t, 6379, port)
+	require.NotEqual(t, 6390, port)
+	cmd := exec.Command(bin, "--port", strconv.Itoa(port), "--bind", "127.0.0.1", "--save", "", "--appendonly", "no", "--dir", t.TempDir())
+	require.NoError(t, cmd.Start())
+	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
+	admin := goredis.NewClient(&goredis.Options{Addr: fmt.Sprintf("127.0.0.1:%d", port), MaxRetries: -1, ReadTimeout: 30 * time.Second})
+	t.Cleanup(func() { _ = admin.Close() })
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if admin.Ping(context.Background()).Err() == nil {
+			break
+		}
+		require.True(t, time.Now().Before(deadline), "own redis-server did not start")
+		time.Sleep(20 * time.Millisecond)
+	}
+	return &ftServer{port: port, admin: admin}
+}
+
+func (s *ftServer) cfg(prefix string) *config.RedisConfig {
+	// MaxRetries -1 turns off the go-redis internal retries so the Writer's own retry policy is what is observed. The
+	// timeouts are whole seconds (the config unit), so the call timeout is 1 s.
+	return &config.RedisConfig{Host: "127.0.0.1", Port: s.port, Network: "tcp", Prefix: prefix, DialTimeout: 1, ReadTimeout: 1, WriteTimeout: 1, MaxRetries: -1}
+}
+
+func (s *ftServer) evalCalls(t *testing.T) int64 {
+	t.Helper()
+	info, err := s.admin.Info(context.Background(), "commandstats").Result()
+	require.NoError(t, err)
+	var total int64
+	for _, line := range strings.Split(info, "\n") {
+		for _, name := range []string{"cmdstat_eval:", "cmdstat_evalsha:"} {
+			if rest, ok := strings.CutPrefix(strings.TrimSpace(line), name); ok {
+				// calls=12,usec=...
+				first := strings.SplitN(rest, ",", 2)[0]
+				n, err := strconv.ParseInt(strings.TrimPrefix(first, "calls="), 10, 64)
+				require.NoError(t, err)
+				total += n
+			}
+		}
+	}
+	return total
+}
+
+// ftSource is a mutable local state the writer resyncs from.
+type ftSource struct {
+	mu       sync.Mutex
+	flags    []dtos.SplitDTO
+	flagsCn  int64
+	segs     []SegmentState
+	passes   atomic.Int64
+	flagCall atomic.Int64
+}
+
+func (s *ftSource) Flags() ([]dtos.SplitDTO, int64, error) {
+	s.flagCall.Add(1)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]dtos.SplitDTO(nil), s.flags...), s.flagsCn, nil
+}
+func (s *ftSource) RuleBasedSegments() ([]dtos.RuleBasedSegmentDTO, int64, error) {
+	return nil, -1, nil
+}
+func (s *ftSource) Segments(visit func(SegmentState) error) error {
+	s.mu.Lock()
+	segs := append([]SegmentState(nil), s.segs...)
+	s.mu.Unlock()
+	for _, seg := range segs {
+		if err := visit(seg); err != nil {
+			return err
+		}
+	}
+	s.passes.Add(1)
+	return nil
+}
+
+func ftSeg(name string, from, to int, cn int64) SegmentState {
+	a := map[string]int64{}
+	for i := from; i < to; i++ {
+		a[fmt.Sprintf("%s-k%05d", name, i)] = cn
+	}
+	return SegmentState{Name: name, Active: a, Removed: map[string]int64{}, ChangeNumber: cn}
+}
+
+func ftOpts() Options {
+	o := DefaultOptions()
+	o.BackoffMaxWait = 200 * time.Millisecond
+	return o
+}
+
+func ftWriter(t *testing.T, srv *ftServer, prefix string, opts Options, log *wtLogger) (*Writer, Keys, *config.RedisConfig) {
+	t.Helper()
+	cfg := srv.cfg(prefix)
+	client, err := commonsredis.NewRedisClient(cfg, log)
+	require.NoError(t, err)
+	keys, err := NewKeys(client.Prefix(), "ft-key", "")
+	require.NoError(t, err)
+	w, err := NewWriter(client, keys, wtFingerprint, opts, log)
+	require.NoError(t, err)
+	t.Cleanup(w.Stop)
+	return w, keys, cfg
+}
+
+func ftEventually(t *testing.T, what string, d time.Duration, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(d)
+	for !cond() {
+		require.True(t, time.Now().Before(deadline), "timed out waiting for: %s", what)
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func (l *wtLogger) ftErrors() []string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return append([]string(nil), l.errors...)
+}
+
+// (1) CLIENT PAUSE longer than the writer's call timeout while it writes.
+func TestWriterClientPauseDropsThenRecovers(t *testing.T) {
+	srv := ftStartRedis(t)
+	log := &wtLogger{}
+	w, _, _ := ftWriter(t, srv, "ftpause", ftOpts(), log)
+
+	const segCount, keysPer = 5, 3000
+	src := &ftSource{flagsCn: 1}
+	var names []string
+	for j := 0; j < segCount; j++ {
+		names = append(names, fmt.Sprintf("seg%d", j))
+		src.segs = append(src.segs, ftSeg(names[j], 0, keysPer, 1))
+	}
+	src.flags = []dtos.SplitDTO{wtFlag("f1", 1, "ACTIVE")}
+	require.NoError(t, w.Start(src))
+	ftEventually(t, "initial resync", 15*time.Second, func() bool {
+		s := w.Status()
+		return src.passes.Load() >= 1 && s.Healthy && s.PendingChanges == 0
+	})
+	require.Zero(t, w.Status().DroppedChanges)
+	baseErrors := len(log.ftErrors())
+
+	// pause 6 s with a 1 s call timeout and 3 attempts per call: the first change alone cannot get through
+	pause := 6 * time.Second
+	require.NoError(t, srv.admin.Do(context.Background(), "CLIENT", "PAUSE", strconv.Itoa(int(pause.Milliseconds())), "ALL").Err())
+	pausedAt := time.Now()
+	src.mu.Lock()
+	src.flagsCn = 2
+	src.flags = []dtos.SplitDTO{wtFlag("f1", 2, "ACTIVE")}
+	for j := range src.segs {
+		src.segs[j] = ftSeg(names[j], 0, 2*keysPer, 2)
+	}
+	src.mu.Unlock()
+	for j := 0; j < segCount; j++ {
+		add := make([]string, 0, keysPer)
+		for i := keysPer; i < 2*keysPer; i++ {
+			add = append(add, fmt.Sprintf("%s-k%05d", names[j], i))
+		}
+		w.PutSegment(names[j], add, nil, 2)
+	}
+	w.PutFlags([]dtos.SplitDTO{wtFlag("f1", 2, "ACTIVE")}, nil, 2)
+
+	var sawUnhealthy bool
+	var passesAtDrop int64
+	var stickyViolations, samples int
+	var maxErrs int
+	deadline := time.Now().Add(25 * time.Second)
+	for {
+		require.True(t, time.Now().Before(deadline), "no clean resync within 25 s; status=%+v", w.Status())
+		s := w.Status()
+		samples++
+		if n := len(log.ftErrors()) - baseErrors; n > maxErrs {
+			maxErrs = n
+		}
+		if !sawUnhealthy && !s.Healthy {
+			passesAtDrop = src.passes.Load()
+			sawUnhealthy = true
+		}
+		if sawUnhealthy && s.Healthy && src.passes.Load() == passesAtDrop {
+			stickyViolations++
+		}
+		if sawUnhealthy && s.Healthy && s.PendingChanges == 0 && src.passes.Load() > passesAtDrop && time.Since(pausedAt) > pause {
+			break
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	status := w.Status()
+	errLines := log.ftErrors()[baseErrors:]
+	t.Logf("pause=%s recovered after %s samples=%d status=%+v error_lines=%d", pause, time.Since(pausedAt).Round(time.Millisecond), samples, status, len(errLines))
+	for i, l := range errLines {
+		if i < 6 {
+			t.Logf("error[%d]: %.220s", i, l)
+		}
+	}
+	assert.True(t, sawUnhealthy, "status never turned unhealthy during the pause")
+	assert.Zero(t, stickyViolations, "Healthy turned true before a clean resync completed")
+	assert.GreaterOrEqual(t, status.DroppedChanges, int64(1), "a change must have been dropped and accounted")
+	assert.LessOrEqual(t, status.DroppedChanges, int64(segCount+1))
+	// bounded logs: far fewer error lines than the %d keys that were in flight, and no line dumps entity names
+	assert.LessOrEqual(t, len(errLines), 30, "error log flood")
+	for _, l := range errLines {
+		assert.Less(t, len(l), 1500, "an error line is suspiciously long: %.200s", l)
+	}
+
+	// consistency restored: the cursors and the member counts in Redis equal the source
+	ctx := context.Background()
+	keys, err := NewKeys(w.client.Prefix(), "ft-key", "")
+	require.NoError(t, err)
+	meta := keys.Meta()
+	flagCursor, err := srv.admin.HGet(ctx, meta, keys.FlagCursorField()).Result()
+	require.NoError(t, err)
+	assert.Equal(t, "2", flagCursor)
+	for _, n := range names {
+		cursor, err := srv.admin.HGet(ctx, meta, keys.SegmentCursorField(n)).Result()
+		require.NoError(t, err)
+		assert.Equal(t, "2", cursor, n)
+		card, err := srv.admin.ZCard(ctx, keys.SegmentActive(n)).Result()
+		require.NoError(t, err)
+		assert.Equal(t, int64(2*keysPer), card, n)
+	}
+}
+
+// (2) ACL: a user that may not run scripts, then a user that may run them but not ZADD.
+func TestWriterAclRefusalIsPermanentAndBounded(t *testing.T) {
+	srv := ftStartRedis(t)
+	ctx := context.Background()
+	require.NoError(t, srv.admin.Do(ctx, "ACL", "SETUSER", "noeval", "on", ">pw", "~*", "&*", "+@all", "-eval", "-evalsha", "-script", "-fcall").Err())
+	require.NoError(t, srv.admin.Do(ctx, "ACL", "SETUSER", "nozadd", "on", ">pw", "~*", "&*", "+@all", "-zadd").Err())
+
+	t.Run("no EVAL permission", func(t *testing.T) {
+		log := &wtLogger{}
+		cfg := srv.cfg("ftnoeval")
+		cfg.Username, cfg.Password = "noeval", "pw"
+		client, err := commonsredis.NewRedisClient(cfg, log)
+		require.NoError(t, err)
+		keys, err := NewKeys(client.Prefix(), "ft-key", "")
+		require.NoError(t, err)
+		w, err := NewWriter(client, keys, wtFingerprint, ftOpts(), log)
+		require.NoError(t, err)
+		t.Cleanup(w.Stop)
+		before := srv.evalCalls(t)
+		err = w.Start(nil)
+		t.Logf("Start error: %v", err)
+		require.Error(t, err, "the start probe must be rejected")
+		assert.Contains(t, err.Error(), "NOPERM")
+		// Start wraps the probe rejection in a fatal InitError (fail fast at boot); the permanent class applies to the worker path
+		var initErr *common.InitializationError
+		t.Logf("Start error is a common.InitializationError: %v", errors.As(err, &initErr))
+		assert.Equal(t, errPermanent, classify(errors.New("NOPERM User noeval has no permissions to run the 'eval' command")))
+		time.Sleep(1500 * time.Millisecond)
+		// denied commands never reach EVAL stats, so the check is on the writer side: no worker, no logs
+		assert.LessOrEqual(t, len(log.ftErrors()), 2)
+		assert.Equal(t, before, srv.evalCalls(t))
+	})
+
+	t.Run("EVAL allowed but ZADD denied", func(t *testing.T) {
+		log := &wtLogger{}
+		cfg := srv.cfg("ftnozadd")
+		cfg.Username, cfg.Password = "nozadd", "pw"
+		client, err := commonsredis.NewRedisClient(cfg, log)
+		require.NoError(t, err)
+		keys, err := NewKeys(client.Prefix(), "ft-key", "")
+		require.NoError(t, err)
+		w, err := NewWriter(client, keys, wtFingerprint, ftOpts(), log)
+		require.NoError(t, err)
+		t.Cleanup(w.Stop)
+		err = w.Start(nil)
+		t.Logf("Start error: %v", err)
+		if err != nil {
+			// the probe may need ZADD; then it is rejected as permanent at start, which is also acceptable
+			assert.Equal(t, errPermanent, classify(err))
+			return
+		}
+		before := srv.evalCalls(t)
+		big := make([]string, 12000)
+		for i := range big {
+			big[i] = fmt.Sprintf("k%05d", i)
+		}
+		w.PutSegment("s1", big, nil, 1)
+		w.PutFlags([]dtos.SplitDTO{wtFlag("f1", 1, "ACTIVE")}, nil, 1)
+		ftEventually(t, "queue drained", 10*time.Second, func() bool { return w.Status().PendingChanges == 0 })
+		afterWrite := srv.evalCalls(t)
+		time.Sleep(2 * time.Second)
+		idle := srv.evalCalls(t)
+		s := w.Status()
+		errLines := log.ftErrors()
+		t.Logf("status=%+v eval_calls_for_write=%d eval_calls_idle_2s=%d error_lines=%d", s, afterWrite-before, idle-afterWrite, len(errLines))
+		for i, l := range errLines {
+			if i < 4 {
+				t.Logf("error[%d]: %.260s", i, l)
+			}
+		}
+		assert.False(t, s.Healthy)
+		assert.Contains(t, s.LastError, "user_script")
+		assert.Equal(t, errPermanent, classify(errors.New(s.LastError)))
+		assert.Zero(t, idle-afterWrite, "hot loop: Eval calls while idle")
+		assert.LessOrEqual(t, afterWrite-before, int64(60), "bounded Eval calls for 12001 keys, independent of the segment size")
+		// 12000 keys = 12 chunks of 1000 (plus the flag): the log is allowed to grow per chunk, never per key
+		assert.LessOrEqual(t, len(errLines), 12, "error log flood: bounded, not O(chunks)")
+		assert.Zero(t, s.DroppedChanges, "a permanent refusal is not a transient drop")
+	})
+}
+
+// (3) a key of the wrong type where the script expects a hash or a sorted set.
+func TestWriterWrongTypeKeyIsPermanentAndBounded(t *testing.T) {
+	srv := ftStartRedis(t)
+	log := &wtLogger{}
+	w, keys, cfg := ftWriter(t, srv, "ftwt", ftOpts(), log)
+	ctx := context.Background()
+	require.NoError(t, w.Start(nil))
+	w.PutFlags([]dtos.SplitDTO{wtFlag("f1", 1, "ACTIVE")}, nil, 1)
+	w.PutSegment("s1", []string{"a", "b"}, nil, 1)
+	ftEventually(t, "initial write", 10*time.Second, func() bool { s := w.Status(); return s.Healthy && s.PendingChanges == 0 && s.LastSuccessUnixMs > 0 })
+
+	// strings where a hash (flag data) and a sorted set (segment active) are expected
+	require.NoError(t, srv.admin.Del(ctx, keys.FlagData(), keys.SegmentActive("s1")).Err())
+	require.NoError(t, srv.admin.Set(ctx, keys.FlagData(), "not-a-hash", 0).Err())
+	require.NoError(t, srv.admin.Set(ctx, keys.SegmentActive("s1"), "not-a-zset", 0).Err())
+	before := srv.evalCalls(t)
+	w.PutFlags([]dtos.SplitDTO{wtFlag("f1", 2, "ACTIVE")}, nil, 2)
+	w.PutSegment("s1", []string{"c", "d"}, nil, 2)
+	ftEventually(t, "queue drained", 10*time.Second, func() bool { return w.Status().PendingChanges == 0 })
+	afterWrite := srv.evalCalls(t)
+	time.Sleep(1500 * time.Millisecond)
+	idle := srv.evalCalls(t)
+	s := w.Status()
+	errLines := log.ftErrors()
+	t.Logf("status=%+v eval_calls=%d idle_calls=%d error_lines=%d", s, afterWrite-before, idle-afterWrite, len(errLines))
+	for i, l := range errLines {
+		if i < 4 {
+			t.Logf("error[%d]: %.260s", i, l)
+		}
+	}
+	assert.False(t, s.Healthy)
+	assert.Contains(t, s.LastError, DataWrongTypeMarker)
+	assert.Equal(t, errPermanent, classify(errors.New(s.LastError)))
+	assert.Equal(t, "PROXY_DATA_WRONGTYPE", DataWrongTypeMarker)
+	assert.Zero(t, idle-afterWrite, "hot loop")
+	assert.Zero(t, s.DroppedChanges, "permanent class, not a transient drop")
+	assert.Greater(t, s.RefusedChanges+s.RejectedChanges, int64(0))
+	assert.LessOrEqual(t, len(errLines), 20)
+	joined := strings.Join(errLines, "\n")
+	assert.Contains(t, joined, DataWrongTypeMarker)
+	_ = cfg
 }
