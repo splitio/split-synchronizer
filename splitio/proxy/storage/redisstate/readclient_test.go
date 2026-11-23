@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
-	"runtime/debug"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -122,12 +122,13 @@ func TestNewReadClientTLS(t *testing.T) {
 const libCommonsVersion = "v10.2.1"
 
 func TestReadClientOptionMappingMatchesLibrary(t *testing.T) {
-	info, ok := debug.ReadBuildInfo()
-	require.True(t, ok, "build info is needed to check the go-split-commons version")
+	// go.mod is read instead of debug.ReadBuildInfo: test binaries built by Go 1.26 carry no dependency list.
+	mod, err := os.ReadFile("../../../../go.mod")
+	require.NoError(t, err)
 	var got string
-	for _, dep := range info.Deps {
-		if dep.Path == "github.com/splitio/go-split-commons/v10" {
-			got = dep.Version
+	for _, line := range strings.Split(string(mod), "\n") {
+		if fields := strings.Fields(line); len(fields) >= 2 && fields[0] == "github.com/splitio/go-split-commons/v10" {
+			got = fields[1]
 		}
 	}
 	require.Equal(t, libCommonsVersion, got, "go-split-commons changed: re-read storage/redis/redis.go NewRedisClient, update this table and libCommonsVersion")

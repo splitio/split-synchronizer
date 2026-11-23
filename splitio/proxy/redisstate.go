@@ -10,6 +10,7 @@ import (
 	"math"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -153,7 +154,7 @@ func setupRedisState(cfg *pconf.Main, logger logging.LoggerInterface, splits *st
 	if err := validateRedisStateSettings(&redisCfg); err != nil {
 		return nil, err
 	}
-	opts, err := common.ParseRedisOptions(&redisCfg.Connection)
+	opts, err := common.ParseRedisStateOptions(&redisCfg.Connection)
 	if err != nil {
 		return nil, common.NewInitError(fmt.Errorf("error parsing redis state config: %w", err), common.ExitInvalidConfiguration)
 	}
@@ -223,8 +224,13 @@ func newLeaseOwner() string {
 // isRedisUnavailable reports whether err means Redis could not be reached, as opposed to a configuration or protocol error.
 func isRedisUnavailable(err error) bool {
 	var netErr net.Error
-	return errors.As(err, &netErr) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, context.DeadlineExceeded)
+	return errors.As(err, &netErr) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, context.DeadlineExceeded) ||
+		strings.Contains(err.Error(), redisSentinelsUnreachable)
 }
+
+// redisSentinelsUnreachable is the message go-redis (v9.7.3, sentinel.go) returns when no sentinel answers. It is a
+// plain error with no exported value, so the message is the only thing to match on.
+const redisSentinelsUnreachable = "all sentinels specified in configuration are unreachable"
 
 // redisStateSupervisor owns the writer role for the lifetime of the proxy (D10). The role loop in writerrole.go
 // acquires the lease after the gate opens, runs one Writer per term and steps down when the lease is lost.

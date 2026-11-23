@@ -118,7 +118,10 @@ local apply = cn > cur
     redis.call('HSET', KEYS[2], name, ARGV[b + 3])
     redis.call('ZADD', KEYS[3], cn, name)
     if removed then
-      redis.call('ZADD', KEYS[4], now, name)
+      -- an entity that is already tombstoned keeps its first removal time, so retention is not restarted by a resync
+      if redis.call('ZSCORE', KEYS[4], name) == false then
+        redis.call('ZADD', KEYS[4], now, name)
+      end
     else
       redis.call('ZREM', KEYS[4], name)
     end

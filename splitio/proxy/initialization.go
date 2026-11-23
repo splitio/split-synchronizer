@@ -65,6 +65,10 @@ func start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		return common.NewInitError(errors.New("treatment overrides require offline mode in this version"), common.ExitInvalidConfiguration)
 	}
 
+	if err := cfg.Storage.Redis.Validate(); err != nil {
+		return common.NewInitError(err, common.ExitInvalidConfiguration)
+	}
+
 	if cfg.Offline {
 		return startOffline(logger, cfg)
 	}
@@ -326,6 +330,7 @@ func start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	/// specified refresh period)
 	before := time.Now()
 	err = startBGSync(syncManager, mstatus, firstSyncMayRetry(haveLocalState, boot), func() {
+		liftRestoreTillCaps(splitStorage, ruleBasedStorage, segmentStorage)
 		logger.Info("Synchronizer tasks started")
 		// Opens the writer gate. In lease mode the writer's own Start resync runs against the populated source, because the
 		// gate opens before any acquire, so no second resync is scheduled (D11).
@@ -470,13 +475,13 @@ var (
 const maskedSecret = "********"
 
 // maskAdminConfigSecrets masks the credentials in the config served by the admin API: the Redis
-// state connection credentials (username, password, TLS client key), the admin password and the
-// client apikeys. It mutates only the struct it is given, so callers pass a value copy of the
+// state connection credentials (username, password, TLS client key), the admin password, the Slack webhook
+// (its URL carries a secret token) and the client apikeys. It mutates only the struct it is given, so callers pass a value copy of the
 // config. The apikeys slice is replaced rather than edited, because the copy shares its backing
 // array with the live config.
 func maskAdminConfigSecrets(cfg *pconf.Main) {
 	conn := &cfg.Storage.Redis.Connection
-	for _, secret := range []*string{&conn.Username, &conn.Pass, &conn.TLSClientKey, &cfg.Storage.Redis.OfflineFingerprint, &cfg.Admin.Password} {
+	for _, secret := range []*string{&conn.Username, &conn.Pass, &conn.TLSClientKey, &cfg.Storage.Redis.OfflineFingerprint, &cfg.Admin.Password, &cfg.Integrations.Slack.Webhook} {
 		if *secret != "" {
 			*secret = maskedSecret
 		}

@@ -59,7 +59,7 @@ var newBootReadClient bootClientOpener = openRedisBootReadClient
 
 // openRedisBootReadClient builds the read client from the redis state config. It opens no connection.
 func openRedisBootReadClient(cfg *pconf.Main) (bootReadClient, error) {
-	opts, err := common.ParseRedisOptions(&cfg.Storage.Redis.Connection)
+	opts, err := common.ParseRedisStateOptions(&cfg.Storage.Redis.Connection)
 	if err != nil {
 		return nil, common.NewInitError(fmt.Errorf("error parsing redis state config: %w", err), common.ExitInvalidConfiguration)
 	}
@@ -243,6 +243,14 @@ func applyRedisCursors(boot BootDecision, splits *storage.ProxySplitStorageImpl,
 		return common.NewInitError(fmt.Errorf("error applying redis state cursors: %w", err), common.ExitRedisInitializationFailed)
 	}
 	return nil
+}
+
+// liftRestoreTillCaps lifts the till caps ApplyCommittedCursors set. Call it once the first sync has succeeded: the
+// sync has then redelivered everything above the committed cursors, so the real till can be served.
+func liftRestoreTillCaps(splits *storage.ProxySplitStorageImpl, rbs *storage.ProxyRuleBasedSegmentsStorageImpl, segs *storage.ProxySegmentStorageImpl) {
+	splits.LiftServedTillCap()
+	rbs.LiftServedTillCap()
+	segs.LiftServedTillCaps()
 }
 
 // maxLoggedSkipped caps how many skipped segments are named in one log line.

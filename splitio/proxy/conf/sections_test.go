@@ -164,3 +164,29 @@ func TestProxyRedisStateFlagNames(t *testing.T) {
 		t.Errorf("unexpected prefixed flag storage-redis-state-enabled")
 	}
 }
+
+func TestRedisStateValidateRejectsClusterWhenEnabled(t *testing.T) {
+	cases := []struct {
+		name string
+		rs   RedisState
+		ok   bool
+	}{
+		{"disabled with cluster mode is accepted", RedisState{Enabled: false, Connection: conf.Redis{ClusterMode: true, ClusterNodes: "a:1"}}, true},
+		{"enabled standalone is accepted", RedisState{Enabled: true}, true},
+		{"enabled with cluster mode is rejected", RedisState{Enabled: true, Connection: conf.Redis{ClusterMode: true}}, false},
+		{"enabled with cluster nodes is rejected", RedisState{Enabled: true, Connection: conf.Redis{ClusterNodes: "a:1,b:2"}}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.rs.Validate()
+			if tc.ok && err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+			if !tc.ok {
+				if err == nil || !strings.Contains(err.Error(), "cluster") {
+					t.Fatalf("expected a cluster error, got %v", err)
+				}
+			}
+		})
+	}
+}

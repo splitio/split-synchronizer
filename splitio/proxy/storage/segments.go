@@ -34,6 +34,17 @@ type ProxySegmentStorageImpl struct {
 	db             persistent.SegmentChangesCollection
 	mysegments     optimized.MySegmentsCache
 	redis          atomic.Pointer[redisstate.SegmentWriter] // nil when the Redis state is disabled or not attached yet
+	tillCap        tillCaps
+}
+
+// CapServedTill holds the till served by ChangesSince for the segment at its committed cursor cn until lifted.
+func (s *ProxySegmentStorageImpl) CapServedTill(name string, cn int64) {
+	s.tillCap.set(name, cn)
+}
+
+// LiftServedTillCaps lifts every till cap set by CapServedTill.
+func (s *ProxySegmentStorageImpl) LiftServedTillCaps() {
+	s.tillCap.lift()
 }
 
 // WithRedisWriter sets the writer that mirrors segment key changes to Redis (nil disables it) and returns the receiver. It is safe to call while updates are running, the writer may be attached after startup
@@ -103,6 +114,8 @@ func (s *ProxySegmentStorageImpl) ChangesSince(name string, since int64) (*dtos.
 			till = skey.ChangeNumber
 		}
 	}
+
+	till = s.tillCap.apply(name, till, since)
 
 	return &dtos.SegmentChangesDTO{Name: name, Since: since, Till: till, Added: added, Removed: removed}, nil
 }

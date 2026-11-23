@@ -3,6 +3,7 @@ package persistent
 import (
 	"bytes"
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -78,9 +79,17 @@ func (c *SegmentChangesCollectionImpl) Update(name string, toAdd *set.ThreadUnsa
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	// Error is most likely that the segment isn't yet cached.
-	// In the worst case, the update will fail later in the method
-	segmentItem, _ := c.fetch(name)
+	segmentItem, err := c.fetch(name)
+	if err != nil && !errors.Is(err, ErrorKeyNotFound) && !errors.Is(err, ErrorBucketNotFound) {
+		// The record cannot be read and applying a delta on top of it is not possible. Drop it and forget the change
+		// number so the next fetch starts from -1 and rebuilds the segment from a full snapshot. This update is not applied.
+		c.logger.Error(fmt.Sprintf("segment %s is unreadable, dropping it so it is rebuilt from a full snapshot: %s", name, err))
+		if delErr := c.collection.Delete([]byte(name)); delErr != nil {
+			return fmt.Errorf("error dropping unreadable segment %s: %w (read error: %v)", name, delErr, err)
+		}
+		delete(c.segmentsTill, name)
+		return fmt.Errorf("error reading segment %s before update, it will be rebuilt: %w", name, err)
+	}
 	if segmentItem == nil {
 		segmentItem = &SegmentChangesItem{}
 		segmentItem.Name = name
@@ -116,7 +125,7 @@ func (c *SegmentChangesCollectionImpl) Update(name string, toAdd *set.ThreadUnsa
 		}
 	}
 
-	err := c.collection.SaveAs([]byte(name), segmentItem)
+	err = c.collection.SaveAs([]byte(name), segmentItem)
 	if err != nil {
 		return fmt.Errorf("error saving segment changes to bolt: %w", err)
 	}

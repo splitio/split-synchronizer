@@ -712,6 +712,9 @@ func TestNonRemovedChangeNumberMismatchIsTornThenCorrupt(t *testing.T) {
 // With a concurrent monotonic writer (run with -race), a read is Valid or Corrupt, never a mixed view.
 func TestConcurrentWriterGivesValidOrCorruptNeverMixed(t *testing.T) {
 	c, keys := gapsState(t)
+	// The fixture starts with ref_seg cursor 10 over data at 2, which breaks "cursor <= data". Put it on a
+	// consistent generation first, so a read that runs before the writer's first step is not a false failure.
+	c.mutate(func() { gapsGeneration(c, keys, 5) })
 	stop := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Add(1)

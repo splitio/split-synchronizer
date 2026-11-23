@@ -14,9 +14,20 @@ import (
 	config "github.com/splitio/go-split-commons/v10/conf"
 )
 
-// ParseRedisOptions builds the go-split-commons Redis configuration from the shared Redis options
+// ParseRedisOptions builds the Redis configuration for the synchronizer. It keeps the behavior the
+// synchronizer always had: no TLS minimum version and no start-time validation of the options.
 func ParseRedisOptions(cfg *conf.Redis) (*config.RedisConfig, error) {
-	tlsCfg, err := parseTLSConfig(cfg)
+	return parseRedisOptions(cfg, false)
+}
+
+// ParseRedisStateOptions builds the Redis configuration for the proxy Redis state connection. On top of
+// ParseRedisOptions it sets a TLS 1.2 floor and validates the port, sentinel addresses/master and cluster nodes.
+func ParseRedisStateOptions(cfg *conf.Redis) (*config.RedisConfig, error) {
+	return parseRedisOptions(cfg, true)
+}
+
+func parseRedisOptions(cfg *conf.Redis, strict bool) (*config.RedisConfig, error) {
+	tlsCfg, err := parseTLSConfig(cfg, strict)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing redis tls config options: %w", err)
 	}
@@ -35,6 +46,11 @@ func ParseRedisOptions(cfg *conf.Redis) (*config.RedisConfig, error) {
 	}
 
 	if cfg.SentinelReplication {
+		if !strict {
+			redisCfg.SentinelAddresses = strings.Split(cfg.SentinelAddresses, ",")
+			redisCfg.SentinelMaster = cfg.SentinelMaster
+			return redisCfg, nil
+		}
 		redisCfg.SentinelAddresses = splitAddresses(cfg.SentinelAddresses)
 		if len(redisCfg.SentinelAddresses) == 0 {
 			return nil, errors.New("sentinel addresses must not be empty")
@@ -45,12 +61,16 @@ func ParseRedisOptions(cfg *conf.Redis) (*config.RedisConfig, error) {
 		}
 	} else if cfg.ClusterMode {
 		redisCfg.ClusterKeyHashTag = cfg.ClusterKeyHashTag
+		if !strict {
+			redisCfg.ClusterNodes = strings.Split(cfg.ClusterNodes, ",")
+			return redisCfg, nil
+		}
 		redisCfg.ClusterNodes = splitAddresses(cfg.ClusterNodes)
 		if len(redisCfg.ClusterNodes) == 0 {
 			return nil, errors.New("cluster nodes must not be empty")
 		}
 	} else {
-		if cfg.Port < 1 || cfg.Port > 65535 {
+		if strict && (cfg.Port < 1 || cfg.Port > 65535) {
 			return nil, fmt.Errorf("redis port must be 1..65535, got %d", cfg.Port)
 		}
 		redisCfg.Host = cfg.Host
@@ -83,28 +103,40 @@ func firstAddress(addrs []string) string {
 func hostOf(addr string) string {
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
+		if strings.HasPrefix(addr, "[") && strings.HasSuffix(addr, "]") {
+			return addr[1 : len(addr)-1]
+		}
 		return addr
 	}
 	return host
 }
 
-func parseTLSConfig(opt *conf.Redis) (*tls.Config, error) {
+// addressServerName returns the host of the first sentinel address, or of the first cluster node, or an empty string
+func addressServerName(opt *conf.Redis) string {
+	if opt.SentinelReplication {
+		return hostOf(firstAddress(splitAddresses(opt.SentinelAddresses)))
+	}
+	if opt.ClusterMode {
+		return hostOf(firstAddress(splitAddresses(opt.ClusterNodes)))
+	}
+	return ""
+}
+
+// parseTLSConfig builds the TLS config; strict adds the TLS 1.2 floor and the sentinel/cluster server name default
+func parseTLSConfig(opt *conf.Redis, strict bool) (*tls.Config, error) {
 	if !opt.TLS {
 		return nil, nil
 	}
 
-	cfg := tls.Config{ServerName: opt.TLSServerName, MinVersion: tls.VersionTLS12}
-	if cfg.ServerName == "" {
-		cfg.ServerName = opt.Host
+	cfg := tls.Config{ServerName: opt.TLSServerName}
+	if strict {
+		cfg.MinVersion = tls.VersionTLS12
+	}
+	if cfg.ServerName == "" && strict {
+		cfg.ServerName = addressServerName(opt)
 	}
 	if cfg.ServerName == "" {
-		var first string
-		if opt.SentinelReplication {
-			first = firstAddress(splitAddresses(opt.SentinelAddresses))
-		} else if opt.ClusterMode {
-			first = firstAddress(splitAddresses(opt.ClusterNodes))
-		}
-		cfg.ServerName = hostOf(first)
+		cfg.ServerName = opt.Host
 	}
 
 	if len(opt.TLSCACertificates) > 0 {
@@ -116,7 +148,7 @@ func parseTLSConfig(opt *conf.Redis) (*tls.Config, error) {
 			}
 			ok := certPool.AppendCertsFromPEM(pemData)
 			if !ok {
-				return nil, fmt.Errorf("failed to add certificate %s to the TLS configuration", cacert)
+				return nil, fmt.Errorf("failed to add certificate %s to the TLS configuration: ", cacert)
 			}
 		}
 		cfg.RootCAs = certPool
@@ -137,7 +169,7 @@ func parseTLSConfig(opt *conf.Redis) (*tls.Config, error) {
 		cfg.Certificates = []tls.Certificate{certPair}
 	} else if opt.TLSClientKey != opt.TLSClientCertificate {
 		// If they aren't both set, and they aren't equal, it means that only one is set, which is invalid.
-		return nil, errors.New("you must provide either both client certificate and client private key, or none")
+		return nil, errors.New("You must provide either both client certificate and client private key, or none")
 	}
 
 	return &cfg, nil

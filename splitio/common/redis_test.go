@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestParseRedisOptions(t *testing.T) {
+func TestParseRedisStateOptions(t *testing.T) {
 	t.Run("standalone", func(t *testing.T) {
 		cfg := &conf.Redis{Host: "redis.local", Port: 1234, Db: 2, Network: "tcp", PoolSize: 5}
-		opts, err := ParseRedisOptions(cfg)
+		opts, err := ParseRedisStateOptions(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, "redis.local", opts.Host)
 		assert.Equal(t, 1234, opts.Port)
@@ -32,7 +32,7 @@ func TestParseRedisOptions(t *testing.T) {
 			ClusterMode:         true,
 			ClusterNodes:        "c1:6379",
 		}
-		opts, err := ParseRedisOptions(cfg)
+		opts, err := ParseRedisStateOptions(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, []string{"s1:26379", "s2:26379"}, opts.SentinelAddresses)
 		assert.Equal(t, "mymaster", opts.SentinelMaster)
@@ -47,7 +47,7 @@ func TestParseRedisOptions(t *testing.T) {
 			ClusterNodes:      "c1:6379,c2:6379",
 			ClusterKeyHashTag: "{SPLITIO}",
 		}
-		opts, err := ParseRedisOptions(cfg)
+		opts, err := ParseRedisStateOptions(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, []string{"c1:6379", "c2:6379"}, opts.ClusterNodes)
 		assert.Equal(t, "{SPLITIO}", opts.ClusterKeyHashTag)
@@ -55,81 +55,81 @@ func TestParseRedisOptions(t *testing.T) {
 	})
 
 	t.Run("tls disabled yields no tls config", func(t *testing.T) {
-		opts, err := ParseRedisOptions(&conf.Redis{Host: "h", Port: 6379})
+		opts, err := ParseRedisStateOptions(&conf.Redis{Host: "h", Port: 6379})
 		assert.NoError(t, err)
 		assert.Nil(t, opts.TLSConfig)
 	})
 
 	t.Run("tls with missing CA file fails", func(t *testing.T) {
 		cfg := &conf.Redis{Host: "h", TLS: true, TLSCACertificates: []string{"/does/not/exist/ca.pem"}}
-		_, err := ParseRedisOptions(cfg)
+		_, err := ParseRedisStateOptions(cfg)
 		assert.Error(t, err)
 	})
 
 	t.Run("tls client key without certificate fails", func(t *testing.T) {
 		cfg := &conf.Redis{Host: "h", TLS: true, TLSClientKey: "key.pem"}
-		_, err := ParseRedisOptions(cfg)
+		_, err := ParseRedisStateOptions(cfg)
 		assert.Error(t, err)
 	})
 }
 
 func TestParseTLSConfigMinVersion12(t *testing.T) {
-	cfg, err := parseTLSConfig(&conf.Redis{TLS: true, Host: "redis.local"})
+	cfg, err := parseTLSConfig(&conf.Redis{TLS: true, Host: "redis.local"}, true)
 	assert.NoError(t, err)
 	if assert.NotNil(t, cfg) {
 		assert.Equal(t, uint16(tls.VersionTLS12), cfg.MinVersion)
 	}
 }
 
-func TestParseRedisOptionsTrimsAddressLists(t *testing.T) {
-	sentinel, err := ParseRedisOptions(&conf.Redis{SentinelReplication: true, SentinelAddresses: "a:1, b:2", SentinelMaster: "m"})
+func TestParseRedisStateOptionsTrimsAddressLists(t *testing.T) {
+	sentinel, err := ParseRedisStateOptions(&conf.Redis{SentinelReplication: true, SentinelAddresses: "a:1, b:2", SentinelMaster: "m"})
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"a:1", "b:2"}, sentinel.SentinelAddresses)
 
-	cluster, err := ParseRedisOptions(&conf.Redis{ClusterMode: true, ClusterNodes: " a:1 ,,b:2, "})
+	cluster, err := ParseRedisStateOptions(&conf.Redis{ClusterMode: true, ClusterNodes: " a:1 ,,b:2, "})
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"a:1", "b:2"}, cluster.ClusterNodes)
 }
 
-func TestParseRedisOptionsEmptyAddressListsAreErrors(t *testing.T) {
-	_, err := ParseRedisOptions(&conf.Redis{SentinelReplication: true, SentinelAddresses: " , ", SentinelMaster: "m"})
+func TestParseRedisStateOptionsEmptyAddressListsAreErrors(t *testing.T) {
+	_, err := ParseRedisStateOptions(&conf.Redis{SentinelReplication: true, SentinelAddresses: " , ", SentinelMaster: "m"})
 	assert.EqualError(t, err, "sentinel addresses must not be empty")
 
-	_, err = ParseRedisOptions(&conf.Redis{ClusterMode: true, ClusterNodes: ""})
+	_, err = ParseRedisStateOptions(&conf.Redis{ClusterMode: true, ClusterNodes: ""})
 	assert.EqualError(t, err, "cluster nodes must not be empty")
 }
 
-func TestParseRedisOptionsSentinelMasterValidation(t *testing.T) {
+func TestParseRedisStateOptionsSentinelMasterValidation(t *testing.T) {
 	t.Run("blank master is rejected", func(t *testing.T) {
-		_, err := ParseRedisOptions(&conf.Redis{SentinelReplication: true, SentinelAddresses: "s1:26379", SentinelMaster: "  "})
+		_, err := ParseRedisStateOptions(&conf.Redis{SentinelReplication: true, SentinelAddresses: "s1:26379", SentinelMaster: "  "})
 		assert.EqualError(t, err, "sentinel master must not be empty")
 	})
 
 	t.Run("master is stored trimmed", func(t *testing.T) {
-		opts, err := ParseRedisOptions(&conf.Redis{SentinelReplication: true, SentinelAddresses: "s1:26379", SentinelMaster: " mymaster "})
+		opts, err := ParseRedisStateOptions(&conf.Redis{SentinelReplication: true, SentinelAddresses: "s1:26379", SentinelMaster: " mymaster "})
 		assert.NoError(t, err)
 		assert.Equal(t, "mymaster", opts.SentinelMaster)
 	})
 }
 
-func TestParseRedisOptionsPortValidation(t *testing.T) {
+func TestParseRedisStateOptionsPortValidation(t *testing.T) {
 	for _, port := range []int{0, -1, 65536} {
 		t.Run(fmt.Sprintf("rejects port %d", port), func(t *testing.T) {
-			_, err := ParseRedisOptions(&conf.Redis{Host: "h", Port: port})
+			_, err := ParseRedisStateOptions(&conf.Redis{Host: "h", Port: port})
 			assert.EqualError(t, err, fmt.Sprintf("redis port must be 1..65535, got %d", port))
 		})
 	}
 
 	for _, port := range []int{1, 6379, 65535} {
 		t.Run(fmt.Sprintf("accepts port %d", port), func(t *testing.T) {
-			opts, err := ParseRedisOptions(&conf.Redis{Host: "h", Port: port})
+			opts, err := ParseRedisStateOptions(&conf.Redis{Host: "h", Port: port})
 			assert.NoError(t, err)
 			assert.Equal(t, port, opts.Port)
 		})
 	}
 }
 
-func TestParseRedisOptionsTLSServerNameDefault(t *testing.T) {
+func TestParseRedisStateOptionsTLSServerNameDefault(t *testing.T) {
 	cases := []struct {
 		name     string
 		cfg      conf.Redis
@@ -156,8 +156,28 @@ func TestParseRedisOptionsTLSServerNameDefault(t *testing.T) {
 			expected: "custom.example",
 		},
 		{
-			name:     "host wins over addresses",
-			cfg:      conf.Redis{TLS: true, Host: "h.example", ClusterMode: true, ClusterNodes: "c1.example:6379"},
+			name:     "sentinel host wins over default localhost host",
+			cfg:      conf.Redis{TLS: true, Host: "localhost", SentinelReplication: true, SentinelAddresses: "s1.example:26379", SentinelMaster: "m"},
+			expected: "s1.example",
+		},
+		{
+			name:     "cluster node wins over default localhost host",
+			cfg:      conf.Redis{TLS: true, Host: "localhost", ClusterMode: true, ClusterNodes: "c1.example:6379"},
+			expected: "c1.example",
+		},
+		{
+			name:     "explicit server name wins over sentinel addresses",
+			cfg:      conf.Redis{TLS: true, TLSServerName: "custom.example", Host: "localhost", SentinelReplication: true, SentinelAddresses: "s1.example:26379", SentinelMaster: "m"},
+			expected: "custom.example",
+		},
+		{
+			name:     "host is used when neither sentinel nor cluster is set",
+			cfg:      conf.Redis{TLS: true, Host: "h.example", SentinelAddresses: "s1.example:26379", ClusterNodes: "c1.example:6379"},
+			expected: "h.example",
+		},
+		{
+			name:     "host is used when sentinel list is empty",
+			cfg:      conf.Redis{TLS: true, Host: "h.example", SentinelReplication: true, SentinelAddresses: " , "},
 			expected: "h.example",
 		},
 	}
@@ -165,11 +185,85 @@ func TestParseRedisOptionsTLSServerNameDefault(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := tc.cfg
-			tlsCfg, err := parseTLSConfig(&cfg)
+			tlsCfg, err := parseTLSConfig(&cfg, true)
 			assert.NoError(t, err)
 			if assert.NotNil(t, tlsCfg) {
 				assert.Equal(t, tc.expected, tlsCfg.ServerName)
 			}
 		})
+	}
+}
+
+func TestParseTLSConfigNonStrictServerName(t *testing.T) {
+	cfg := conf.Redis{TLS: true, Host: "localhost", SentinelReplication: true, SentinelAddresses: "s1.example:26379", SentinelMaster: "m"}
+	tlsCfg, err := parseTLSConfig(&cfg, false)
+	assert.NoError(t, err)
+	if assert.NotNil(t, tlsCfg) {
+		assert.Equal(t, "localhost", tlsCfg.ServerName)
+	}
+}
+
+func TestParseTLSConfigDisabledReturnsNil(t *testing.T) {
+	for _, strict := range []bool{true, false} {
+		cfg := conf.Redis{Host: "localhost", SentinelReplication: true, SentinelAddresses: "s1.example:26379"}
+		tlsCfg, err := parseTLSConfig(&cfg, strict)
+		assert.NoError(t, err)
+		assert.Nil(t, tlsCfg)
+	}
+}
+
+func TestParseRedisOptionsKeepsSynchronizerBehavior(t *testing.T) {
+	t.Run("tls has no minimum version", func(t *testing.T) {
+		opts, err := ParseRedisOptions(&conf.Redis{TLS: true, Host: "redis.local", Port: 6379})
+		assert.NoError(t, err)
+		if assert.NotNil(t, opts.TLSConfig) {
+			assert.Equal(t, uint16(0), opts.TLSConfig.MinVersion)
+			assert.Equal(t, "redis.local", opts.TLSConfig.ServerName)
+		}
+	})
+
+	t.Run("tls server name is not derived from address lists", func(t *testing.T) {
+		opts, err := ParseRedisOptions(&conf.Redis{TLS: true, ClusterMode: true, ClusterNodes: "c1.example:6379"})
+		assert.NoError(t, err)
+		if assert.NotNil(t, opts.TLSConfig) {
+			assert.Equal(t, "", opts.TLSConfig.ServerName)
+		}
+	})
+
+	t.Run("no start-time validation", func(t *testing.T) {
+		opts, err := ParseRedisOptions(&conf.Redis{Host: "h", Port: 0})
+		assert.NoError(t, err)
+		assert.Equal(t, 0, opts.Port)
+
+		opts, err = ParseRedisOptions(&conf.Redis{SentinelReplication: true})
+		assert.NoError(t, err)
+		assert.Equal(t, []string{""}, opts.SentinelAddresses)
+		assert.Equal(t, "", opts.SentinelMaster)
+
+		opts, err = ParseRedisOptions(&conf.Redis{ClusterMode: true, ClusterNodes: "a:1, b:2"})
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"a:1", " b:2"}, opts.ClusterNodes)
+	})
+}
+
+func TestParseRedisStateOptionsTLSMinVersion12(t *testing.T) {
+	opts, err := ParseRedisStateOptions(&conf.Redis{TLS: true, Host: "redis.local", Port: 6379})
+	assert.NoError(t, err)
+	if assert.NotNil(t, opts.TLSConfig) {
+		assert.Equal(t, uint16(tls.VersionTLS12), opts.TLSConfig.MinVersion)
+	}
+}
+
+func TestHostOf(t *testing.T) {
+	cases := map[string]string{
+		"[::1]":         "::1",
+		"[::1]:26379":   "::1",
+		"host:26379":    "host",
+		"host":          "host",
+		"10.0.0.1:6379": "10.0.0.1",
+		"":              "",
+	}
+	for in, want := range cases {
+		assert.Equal(t, want, hostOf(in), in)
 	}
 }

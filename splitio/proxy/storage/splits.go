@@ -38,6 +38,17 @@ type ProxySplitStorageImpl struct {
 	oldestKnownCN int64
 	mtx           sync.Mutex
 	redis         redisstate.FlagWriter // nil when the Redis state is disabled
+	tillCap       tillCaps
+}
+
+// CapServedTill caps the till served by incremental ChangesSince at cn, keeping the cap until LiftServedTillCap is called.
+func (p *ProxySplitStorageImpl) CapServedTill(cn int64) {
+	p.tillCap.set("", cn)
+}
+
+// LiftServedTillCap removes the till cap set by CapServedTill, so incremental ChangesSince serves the real till again.
+func (p *ProxySplitStorageImpl) LiftServedTillCap() {
+	p.tillCap.lift()
 }
 
 // NewProxySplitStorage instantiates a new proxy storage that wraps an in-memory snapshot of the last known,
@@ -113,6 +124,7 @@ func (p *ProxySplitStorageImpl) ChangesSince(since int64, flagSets []string) (*d
 		all = append(all, *split)
 	}
 
+	till = p.tillCap.apply("", till, since)
 	return &dtos.SplitChangesDTO{Since: since, Till: till, Splits: all}, nil
 }
 

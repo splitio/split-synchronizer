@@ -319,6 +319,8 @@ func TestMaskAdminConfigSecrets(t *testing.T) {
 	live.Admin.Username = "admin-user"
 	live.Admin.Password = "admin-placeholder-pw"
 	live.Server.ClientApikeys = []string{"client-key-1", "client-key-2"}
+	live.Integrations.Slack.Webhook = "https://hooks.slack.com/services/T000/B000/placeholder-token"
+	live.Integrations.Slack.Channel = "#alerts"
 
 	cfgForAdmin := *live
 	maskAdminConfigSecrets(&cfgForAdmin)
@@ -343,6 +345,16 @@ func TestMaskAdminConfigSecrets(t *testing.T) {
 		if key != maskedSecret {
 			t.Errorf("expected client apikey %d masked in admin copy, got %q", i, key)
 		}
+	}
+
+	if cfgForAdmin.Integrations.Slack.Webhook != maskedSecret {
+		t.Errorf("expected slack webhook masked in admin copy, got %q", cfgForAdmin.Integrations.Slack.Webhook)
+	}
+	if cfgForAdmin.Integrations.Slack.Channel != "#alerts" {
+		t.Errorf("slack channel should not be masked, got %q", cfgForAdmin.Integrations.Slack.Channel)
+	}
+	if live.Integrations.Slack.Webhook != "https://hooks.slack.com/services/T000/B000/placeholder-token" {
+		t.Errorf("live slack webhook was mutated: %q", live.Integrations.Slack.Webhook)
 	}
 
 	orig := live.Storage.Redis.Connection
@@ -1183,6 +1195,68 @@ func TestStartValidRedisCloudUpSyncsFromCommittedCursor(t *testing.T) {
 	}
 	if got[0] != committed {
 		t.Errorf("first splitChanges since = %q, want the committed flag cursor %q\nlogs:\n%s", got[0], committed, logger.dump())
+	}
+}
+
+// A flag stored above the committed cursor is served with the till capped at the cursor until the first sync succeeds,
+// and with its real till after: start must lift the caps from the sync-ready callback.
+func TestStartLiftsRestoreTillCapAfterFirstSync(t *testing.T) {
+	startRequireRedis(t)
+	if !isolatedStartTest(t) {
+		return
+	}
+	cloud := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if !strings.HasSuffix(r.URL.Path, "/splitChanges") {
+			_, _ = w.Write([]byte(`{}`))
+			return
+		}
+		since := r.URL.Query().Get("since")
+		_, _ = fmt.Fprintf(w, `{"splits":[],"since":%s,"till":%s}`, since, since)
+	}))
+	defer cloud.Close()
+
+	cfg := startTestConfig(t, cloud.URL, startTestPrefix(t))
+	keys := startSeedRedisFlags(t, cfg)
+	above, err := json.Marshal(startTestFlag("aboveCursor", 5))
+	if err != nil {
+		t.Fatalf("marshal flag: %v", err)
+	}
+	raw := goredis.NewClient(&goredis.Options{Addr: "localhost:6379"})
+	defer func() { _ = raw.Close() }()
+	if err := raw.HSet(context.Background(), keys.FlagData(), "aboveCursor", string(above)).Err(); err != nil {
+		t.Fatalf("seed flag data: %v", err)
+	}
+	if err := raw.ZAdd(context.Background(), keys.FlagIndex(), goredis.Z{Score: 5, Member: "aboveCursor"}).Err(); err != nil {
+		t.Fatalf("seed flag index: %v", err)
+	}
+
+	var splits *storage.ProxySplitStorageImpl
+	tillAtRestore := int64(-1)
+	afterRestoreHook = func(s *storage.ProxySplitStorageImpl) {
+		splits = s
+		if changes, err := s.ChangesSince(3, nil); err == nil {
+			tillAtRestore = changes.Till
+		}
+	}
+	t.Cleanup(func() { afterRestoreHook = nil })
+
+	logger := &startTestLogger{}
+	done := startInBackground(logger, cfg)
+	waitForStartLog(t, done, logger, "Synchronizer tasks started", 60*time.Second)
+
+	if tillAtRestore != 3 {
+		t.Errorf("till served right after the restore: want the cursor 3, got %d\nlogs:\n%s", tillAtRestore, logger.dump())
+	}
+	if splits == nil {
+		t.Fatalf("afterRestoreHook did not run\nlogs:\n%s", logger.dump())
+	}
+	changes, err := splits.ChangesSince(3, nil)
+	if err != nil {
+		t.Fatalf("ChangesSince after the first sync: %v", err)
+	}
+	if changes.Till != 5 {
+		t.Errorf("till after the first sync: want the real till 5, got %d\nlogs:\n%s", changes.Till, logger.dump())
 	}
 }
 
