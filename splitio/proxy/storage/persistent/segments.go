@@ -3,6 +3,7 @@ package persistent
 import (
 	"bytes"
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -78,9 +79,12 @@ func (c *SegmentChangesCollectionImpl) Update(name string, toAdd *set.ThreadUnsa
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	// Error is most likely that the segment isn't yet cached.
-	// In the worst case, the update will fail later in the method
-	segmentItem, _ := c.fetch(name)
+	segmentItem, err := c.fetch(name)
+	if err != nil && !errors.Is(err, ErrorKeyNotFound) && !errors.Is(err, ErrorBucketNotFound) {
+		// A stored record that cannot be read must not be replaced by an empty item, that would drop its keys.
+		c.logger.Error(fmt.Sprintf("error reading segment %s before update: %s", name, err))
+		return fmt.Errorf("error reading segment %s before update: %w", name, err)
+	}
 	if segmentItem == nil {
 		segmentItem = &SegmentChangesItem{}
 		segmentItem.Name = name
@@ -116,7 +120,7 @@ func (c *SegmentChangesCollectionImpl) Update(name string, toAdd *set.ThreadUnsa
 		}
 	}
 
-	err := c.collection.SaveAs([]byte(name), segmentItem)
+	err = c.collection.SaveAs([]byte(name), segmentItem)
 	if err != nil {
 		return fmt.Errorf("error saving segment changes to bolt: %w", err)
 	}

@@ -255,6 +255,40 @@ func TestSegmentChangesCollectionFetchDecodeErrorIsReturned(t *testing.T) {
 	}
 }
 
+func TestSegmentChangesCollectionUpdateReturnsDecodeErrorAndKeepsRecord(t *testing.T) {
+	logger := logging.NewLogger(nil)
+	c := &SegmentChangesCollectionImpl{
+		collection:   &fetchByCollection{data: []byte("not gob"), logger: logger},
+		segmentsTill: make(map[string]int64),
+		logger:       logger,
+	}
+	err := c.Update("seg", set.NewSet("a"), set.NewSet(), 1)
+	if err == nil {
+		t.Fatal("expected Update to return the decode error instead of replacing the corrupt record")
+	}
+	if !strings.Contains(err.Error(), "decoding segment seg") {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if _, ok := c.segmentsTill["seg"]; ok {
+		t.Error("change number must not advance when Update fails")
+	}
+}
+
+func TestSegmentChangesCollectionUpdateCreatesSegmentWhenMissing(t *testing.T) {
+	dbw, err := NewBoltWrapper(BoltInMemoryMode, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := NewSegmentChangesCollection(dbw, logging.NewLogger(nil))
+	if err := c.Update("fresh", set.NewSet("a"), set.NewSet(), 5); err != nil {
+		t.Fatalf("Update on a missing segment must succeed: %v", err)
+	}
+	item, err := c.Fetch("fresh")
+	if err != nil || item == nil || len(item.Keys) != 1 {
+		t.Fatalf("unexpected item %+v err %v", item, err)
+	}
+}
+
 type signalingCollection struct {
 	CollectionWrapper
 	fetched chan struct{}
