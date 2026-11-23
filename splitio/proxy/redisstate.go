@@ -167,12 +167,20 @@ func setupRedisState(cfg *pconf.Main, logger logging.LoggerInterface, splits *st
 		go s.retryLoop()
 		return s, nil
 	}
-	close(s.done) // no retry goroutine: Stop has nothing to wait for
 
-	writer, _, err := s.attach(client)
+	writer, retry, err := s.attach(client)
 	if err != nil {
-		return nil, err
+		if !retry {
+			return nil, err
+		}
+		// Redis dropped between the connect and the reset or start: handle it like a dial failure.
+		s.detach()
+		logger.Error(fmt.Sprintf("redis state: Redis went away while starting the writer, the proxy keeps running and retries in the background: %v", err))
+		s.setLastErr("redis state writer waiting for Redis")
+		go s.retryLoop()
+		return s, nil
 	}
+	close(s.done) // no retry goroutine: Stop has nothing to wait for
 	s.writer.Store(writer)
 	return s, nil
 }

@@ -3,10 +3,12 @@ package proxy
 import (
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"net"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -992,4 +994,78 @@ func TestRedisStateAttachVersusPut(t *testing.T) {
 
 	waitForRedisStateFlush(t, sup.Writer())
 	assert.True(t, sup.Status().Healthy)
+}
+
+// dropAfterConnectFactory returns a client that connects through a local forwarder which is shut down right after
+// the client is built, so the first call after the connect finds Redis gone. Later calls reach the real Redis.
+func dropAfterConnectFactory(t *testing.T) *atomic.Int32 {
+	t.Helper()
+	var calls atomic.Int32
+	original := newRedisStateClient
+	replaceRedisStateClient(t, func(opts *commonconf.RedisConfig, logger logging.LoggerInterface) (*redis.PrefixedRedisClient, error) {
+		if calls.Add(1) > 1 {
+			return original(opts, logger)
+		}
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			return nil, err
+		}
+		var mtx sync.Mutex
+		var conns []net.Conn
+		go func() {
+			for {
+				in, err := ln.Accept()
+				if err != nil {
+					return
+				}
+				out, err := net.Dial("tcp", net.JoinHostPort(opts.Host, strconv.Itoa(opts.Port)))
+				if err != nil {
+					in.Close()
+					continue
+				}
+				mtx.Lock()
+				conns = append(conns, in, out)
+				mtx.Unlock()
+				go func() { _, _ = io.Copy(out, in) }()
+				go func() { _, _ = io.Copy(in, out) }()
+			}
+		}()
+		viaProxy := *opts
+		viaProxy.Host = "127.0.0.1"
+		viaProxy.Port = ln.Addr().(*net.TCPAddr).Port
+		client, err := original(&viaProxy, logger)
+		ln.Close()
+		mtx.Lock()
+		for _, c := range conns {
+			c.Close()
+		}
+		mtx.Unlock()
+		return client, err
+	})
+	return &calls
+}
+
+func TestRedisStateDropAfterConnectFallsBackToRetry(t *testing.T) {
+	withFastRedisStateRetry(t)
+	calls := dropAfterConnectFactory(t)
+	logger, splits, rbs, segments := newRedisStateTestStorages(t)
+	cfg := redisStateTestConfig(t)
+	cfg.Initialization.ForceFreshStartup = true
+	cfg.Storage.Redis.Connection.MaxRetries = 0
+
+	sup, err := setupRedisState(cfg, logger, splits, rbs, segments, nil)
+	if err != nil {
+		t.Fatalf("a Redis drop between connect and start must not end the proxy: %v", err)
+	}
+	t.Cleanup(func() {
+		sup.Stop()
+		if w := sup.Writer(); w != nil {
+			if err := w.Reset(); err != nil {
+				t.Errorf("error cleaning up redis state: %v", err)
+			}
+		}
+	})
+
+	waitForCondition(t, "the writer to attach after the retry", func() bool { return sup.Writer() != nil })
+	assert.GreaterOrEqual(t, calls.Load(), int32(2))
 }
