@@ -247,16 +247,13 @@ func TestReader_ValidState(t *testing.T) {
 	assert.Equal(t, SegmentState{Name: "s2", Active: map[string]int64{"k9": 31}, Removed: map[string]int64{}, ChangeNumber: 31}, segs[1])
 }
 
-func TestReader_CursorFromMetaDropsItemsAboveIt(t *testing.T) {
+func TestReader_CursorFromMetaNotMaxItem(t *testing.T) {
 	s := newRdFixture(t)
 	k := s.keys
 	s.hash(k.Meta(), map[string]string{FingerprintField: rdFp, k.FlagCursorField(): "5", k.SegmentCursorField("s1"): "3"})
-	s.hash(k.FlagData(), map[string]string{
-		"f1": rdFlagJSON(t, "f1", statusActive, 4, "s1"),
-		"f2": rdFlagJSON(t, "f2", statusActive, 9),
-	})
-	s.scores(k.FlagIndex(), map[string]int64{"f1": 4, "f2": 9})
-	s.scores(k.SegmentActive("s1"), map[string]int64{"k1": 2, "k2": 8})
+	s.hash(k.FlagData(), map[string]string{"f1": rdFlagJSON(t, "f1", statusActive, 9, "s1")})
+	s.scores(k.FlagIndex(), map[string]int64{"f1": 9})
+	s.scores(k.SegmentActive("s1"), map[string]int64{"k1": 8})
 
 	state, segs, err := rdRead(context.Background(), s.reader())
 	require.NoError(t, err)
@@ -265,8 +262,7 @@ func TestReader_CursorFromMetaDropsItemsAboveIt(t *testing.T) {
 	assert.Equal(t, map[string]int64{"s1": 3}, state.SegmentCursors)
 	require.Len(t, segs, 1)
 	assert.Equal(t, int64(3), segs[0].ChangeNumber)
-	assert.Equal(t, map[string]int64{"k1": 2}, segs[0].Active, "k2 at 8 is above the segment cursor 3")
-	assert.Equal(t, map[string]int64{"f1": 4}, rdFlagCNs(state.Flags), "f2 at 9 is above the flag cursor 5")
+	assert.Equal(t, map[string]int64{"f1": 9}, rdFlagCNs(state.Flags), "item change numbers come from the index")
 }
 
 func TestReader_Absent(t *testing.T) {
@@ -387,7 +383,7 @@ func TestReader_SegmentLargerThanOnePage(t *testing.T) {
 		FingerprintField:                rdFp,
 		k.FlagCursorField():             "10",
 		k.RuleBasedSegmentCursorField(): "20",
-		k.SegmentCursorField("big"):     "44",
+		k.SegmentCursorField("big"):     "40",
 	})
 	s.hash(k.FlagData(), map[string]string{"f1": rdFlagJSON(t, "f1", statusActive, 10, "big")})
 	s.scores(k.FlagIndex(), map[string]int64{"f1": 10})
@@ -588,7 +584,6 @@ func TestReader_MinusOneCursorIsSkippedWithoutScan(t *testing.T) {
 	t.Run("key in both sets resolves by change number and does not skip", func(t *testing.T) {
 		s := newRdFixture(t)
 		s.seedValid()
-		s.hash(s.keys.Meta(), map[string]string{s.keys.SegmentCursorField("s2"): "32"})
 		s.scores(s.keys.SegmentTombstones("s2"), map[string]int64{"k9": 32})
 
 		state, segs, err := rdRead(context.Background(), s.reader())

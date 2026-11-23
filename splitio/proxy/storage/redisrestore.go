@@ -23,8 +23,8 @@ var (
 // errSegmentCollectionNotRestorable is returned when the segment collection does not implement Restore.
 var errSegmentCollectionNotRestorable = errors.New("segment collection does not support restore")
 
-// ApplyCommittedCursors sets the committed change numbers from a BootValid state. The reader drops items above each
-// cursor, so the restored state is a snapshot at the cursor (the sink itself applies whatever it is given). Negative cursors and state.SkippedSegments are skipped.
+// ApplyCommittedCursors sets the committed change numbers from a BootValid state. A cursor below the max restored cn
+// is kept, so the next since-request returns newer items again. Negative cursors and state.SkippedSegments are skipped.
 func ApplyCommittedCursors(
 	state redisstate.BootState,
 	splits *ProxySplitStorageImpl,

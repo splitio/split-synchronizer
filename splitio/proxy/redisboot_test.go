@@ -562,21 +562,15 @@ func bootPopulatedRedis(t *testing.T, cfg *pconf.Main, lag int64) *bootPopulated
 	return f
 }
 
-// A populated Redis state is served when in sync. Items above a lagging cursor are dropped, so the restored state is a
-// consistent snapshot at the cursor; when nothing is left the boot falls back to the snapshot file.
+// A populated Redis state is served when in sync and when cursors lag (stale). The snapshot is never read.
 func TestPopulatedValidAndStale(t *testing.T) {
 	cases := []struct {
 		name       string
 		lag        int64
-		wantSource BootSource
 		wantCursor int64
-		wantFlags  int
-		wantRbs    int
-		wantSegs   int
 	}{
-		{name: "valid", lag: 0, wantSource: BootSourceRedis, wantCursor: 10, wantFlags: 2, wantRbs: 1, wantSegs: 2},
-		{name: "cursor one behind drops the newest items", lag: 1, wantSource: BootSourceRedis, wantCursor: 9, wantFlags: 1, wantRbs: 0, wantSegs: 0},
-		{name: "cursor far behind leaves nothing and falls back", lag: 5, wantSource: BootSourceSnapshotFile},
+		{name: "valid", lag: 0, wantCursor: 10},
+		{name: "stale cursor behind", lag: 5, wantCursor: 5},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -587,16 +581,13 @@ func TestPopulatedValidAndStale(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.Equal(t, 1, client.closes, "read client must be closed once")
-			assert.Equal(t, c.wantSource, decision.Source)
-			if c.wantSource != BootSourceRedis {
-				return
-			}
+			assert.Equal(t, BootSourceRedis, decision.Source)
 			require.NotNil(t, decision.State)
 			assert.Equal(t, redisstate.BootValid, decision.State.Status)
 			assert.Equal(t, c.wantCursor, decision.State.FlagCursor)
-			assert.Len(t, decision.State.Flags, c.wantFlags)
-			assert.Len(t, decision.State.RuleBasedSegments, c.wantRbs)
-			assert.Len(t, decision.State.Segments, c.wantSegs)
+			assert.Len(t, decision.State.Flags, 2)
+			assert.Len(t, decision.State.RuleBasedSegments, 1)
+			assert.Len(t, decision.State.Segments, 2)
 		})
 	}
 }

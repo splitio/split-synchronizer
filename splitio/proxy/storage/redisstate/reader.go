@@ -253,8 +253,8 @@ func (r *Reader) read(ctx context.Context, sink RestoreSink, retain bool) (BootS
 		return BootState{Status: BootForeign, Reason: "fingerprint differs", FlagCursor: noCursor, RuleBasedSegmentCursor: noCursor}, nil
 	}
 
-	// The cursors are read before the entity data on purpose: a write landing in between leaves cursor <= data. The
-	// items above the cursor are dropped below, so nothing newer than the cursor is restored and no change is skipped.
+	// The cursors are read before the entity data on purpose: a write landing in between leaves cursor <= data, which
+	// only re-syncs a little extra and never skips a change.
 	flagCursor, err := optionalCursor(meta, r.keys.FlagCursorField())
 	if err != nil {
 		return BootState{}, err
@@ -297,11 +297,6 @@ func (r *Reader) read(ctx context.Context, sink RestoreSink, retain bool) (BootS
 	if flagCursor == noCursor && rbsCursor == noCursor && len(flags) == 0 && len(rbs) == 0 {
 		return BootState{Status: BootAbsent, Reason: "no cursors stored", FlagCursor: noCursor, RuleBasedSegmentCursor: noCursor}, nil
 	}
-
-	// An interrupted multi-chunk write can leave items above the committed cursor. They are dropped, so the restored
-	// state is a consistent snapshot at the cursor; the first sync delivers them again.
-	flags = dropAbove(flags, flagCursor, func(d dtos.SplitDTO) int64 { return d.ChangeNumber })
-	rbs = dropAbove(rbs, rbsCursor, func(d dtos.RuleBasedSegmentDTO) int64 { return d.ChangeNumber })
 
 	if err := sink.Entities(flags, rbs); err != nil {
 		return BootState{}, fmt.Errorf("restoring flags and rule-based segments: %w", err)
@@ -444,8 +439,8 @@ func (r *Reader) deliverSegment(res segmentRead, sink RestoreSink, retain bool, 
 //
 // Contract: the stored cursor is <= the data (a writer that lands between reading meta and scanning leaves cursor <=
 // data), and the data may be a mix of change N and N+1 when a writer overlaps the scans; the cursor re-check and the
-// cardinality check below detect most overlaps. Keys scored above the cursor are dropped, so what is returned never
-// exceeds the cursor and the first sync repairs the rest.
+// cardinality check below detect most overlaps, the rest is repaired by the first sync because the cursor is never
+// ahead of the data.
 func (r *Reader) fetchSegment(ctx context.Context, meta map[string]string, name string) segmentRead {
 	field := r.keys.SegmentCursorField(name)
 	cursor, err := storedCursorOf(meta, field)
@@ -487,8 +482,6 @@ func (r *Reader) fetchSegment(ctx context.Context, meta map[string]string, name 
 		if activeCard != int64(len(active)) || removedCard != int64(len(removed)) {
 			return tornf("segment %s changed size while it was read", name)
 		}
-		dropKeysAbove(active, cursor)
-		dropKeysAbove(removed, cursor)
 		resolveBothSets(active, removed)
 		seg = SegmentState{Name: name, Active: active, Removed: removed, ChangeNumber: cursor}
 		return nil
@@ -503,27 +496,6 @@ func (r *Reader) fetchSegment(ctx context.Context, meta map[string]string, name 
 		return segmentRead{name: name, skip: "segment cursor is -1: a full replace is in progress or nothing was committed"}
 	}
 	return segmentRead{name: name, seg: seg, cursor: cursor}
-}
-
-// dropAbove returns the items whose change number is at most cursor, in order. It filters in place.
-func dropAbove[T any](items []T, cursor int64, cnOf func(T) int64) []T {
-	kept := items[:0]
-	for _, it := range items {
-		if cnOf(it) <= cursor {
-			kept = append(kept, it)
-		}
-	}
-	return kept
-}
-
-// dropKeysAbove removes the segment keys scored above cursor, before the two sets are resolved: a key whose newest
-// write is above the cursor falls back to its older entry in the other set, if any.
-func dropKeysAbove(keys map[string]int64, cursor int64) {
-	for k, cn := range keys {
-		if cn > cursor {
-			delete(keys, k)
-		}
-	}
 }
 
 // scoreCard reads the member count of a sorted set through readCall. A failure is a read error for the caller.
