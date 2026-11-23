@@ -1069,3 +1069,10 @@ func TestRedisStateDropAfterConnectFallsBackToRetry(t *testing.T) {
 	waitForCondition(t, "the writer to attach after the retry", func() bool { return sup.Writer() != nil })
 	assert.GreaterOrEqual(t, calls.Load(), int32(2))
 }
+
+func TestIsRedisUnavailableSentinelsUnreachable(t *testing.T) {
+	err := errors.New("redis: all sentinels specified in configuration are unreachable")
+	assert.True(t, isRedisUnavailable(err))
+	assert.True(t, isRedisUnavailable(fmt.Errorf("wrapped: %w", err)))
+	assert.False(t, isRedisUnavailable(errors.New("redis: invalid password")))
+}

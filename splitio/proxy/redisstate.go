@@ -7,6 +7,7 @@ import (
 	"io"
 	"math"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -191,8 +192,13 @@ var errRedisStateStopped = errors.New("redis state supervisor stopped")
 // isRedisUnavailable reports whether err means Redis could not be reached, as opposed to a configuration or protocol error.
 func isRedisUnavailable(err error) bool {
 	var netErr net.Error
-	return errors.As(err, &netErr) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, context.DeadlineExceeded)
+	return errors.As(err, &netErr) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, context.DeadlineExceeded) ||
+		strings.Contains(err.Error(), redisSentinelsUnreachable)
 }
+
+// redisSentinelsUnreachable is the message go-redis (v9.7.3, sentinel.go) returns when no sentinel answers. It is a
+// plain error with no exported value, so the message is the only thing to match on.
+const redisSentinelsUnreachable = "all sentinels specified in configuration are unreachable"
 
 // redisStateSupervisor owns the Redis writer for the lifetime of the proxy. When Redis is unreachable at startup it
 // keeps the proxy running and attaches the writer from a background goroutine once Redis answers.
