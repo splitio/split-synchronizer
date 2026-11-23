@@ -323,6 +323,7 @@ func start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	before := time.Now()
 	err = startBGSync(syncManager, mstatus, firstSyncMayRetry(haveLocalState, boot), func() {
 		logger.Info("Synchronizer tasks started")
+		liftRestoreTillCaps(splitStorage, ruleBasedStorage, segmentStorage)
 		// The writer's startup resync ran against an empty source on a cold boot, so repair it once sync has populated the storages.
 		redisGate.open()
 		if redisWriter != nil {

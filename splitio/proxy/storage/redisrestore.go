@@ -23,8 +23,10 @@ var (
 // errSegmentCollectionNotRestorable is returned when the segment collection does not implement Restore.
 var errSegmentCollectionNotRestorable = errors.New("segment collection does not support restore")
 
-// ApplyCommittedCursors sets the committed change numbers from a BootValid state. A cursor below the max restored cn
-// is kept, so the next since-request returns newer items again. Negative cursors and state.SkippedSegments are skipped.
+// ApplyCommittedCursors sets the committed change numbers from a BootValid state. Items above a cursor (the writer
+// can leave them while a cursor is frozen) stay in the storages, but the till served for incremental requests is
+// capped at the cursor until the first sync succeeds: call LiftServedTillCap on the splits and rule-based segments
+// and LiftServedTillCaps on the segments then. Negative cursors and state.SkippedSegments are skipped.
 func ApplyCommittedCursors(
 	state redisstate.BootState,
 	splits *ProxySplitStorageImpl,
@@ -40,6 +42,7 @@ func ApplyCommittedCursors(
 			return fmt.Errorf("error applying flags cursor %d: %w", state.FlagCursor, err)
 		}
 		anchorFlagsStartingPoint(splits, state.FlagCursor)
+		splits.CapServedTill(state.FlagCursor)
 	}
 
 	if state.RuleBasedSegmentCursor >= 0 {
@@ -47,6 +50,7 @@ func ApplyCommittedCursors(
 			return fmt.Errorf("error applying rule-based segments cursor %d: %w", state.RuleBasedSegmentCursor, err)
 		}
 		anchorRuleBasedSegmentsStartingPoint(rbs, state.RuleBasedSegmentCursor)
+		rbs.CapServedTill(state.RuleBasedSegmentCursor)
 	}
 
 	skipped := skippedSet(state.SkippedSegments)
@@ -57,6 +61,7 @@ func ApplyCommittedCursors(
 		if err := segs.SetChangeNumber(name, cn); err != nil {
 			return fmt.Errorf("error applying cursor for segment %s: %w", name, err)
 		}
+		segs.CapServedTill(name, cn)
 	}
 	return nil
 }

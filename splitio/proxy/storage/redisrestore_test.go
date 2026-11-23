@@ -243,8 +243,7 @@ func TestRestoreIntoBoltThenServe(t *testing.T) {
 	assert.Equal(t, 0, st.writes.n)
 }
 
-// TestRestoreAppliesCommittedCursors checks that committed cursors below the max item cn are kept;
-// a skipped segment gets no cursor.
+// TestSkippedSegmentHasNoCursorSoFirstSyncFetchesIt checks that a skipped segment gets no cursor.
 // A segment listed as skipped has no committed cursor, so its change number stays -1 and the first sync fetches it.
 // The flag still references it, and the sync worker walks SegmentNames(), so it is reached on that first sync.
 // go-split-commons v10 UpdaterImpl.SynchronizeSegments (segment.go:197) syncs every SegmentNames() entry on the first sync.
@@ -325,22 +324,37 @@ func TestRestoreAppliesCommittedCursors(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEqual(t, int64(3), skippedCN, "skipped segment must not get the committed cursor")
 
-	// The first sync asks since the committed cursor and gets the items above it.
+	// Items above the cursor are served, but the till stays at the cursor until the first sync lifts the caps, so an
+	// SDK asks again from the cursor and the sync redelivers them.
 	flags, err := st.splits.ChangesSince(5, nil)
 	require.Nil(t, err)
-	assert.Equal(t, int64(9), flags.Till)
+	assert.Equal(t, int64(5), flags.Till, "till capped at the flags cursor")
 	assert.Equal(t, []string{"f2"}, splitNames(flags.Splits))
 
 	rbs, err := st.rbs.ChangesSince(2)
 	require.Nil(t, err)
-	assert.Equal(t, int64(8), rbs.Till)
+	assert.Equal(t, int64(2), rbs.Till, "till capped at the rule-based segments cursor")
 	require.Len(t, rbs.RuleBasedSegments, 1)
 	assert.Equal(t, "rb1", rbs.RuleBasedSegments[0].Name)
 
 	segs, err := st.segs.ChangesSince("seg", 6)
 	require.Nil(t, err)
-	assert.Equal(t, int64(9), segs.Till)
+	assert.Equal(t, int64(6), segs.Till, "till capped at the segment cursor")
 	assert.Equal(t, []string{"b"}, segs.Added)
+
+	st.splits.LiftServedTillCap()
+	st.rbs.LiftServedTillCap()
+	st.segs.LiftServedTillCaps()
+
+	flags, err = st.splits.ChangesSince(5, nil)
+	require.Nil(t, err)
+	assert.Equal(t, int64(9), flags.Till)
+	rbs, err = st.rbs.ChangesSince(2)
+	require.Nil(t, err)
+	assert.Equal(t, int64(8), rbs.Till)
+	segs, err = st.segs.ChangesSince("seg", 6)
+	require.Nil(t, err)
+	assert.Equal(t, int64(9), segs.Till)
 
 	assert.Equal(t, 0, st.writes.n)
 }
@@ -501,6 +515,7 @@ func TestRestoredSegmentServesFullSetAfterDelta(t *testing.T) {
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []string{"a", "b"}, all.Added)
 
+	st.segs.LiftServedTillCaps() // the first sync succeeded
 	toAdd := set.NewSet()
 	toAdd.Add("d")
 	require.NoError(t, st.segs.Update("seg", toAdd, set.NewSet(), 10))
@@ -543,6 +558,7 @@ func TestSegmentChangesContractForControllerPath(t *testing.T) {
 	assert.ErrorIs(t, err, ErrSegmentNotFound)
 
 	// After one cloud delta sync, the since -1 payload still holds the full set.
+	st.segs.LiftServedTillCaps() // the first sync succeeded
 	toAdd := set.NewSet()
 	toAdd.Add("d")
 	require.NoError(t, st.segs.Update("seg", toAdd, set.NewSet(), 10))

@@ -233,6 +233,14 @@ func applyRedisCursors(boot BootDecision, splits *storage.ProxySplitStorageImpl,
 	return nil
 }
 
+// liftRestoreTillCaps lifts the till caps ApplyCommittedCursors set. Call it once the first sync has succeeded: the
+// sync has then redelivered everything above the committed cursors, so the real till can be served.
+func liftRestoreTillCaps(splits *storage.ProxySplitStorageImpl, rbs *storage.ProxyRuleBasedSegmentsStorageImpl, segs *storage.ProxySegmentStorageImpl) {
+	splits.LiftServedTillCap()
+	rbs.LiftServedTillCap()
+	segs.LiftServedTillCaps()
+}
+
 // maxLoggedSkipped caps how many skipped segments are named in one log line.
 const maxLoggedSkipped = 20
 

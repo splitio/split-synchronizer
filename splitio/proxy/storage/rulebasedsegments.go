@@ -31,6 +31,17 @@ type ProxyRuleBasedSegmentsStorageImpl struct {
 	mtx           sync.Mutex
 	historic      optimized.HistoricChangesRB
 	redis         redisstate.RuleBasedSegmentWriter // nil when the Redis state is disabled
+	tillCap       tillCaps
+}
+
+// CapServedTill caps the till served by incremental ChangesSince at cn, keeping the cap until LiftServedTillCap is called.
+func (p *ProxyRuleBasedSegmentsStorageImpl) CapServedTill(cn int64) {
+	p.tillCap.set("", cn)
+}
+
+// LiftServedTillCap removes the till cap set by CapServedTill, so incremental ChangesSince serves the real till again.
+func (p *ProxyRuleBasedSegmentsStorageImpl) LiftServedTillCap() {
+	p.tillCap.lift()
 }
 
 // WithRedisWriter sets the writer that mirrors rule-based segment changes to Redis (nil disables it) and returns the receiver. It is safe to call while updates are running, the writer may be attached after startup
@@ -155,6 +166,7 @@ func (p *ProxyRuleBasedSegmentsStorageImpl) ChangesSince(since int64) (*dtos.Rul
 		}
 		all = append(all, *rbSegments)
 	}
+	till = p.tillCap.apply("", till, since)
 	return &dtos.RuleBasedSegmentsDTO{Since: since, Till: till, RuleBasedSegments: all}, nil
 }
 
