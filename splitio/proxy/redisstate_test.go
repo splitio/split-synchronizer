@@ -37,6 +37,7 @@ func redisStateTestConfig(t *testing.T) *pconf.Main {
 	cfg.FlagSpecVersion = "1.2"
 	cfg.Storage.Redis.Enabled = true
 	cfg.Storage.Redis.RetentionHours = 168
+	cfg.Storage.Redis.LeaseTtlMs = 6000
 	cfg.Storage.Redis.WriteMaxAttempts = 3
 	cfg.Storage.Redis.WriteBackoffMaxMs = 1000
 	cfg.Storage.Redis.MaxPendingChanges = 1000
@@ -260,12 +261,89 @@ func TestValidateRedisStateSettingsPoolSizeAndDb(t *testing.T) {
 	}
 }
 
+func TestLeaseTtlValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		ttl     int64
+		wantErr bool
+		msg     string
+	}{
+		{name: "default", ttl: 15000},
+		{name: "lower bound", ttl: 6000},
+		{name: "upper bound", ttl: 3600000},
+		{name: "below lower bound", ttl: 5999, wantErr: true, msg: "6000"},
+		{name: "zero", ttl: 0, wantErr: true},
+		{name: "negative", ttl: -1, wantErr: true},
+		{name: "above upper bound", ttl: 3600001, wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := redisStateTestConfig(t)
+			cfg.Storage.Redis.LeaseTtlMs = tc.ttl
+
+			err := validateRedisStateSettings(&cfg.Storage.Redis)
+			if !tc.wantErr {
+				assert.NoError(t, err)
+				return
+			}
+			assertInitError(t, err, common.ExitInvalidConfiguration)
+			if tc.msg != "" {
+				assert.ErrorContains(t, err, tc.msg)
+			}
+		})
+	}
+}
+
+func TestOfflineRedisConfigValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		setup   func(cfg *pconf.Main)
+		wantErr bool
+	}{
+		{name: "offline with namespace and fingerprint", setup: func(cfg *pconf.Main) {
+			cfg.Offline = true
+			cfg.Storage.Redis.Namespace = "env-a"
+			cfg.Storage.Redis.OfflineFingerprint = "fp"
+		}},
+		{name: "offline without namespace", setup: func(cfg *pconf.Main) {
+			cfg.Offline = true
+			cfg.Storage.Redis.OfflineFingerprint = "fp"
+		}, wantErr: true},
+		{name: "offline without fingerprint", setup: func(cfg *pconf.Main) {
+			cfg.Offline = true
+			cfg.Storage.Redis.Namespace = "env-a"
+		}, wantErr: true},
+		{name: "offline with redis disabled", setup: func(cfg *pconf.Main) {
+			cfg.Offline = true
+			cfg.Storage.Redis.Enabled = false
+		}},
+		{name: "online without fingerprint", setup: func(cfg *pconf.Main) {
+			cfg.Offline = false
+		}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := redisStateTestConfig(t)
+			tc.setup(cfg)
+
+			err := validateOfflineRedisSettings(cfg)
+			if tc.wantErr {
+				assertInitError(t, err, common.ExitInvalidConfiguration)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestStopRedisStateLogsDrainWait(t *testing.T) {
 	keys, err := redisstate.NewKeys("prefix", "apikey", "ns")
 	if err != nil {
 		t.Fatal(err)
 	}
-	w, err := redisstate.NewWriter(resyncCountingClient{}, keys, "fingerprint", redisstate.DefaultOptions(), logging.NewLogger(nil))
+	w, err := redisstate.NewWriter(resyncCountingClient{}, keys, "fingerprint", testWriterOptions(), logging.NewLogger(nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -380,20 +458,23 @@ func TestSetupRedisStateStartFailureIsInitError(t *testing.T) {
 		}
 	})
 
-	t.Run("start probe failure is returned unwrapped", func(t *testing.T) {
+	t.Run("lease failure from a server that refuses the scripts does not fail setup", func(t *testing.T) {
 		logger, splits, rbs, segments := newRedisStateTestStorages(t)
 		cfg := redisStateTestConfig(t)
 		cfg.Storage.Redis.Connection.Host = "127.0.0.1"
 		cfg.Storage.Redis.Connection.Port = fakeRedisProbeFailureServer(t)
 
-		writer, err := setupRedisState(cfg, logger, splits, rbs, segments, nil)
-		assert.True(t, writer == nil)
-		initErr, ok := err.(*common.InitializationError)
-		if !assert.True(t, ok, "start failure must be returned unwrapped, got %T: %v", err, err) {
-			return
+		// The role loop runs asynchronously, so the lease error is reported through Status, not as a setup error.
+		sup, err := setupRedisState(cfg, logger, splits, rbs, segments, nil)
+		if err != nil {
+			t.Fatalf("a lease failure must not be returned from setup, got %v", err)
 		}
-		assert.Equal(t, common.ExitRedisInitializationFailed, initErr.ExitCode())
-		assert.Contains(t, err.Error(), "requires Redis 5.0 or later")
+		t.Cleanup(sup.Stop)
+		waitForCondition(t, "the lease error to be reported", func() bool {
+			return strings.HasPrefix(sup.Status().LastError, "not writer: ")
+		})
+		assert.Nil(t, sup.Writer())
+		assert.False(t, sup.Status().Healthy)
 	})
 }
 
@@ -448,15 +529,13 @@ func TestSetupRedisStateWiresStorages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sup == nil || sup.Writer() == nil {
-		t.Fatal("expected a redis state writer when enabled")
-	}
+	waitForRedisWriter(t, sup)
 	writer := sup.Writer()
 	t.Cleanup(func() {
-		sup.Stop()
 		if err := writer.Reset(); err != nil {
 			t.Errorf("error cleaning up redis state: %v", err)
 		}
+		sup.Stop()
 	})
 
 	splits.Update([]dtos.SplitDTO{{Name: "wired_flag"}}, nil, 10)
@@ -494,8 +573,11 @@ func TestSetupRedisStateWiresStorages(t *testing.T) {
 	}
 }
 
-func TestStartRejectsRedisStateInOfflineMode(t *testing.T) {
+func TestStartOfflineRedisStateNeedsNamespaceAndFingerprint(t *testing.T) {
+	// Offline redis state is allowed now (D5). Without the namespace and offline fingerprint the start is rejected
+	// before any redis call.
 	cfg := redisStateTestConfig(t)
+	cfg.Apikey = ""
 	cfg.Offline = true
 
 	err := Start(logging.NewLogger(nil), cfg)
@@ -517,21 +599,20 @@ func TestSetupRedisStateStopOnShutdown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sup == nil || sup.Writer() == nil {
-		t.Fatal("expected a redis state writer when enabled")
-	}
-	writer := sup.Writer()
-	t.Cleanup(func() {
-		if err := writer.Reset(); err != nil {
-			t.Errorf("error cleaning up redis state: %v", err)
-		}
-	})
-
+	waitForRedisWriter(t, sup)
 	assert.True(t, stopRedisState(sup, logger, 10*time.Second))
 
 	// A second stop must return immediately and not hang on the already-closed worker.
 	assert.True(t, stopRedisState(sup, logger, 10*time.Second))
 	assert.True(t, stopRedisState(nil, logger, time.Second))
+}
+
+// testWriterOptions returns writer options for a writer that holds the lease with token 1.
+func testWriterOptions() redisstate.Options {
+	opts := redisstate.DefaultOptions()
+	opts.Owner = "test-owner"
+	opts.Token = 1
+	return opts
 }
 
 // stuckClient blocks HGetAll, so the writer worker never gets past the startup resync
@@ -592,7 +673,7 @@ func TestStopRedisStateTimeout(t *testing.T) {
 	logger := &warnLogger{LoggerInterface: logging.NewLogger(nil)}
 	keys, err := redisstate.NewKeys("", "apikey-test", "")
 	assert.NoError(t, err)
-	writer, err := redisstate.NewWriter(client, keys, "fp-test", redisstate.DefaultOptions(), logger)
+	writer, err := redisstate.NewWriter(client, keys, "fp-test", testWriterOptions(), logger)
 	assert.NoError(t, err)
 	writer.Start(emptyRedisStateSource{})
 	select {
@@ -689,7 +770,7 @@ func TestStopNotBlockedByHungEval(t *testing.T) {
 	logger := &warnLogger{LoggerInterface: logging.NewLogger(nil)}
 	keys, err := redisstate.NewKeys("", "apikey-test", "")
 	assert.NoError(t, err)
-	writer, err := redisstate.NewWriter(client, keys, "fp-test", redisstate.DefaultOptions(), logger)
+	writer, err := redisstate.NewWriter(client, keys, "fp-test", testWriterOptions(), logger)
 	assert.NoError(t, err)
 	assert.NoError(t, writer.Start(emptyRedisStateSource{}))
 	client.armed.Store(true)
@@ -775,13 +856,6 @@ func fakeRedisReachabilityFactory(t *testing.T, initiallyReachable bool) *fakeRe
 	return f
 }
 
-func withFastRedisStateRetry(t *testing.T) {
-	t.Helper()
-	original := redisStateRetryDelay
-	redisStateRetryDelay = func(time.Duration) time.Duration { return time.Millisecond }
-	t.Cleanup(func() { redisStateRetryDelay = original })
-}
-
 func waitForCondition(t *testing.T, what string, cond func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(10 * time.Second)
@@ -791,6 +865,13 @@ func waitForCondition(t *testing.T, what string, cond func() bool) {
 		}
 		time.Sleep(time.Millisecond)
 	}
+}
+
+// waitForRedisWriter polls until the role loop holds the lease and publishes the writer.
+func waitForRedisWriter(t *testing.T, sup *redisStateSupervisor) *redisstate.Writer {
+	t.Helper()
+	waitForCondition(t, "the redis state writer", func() bool { return sup.Writer() != nil })
+	return sup.Writer()
 }
 
 func redisFlagDataExists(t *testing.T, cfg *pconf.Main, logger logging.LoggerInterface) int64 {
@@ -816,7 +897,6 @@ func redisFlagDataExists(t *testing.T, cfg *pconf.Main, logger logging.LoggerInt
 }
 
 func TestRedisStateConnectionFailureThenSuccessAttachesAndStartsWriter(t *testing.T) {
-	withFastRedisStateRetry(t)
 	fake := fakeRedisReachabilityFactory(t, false)
 	logger, splits, rbs, segments := newRedisStateTestStorages(t)
 	cfg := redisStateTestConfig(t)
@@ -837,7 +917,7 @@ func TestRedisStateConnectionFailureThenSuccessAttachesAndStartsWriter(t *testin
 	waitForCondition(t, "retries while Redis is down", func() bool { return fake.calls.Load() >= 3 })
 	st := sup.Status()
 	assert.False(t, st.Healthy)
-	assert.Contains(t, st.LastError, "waiting for Redis")
+	assert.Contains(t, st.LastError, "not writer")
 	assert.Nil(t, sup.Writer())
 
 	fake.reachable.Store(true)
@@ -850,7 +930,6 @@ func TestRedisStateConnectionFailureThenSuccessAttachesAndStartsWriter(t *testin
 }
 
 func TestRedisStateConfigErrorStaysFatal(t *testing.T) {
-	withFastRedisStateRetry(t)
 	calls := 0
 	replaceRedisStateClient(t, func(*commonconf.RedisConfig, logging.LoggerInterface) (*redis.PrefixedRedisClient, error) {
 		calls++
@@ -866,7 +945,6 @@ func TestRedisStateConfigErrorStaysFatal(t *testing.T) {
 }
 
 func TestRedisStateStopWhileRetrying(t *testing.T) {
-	withFastRedisStateRetry(t)
 	fake := fakeRedisReachabilityFactory(t, false)
 	logger, splits, rbs, segments := newRedisStateTestStorages(t)
 	cfg := redisStateTestConfig(t)
@@ -895,7 +973,6 @@ func TestRedisStateStopWhileRetrying(t *testing.T) {
 }
 
 func TestRedisStateForceFreshResetOnlyAfterConnect(t *testing.T) {
-	withFastRedisStateRetry(t)
 	fake := fakeRedisReachabilityFactory(t, true)
 	logger, splits, rbs, segments := newRedisStateTestStorages(t)
 	cfg := redisStateTestConfig(t)
@@ -905,8 +982,9 @@ func TestRedisStateForceFreshResetOnlyAfterConnect(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	previousWriter := waitForRedisWriter(t, previous)
 	splits.Update([]dtos.SplitDTO{{Name: "previous_run_flag"}}, nil, 10)
-	waitForRedisStateFlush(t, previous.Writer())
+	waitForRedisStateFlush(t, previousWriter)
 	previous.Stop()
 	assert.Greater(t, redisFlagDataExists(t, cfg, logger), int64(0))
 
@@ -937,21 +1015,22 @@ func TestRedisStateForceFreshResetOnlyAfterConnect(t *testing.T) {
 }
 
 func TestRedisStateStatusWhileWaiting(t *testing.T) {
-	withFastRedisStateRetry(t)
 	fakeRedisReachabilityFactory(t, false)
 	logger, splits, rbs, segments := newRedisStateTestStorages(t)
 	cfg := redisStateTestConfig(t)
 
-	sup, err := setupRedisState(cfg, logger, splits, rbs, segments, nil)
+	// A closed gate keeps the role loop before the lease, so the status is deterministic.
+	sup, err := setupRedisState(cfg, logger, splits, rbs, segments, newSourceGate(false))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(sup.Stop)
-	assert.Equal(t, redisstate.Status{LastError: "redis state writer waiting for Redis"}, sup.Status())
+	waitForCondition(t, "the role loop to report its state", func() bool { return sup.Status().LastError != "" })
+	assert.Equal(t, redisstate.Status{LastError: "not writer: waiting for first cloud sync"}, sup.Status())
+	assert.Nil(t, sup.Writer())
 }
 
 func TestRedisStateAttachVersusPut(t *testing.T) {
-	withFastRedisStateRetry(t)
 	fake := fakeRedisReachabilityFactory(t, false)
 	logger, splits, rbs, segments := newRedisStateTestStorages(t)
 	cfg := redisStateTestConfig(t)

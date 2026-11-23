@@ -290,6 +290,18 @@ func TestReader_Absent(t *testing.T) {
 	})
 }
 
+func TestBootReadAfterAcquireOnlyIsAbsent(t *testing.T) {
+	s := newRdFixture(t)
+	s.hash(s.keys.Meta(), map[string]string{FenceField: "1", FingerprintField: rdFp})
+
+	state, segs, err := rdRead(context.Background(), s.reader())
+	require.NoError(t, err)
+	assert.NotEqual(t, BootCorrupt, state.Status)
+	assert.Equal(t, BootAbsent, state.Status)
+	assert.Empty(t, segs)
+	assert.Empty(t, state.Flags)
+}
+
 func TestReader_Foreign(t *testing.T) {
 	s := newRdFixture(t)
 	k := s.keys

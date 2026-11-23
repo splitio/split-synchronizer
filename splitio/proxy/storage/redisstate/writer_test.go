@@ -209,33 +209,123 @@ func TestResetDeletesKnownKeys(t *testing.T) {
 	require.NoError(t, e.w.Reset())
 
 	assert.Equal(t, 0, c.scans, "Reset must not SCAN")
-	assert.Empty(t, c.evals(), "Reset must not run any script (no KEYS inside EVAL)")
-	require.NotEmpty(t, c.deleted)
-	assert.Equal(t, e.w.keys.Unprefixed().Meta(), c.deleted[len(c.deleted)-1], "meta must be deleted last")
-	assert.ElementsMatch(t, want, c.deleted, "flags, rule-based segments, every segment in meta (including -1) and meta")
+	meta := e.w.keys.Unprefixed().Meta()
+	evals := c.evals()
+	require.NotEmpty(t, evals)
+	for _, call := range evals {
+		assert.Equal(t, ResetScript, call.script, "Reset only runs ResetScript (no KEYS inside EVAL)")
+	}
+	// step 2: one 'meta' call HDELs the flag and rule-based cursors; segment cursors leave with their segments in step 3
+	require.Equal(t, "meta", evals[0].args[2], "the flag and rule-based cursors go first")
+	var metaFields []string
+	for _, a := range evals[0].args[3:] {
+		metaFields = append(metaFields, a.(string))
+	}
+	assert.ElementsMatch(t, []string{"flags.till", "rbs.till"}, metaFields)
+	// step 3: 'del' batches carry the data keys and each segment's cursor field; meta is never in a batch
+	// step 4: the last call writes the writer's own fingerprint
+	last := len(evals) - 1
+	require.Equal(t, "fingerprint", evals[last].args[2], "the last call writes the fingerprint")
+	assert.Equal(t, wtFingerprint, evals[last].args[3])
+	var cursors, dataKeys []string
+	for _, call := range evals[1:last] {
+		require.Equal(t, "del", call.args[2])
+		assert.NotContains(t, call.keys[2:], meta, "meta is never deleted")
+		dataKeys = append(dataKeys, call.keys[2:]...)
+		for _, a := range call.args[3:] {
+			cursors = append(cursors, a.(string))
+		}
+	}
+	assert.ElementsMatch(t, []string{"seg.s1.till", "seg.s2.till"}, cursors, "each segment's cursor leaves in the same call as its keys")
+	var wantData []string
+	for _, k := range want {
+		if k != meta {
+			wantData = append(wantData, k)
+		}
+	}
+	assert.ElementsMatch(t, wantData, dataKeys, "flags, rule-based segments and every segment in meta (including -1)")
+	assert.Empty(t, c.deleted, "Reset does not DEL the meta hash; it stays")
 }
 
 func TestResetKeepsMetaWhenDelFails(t *testing.T) {
 	c := &wtClient{}
-	e, want := wtResetFixture(t, c)
+	e, _ := wtResetFixture(t, c)
+	// the fixture meta has no fence or fingerprint; the real writer always has both
+	c.meta[FenceField] = "1"
+	c.meta[FingerprintField] = wtFingerprint
+	// resetBatch is 500: 200 extra segments give two del batches, the first succeeds and the second fails
+	for i := range 200 {
+		c.meta[fmt.Sprintf("seg.big%d.till", i)] = "1"
+	}
 	meta := e.w.keys.Unprefixed().Meta()
-	c.delFail = func(n int, _ string) error {
-		if n == 3 {
-			return errors.New("del failed")
+	errDel := errors.New("del failed")
+	// the fake does not apply script effects, so the meta HDELs, the successful del batch (with its cursors) and the fingerprint write are applied here
+	var delivered, failedBatch, failedCursors []string
+	dels := 0
+	failing := true
+	c.fail = func(_ int, call wtCall) error {
+		if call.script != ResetScript {
+			return nil
+		}
+		switch call.args[2] {
+		case "meta":
+			for _, f := range call.args[3:] {
+				delete(c.meta, f.(string))
+			}
+			return nil
+		case "fingerprint":
+			c.meta[FingerprintField] = call.args[3].(string)
+			return nil
+		}
+		dels++
+		if failing && dels == 2 {
+			failedBatch = call.keys[2:]
+			for _, f := range call.args[3:] {
+				failedCursors = append(failedCursors, f.(string))
+			}
+			return errDel
+		}
+		delivered = append(delivered, call.keys[2:]...)
+		for _, f := range call.args[3:] {
+			delete(c.meta, f.(string))
 		}
 		return nil
 	}
 
-	require.Error(t, e.w.Reset())
-	assert.NotContains(t, c.deleted, meta, "meta must survive a failed Reset so a rerun can find the rest")
-	assert.Len(t, c.deleted, 2)
+	require.ErrorIs(t, e.w.Reset(), errDel)
+	// the failed batch keeps its segment cursors, so the rerun can find those segments; the fingerprint is written last and is not reached
+	var metaKeys []string
+	for k := range c.meta {
+		metaKeys = append(metaKeys, k)
+	}
+	assert.ElementsMatch(t, append([]string{FenceField, FingerprintField}, failedCursors...), metaKeys,
+		"the failed batch keeps its cursors; the flag and rule-based cursors are already HDEL'd")
+	assert.NotEmpty(t, failedCursors, "the failed batch carries segment cursors")
 
-	c.delFail = nil
+	u := e.w.keys.Unprefixed()
+	flagAndRBS := []string{
+		u.PurgeLast(), u.FlagData(), u.FlagIndex(), u.FlagRemoved(),
+		u.RuleBasedSegmentData(), u.RuleBasedSegmentIndex(), u.RuleBasedSegmentRemoved(),
+	}
+	assert.Subset(t, delivered, flagAndRBS, "the keys of the batch before the failure are gone")
+	for _, k := range failedBatch {
+		assert.NotContains(t, delivered, k, "the failed batch was not deleted")
+	}
+	assert.NotContains(t, delivered, meta, "meta is never deleted")
+
+	// rerun: the segments of the failed batch still have their cursors, so a second Reset deletes them and leaves only fence and fingerprint
+	failing = false
+	before := len(c.evals())
 	require.NoError(t, e.w.Reset())
-
-	assert.Equal(t, meta, c.deleted[len(c.deleted)-1], "meta must be deleted last")
-	assert.Subset(t, c.deleted, want, "every known key is deleted after the rerun")
-	assert.Subset(t, want, c.deleted, "no key is orphaned")
+	var rerunKeys []string
+	for _, call := range c.evals()[before:] {
+		if call.args[2] == "del" {
+			rerunKeys = append(rerunKeys, call.keys[2:]...)
+		}
+	}
+	assert.Subset(t, rerunKeys, failedBatch, "the rerun deletes the segments the failed batch left behind")
+	assert.Equal(t, map[string]string{FenceField: "1", FingerprintField: wtFingerprint}, c.meta,
+		"after the rerun only fence and fingerprint remain")
 }
 
 func (c *wtClient) evals() []wtCall {
@@ -411,6 +501,8 @@ func wtOptions() Options {
 	o := DefaultOptions()
 	o.MaxAttempts = 3
 	o.BackoffMaxWait = time.Hour
+	o.Owner = testOwner
+	o.Token = testToken
 	return o
 }
 
@@ -640,7 +732,26 @@ func TestWriterRejectsInvalidOptions(t *testing.T) {
 			assert.ErrorIs(t, err, ErrInvalidOptions)
 		})
 	}
-	_, err := NewWriter(&wtClient{}, keys, wtFingerprint, DefaultOptions(), &wtLogger{})
+	_, err := NewWriter(&wtClient{}, keys, wtFingerprint, wtOptions(), &wtLogger{})
+	assert.NoError(t, err)
+}
+
+func TestWriterOptionsCarryOwnerAndToken(t *testing.T) {
+	keys := wtKeys(t)
+	o := DefaultOptions()
+	_, err := NewWriter(&wtClient{}, keys, wtFingerprint, o, &wtLogger{})
+	assert.ErrorIs(t, err, ErrInvalidOptions, "empty owner")
+
+	o.Owner = testOwner
+	_, err = NewWriter(&wtClient{}, keys, wtFingerprint, o, &wtLogger{})
+	assert.ErrorIs(t, err, ErrInvalidOptions, "zero token")
+
+	o.Token = MaxToken + 1
+	_, err = NewWriter(&wtClient{}, keys, wtFingerprint, o, &wtLogger{})
+	assert.ErrorIs(t, err, ErrInvalidOptions, "token above max")
+
+	o.Token = testToken
+	_, err = NewWriter(&wtClient{}, keys, wtFingerprint, o, &wtLogger{})
 	assert.NoError(t, err)
 }
 
@@ -664,7 +775,7 @@ func TestWriterDefaultOptions(t *testing.T) {
 	}
 	for name, set := range bounds {
 		t.Run(name, func(t *testing.T) {
-			o := DefaultOptions()
+			o := wtOptions()
 			set(&o)
 			_, err := NewWriter(&wtClient{}, keys, wtFingerprint, o, &wtLogger{})
 			assert.NoError(t, err)
@@ -684,7 +795,7 @@ func TestWriterDefaultOptions(t *testing.T) {
 	}
 	for name, mutate := range rejected {
 		t.Run(name, func(t *testing.T) {
-			o := DefaultOptions()
+			o := wtOptions()
 			mutate(&o)
 			_, err := NewWriter(&wtClient{}, keys, wtFingerprint, o, &wtLogger{})
 			assert.ErrorIs(t, err, ErrInvalidOptions)
@@ -733,10 +844,12 @@ func TestWriterSuccess(t *testing.T) {
 	calls := e.client.evals()
 	require.Len(t, calls, 1)
 	assert.Equal(t, FlagScript, calls[0].script)
-	assert.Equal(t, e.w.keys.FlagKeys(), calls[0].keys)
+	assert.Equal(t, slices.Concat(e.w.keys.FlagKeys(), []string{e.w.keys.Lease()}), calls[0].keys, "the lease key is the last KEY")
 	args := calls[0].args
 	assert.Equal(t, wtFingerprint, args[0])
-	assert.Len(t, args, 5+4, "ARGV carries no clock: the script reads Redis TIME")
+	assert.Len(t, args, 5+4+2, "ARGV carries no clock: the script reads Redis TIME; owner and token are the last two args")
+	assert.Equal(t, testOwner, args[len(args)-2])
+	assert.Equal(t, testToken, args[len(args)-1])
 	assert.Equal(t, e.opts.Retention.Milliseconds(), args[1])
 	assert.Equal(t, e.w.keys.FlagCursorField(), args[2])
 	assert.Equal(t, int64(5), wtFlagCursor(args))
@@ -910,11 +1023,139 @@ func TestWriterCrashBetweenDataAndCursor(t *testing.T) {
 
 	var cursors []int64
 	for _, c := range e.client.evals() {
-		if slices.Equal(c.keys, e.w.keys.FlagKeys()) {
+		if slices.Equal(c.keys, slices.Concat(e.w.keys.FlagKeys(), []string{e.w.keys.Lease()})) {
 			cursors = append(cursors, wtFlagCursor(c.args))
 		}
 	}
 	assert.Equal(t, []int64{-1, -1, -1, -1, 7}, cursors, "the real cursor only ever rides the last chunk, after its data")
+}
+
+func TestResetBatchesMetaFields(t *testing.T) {
+	c := &wtClient{}
+	e, _ := wtResetFixture(t, c)
+	const segments = 1200
+	c.meta = map[string]string{"fence": "7", "fingerprint": wtFingerprint, "flags.till": "1", "rbs.till": "1"}
+	cursors := []string{"flags.till", "rbs.till"}
+	for i := 0; i < segments; i++ {
+		field := fmt.Sprintf("seg.s%d.till", i)
+		c.meta[field] = "1"
+		cursors = append(cursors, field)
+	}
+
+	require.NoError(t, e.w.Reset())
+
+	var removed, segmentCursors []string
+	metaCalls, lastMeta, firstData := 0, -1, -1
+	for i, call := range c.evals() {
+		switch call.args[2] {
+		case "meta":
+			metaCalls++
+			lastMeta = i
+			require.LessOrEqual(t, len(call.args)-3, resetBatch, "a meta call carries at most resetBatch fields")
+			for _, a := range call.args[3:] {
+				removed = append(removed, a.(string))
+			}
+		case "del":
+			if firstData < 0 {
+				firstData = i
+			}
+			require.LessOrEqual(t, len(call.keys)-2, resetBatch, "a del call carries at most resetBatch data keys")
+			for _, a := range call.args[3:] {
+				segmentCursors = append(segmentCursors, a.(string))
+			}
+		}
+	}
+	// the flag and rule-based cursors go in the meta call; each segment cursor leaves with its segment's keys in a del call
+	assert.Equal(t, 1, metaCalls, "two meta fields fit in one meta call")
+	assert.ElementsMatch(t, []string{"flags.till", "rbs.till"}, removed, "fence and fingerprint are kept")
+	assert.ElementsMatch(t, cursors[2:], segmentCursors, "every segment cursor leaves with its segment's keys")
+	require.NotEqual(t, -1, firstData, "the data keys are deleted after the cursors")
+	assert.Less(t, lastMeta, firstData, "all meta calls run before the first data call")
+}
+
+// wtCallsReturn runs f and fails the test if it does not return in time
+func wtCallsReturn(t *testing.T, what string, f func()) {
+	t.Helper()
+	done := make(chan struct{})
+	go func() {
+		f()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(wtWaitDeadline):
+		t.Fatalf("%s blocked", what)
+	}
+}
+
+func TestAbortDoesNotDrainQueuedEntries(t *testing.T) {
+	e := newWtEnv(t, wtOptions())
+	gate := make(chan struct{})
+	e.client.fail = func(n int, _ wtCall) error {
+		if n == 1 {
+			wtHold(t, gate, "gate signal")
+		}
+		return nil
+	}
+	e.w.PutFlags(wtFlags("a"), nil, 1)
+	if err := e.w.Start(nil); err != nil {
+		t.Fatal(err)
+	}
+	wtWaitUntil(t, "the first write in flight", func() bool { return e.client.count() == 1 })
+	e.w.PutFlags(wtFlags("b"), nil, 2)
+	e.w.PutFlags(wtFlags("c"), nil, 3)
+
+	aborted := make(chan struct{})
+	go func() {
+		e.w.Abort()
+		close(aborted)
+	}()
+	wtWaitUntil(t, "the writer to refuse input", e.w.stopped)
+	select {
+	case <-aborted:
+		t.Fatal("Abort returned before the in-flight write finished")
+	default:
+	}
+
+	close(gate)
+	select {
+	case <-aborted:
+	case <-time.After(wtWaitDeadline):
+		t.Fatal("Abort did not return")
+	}
+	select {
+	case <-e.w.done:
+	case <-time.After(wtWaitDeadline):
+		t.Fatal("the writer goroutine did not exit")
+	}
+
+	assert.Equal(t, 1, e.client.count(), "only the in-flight write reached Redis, the queued entries were not drained")
+	st := e.w.Status()
+	assert.Equal(t, 0, st.PendingChanges, "queue cleared")
+	assert.GreaterOrEqual(t, st.DroppedChanges, int64(1), "the queued entries are counted as dropped")
+}
+
+func TestAbortAfterStopIsSafe(t *testing.T) {
+	e := newWtEnv(t, wtOptions())
+	e.w.PutFlags(wtFlags("a"), nil, 1)
+	if err := e.w.Start(nil); err != nil {
+		t.Fatal(err)
+	}
+	wtCallsReturn(t, "Stop", e.w.Stop)
+	wtCallsReturn(t, "Abort after Stop", e.w.Abort)
+	assert.Equal(t, 0, e.w.Status().PendingChanges)
+}
+
+func TestStopAfterAbortIsSafe(t *testing.T) {
+	e := newWtEnv(t, wtOptions())
+	e.w.PutFlags(wtFlags("a"), nil, 1)
+	if err := e.w.Start(nil); err != nil {
+		t.Fatal(err)
+	}
+	wtCallsReturn(t, "Abort", e.w.Abort)
+	wtCallsReturn(t, "Stop after Abort", e.w.Stop)
+	wtCallsReturn(t, "second Abort", e.w.Abort)
+	assert.Equal(t, 0, e.w.Status().PendingChanges)
 }
 
 func TestWriterEnvironmentMismatch(t *testing.T) {
@@ -1215,7 +1456,7 @@ func TestWriterSegmentEmptyChangeWritesCursor(t *testing.T) {
 
 	call := e.client.evals()[0]
 	assert.Equal(t, SegmentScript, call.script)
-	assert.Equal(t, e.w.keys.SegmentKeys("empty"), call.keys)
+	assert.Equal(t, slices.Concat(e.w.keys.SegmentKeys("empty"), []string{e.w.keys.Lease()}), call.keys, "the lease key is the last KEY")
 	assert.Equal(t, e.w.keys.SegmentCursorField("empty"), call.args[3])
 	name, cursor, adds, rems := wtSegArgs(call.args)
 	assert.Equal(t, "empty", name)
@@ -3334,6 +3575,8 @@ func TestMismatchResetClearsGroupIndex(t *testing.T) {
 	require.NoError(t, e.w.Reset())
 	assert.Empty(t, wtQueued(e.w), "mismatch and Reset empty the queue")
 	assert.Equal(t, 0, wtQueuedSize(e.w))
+	// Reset runs ResetScript through Eval, so the fake records it; only calls after this point are the write of c
+	base := e.client.count()
 
 	e.w.PutFlags(wtFlags("c"), nil, 3)
 	q := wtQueued(e.w)
@@ -3345,9 +3588,9 @@ func TestMismatchResetClearsGroupIndex(t *testing.T) {
 	if err := e.w.Start(nil); err != nil {
 		t.Fatal(err)
 	}
-	wtWaitUntil(t, "the write of c", func() bool { return e.client.count() == 1 && e.w.Status().PendingChanges == 0 })
+	wtWaitUntil(t, "the write of c", func() bool { return e.client.count() == base+1 && e.w.Status().PendingChanges == 0 })
 	e.stop()
-	calls := e.client.evals()
+	calls := e.client.evals()[base:]
 	if assert.Len(t, calls, 1) {
 		ents := wtEntities(calls[0].args)
 		if assert.Len(t, ents, 1) {
@@ -4372,7 +4615,18 @@ func ftSeg(name string, from, to int, cn int64) SegmentState {
 func ftOpts() Options {
 	o := DefaultOptions()
 	o.BackoffMaxWait = 200 * time.Millisecond
+	o.Owner = testOwner
+	o.Token = testToken
 	return o
+}
+
+// ftSeedLease makes the lease owned by testOwner at testToken, the way a writer holding the lease would. It sets only the
+// lease key and the meta fence field, so the fingerprint and the other meta fields are left alone.
+func ftSeedLease(t *testing.T, srv *ftServer, keys Keys) {
+	t.Helper()
+	ctx := context.Background()
+	require.NoError(t, srv.admin.Set(ctx, keys.Lease(), testOwner, 0).Err())
+	require.NoError(t, srv.admin.HSet(ctx, keys.Meta(), "fence", testToken).Err())
 }
 
 func ftWriter(t *testing.T, srv *ftServer, prefix string, opts Options, log *wtLogger) (*Writer, Keys, *config.RedisConfig) {
@@ -4382,6 +4636,7 @@ func ftWriter(t *testing.T, srv *ftServer, prefix string, opts Options, log *wtL
 	require.NoError(t, err)
 	keys, err := NewKeys(client.Prefix(), "ft-key", "")
 	require.NoError(t, err)
+	ftSeedLease(t, srv, keys)
 	w, err := NewWriter(client, keys, wtFingerprint, opts, log)
 	require.NoError(t, err)
 	t.Cleanup(w.Stop)
@@ -4546,6 +4801,7 @@ func TestWriterAclRefusalIsPermanentAndBounded(t *testing.T) {
 		require.NoError(t, err)
 		keys, err := NewKeys(client.Prefix(), "ft-key", "")
 		require.NoError(t, err)
+		ftSeedLease(t, srv, keys)
 		w, err := NewWriter(client, keys, wtFingerprint, ftOpts(), log)
 		require.NoError(t, err)
 		t.Cleanup(w.Stop)
@@ -4650,4 +4906,249 @@ func TestStartWarnsWhenAnotherWriterMayShareTheNamespace(t *testing.T) {
 	assert.Empty(t, warnsOf(func(now time.Time) string { return ms(now.Add(-time.Hour)) }), "an old updatedAtMs is a restart, not a second writer")
 	assert.Empty(t, warnsOf(func(time.Time) string { return "" }), "an absent updatedAtMs is a fresh namespace")
 	assert.Empty(t, warnsOf(func(time.Time) string { return "not-a-number" }), "an unparsable updatedAtMs is ignored")
+}
+
+func TestNewWriterRequiresOwnerAndToken(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		mut  func(*Options)
+	}{
+		{name: "empty owner", mut: func(o *Options) { o.Owner = "" }},
+		{name: "token zero", mut: func(o *Options) { o.Token = 0 }},
+		{name: "token negative", mut: func(o *Options) { o.Token = -1 }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			o := wtOptions()
+			tc.mut(&o)
+			_, err := NewWriter(&wtClient{}, wtKeys(t), wtFingerprint, o, &wtLogger{})
+			require.ErrorIs(t, err, ErrInvalidOptions)
+		})
+	}
+}
+
+func TestResetKeepsFenceAndFingerprintAndRemovesCursorsFirst(t *testing.T) {
+	srv := ftStartRedis(t)
+	log := &wtLogger{}
+	w, keys, _ := ftWriter(t, srv, "ftrst2", ftOpts(), log)
+	ctx := context.Background()
+	require.NoError(t, w.Start(nil))
+	w.PutFlags([]dtos.SplitDTO{wtFlag("f1", 1, "ACTIVE")}, nil, 1)
+	w.PutSegment("s1", []string{"a", "b"}, nil, 1)
+	ftEventually(t, "initial write", 10*time.Second, func() bool {
+		s := w.Status()
+		return s.Healthy && s.PendingChanges == 0 && s.LastSuccessUnixMs > 0
+	})
+	w.Stop()
+	require.NoError(t, w.Reset())
+
+	meta, err := srv.admin.HGetAll(ctx, keys.Meta()).Result()
+	require.NoError(t, err)
+	var metaFields []string
+	for field := range meta {
+		metaFields = append(metaFields, field)
+	}
+	assert.ElementsMatch(t, []string{"fence", "fingerprint"}, metaFields)
+	assert.Equal(t, strconv.FormatInt(testToken, 10), meta["fence"])
+	assert.Equal(t, wtFingerprint, meta["fingerprint"])
+
+	data := []string{
+		keys.PurgeLast(), keys.FlagData(), keys.FlagIndex(), keys.FlagRemoved(),
+		keys.RuleBasedSegmentData(), keys.RuleBasedSegmentIndex(), keys.RuleBasedSegmentRemoved(),
+		keys.SegmentActive("s1"), keys.SegmentTombstones("s1"), keys.SegmentRemovalClock("s1"),
+	}
+	existing, err := srv.admin.Exists(ctx, data...).Result()
+	require.NoError(t, err)
+	assert.Zero(t, existing, "every data key must be gone after Reset")
+}
+
+// ftFenceMover wraps a real client. On the second ResetScript 'del' batch it moves the lease to another owner, so that
+// batch and every later one is refused by the script.
+type ftFenceMover struct {
+	Client
+	admin *goredis.Client
+	lease string
+	dels  int
+}
+
+func (c *ftFenceMover) Eval(script string, keys []string, args ...interface{}) error {
+	if script == ResetScript && len(args) > 2 && args[2] == "del" {
+		c.dels++
+		if c.dels == 2 {
+			_ = c.admin.Set(context.Background(), c.lease, "other", 0).Err()
+		}
+	}
+	return c.Client.Eval(script, keys, args...)
+}
+
+func TestResetStopsWithErrFencedWhenLeaseMoves(t *testing.T) {
+	srv := ftStartRedis(t)
+	log := &wtLogger{}
+	cfg := srv.cfg("ftrst3")
+	client, err := commonsredis.NewRedisClient(cfg, log)
+	require.NoError(t, err)
+	keys, err := NewKeys(client.Prefix(), "ft-key", "")
+	require.NoError(t, err)
+	ftSeedLease(t, srv, keys)
+	ctx := context.Background()
+
+	// 170 segments make 7 fixed data keys plus 510 segment keys. The first del batch takes the 7 fixed keys and
+	// 164 whole segments (499 keys, a segment never straddles batches); the second takes the other 6 segments.
+	const segments = 170
+	const firstBatchSegments = (resetBatch - 7) / 3
+	fields := map[string]interface{}{"fingerprint": wtFingerprint, "flags.till": 1, "rbs.till": 1}
+	var allData []string
+	allData = append(allData, keys.PurgeLast(), keys.FlagData(), keys.FlagIndex(), keys.FlagRemoved(),
+		keys.RuleBasedSegmentData(), keys.RuleBasedSegmentIndex(), keys.RuleBasedSegmentRemoved())
+	for i := 0; i < segments; i++ {
+		name := fmt.Sprintf("s%03d", i)
+		fields["seg."+name+".till"] = 1
+		allData = append(allData, keys.SegmentActive(name), keys.SegmentTombstones(name), keys.SegmentRemovalClock(name))
+	}
+	require.Greater(t, len(allData), resetBatch)
+	require.NoError(t, srv.admin.HSet(ctx, keys.Meta(), fields).Err())
+	_, err = srv.admin.Pipelined(ctx, func(p goredis.Pipeliner) error {
+		for _, k := range allData {
+			p.Set(ctx, k, "x", 0)
+		}
+		return nil
+	})
+	require.NoError(t, err)
+
+	mover := &ftFenceMover{Client: client, admin: srv.admin, lease: keys.Lease()}
+	w, err := NewWriter(mover, keys, wtFingerprint, ftOpts(), log)
+	require.NoError(t, err)
+	t.Cleanup(w.Stop)
+
+	err = w.Reset()
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrFenced), "got %v", err)
+	assert.Equal(t, 2, mover.dels, "no del batch may be sent after the refused one")
+
+	meta, err := srv.admin.HGetAll(ctx, keys.Meta()).Result()
+	require.NoError(t, err)
+	var metaFields []string
+	for field := range meta {
+		metaFields = append(metaFields, field)
+	}
+	// the refused batch keeps its segment cursors so a rerun can find those segments; the first batch's cursors are gone
+	wantMeta := []string{"fence", "fingerprint"}
+	for i := firstBatchSegments; i < segments; i++ {
+		wantMeta = append(wantMeta, fmt.Sprintf("seg.s%03d.till", i))
+	}
+	assert.ElementsMatch(t, wantMeta, metaFields, "the refused batch keeps its cursors; the fingerprint is not yet rewritten")
+
+	existing, err := srv.admin.Exists(ctx, allData...).Result()
+	require.NoError(t, err)
+	assert.Equal(t, int64(len(allData)-(7+3*firstBatchSegments)), existing, "only the first del batch may have removed data keys")
+}
+
+func TestResetWithStaleTokenDeletesNothing(t *testing.T) {
+	srv := ftStartRedis(t)
+	log := &wtLogger{}
+	w, _, _ := ftWriter(t, srv, "ftstale", ftOpts(), log)
+	require.NoError(t, w.Start(nil))
+	w.PutFlags([]dtos.SplitDTO{wtFlag("f1", 1, "ACTIVE")}, nil, 1)
+	w.PutSegment("s1", []string{"a", "b"}, nil, 1)
+	ftEventually(t, "initial write", 10*time.Second, func() bool {
+		s := w.Status()
+		return s.Healthy && s.PendingChanges == 0 && s.LastSuccessUnixMs > 0
+	})
+	w.Stop()
+
+	ctx := context.Background()
+	keysBefore, err := srv.admin.Keys(ctx, "*").Result()
+	require.NoError(t, err)
+	require.NotEmpty(t, keysBefore)
+	metaBefore, err := srv.admin.HGetAll(ctx, keysOfMeta(t, srv, "ftstale")).Result()
+	require.NoError(t, err)
+
+	opts := ftOpts()
+	opts.Token = testToken + 1
+	stale, _, _ := ftWriter(t, srv, "ftstale", opts, log)
+	err = stale.Reset()
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrFenced), "got %v", err)
+
+	keysAfter, err := srv.admin.Keys(ctx, "*").Result()
+	require.NoError(t, err)
+	assert.ElementsMatch(t, keysBefore, keysAfter)
+	metaAfter, err := srv.admin.HGetAll(ctx, keysOfMeta(t, srv, "ftstale")).Result()
+	require.NoError(t, err)
+	assert.Equal(t, metaBefore, metaAfter)
+}
+
+// keysOfMeta returns the prefixed meta key for a writer prefix
+func keysOfMeta(t *testing.T, srv *ftServer, prefix string) string {
+	t.Helper()
+	keys, err := NewKeys(prefix, "ft-key", "")
+	require.NoError(t, err)
+	return keys.Meta()
+}
+
+func TestFencedWriteIsNotRetried(t *testing.T) {
+	srv := ftStartRedis(t)
+	log := &wtLogger{}
+	cfg := srv.cfg("ftfence")
+	client, err := commonsredis.NewRedisClient(cfg, log)
+	require.NoError(t, err)
+	keys, err := NewKeys(client.Prefix(), "ft-key", "")
+	require.NoError(t, err)
+	ftSeedLease(t, srv, keys)
+
+	counter := &ftEvalCounter{Client: client}
+	opts := ftOpts()
+	opts.Token = testToken + 1
+	w, err := NewWriter(counter, keys, wtFingerprint, opts, log)
+	require.NoError(t, err)
+	t.Cleanup(w.Stop)
+	require.NoError(t, w.Start(nil))
+	w.PutFlags([]dtos.SplitDTO{wtFlag("f1", 1, "ACTIVE")}, nil, 1)
+
+	ftEventually(t, "first write sent", 10*time.Second, func() bool {
+		return counter.writes() > 0
+	})
+	// Once fenced the worker exits and closes w.done, so the write count is final at this point
+	select {
+	case <-w.done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the worker did not exit after the fence")
+	}
+	assert.Equal(t, 1, counter.writes(), "a fenced write must not be retried")
+	st := w.Status()
+	assert.False(t, st.Healthy)
+	assert.Contains(t, st.LastError, FencedMarker)
+
+	// PutFlags after the worker exited is refused, so no further Eval may follow
+	w.PutFlags([]dtos.SplitDTO{wtFlag("f2", 2, "ACTIVE")}, nil, 2)
+	assert.Equal(t, 1, counter.writes(), "a fenced writer must not send further changes")
+}
+
+// ftEvalCounter counts Eval calls per script and passes them through to the real client
+type ftEvalCounter struct {
+	Client
+	mu    sync.Mutex
+	evals map[string]int
+}
+
+func (c *ftEvalCounter) Eval(script string, keys []string, args ...interface{}) error {
+	c.mu.Lock()
+	if c.evals == nil {
+		c.evals = map[string]int{}
+	}
+	c.evals[script]++
+	c.mu.Unlock()
+	return c.Client.Eval(script, keys, args...)
+}
+
+// writes counts the Eval calls other than the Start probe
+func (c *ftEvalCounter) writes() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	total := 0
+	for script, n := range c.evals {
+		if script != startProbeScript {
+			total += n
+		}
+	}
+	return total
 }

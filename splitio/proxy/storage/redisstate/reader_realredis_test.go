@@ -49,6 +49,9 @@ func requireRedis(tb testing.TB) {
 	tb.Skipf("redis is not reachable on localhost:6379, skipping: %v", err)
 }
 
+// realRedisWipeScript deletes every key matching ARGV[1]. ResetScript is fenced and needs a lease, so test setup cannot use it.
+const realRedisWipeScript = `for _, k in ipairs(redis.call("KEYS", ARGV[1])) do redis.call("DEL", k) end return 1`
+
 // newRealRedisEnv starts a Writer and a Reader on a private prefix of the Redis on localhost:6379.
 func newRealRedisEnv(tb testing.TB) *realRedisEnv {
 	tb.Helper()
@@ -59,12 +62,14 @@ func newRealRedisEnv(tb testing.TB) *realRedisEnv {
 
 	wclient, err := commonsredis.NewRedisClient(cfg, logger)
 	require.NoError(tb, err)
-	require.NoError(tb, wclient.Eval(ResetScript, nil, prefix+".*"))
-	tb.Cleanup(func() { _ = wclient.Eval(ResetScript, nil, prefix+".*") })
+	require.NoError(tb, wclient.Eval(realRedisWipeScript, nil, prefix+".*"))
+	tb.Cleanup(func() { _ = wclient.Eval(realRedisWipeScript, nil, prefix+".*") })
 
 	wkeys, err := NewKeys(wclient.Prefix(), "realredis-key", "")
 	require.NoError(tb, err)
 	wopts := DefaultOptions()
+	wopts.Owner, wopts.Token = testOwner, testToken
+	require.NoError(tb, wclient.Eval(seedLeaseScript, []string{wkeys.Lease(), wkeys.Meta()}, testOwner, testToken))
 	// PROXY_BENCH_MAX_PENDING raises the writer queue limit so a very large seed is not dropped and resynced.
 	if n, err := strconv.Atoi(os.Getenv("PROXY_BENCH_MAX_PENDING")); err == nil && n > 0 {
 		wopts.MaxPendingChanges = n
@@ -244,7 +249,7 @@ func TestRealRedis_KeyAndFieldDrift(t *testing.T) {
 
 	seen := map[string]bool{}
 	var expected []string
-	for _, k := range append(append(keys.FlagKeys(), keys.RuleBasedSegmentKeys()...), keys.Meta(), keys.SegmentActive("s1"), keys.SegmentTombstones("s1"), keys.SegmentRemovalClock("s1"), keys.PurgeLast()) {
+	for _, k := range append(append(keys.FlagKeys(), keys.RuleBasedSegmentKeys()...), keys.Meta(), keys.Lease(), keys.SegmentActive("s1"), keys.SegmentTombstones("s1"), keys.SegmentRemovalClock("s1"), keys.PurgeLast()) {
 		if !seen[k] {
 			seen[k] = true
 			expected = append(expected, k)

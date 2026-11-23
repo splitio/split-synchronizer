@@ -22,6 +22,7 @@ import (
 	config "github.com/splitio/go-split-commons/v10/conf"
 	"github.com/splitio/go-split-commons/v10/dtos"
 	"github.com/splitio/go-split-commons/v10/engine/grammar/constants"
+	"github.com/splitio/go-split-commons/v10/flagsets"
 	commonsredis "github.com/splitio/go-split-commons/v10/storage/redis"
 	"github.com/splitio/go-split-commons/v10/synchronizer"
 	"github.com/splitio/go-toolkit/v5/logging"
@@ -31,6 +32,7 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/common/snapshot"
 	pconf "github.com/splitio/split-synchronizer/v5/splitio/proxy/conf"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/persistent"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/redisstate"
 	"github.com/splitio/split-synchronizer/v5/splitio/util"
 	"github.com/stretchr/testify/assert"
@@ -39,13 +41,16 @@ import (
 type syncManagerMock struct {
 	c         chan int
 	execCount int64
+	failAll   bool // every Start reports Error, as a cloud that stays down
 }
 
 func (m *syncManagerMock) IsRunning() bool { panic("unimplemented") }
 func (m *syncManagerMock) Start() {
 	atomic.AddInt64(&m.execCount, 1)
-	switch atomic.LoadInt64(&m.execCount) {
-	case 1:
+	switch n := atomic.LoadInt64(&m.execCount); {
+	case m.failAll:
+		m.c <- synchronizer.Error
+	case n == 1:
 		m.c <- synchronizer.Error
 	default:
 		m.c <- synchronizer.Ready
@@ -60,14 +65,19 @@ func (m *syncManagerMock) StartBGSync(mstatus chan int, shouldRetry bool, onRead
 var _ synchronizer.Manager = (*syncManagerMock)(nil)
 
 func TestSyncManagerInitializationRetriesWithSnapshot(t *testing.T) {
+	noColdStartSleep(t)
 
 	sm := &syncManagerMock{c: make(chan int, 1)}
 
-	// No snapshot and error
+	// No snapshot and error: the cold start makes coldStartMaxAttempts attempts before it is unrecoverable
 	complete := make(chan struct{}, 1)
+	sm.failAll = true
 	err := startBGSync(sm, sm.c, false, func() { complete <- struct{}{} })
 	if err != errUnrecoverable {
 		t.Error("should be an unrecoverable error. Got: ", err)
+	}
+	if n := atomic.LoadInt64(&sm.execCount); n != coldStartMaxAttempts {
+		t.Errorf("cold start attempts = %d, want %d", n, coldStartMaxAttempts)
 	}
 
 	select {
@@ -78,6 +88,7 @@ func TestSyncManagerInitializationRetriesWithSnapshot(t *testing.T) {
 	}
 
 	// Snapshot and error
+	sm.failAll = false
 	atomic.StoreInt64(&sm.execCount, 0)
 	err = startBGSync(sm, sm.c, true, func() { complete <- struct{}{} })
 	if err != errRetrying {
@@ -304,6 +315,7 @@ func TestMaskAdminConfigSecrets(t *testing.T) {
 	live.Storage.Redis.Connection.Pass = "placeholder-pw"
 	live.Storage.Redis.Connection.TLSClientKey = "client-key-pem-placeholder"
 	live.Storage.Redis.Connection.Host = "redis.local"
+	live.Storage.Redis.OfflineFingerprint = "offline-fp-placeholder"
 	live.Admin.Username = "admin-user"
 	live.Admin.Password = "admin-placeholder-pw"
 	live.Server.ClientApikeys = []string{"client-key-1", "client-key-2"}
@@ -317,6 +329,9 @@ func TestMaskAdminConfigSecrets(t *testing.T) {
 	}
 	if conn.Host != "redis.local" {
 		t.Errorf("non-secret host should not be masked, got %q", conn.Host)
+	}
+	if cfgForAdmin.Storage.Redis.OfflineFingerprint != maskedSecret {
+		t.Errorf("expected offline fingerprint masked in admin copy, got %q", cfgForAdmin.Storage.Redis.OfflineFingerprint)
 	}
 	if cfgForAdmin.Admin.Password != maskedSecret {
 		t.Errorf("expected admin password masked in admin copy, got %q", cfgForAdmin.Admin.Password)
@@ -334,6 +349,9 @@ func TestMaskAdminConfigSecrets(t *testing.T) {
 	if orig.Username != "redis-user" || orig.Pass != "placeholder-pw" || orig.TLSClientKey != "client-key-pem-placeholder" {
 		t.Errorf("live redis config was mutated: user=%q pass=%q key=%q", orig.Username, orig.Pass, orig.TLSClientKey)
 	}
+	if live.Storage.Redis.OfflineFingerprint != "offline-fp-placeholder" {
+		t.Errorf("live offline fingerprint was mutated: %q", live.Storage.Redis.OfflineFingerprint)
+	}
 	if live.Admin.Password != "admin-placeholder-pw" {
 		t.Errorf("live admin password was mutated: %q", live.Admin.Password)
 	}
@@ -348,41 +366,6 @@ func TestMaskAdminConfigSecrets(t *testing.T) {
 	}
 	if empty.Server.ClientApikeys != nil {
 		t.Errorf("nil client apikeys should stay nil, got %v", empty.Server.ClientApikeys)
-	}
-}
-
-func TestRequestSecondResyncStopsOnShutdown(t *testing.T) {
-	keys, err := redisstate.NewKeys("prefix", "apikey", "ns")
-	if err != nil {
-		t.Fatal(err)
-	}
-	w, err := redisstate.NewWriter(resyncCountingClient{}, keys, "fingerprint", redisstate.DefaultOptions(), logging.NewLogger(nil))
-	if err != nil {
-		t.Fatal(err)
-	}
-	src := &resyncCountingSource{}
-	if err := w.Start(src); err != nil {
-		t.Fatal(err)
-	}
-	defer w.Stop()
-	waitForFlagCalls(t, src, 1)
-
-	stop := make(chan struct{})
-	done := make(chan struct{})
-	go func() {
-		requestSecondResyncWith(w, false, time.Hour, stop, logging.NewLogger(nil), func() bool { return false })
-		close(done)
-	}()
-	close(stop)
-
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("requestSecondResyncWith did not return after shutdown was signalled")
-	}
-	time.Sleep(200 * time.Millisecond)
-	if got := atomic.LoadInt64(&src.flagCalls); got != 1 {
-		t.Fatalf("expected no resync after shutdown, got %d source reads", got)
 	}
 }
 
@@ -409,88 +392,6 @@ func (s *resyncCountingSource) RuleBasedSegments() ([]dtos.RuleBasedSegmentDTO, 
 
 func (s *resyncCountingSource) Segments(visit func(redisstate.SegmentState) error) error { return nil }
 
-func waitForFlagCalls(t *testing.T, s *resyncCountingSource, want int64) {
-	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
-	for atomic.LoadInt64(&s.flagCalls) < want {
-		if time.Now().After(deadline) {
-			t.Fatalf("expected at least %d source reads, got %d", want, atomic.LoadInt64(&s.flagCalls))
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-}
-
-func TestRequestRedisResyncRepairsStartedWriter(t *testing.T) {
-	requestRedisResync(nil)
-
-	keys, err := redisstate.NewKeys("prefix", "apikey", "ns")
-	if err != nil {
-		t.Fatal(err)
-	}
-	logger := logging.NewLogger(nil)
-	w, err := redisstate.NewWriter(resyncCountingClient{}, keys, "fingerprint", redisstate.DefaultOptions(), logger)
-	if err != nil {
-		t.Fatal(err)
-	}
-	src := &resyncCountingSource{}
-	if err := w.Start(src); err != nil {
-		t.Fatal(err)
-	}
-	defer w.Stop()
-
-	waitForFlagCalls(t, src, 1)
-	requestRedisResync(w)
-	waitForFlagCalls(t, src, 2)
-}
-
-func TestSecondResyncSkippedOnWarmBoot(t *testing.T) {
-	keys, err := redisstate.NewKeys("prefix", "apikey", "ns")
-	if err != nil {
-		t.Fatal(err)
-	}
-	w, err := redisstate.NewWriter(resyncCountingClient{}, keys, "fingerprint", redisstate.DefaultOptions(), logging.NewLogger(nil))
-	if err != nil {
-		t.Fatal(err)
-	}
-	src := &resyncCountingSource{}
-	if err := w.Start(src); err != nil {
-		t.Fatal(err)
-	}
-	defer w.Stop()
-
-	waitForFlagCalls(t, src, 1)
-	requestSecondResync(w, true, time.Second, nil, logging.NewLogger(nil))
-	time.Sleep(200 * time.Millisecond)
-	if got := atomic.LoadInt64(&src.flagCalls); got != 1 {
-		t.Fatalf("expected no second resync on warm boot, got %d source reads", got)
-	}
-}
-
-func TestSecondResyncRunsOnColdBoot(t *testing.T) {
-	keys, err := redisstate.NewKeys("prefix", "apikey", "ns")
-	if err != nil {
-		t.Fatal(err)
-	}
-	w, err := redisstate.NewWriter(resyncCountingClient{}, keys, "fingerprint", redisstate.DefaultOptions(), logging.NewLogger(nil))
-	if err != nil {
-		t.Fatal(err)
-	}
-	src := &resyncCountingSource{}
-	if err := w.Start(src); err != nil {
-		t.Fatal(err)
-	}
-	defer w.Stop()
-
-	waitForFlagCalls(t, src, 1)
-	requestSecondResync(w, false, time.Second, nil, logging.NewLogger(nil))
-	waitForFlagCalls(t, src, 2)
-}
-
-func TestSecondResyncNilWriter(t *testing.T) {
-	requestSecondResync(nil, true, time.Second, nil, logging.NewLogger(nil))
-	requestSecondResync(nil, false, time.Second, nil, logging.NewLogger(nil))
-}
-
 // dropRecordingClient reports a segment that only Redis knows about and records every drop script call
 type dropRecordingClient struct {
 	resyncCountingClient
@@ -501,7 +402,8 @@ type dropRecordingClient struct {
 func (c *dropRecordingClient) Eval(script string, keys []string, args ...interface{}) error {
 	if script == redisstate.SegmentDropScript {
 		c.mtx.Lock()
-		c.drops = append(c.drops, fmt.Sprint(args[len(args)-1]))
+		// ARGV is fingerprint, segment name, owner, token; the name is the second argument
+		c.drops = append(c.drops, fmt.Sprint(args[1]))
 		c.mtx.Unlock()
 	}
 	return nil
@@ -548,7 +450,7 @@ func TestColdBootResyncBeforeSyncCompletesDoesNotDropUnfetchedSegments(t *testin
 		t.Fatal(err)
 	}
 	client := &dropRecordingClient{}
-	w, err := redisstate.NewWriter(client, keys, "fingerprint", redisstate.DefaultOptions(), logging.NewLogger(nil))
+	w, err := redisstate.NewWriter(client, keys, "fingerprint", testWriterOptions(), logging.NewLogger(nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -572,36 +474,6 @@ func TestColdBootResyncBeforeSyncCompletesDoesNotDropUnfetchedSegments(t *testin
 		time.Sleep(10 * time.Millisecond)
 	}
 	assert.Equal(t, []string{"unfetched"}, client.dropped())
-}
-
-func TestSecondResyncWaitsForQueueAndExpires(t *testing.T) {
-	keys, err := redisstate.NewKeys("prefix", "apikey", "ns")
-	if err != nil {
-		t.Fatal(err)
-	}
-	w, err := redisstate.NewWriter(resyncCountingClient{}, keys, "fingerprint", redisstate.DefaultOptions(), logging.NewLogger(nil))
-	if err != nil {
-		t.Fatal(err)
-	}
-	src := &resyncCountingSource{}
-	if err := w.Start(src); err != nil {
-		t.Fatal(err)
-	}
-	defer w.Stop()
-	waitForFlagCalls(t, src, 1)
-
-	// an empty queue returns at once and requests the resync
-	start := time.Now()
-	requestSecondResync(w, false, 2*time.Second, nil, logging.NewLogger(nil))
-	assert.Less(t, time.Since(start), time.Second)
-	waitForFlagCalls(t, src, 2)
-
-	// a bound that expires still requests the resync, and logs it
-	var buf strings.Builder
-	logger := logging.NewLogger(&logging.LoggerOptions{LogLevel: logging.LevelWarning, WarningWriter: &buf})
-	requestSecondResyncWith(w, false, 50*time.Millisecond, nil, logger, func() bool { return false })
-	assert.Contains(t, buf.String(), "queue did not drain")
-	waitForFlagCalls(t, src, 3)
 }
 
 // startRequireRedis skips the test when no Redis answers on localhost:6379; with CI=true it fails instead.
@@ -694,7 +566,32 @@ func startTestConfig(t *testing.T, cloudURL string, prefix string) *pconf.Main {
 	t.Setenv("SPLIT_PROXY_AUTH_SERVICE_URL", cloudURL)
 	t.Setenv("SPLIT_PROXY_STREAMING_SERVICE_URL", cloudURL)
 	t.Setenv("SPLIT_PROXY_TELEMETRY_SERVICE_URL", cloudURL)
+	noColdStartSleep(t)
 	return cfg
+}
+
+// noColdStartSleep makes cold start retries instant for the test. Tests that assert the waits replace the seam again.
+func noColdStartSleep(t *testing.T) {
+	t.Helper()
+	prev := coldStartSleep
+	coldStartSleep = func(time.Duration) {}
+	t.Cleanup(func() { coldStartSleep = prev })
+}
+
+// recordColdStartSleeps records every cold start wait instead of sleeping. onSleep runs after each wait, with the
+// number of waits so far.
+func recordColdStartSleeps(t *testing.T, onSleep func(n int)) *[]time.Duration {
+	t.Helper()
+	prev := coldStartSleep
+	var waits []time.Duration
+	coldStartSleep = func(d time.Duration) {
+		waits = append(waits, d)
+		if onSleep != nil {
+			onSleep(len(waits))
+		}
+	}
+	t.Cleanup(func() { coldStartSleep = prev })
+	return &waits
 }
 
 func freeTCPPort(t *testing.T) int64 {
@@ -802,7 +699,8 @@ func startSeedRedisFlags(t *testing.T, cfg *pconf.Main) redisstate.Keys {
 		t.Fatalf("NewKeys: %v", err)
 	}
 	fingerprint := util.ConfigFingerprint(cfg.Apikey, cfg.FlagSpecVersion, cfg.FlagSetsFilter)
-	w, err := redisstate.NewWriter(wclient, keys, fingerprint, redisstate.DefaultOptions(), logger)
+	opts, release := seedLease(t, &config.RedisConfig{Host: "localhost", Port: 6379, Database: 0, Network: "tcp", Prefix: cfg.Storage.Redis.Connection.Prefix}, keys, fingerprint)
+	w, err := redisstate.NewWriter(wclient, keys, fingerprint, opts, logger)
 	if err != nil {
 		t.Fatalf("NewWriter: %v", err)
 	}
@@ -818,7 +716,40 @@ func startSeedRedisFlags(t *testing.T, cfg *pconf.Main) redisstate.Keys {
 		time.Sleep(5 * time.Millisecond)
 	}
 	w.Stop()
+	release()
 	return keys
+}
+
+// seedLease takes the writer lease for the seeding writer, whose fenced scripts reject writes without it, and returns
+// writer options carrying the lease token. release gives the lease back and must be called once seeding is done so
+// the proxy under test can acquire its own lease. The lease client is closed at cleanup.
+func seedLease(t *testing.T, cfg *config.RedisConfig, keys redisstate.Keys, fingerprint string) (redisstate.Options, func()) {
+	t.Helper()
+	lc, err := redisstate.NewLeaseClient(cfg)
+	if err != nil {
+		t.Fatalf("seed lease client: %v", err)
+	}
+	ctx := context.Background()
+	token, err := lc.Acquire(ctx, keys, "test-owner", fingerprint, 60*time.Second, true, false)
+	if err != nil {
+		_ = lc.Close()
+		t.Fatalf("seed lease acquire: %v", err)
+	}
+	opts := testWriterOptions()
+	opts.Token = token
+	var once sync.Once
+	release := func() {
+		once.Do(func() {
+			if err := lc.Release(ctx, keys, "test-owner", token); err != nil {
+				t.Errorf("seed lease release: %v", err)
+			}
+		})
+	}
+	t.Cleanup(func() {
+		release()
+		_ = lc.Close()
+	})
+	return opts, release
 }
 
 // startAddFlagDataWithoutIndex adds a flags data entry the flags index does not hold, so the reader sees a mismatch.
@@ -853,6 +784,64 @@ func TestStartEmptyRedisCloudDownNoSnapshotFails(t *testing.T) {
 	}
 }
 
+// Cold start with the cloud always down: 5 attempts with waits 1s, 2s, 4s, 8s between them, then Start returns an
+// InitError with ExitTaskInitialization.
+func TestColdStartRetriesThenFails(t *testing.T) {
+	startRequireRedis(t)
+	cfg := startTestConfig(t, closedCloudURL(t), startTestPrefix(t))
+	waits := recordColdStartSleeps(t, nil)
+	logger := &startTestLogger{}
+	err := start(logger, cfg)
+	assertStartExit(t, err, common.ExitTaskInitialization, logger)
+	want := []time.Duration{time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second}
+	if len(*waits) != len(want) {
+		t.Fatalf("cold start waits = %v, want %v\nlogs:\n%s", *waits, want, logger.dump())
+	}
+	for i := range want {
+		if (*waits)[i] != want[i] {
+			t.Errorf("wait %d = %s, want %s", i, (*waits)[i], want[i])
+		}
+	}
+}
+
+// Cold start where the cloud fails twice and then recovers: the third attempt succeeds and Start keeps running with
+// waits 1s and 2s. The success path blocks, so it runs in a child process.
+func TestColdStartRetriesThenSucceeds(t *testing.T) {
+	startRequireRedis(t)
+	if !isolatedStartTest(t) {
+		return
+	}
+	var cloudHealthy atomic.Bool
+	cloud := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if !cloudHealthy.Load() {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if !strings.HasSuffix(r.URL.Path, "/splitChanges") {
+			_, _ = w.Write([]byte(`{}`))
+			return
+		}
+		since := r.URL.Query().Get("since")
+		_, _ = fmt.Fprintf(w, `{"splits":[],"since":%s,"till":%s}`, since, since)
+	}))
+	defer cloud.Close()
+
+	cfg := startTestConfig(t, cloud.URL, startTestPrefix(t))
+	waits := recordColdStartSleeps(t, func(n int) {
+		if n == 2 {
+			cloudHealthy.Store(true)
+		}
+	})
+	logger := &startTestLogger{}
+	done := startInBackground(logger, cfg)
+	waitForStartLog(t, done, logger, "Synchronizer tasks started", 60*time.Second)
+
+	if len(*waits) != 2 || (*waits)[0] != time.Second || (*waits)[1] != 2*time.Second {
+		t.Errorf("cold start waits = %v, want [1s 2s]\nlogs:\n%s", *waits, logger.dump())
+	}
+}
+
 // A valid redis state wins over a snapshot file that cannot be parsed. Start must not fail on the file.
 // The success path blocks, so it runs in a child process.
 func TestStartValidRedisBeatsBadSnapshotFile(t *testing.T) {
@@ -871,8 +860,192 @@ func TestStartValidRedisBeatsBadSnapshotFile(t *testing.T) {
 	if !logger.has("starting from redis state") {
 		t.Errorf("expected redis to be the boot source\nlogs:\n%s", logger.dump())
 	}
-	if logger.has("error parsing snapshot file") {
-		t.Errorf("the snapshot file must be ignored when redis is valid\nlogs:\n%s", logger.dump())
+	if !logger.has("snapshot file is not usable, trying the redis state") {
+		t.Errorf("the unusable snapshot file must be logged before the redis read\nlogs:\n%s", logger.dump())
+	}
+}
+
+// writeStartSnapshot writes a snapshot file that passes the boot checks, with an empty bolt database as payload. hash
+// overrides the apikey/version/flagsets hash when non-empty, so a mismatching file can be written.
+func writeStartSnapshot(t *testing.T, cfg *pconf.Main, hash string) string {
+	t.Helper()
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "payload.db")
+	db, err := persistent.NewBoltWrapper(dbPath, nil)
+	if err != nil {
+		t.Fatalf("bolt payload: %v", err)
+	}
+	if err := db.Discard(); err != nil {
+		t.Fatalf("close bolt payload: %v", err)
+	}
+	payload, err := os.ReadFile(dbPath)
+	if err != nil {
+		t.Fatalf("read bolt payload: %v", err)
+	}
+	if hash == "" {
+		hash = strconv.Itoa(int(util.HashAPIKey(cfg.Apikey + cfg.FlagSpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))))
+	}
+	snap, err := snapshot.New(snapshot.Metadata{Version: 1, Storage: 1, Hash: hash, FlagSpecVersion: cfg.FlagSpecVersion}, payload)
+	if err != nil {
+		t.Fatalf("snapshot.New: %v", err)
+	}
+	raw, err := snap.Encode()
+	if err != nil {
+		t.Fatalf("snapshot encode: %v", err)
+	}
+	path := filepath.Join(dir, "proxy.snapshot")
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatalf("write snapshot: %v", err)
+	}
+	return path
+}
+
+// startHealthyCloudURL serves an empty split set, so the first cloud sync succeeds.
+func startHealthyCloudURL(t *testing.T) string {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if !strings.HasSuffix(r.URL.Path, "/splitChanges") {
+			_, _ = w.Write([]byte(`{}`))
+			return
+		}
+		since := r.URL.Query().Get("since")
+		_, _ = fmt.Fprintf(w, `{"splits":[],"since":%s,"till":%s}`, since, since)
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL
+}
+
+// countBootReads counts the opens of the boot read client, which happen only when the redis boot read runs.
+func countBootReads(t *testing.T) *atomic.Int32 {
+	t.Helper()
+	var opens atomic.Int32
+	orig := newBootReadClient
+	newBootReadClient = func(c *pconf.Main) (bootReadClient, error) {
+		opens.Add(1)
+		return orig(c)
+	}
+	t.Cleanup(func() { newBootReadClient = orig })
+	return &opens
+}
+
+// Boot source order (D4): a usable snapshot file wins and redis is not read; an unusable file falls through to redis;
+// with no usable file or redis state the proxy cold starts. Success paths block, so they run in a child process.
+func TestBootSourceOrder(t *testing.T) {
+	cases := []struct {
+		name       string
+		seedRedis  bool
+		snapshot   string // "valid", "bad" or "" for none
+		wantSource string // expected boot source on success
+		wantFatal  bool
+	}{
+		{name: "valid_snapshot_valid_redis", seedRedis: true, snapshot: "valid", wantSource: "snapshotFile"},
+		{name: "valid_snapshot_no_redis", snapshot: "valid", wantSource: "snapshotFile"},
+		{name: "bad_snapshot_valid_redis", seedRedis: true, snapshot: "bad", wantSource: "redis"},
+		{name: "bad_snapshot_absent_redis", snapshot: "bad", wantFatal: true},
+		{name: "no_snapshot_valid_redis", seedRedis: true, wantSource: "redis"},
+		{name: "no_snapshot_absent_redis", wantSource: "cold"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			startRequireRedis(t)
+			if !c.wantFatal && !isolatedStartTest(t) {
+				return
+			}
+			cloud := startHealthyCloudURL(t)
+			cfg := startTestConfig(t, cloud, startTestPrefix(t))
+			if c.seedRedis {
+				startSeedRedisFlags(t, cfg)
+			}
+			switch c.snapshot {
+			case "valid":
+				cfg.Initialization.Snapshot = writeStartSnapshot(t, cfg, "")
+			case "bad":
+				cfg.Initialization.Snapshot = writeBadSnapshotFile(t)
+			}
+			opens := countBootReads(t)
+			logger := &startTestLogger{}
+			if c.wantFatal {
+				assertStartExit(t, start(logger, cfg), common.ExitInvalidConfiguration, logger)
+				return
+			}
+			done := startInBackground(logger, cfg)
+			waitForStartLog(t, done, logger, "Synchronizer tasks started", 60*time.Second)
+			if !logger.has("source=" + c.wantSource) {
+				t.Errorf("expected boot source %s\nlogs:\n%s", c.wantSource, logger.dump())
+			}
+			wantOpens := int32(1)
+			if c.wantSource == "snapshotFile" {
+				wantOpens = 0
+			}
+			if got := opens.Load(); got != wantOpens {
+				t.Errorf("boot read opens = %d, want %d\nlogs:\n%s", got, wantOpens, logger.dump())
+			}
+		})
+	}
+}
+
+// A bad snapshot file with valid redis state boots from redis: the file is logged as unusable and not fatal.
+func TestBadSnapshotFallsThroughToRedis(t *testing.T) {
+	startRequireRedis(t)
+	if !isolatedStartTest(t) {
+		return
+	}
+	cfg := startTestConfig(t, startHealthyCloudURL(t), startTestPrefix(t))
+	startSeedRedisFlags(t, cfg)
+	cfg.Initialization.Snapshot = writeBadSnapshotFile(t)
+
+	logger := &startTestLogger{}
+	done := startInBackground(logger, cfg)
+	waitForStartLog(t, done, logger, "Synchronizer tasks started", 60*time.Second)
+	if !logger.has("starting from redis state") {
+		t.Errorf("expected redis to be the boot source\nlogs:\n%s", logger.dump())
+	}
+	if !logger.has("snapshot file is not usable") {
+		t.Errorf("expected the unusable snapshot to be logged\nlogs:\n%s", logger.dump())
+	}
+}
+
+// With redis disabled the boot order is unchanged: a valid snapshot boots, a hash-mismatched snapshot only warns, and
+// no snapshot cold starts. The redis boot read is never opened.
+func TestBootOrderRedisDisabledUnchanged(t *testing.T) {
+	cases := []struct {
+		name     string
+		snapshot string // "valid", "mismatch" or "" for none
+		wantLog  string
+		wantSrc  string
+	}{
+		{name: "valid_snapshot_boots", snapshot: "valid", wantSrc: "snapshotFile"},
+		{name: "hash_mismatch_only_warns", snapshot: "mismatch", wantLog: "does not match the provided one", wantSrc: "snapshotFile"},
+		{name: "cold_start", wantSrc: "cold"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if !isolatedStartTest(t) {
+				return
+			}
+			cfg := startTestConfig(t, startHealthyCloudURL(t), startTestPrefix(t))
+			cfg.Storage.Redis.Enabled = false
+			switch c.snapshot {
+			case "valid":
+				cfg.Initialization.Snapshot = writeStartSnapshot(t, cfg, "")
+			case "mismatch":
+				cfg.Initialization.Snapshot = writeStartSnapshot(t, cfg, "1")
+			}
+			opens := countBootReads(t)
+			logger := &startTestLogger{}
+			done := startInBackground(logger, cfg)
+			waitForStartLog(t, done, logger, "Synchronizer tasks started", 60*time.Second)
+			if c.wantLog != "" && !logger.has(c.wantLog) {
+				t.Errorf("expected warning %q\nlogs:\n%s", c.wantLog, logger.dump())
+			}
+			if !logger.has("source=" + c.wantSrc) {
+				t.Errorf("expected boot source %s\nlogs:\n%s", c.wantSrc, logger.dump())
+			}
+			if opens.Load() != 0 {
+				t.Errorf("redis disabled must not open the boot read client, opens = %d", opens.Load())
+			}
+		})
 	}
 }
 
@@ -887,6 +1060,20 @@ func TestStartSnapshotFileReadWhenRedisEmpty(t *testing.T) {
 	assertStartExit(t, err, common.ExitInvalidConfiguration, logger)
 	if !strings.Contains(err.Error(), "error parsing snapshot file") {
 		t.Errorf("expected the snapshot parse error, got %v\nlogs:\n%s", err, logger.dump())
+	}
+}
+
+// With redis enabled, a snapshot whose hash does not match the config is unusable. With no usable redis state either,
+// boot fails with ExitInvalidConfiguration (with redis disabled the same file only warns, see TestBootOrderRedisDisabledUnchanged).
+func TestStartSnapshotHashMismatchWithoutRedisStateFails(t *testing.T) {
+	startRequireRedis(t)
+	cfg := startTestConfig(t, closedCloudURL(t), startTestPrefix(t))
+	cfg.Initialization.Snapshot = writeStartSnapshot(t, cfg, "1")
+	logger := &startTestLogger{}
+	err := start(logger, cfg)
+	assertStartExit(t, err, common.ExitInvalidConfiguration, logger)
+	if !strings.Contains(err.Error(), errSnapshotConfigMismatch.Error()) {
+		t.Errorf("expected the snapshot config mismatch error, got %v\nlogs:\n%s", err, logger.dump())
 	}
 }
 
@@ -1675,9 +1862,9 @@ func TestStartBootPhaseIsInitialSyncWhileFirstCloudSyncInFlight(t *testing.T) {
 	waitForStartLog(t, done, logger, "Synchronizer tasks started", 60*time.Second)
 }
 
-// A valid Redis restore with no skipped segment is a complete local state, so the second resync is skipped (R8). A
-// restore with skipped segments, or any other source, is not, so the second resync runs.
-func TestRedisBootIsLocalStateDrivesSecondResync(t *testing.T) {
+// A valid Redis restore with no skipped segment is a complete local state (R8). A restore with skipped segments, or any
+// other source, is not.
+func TestRedisBootIsLocalState(t *testing.T) {
 	valid := &redisstate.BootState{Status: redisstate.BootValid}
 	skipped := &redisstate.BootState{Status: redisstate.BootValid, SkippedSegments: []string{"seg"}}
 	cases := []struct {
@@ -1698,32 +1885,136 @@ func TestRedisBootIsLocalStateDrivesSecondResync(t *testing.T) {
 			}
 		})
 	}
+}
 
-	keys, err := redisstate.NewKeys("prefix", "apikey", "ns")
+// T22 (INV-5): a lease-mode proxy whose first cloud sync has not completed never takes the writer lease, whatever the
+// boot source. It takes the lease once the first sync completes.
+func TestTakeoverFromStaleSnapshotDoesNotTombstoneNewerRedis(t *testing.T) {
+	startRequireRedis(t)
+	if !isolatedStartTest(t) {
+		return
+	}
+	var syncOK atomic.Bool
+	cloud := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if !strings.HasSuffix(r.URL.Path, "/splitChanges") {
+			_, _ = w.Write([]byte(`{}`))
+			return
+		}
+		if !syncOK.Load() {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		_, _ = w.Write([]byte(`{"splits":[],"since":3,"till":3}`))
+	}))
+	defer cloud.Close()
+
+	cfg := startTestConfig(t, cloud.URL, startTestPrefix(t))
+	keys := startSeedRedisFlags(t, cfg)
+	raw := goredis.NewClient(&goredis.Options{Addr: "localhost:6379"})
+	defer func() { _ = raw.Close() }()
+	ctx := context.Background()
+
+	logger := &startTestLogger{}
+	done := startInBackground(logger, cfg)
+	waitForStartLog(t, done, logger, "Failed to perform initial sync", 60*time.Second)
+
+	// the first cloud sync has not completed: the gate is closed, so the proxy must not hold the lease, must not have
+	// tried an acquire (the meta hash, including the fence, is untouched) and must not have written anything
+	metaBefore := raw.HGetAll(ctx, keys.Meta()).Val()
+	time.Sleep(2 * time.Second)
+	if n := raw.Exists(ctx, keys.Lease()).Val(); n != 0 {
+		t.Fatalf("lease taken before the first cloud sync completed\nlogs:\n%s", logger.dump())
+	}
+	assert.Equal(t, metaBefore, raw.HGetAll(ctx, keys.Meta()).Val(), "redis meta changed before the first cloud sync completed")
+	assert.Equal(t, "3", metaBefore[keys.FlagCursorField()], "the seeded flag cursor must be intact before the gate opens")
+
+	syncOK.Store(true)
+	waitForStartLog(t, done, logger, "Synchronizer tasks started", 60*time.Second)
+	deadline := time.Now().Add(30 * time.Second)
+	for raw.Exists(ctx, keys.Lease()).Val() == 0 {
+		if time.Now().After(deadline) {
+			t.Fatalf("lease not taken after the first cloud sync completed\nlogs:\n%s", logger.dump())
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	assert.NotEqual(t, metaBefore[redisstate.FenceField], raw.HGet(ctx, keys.Meta(), redisstate.FenceField).Val(), "acquire after the gate opened must bump the fence")
+}
+
+// T7: a takeover reconciles before it writes. While the first proxy holds the lease the second stays a non-writer and
+// writes nothing. After the first stops, the second acquires the lease and its Start resync writes its own source.
+func TestWriterRoleTakeoverReconciles(t *testing.T) {
+	logger := logging.NewLogger(nil)
+	cfg := redisStateTestConfig(t)
+	newStorages := func(name string, changeNumber int64) (*storage.ProxySplitStorageImpl, *storage.ProxyRuleBasedSegmentsStorageImpl, *storage.ProxySegmentStorageImpl) {
+		db, err := persistent.NewBoltWrapper(filepath.Join(t.TempDir(), name+".db"), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		splits := storage.NewProxySplitStorage(db, logger, flagsets.NewFlagSetFilter(nil), false)
+		splits.Update([]dtos.SplitDTO{{Name: name}}, nil, changeNumber)
+		return splits, storage.NewProxyRuleBasedSegmentsStorage(db, logger, false), storage.NewProxySegmentStorage(db, logger, false)
+	}
+
+	opts, err := common.ParseRedisOptions(&cfg.Storage.Redis.Connection)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, tc := range cases {
-		t.Run("second resync "+tc.name, func(t *testing.T) {
-			w, err := redisstate.NewWriter(resyncCountingClient{}, keys, "fingerprint", redisstate.DefaultOptions(), logging.NewLogger(nil))
-			if err != nil {
-				t.Fatal(err)
-			}
-			src := &resyncCountingSource{}
-			if err := w.Start(src); err != nil {
-				t.Fatal(err)
-			}
-			defer w.Stop()
-			waitForFlagCalls(t, src, 1)
-			requestSecondResync(w, redisBootIsLocalState(tc.boot), time.Second, nil, logging.NewLogger(nil))
-			if tc.want {
-				time.Sleep(200 * time.Millisecond)
-				if got := atomic.LoadInt64(&src.flagCalls); got != 1 {
-					t.Fatalf("second resync ran on a complete local state: %d source reads", got)
-				}
-				return
-			}
-			waitForFlagCalls(t, src, 2)
-		})
+	client, err := commonsredis.NewRedisClient(opts, logger)
+	if err != nil {
+		t.Fatal(err)
 	}
+	keys, err := redisstate.NewKeys(client.Prefix(), cfg.Apikey, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := goredis.NewClient(&goredis.Options{Addr: "localhost:6379"})
+	t.Cleanup(func() { _ = raw.Close() })
+	cursor := func() string { return raw.HGet(context.Background(), keys.Meta(), keys.FlagCursorField()).Val() }
+
+	splits1, rbs1, segs1 := newStorages("t7-a", 10)
+	sup1, err := setupRedisState(cfg, logger, splits1, rbs1, segs1, newSourceGate(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(sup1.Stop)
+	waitForRedisWriter(t, sup1)
+	waitForCondition(t, "the first writer to publish its cursor", func() bool { return cursor() == "10" })
+
+	splits2, rbs2, segs2 := newStorages("t7-b", 20)
+	gate2 := newSourceGate(false)
+	sup2, err := setupRedisState(cfg, logger, splits2, rbs2, segs2, gate2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if w := sup2.Writer(); w != nil {
+			_ = w.Reset()
+		}
+		sup2.Stop()
+	})
+
+	// while the first proxy holds the lease, the second is a non-writer and writes nothing
+	time.Sleep(time.Second)
+	assert.Nil(t, sup2.Writer())
+	assert.Equal(t, "10", cursor())
+
+	fenceOf := func() string { return raw.HGet(context.Background(), keys.Meta(), redisstate.FenceField).Val() }
+	fence1, err := strconv.Atoi(fenceOf())
+	if err != nil {
+		t.Fatalf("fence after the first acquire: %v", err)
+	}
+
+	// the first proxy stops and releases the lease, but the second one's gate is still closed: it must not acquire
+	sup1.Stop()
+	time.Sleep(time.Second)
+	assert.Nil(t, sup2.Writer())
+	assert.Equal(t, "10", cursor())
+	assert.Equal(t, strconv.Itoa(fence1), fenceOf(), "a closed gate must not acquire")
+
+	// the gate opens: exactly one acquire (one term), then the Start resync writes the second source
+	gate2.open()
+	waitForRedisWriter(t, sup2)
+	waitForCondition(t, "the takeover resync to publish the new source cursor", func() bool { return cursor() == "20" })
+	assert.Equal(t, strconv.Itoa(fence1+1), fenceOf(), "the takeover must acquire exactly one new term")
 }

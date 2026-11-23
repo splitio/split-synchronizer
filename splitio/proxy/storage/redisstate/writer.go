@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"reflect"
 	"runtime/debug"
@@ -12,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -40,6 +42,9 @@ const (
 	MaxPurgeBatch = 5000
 	// MaxStopTimeoutMs caps how long Stop waits for the worker to drain, in milliseconds.
 	MaxStopTimeoutMs = 60000
+	// MaxToken is the largest lease fencing token. Lua tonumber and isint are exact only up to 15 digits, so a larger
+	// token would be refused as a bad argument instead of failing at construction.
+	MaxToken = 999999999999999
 
 	// noCursor is the cursor argument that makes a script leave the stored cursor untouched
 	noCursor = int64(-1)
@@ -48,6 +53,9 @@ const (
 var (
 	// ErrEnvironmentMismatch is returned when Redis holds state of another environment/configuration
 	ErrEnvironmentMismatch = errors.New("redis state belongs to a different environment or configuration")
+	// ErrFenced is returned when Redis rejects a write because this writer no longer holds the lease (stale token,
+	// another owner, or the lease key is gone). The writer stops for good; a new writer with a new lease is needed
+	ErrFenced = errors.New("redis state writer lease was lost, the writer is fenced")
 	// ErrInvalidOptions is returned when the writer is built with an invalid option or dependency
 	ErrInvalidOptions = errors.New("invalid redis state writer options")
 	// ErrInvalidSegmentName is returned by DeleteSegmentKeys for an empty name or one with glob characters
@@ -77,6 +85,7 @@ type errClass int
 const (
 	errTransient errClass = iota
 	errEnvMismatch
+	errFenced
 	errPermanent
 	errUnknown
 )
@@ -88,6 +97,8 @@ func (c errClass) String() string {
 		return "transient"
 	case errEnvMismatch:
 		return "environment mismatch"
+	case errFenced:
+		return "fenced"
 	case errPermanent:
 		return "permanent"
 	default:
@@ -105,7 +116,7 @@ var (
 )
 
 // classify maps a Redis or client error to its class. The order is the table: transient first (even inside a Lua
-// wrapper), then the environment mismatch marker, then permanent (a permanent marker or a Lua runtime error), and
+// wrapper), then the environment mismatch and fenced markers, then permanent (a permanent marker or a Lua runtime error), and
 // anything else is unknown.
 func classify(err error) errClass {
 	msg := err.Error()
@@ -117,6 +128,8 @@ func classify(err error) errClass {
 		return errTransient
 	case ErrorHasMarker(err, EnvMismatchMarker):
 		return errEnvMismatch
+	case ErrorHasMarker(err, FencedMarker):
+		return errFenced
 	case strings.Contains(msg, "@user_script:"), slices.Contains(permanentHeads, head), evalUnavailable(msg):
 		return errPermanent
 	}
@@ -216,6 +229,8 @@ type Options struct {
 	ChunkSize         int           // default 1000 (entities or keys per script call)
 	PurgeBatch        int           // default 500 (entries removed per PurgeScript call), 1..5000
 	StopTimeoutMs     int64         // default 10000 (drain bound on Stop only; a blocked Redis call is bounded by the client timeouts), 1..60000
+	Owner             string        // lease owner sent to the fenced scripts; required, no default
+	Token             int64         // lease fencing token sent to the fenced scripts; required, must be > 0, no default
 }
 
 // DefaultOptions returns the default writer options
@@ -320,6 +335,8 @@ type Writer struct {
 	stop     chan struct{}
 	done     chan struct{}
 	stopOnce sync.Once
+	// abort is set by Abort: work ends at once, without the drain window. Read without mtx, so it is atomic
+	abort atomic.Bool
 	// drainUntil is the drain deadline, written by Stop before w.stop closes and read only after the close is observed
 	drainUntil time.Time
 
@@ -334,6 +351,8 @@ type Writer struct {
 	canResync   bool
 	resyncSince time.Time
 	mismatch    bool
+	// fenced is set once Redis rejects a write for a lost lease: the worker stops, nothing is queued again
+	fenced bool
 	// dead is set by recoverWorker after a worker panic: nothing is queued again, the mirror stays stopped
 	dead          bool
 	refusedLogged bool
@@ -374,6 +393,8 @@ func NewWriter(client Client, keys Keys, fingerprint string, opts Options, logge
 		return nil, fmt.Errorf("%w: purge batch must be 1..%d", ErrInvalidOptions, MaxPurgeBatch)
 	case opts.StopTimeoutMs <= 0 || opts.StopTimeoutMs > MaxStopTimeoutMs:
 		return nil, fmt.Errorf("%w: stop timeout ms must be 1..%d", ErrInvalidOptions, MaxStopTimeoutMs)
+	case opts.Owner == "" || opts.Token <= 0 || opts.Token > MaxToken:
+		return nil, fmt.Errorf("%w: owner is required and token must be 1..%d", ErrInvalidOptions, MaxToken)
 	case keys.prefix != client.Prefix():
 		return nil, fmt.Errorf("%w: keys prefix %q does not match the client prefix %q", ErrInvalidOptions, keys.prefix, client.Prefix())
 	}
@@ -501,6 +522,45 @@ func (w *Writer) Stop() {
 		w.drainUntil = w.now().Add(time.Duration(w.opts.StopTimeoutMs) * time.Millisecond)
 		close(w.stop)
 	})
+	dropped := w.waitAndDrop()
+	msg := fmt.Sprintf("redis state writer stopped, %d queued changes dropped (drain bound %d ms), their cursors were not written so Redis stays behind the source", dropped, w.opts.StopTimeoutMs)
+	if dropped > 0 {
+		w.logger.Error(msg)
+	} else {
+		w.logger.Info(msg)
+	}
+}
+
+// Dead reports that this Writer can no longer write: its worker died (recoverWorker), it is in the environment
+// mismatch state, or Redis fenced it. The supervisor checks it at every renew tick and steps down when it is true.
+func (w *Writer) Dead() bool {
+	w.mtx.Lock()
+	defer w.mtx.Unlock()
+	return w.dead || w.mismatch || w.fenced
+}
+
+// Abort stops the writer without a drain: pending and in-flight changes are dropped and the worker is stopped (a Stop
+// already waiting on the drain returns early). It returns after the worker has exited, so it waits for the in-flight
+// Eval or Source callback to return; that wait is bounded by the client timeouts. It is idempotent and safe to call
+// together with Stop. It logs at Error only when changes were dropped.
+func (w *Writer) Abort() {
+	w.abort.Store(true)
+	w.stopOnce.Do(func() {
+		w.drainUntil = w.now()
+		close(w.stop)
+	})
+	dropped := w.waitAndDrop()
+	msg := fmt.Sprintf("redis state writer aborted, %d queued changes dropped without a drain, their cursors were not written so Redis stays behind the source", dropped)
+	if dropped > 0 {
+		w.logger.Error(msg)
+	} else {
+		w.logger.Info(msg)
+	}
+}
+
+// waitAndDrop waits for the worker to exit when it was started, then drops the queue and the in-flight change and
+// counts them. It returns the number dropped.
+func (w *Writer) waitAndDrop() int {
 	w.mtx.Lock()
 	started := w.started
 	w.mtx.Unlock()
@@ -508,6 +568,7 @@ func (w *Writer) Stop() {
 		<-w.done
 	}
 	w.mtx.Lock()
+	defer w.mtx.Unlock()
 	dropped := len(w.queue)
 	if w.inflight != nil {
 		dropped++
@@ -515,13 +576,7 @@ func (w *Writer) Stop() {
 	}
 	w.clearQueueLocked()
 	w.stats.DroppedChanges += int64(dropped)
-	w.mtx.Unlock()
-	msg := fmt.Sprintf("redis state writer stopped, %d queued changes dropped (drain bound %d ms), their cursors were not written so Redis stays behind the source", dropped, w.opts.StopTimeoutMs)
-	if dropped > 0 {
-		w.logger.Error(msg)
-	} else {
-		w.logger.Info(msg)
-	}
+	return dropped
 }
 
 // RequestResync asks the worker to run a full resync of Redis against the Source given to Start, through the same
@@ -532,7 +587,7 @@ func (w *Writer) Stop() {
 // requested resync is not counted in Status.Resyncs.
 func (w *Writer) RequestResync() {
 	w.mtx.Lock()
-	ok := w.canResync && !w.mismatch && !w.dead && !w.stopped()
+	ok := w.canResync && !w.mismatch && !w.dead && !w.fenced && !w.stopped()
 	if ok {
 		w.scheduleResyncLocked()
 	}
@@ -542,9 +597,18 @@ func (w *Writer) RequestResync() {
 	}
 }
 
-// Reset deletes every key of this environment namespace it knows of and clears the mismatch flag. Call before Start, only when Initialization.ForceFreshStartup is set.
+// resetBatch caps the data keys one ResetScript 'del' call deletes, and the meta fields one 'meta' call removes. It keeps
+// each call under the Lua unpack limit of the script.
+const resetBatch = 500
+
+// Reset deletes the state of this environment namespace it knows of and clears the mismatch flag. It requires the lease
+// (Owner and Token): every step is a fenced ResetScript call. Meta keeps the fence and gets the writer's own fingerprint
+// back at the end, so a foreign fingerprint is taken over. The reader is invalid from the first step on, because the
+// flag and rule-based segment cursors are removed before any data key. Meta itself is never deleted. When the lease
+// moves it stops at once and returns an error wrapping ErrFenced, deleting nothing after the refused call. Call before
+// Start, only when Initialization.ForceFreshStartup is set.
 func (w *Writer) Reset() error {
-	if err := w.deleteKnown(); err != nil {
+	if err := w.resetFenced(); err != nil {
 		return fmt.Errorf("deleting the redis state of environment %s: %w", w.keys.Env(), err)
 	}
 	w.mtx.Lock()
@@ -560,30 +624,100 @@ func (w *Writer) Reset() error {
 	return nil
 }
 
-// deleteKnown deletes the keys it can name without SCAN or KEYS: the flag and rule-based segment keys, and for each
-// segment listed in the meta hash (including cursor -1) its three keys. The meta hash is deleted last, because the
-// segment names are only known from it: if a DEL fails, meta survives and a rerun finds the rest.
-func (w *Writer) deleteKnown() error {
-	u := w.keys.Unprefixed()
-	meta, err := w.client.HGetAll(u.Meta())
+// resetFenced runs the Reset steps, every call fenced through ResetScript. The meta hash is read unprefixed, as before.
+// The data keys are named through w.keys, because Eval keys get no prefix. The meta key is never in a data list.
+//  1. HGetAll meta, read only.
+//  2. 'meta' calls HDEL every meta field except fence, fingerprint and the segment cursors (flags.till and rbs.till
+//     included), so the reader is invalid before any data key goes.
+//  3. 'del' calls, each with at most resetBatch data keys: the 7 fixed keys first, then each segment's three keys
+//     together with its cursor field as ARGV, so a segment and its cursor leave in the same call and never straddle two.
+//     An aborted Reset leaves only the segments not yet deleted, each still with its cursor, so a rerun deletes them.
+//  4. 'fingerprint' sets meta fingerprint to the writer's own, taking over a foreign one.
+func (w *Writer) resetFenced() error {
+	meta, err := w.client.HGetAll(w.keys.Unprefixed().Meta())
 	if err != nil {
 		return err
 	}
-	known := []string{
-		u.PurgeLast(), u.FlagData(), u.FlagIndex(), u.FlagRemoved(),
-		u.RuleBasedSegmentData(), u.RuleBasedSegmentIndex(), u.RuleBasedSegmentRemoved(),
-	}
+	owner, token := w.opts.Owner, w.opts.Token
+	lease := []string{w.keys.Lease(), w.keys.Meta()}
+
+	var metaFields []string
+	cursors := make(map[string]string)
 	for field := range meta {
-		if name, ok := segmentNameOfCursorField(field); ok {
-			known = append(known, u.SegmentActive(name), u.SegmentTombstones(name), u.SegmentRemovalClock(name))
+		if field == "fence" || field == "fingerprint" {
+			continue
 		}
+		if name, ok := segmentNameOfCursorField(field); ok {
+			cursors[name] = field
+			continue
+		}
+		metaFields = append(metaFields, field)
 	}
-	for _, key := range known {
-		if _, err := w.client.Del(key); err != nil {
+	for start := 0; start < len(metaFields); start += resetBatch {
+		end := min(start+resetBatch, len(metaFields))
+		args := []interface{}{owner, token, "meta"}
+		for _, field := range metaFields[start:end] {
+			args = append(args, field)
+		}
+		if err := w.resetEval(lease, args...); err != nil {
 			return err
 		}
 	}
-	_, err = w.client.Del(u.Meta())
+
+	// a unit is the keys that must leave together with the fields it carries; a segment is never split
+	type unit struct {
+		keys   []string
+		fields []string
+	}
+	k := w.keys
+	var units []unit
+	for _, key := range []string{
+		k.PurgeLast(), k.FlagData(), k.FlagIndex(), k.FlagRemoved(),
+		k.RuleBasedSegmentData(), k.RuleBasedSegmentIndex(), k.RuleBasedSegmentRemoved(),
+	} {
+		units = append(units, unit{keys: []string{key}})
+	}
+	for _, name := range slices.Sorted(maps.Keys(cursors)) {
+		units = append(units, unit{
+			keys:   []string{k.SegmentActive(name), k.SegmentTombstones(name), k.SegmentRemovalClock(name)},
+			fields: []string{cursors[name]},
+		})
+	}
+
+	var keys, fields []string
+	flush := func() error {
+		args := []interface{}{owner, token, "del"}
+		for _, field := range fields {
+			args = append(args, field)
+		}
+		err := w.resetEval(append(append([]string{}, lease...), keys...), args...)
+		keys, fields = keys[:0], fields[:0]
+		return err
+	}
+	for _, u := range units {
+		if len(keys)+len(u.keys) > resetBatch {
+			if err := flush(); err != nil {
+				return err
+			}
+		}
+		keys = append(keys, u.keys...)
+		fields = append(fields, u.fields...)
+	}
+	if len(keys) > 0 {
+		if err := flush(); err != nil {
+			return err
+		}
+	}
+
+	return w.resetEval(lease, owner, token, "fingerprint", w.fingerprint)
+}
+
+// resetEval runs one ResetScript call. A fenced refusal is returned wrapping ErrFenced and is never retried.
+func (w *Writer) resetEval(keys []string, args ...interface{}) error {
+	err := w.client.Eval(ResetScript, keys, args...)
+	if ErrorHasMarker(err, FencedMarker) {
+		return fmt.Errorf("%w: %w", ErrFenced, err)
+	}
 	return err
 }
 
@@ -621,7 +755,7 @@ func (w *Writer) deleteSegmentKeys(name string) error {
 	}
 	field := w.keys.SegmentCursorField(name)
 	err := w.retry("segment key delete", func() error {
-		return w.client.Eval(SegmentRepairScript, w.keys.SegmentKeys(name), w.fingerprint, field)
+		return w.client.Eval(SegmentRepairScript, append(w.keys.SegmentKeys(name), w.keys.Lease()), w.fingerprint, field, w.opts.Owner, w.opts.Token)
 	})
 	if err == nil {
 		// the stored cursor is -1 now, so the last cursor this process sent no longer describes Redis
@@ -776,6 +910,9 @@ func (w *Writer) refuseLocked() (string, int) {
 			return "redis state: change refused because Redis holds the state of another environment or configuration; further refusals are logged at debug level", refusalFirst
 		}
 		return "redis state: change refused (environment mismatch)", refusalRepeat
+	case w.fenced:
+		w.stats.RefusedChanges++
+		return "redis state: change refused because the writer lease was lost (fenced)", refusalRepeat
 	case w.dead:
 		w.stats.RefusedChanges++
 		if !w.deadRefusedLogged {
@@ -1130,7 +1267,7 @@ func (w *Writer) scheduleResyncLocked() {
 // skipped and never schedules another pass, so a bad entity cannot loop.
 func (w *Writer) scheduleRefusedResync() {
 	w.mtx.Lock()
-	if w.canResync && !w.mismatch && !w.dead {
+	if w.canResync && !w.mismatch && !w.dead && !w.fenced {
 		w.stats.Resyncs++
 		w.scheduleResyncLocked()
 	}
@@ -1181,7 +1318,7 @@ func (w *Writer) stopped() bool {
 
 // aborted reports whether work must end now: Stop was called and the drain deadline has passed.
 func (w *Writer) aborted() bool {
-	return w.stopped() && !w.now().Before(w.drainUntil)
+	return w.abort.Load() || (w.stopped() && !w.now().Before(w.drainUntil))
 }
 
 func (w *Writer) run(source Source) {
@@ -1228,7 +1365,7 @@ func (w *Writer) run(source Source) {
 				continue
 			}
 			resyncDrops = 0
-			if err != nil && !errors.Is(err, ErrEnvironmentMismatch) {
+			if err != nil && !errors.Is(err, ErrEnvironmentMismatch) && !errors.Is(err, ErrFenced) {
 				w.logger.Error(fmt.Sprintf("redis state: resync failed, it reruns at the next request or start: %v", err))
 			}
 			dropBo = backoff.New(2, w.opts.BackoffMaxWait)
@@ -1290,7 +1427,7 @@ func (w *Writer) recoverWorker() {
 func (w *Writer) next() (job, bool) {
 	for {
 		w.mtx.Lock()
-		if w.aborted() {
+		if w.aborted() || w.fenced {
 			w.mtx.Unlock()
 			return job{}, false
 		}
@@ -1346,6 +1483,29 @@ func (w *Writer) finishResync(err error) {
 		w.resyncSince = time.Time{}
 	}
 	w.mtx.Unlock()
+}
+
+// enterFenced stops the writer for good after Redis rejected a write for a lost lease: the queue is cleared, later
+// changes are refused and the worker exits. Status shows Healthy=false and the fencing error as LastError.
+func (w *Writer) enterFenced(last error) {
+	w.mtx.Lock()
+	first := !w.fenced
+	w.fenced = true
+	dropped := len(w.queue)
+	if w.inflight != nil {
+		dropped++
+	}
+	w.stats.DroppedChanges += int64(dropped)
+	w.clearQueueLocked()
+	w.inflight = nil
+	w.needResync = false
+	w.resyncSince = time.Time{}
+	w.stats.Healthy = false
+	w.stats.LastError = last.Error()
+	w.mtx.Unlock()
+	if first {
+		w.logger.Error(fmt.Sprintf("redis state: the writer lease was lost, Redis rejected the write as fenced; the writer stopped, %d queued changes dropped: %s", dropped, last.Error()))
+	}
 }
 
 // enterMismatch stops all writing: the queue is cleared and later changes are refused until Reset
@@ -1421,6 +1581,10 @@ func (w *Writer) retry(what string, op func() error) error {
 		case errEnvMismatch:
 			w.enterMismatch()
 			return ErrEnvironmentMismatch
+		case errFenced:
+			// not retried and not an entity refusal: the lease is gone, so the writer stops for good
+			w.enterFenced(err)
+			return fmt.Errorf("%w: %w", ErrFenced, err)
 		case errPermanent:
 			w.recordRefused(err)
 			// the wrapped error keeps the Redis text for the caller's log, and errors.Is still sees errChunkRejected
@@ -1722,8 +1886,8 @@ func (w *Writer) writeEntities(what, script string, keys []string, cursorField s
 		if last {
 			cur = g.cursorToSend(cursor, skipped || pending || g.whole || w.overflowFrozen())
 		}
-		args := buildEntityArgs(w.fingerprint, w.opts.Retention.Milliseconds(), cursorField, cur, part)
-		if err := w.eval(what, script, keys, args); err != nil {
+		args := append(buildEntityArgs(w.fingerprint, w.opts.Retention.Milliseconds(), cursorField, cur, part), w.opts.Owner, w.opts.Token)
+		if err := w.eval(what, script, append(keys[:len(keys):len(keys)], w.keys.Lease()), args); err != nil {
 			if errors.Is(err, errDropped) {
 				g.dropped()
 			}
@@ -1841,8 +2005,8 @@ func (w *Writer) writeSegment(name string, adds, rems []segmentKey, cursor int64
 		if last {
 			cur = g.cursorToSend(cursor, skipped || g.whole || w.overflowFrozen())
 		}
-		args := buildSegmentArgs(w.fingerprint, w.opts.Retention.Milliseconds(), name, field, cur, a, r)
-		if err := w.eval("segment write", SegmentScript, keys, args); err != nil {
+		args := append(buildSegmentArgs(w.fingerprint, w.opts.Retention.Milliseconds(), name, field, cur, a, r), w.opts.Owner, w.opts.Token)
+		if err := w.eval("segment write", SegmentScript, append(keys[:len(keys):len(keys)], w.keys.Lease()), args); err != nil {
 			if errors.Is(err, errDropped) {
 				g.dropped()
 			}

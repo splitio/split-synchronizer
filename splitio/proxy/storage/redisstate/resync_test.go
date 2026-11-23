@@ -765,6 +765,7 @@ func TestFingerprintMissingMidRunRecreatedByNextWrite(t *testing.T) {
 
 	_, err := e.client.Del(e.keys.MetaUnprefixed())
 	require.NoError(t, err)
+	e.seedLease(testOwner, testToken)
 	w.PutFlags([]dtos.SplitDTO{wtFlag("f2", 2, "ACTIVE")}, nil, 2)
 	wtWaitUntil(t, "the write after the fingerprint loss", func() bool { return w.Status().PendingChanges == 0 })
 	w.Stop()

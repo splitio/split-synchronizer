@@ -70,10 +70,19 @@ func openRedisBootReadClient(cfg *pconf.Main) (bootReadClient, error) {
 	return client, nil
 }
 
-// resolveRedisBootInto reads redis state and picks the boot source, and runs before the snapshot file block. A valid
-// state wins over the snapshot file. Absent, corrupt, foreign or entity-less states are never served and fall back to
+// redisBootFingerprint is the fingerprint a boot read expects. Offline there is no API key to derive it from, so it is
+// the configured offline fingerprint (validated by validateOfflineRedisSettings).
+func redisBootFingerprint(cfg *pconf.Main) string {
+	if cfg.Offline {
+		return cfg.Storage.Redis.OfflineFingerprint
+	}
+	return util.ConfigFingerprint(cfg.Apikey, cfg.FlagSpecVersion, cfg.FlagSetsFilter)
+}
+
+// resolveRedisBootInto reads redis state and picks the boot source. It runs after the snapshot file check: a usable
+// snapshot file wins and this read is skipped, otherwise a valid state is served. Absent, corrupt, foreign or entity-less states are never served and fall back to
 // the snapshot file or cold start. Unreachable redis is not fatal at boot: with redis enabled the cloud is always an
-// alternative here (offline mode with redis is rejected earlier in start), so the proxy falls back to the snapshot file
+// alternative here (offline mode treats any non-redis decision as unusable, see bootOfflineRedis), so the proxy falls back to the snapshot file
 // or cold start and the redis writer keeps retrying. "Redis required" now applies to the writer only. The sink may hold
 // partial data after an unreachable read; the caller discards it because the source is not BootSourceRedis. Disabled redis or force-fresh-startup skips the read.
 // With a sink, flags, rule-based segments and each segment are restored while the read runs and BootState.Segments
@@ -112,8 +121,7 @@ func resolveRedisBootInto(cfg *pconf.Main, logger logging.LoggerInterface, open 
 	if err != nil {
 		return BootDecision{}, common.NewInitError(fmt.Errorf("error building redis state keys: %w", err), common.ExitInvalidConfiguration)
 	}
-	fingerprint := util.ConfigFingerprint(cfg.Apikey, cfg.FlagSpecVersion, cfg.FlagSetsFilter)
-	reader, err := redisstate.NewReader(client, keys, fingerprint)
+	reader, err := redisstate.NewReader(client, keys, redisBootFingerprint(cfg))
 	if err != nil {
 		return BootDecision{}, common.NewInitError(fmt.Errorf("error creating redis state reader: %w", err), common.ExitInvalidConfiguration)
 	}
@@ -137,7 +145,11 @@ func resolveRedisBootInto(cfg *pconf.Main, logger logging.LoggerInterface, open 
 		if state.Status == redisstate.BootAbsent {
 			state = redisstate.BootState{Status: redisstate.BootUnreachable, FlagCursor: -1, RuleBasedSegmentCursor: -1}
 		}
-		logger.Error(fmt.Sprintf("redis state could not be read at boot (%v), starting from the snapshot file or the cloud; the redis writer keeps retrying in the background", err))
+		if cfg.Offline {
+			logger.Error(fmt.Sprintf("redis state could not be read at boot (%v), there is no redis writer in offline mode", err))
+		} else {
+			logger.Error(fmt.Sprintf("redis state could not be read at boot (%v), starting from the snapshot file or the cloud; the redis writer keeps retrying in the background", err))
+		}
 		return fallbackBootDecision(cfg, &state, "redis unreachable at boot"), nil
 	}
 	return decideFromState(cfg, logger, state)
@@ -186,7 +198,7 @@ func decideFromState(cfg *pconf.Main, logger logging.LoggerInterface, state redi
 			logger.Warning(fmt.Sprintf("%d segments were not restored from redis and will be refetched from the cloud: %s",
 				len(state.SkippedSegments), skippedSummary(state)))
 		}
-		logger.Info(fmt.Sprintf("starting from redis state (%d segments, %d flags, %d rule-based segments), valid redis state takes precedence over the snapshot file",
+		logger.Info(fmt.Sprintf("starting from redis state (%d segments, %d flags, %d rule-based segments)",
 			state.SegmentCount, len(state.Flags), len(state.RuleBasedSegments)))
 		return BootDecision{Source: BootSourceRedis, State: &state, Reason: "valid redis state"}, nil
 	case redisstate.BootForeign:
@@ -266,10 +278,10 @@ func (d BootDecision) Summary() BootSummary {
 }
 
 // logBootSummary logs the boot decision once. It is a warning when redis is enabled but the proxy did not boot from it,
-// unless the redis state was turned off or skipped on purpose.
+// unless the redis state was turned off or skipped on purpose, or a valid snapshot file was used instead of it.
 func logBootSummary(logger logging.LoggerInterface, cfg *pconf.Main, s BootSummary) {
 	msg := fmt.Sprintf("redis boot summary: source=%s reason=%q skippedSegments=%d", s.Source, s.Reason, s.SkippedSegments)
-	intentional := s.Reason == "force-fresh-startup" || s.Reason == "redis state is disabled"
+	intentional := s.Reason == "force-fresh-startup" || s.Reason == "redis state is disabled" || s.Reason == "valid snapshot file"
 	if s.Source != BootSourceRedis && cfg.Storage.Redis.Enabled && !intentional {
 		logger.Warning(msg)
 		return

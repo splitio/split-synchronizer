@@ -2,16 +2,18 @@ package proxy
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"math"
 	"net"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/splitio/go-toolkit/v5/backoff"
 	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/go-toolkit/v5/redis"
 
@@ -20,9 +22,7 @@ import (
 	pconf "github.com/splitio/split-synchronizer/v5/splitio/proxy/conf"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/redisstate"
-	"github.com/splitio/split-synchronizer/v5/splitio/util"
 
-	commonconf "github.com/splitio/go-split-commons/v10/conf"
 	"github.com/splitio/go-split-commons/v10/dtos"
 	commonredis "github.com/splitio/go-split-commons/v10/storage/redis"
 )
@@ -63,6 +63,10 @@ func stopRedisState(writer interface{ Stop() }, logger logging.LoggerInterface, 
 // Upper bounds for the remaining settings. Chunk size, purge batch and stop timeout use redisstate.Max* so they
 // match the limits NewWriter enforces.
 const (
+	// redisStateMinLeaseTtlMs is 3 x the lease call bound. It is kept independent of redis.connection timeouts.
+	redisStateMinLeaseTtlMs = int64(3 * redisstate.LeaseCallBound / time.Millisecond)
+	// redisStateMaxLeaseTtlMs keeps the ms to Duration conversion far from int64 overflow.
+	redisStateMaxLeaseTtlMs     = 3600000
 	redisStateMaxPendingChanges = 10000000
 	redisStateMaxWriteAttempts  = 100
 	redisStateMaxBackoffMs      = 3600000
@@ -78,6 +82,8 @@ func validateRedisStateSettings(cfg *pconf.RedisState) error {
 		return common.NewInitError(fmt.Errorf("invalid redis state configuration: "+format, args...), common.ExitInvalidConfiguration)
 	}
 	switch {
+	case cfg.LeaseTtlMs < redisStateMinLeaseTtlMs || cfg.LeaseTtlMs > redisStateMaxLeaseTtlMs:
+		return invalid("leaseTtlMs must be %d..%d, got %d", redisStateMinLeaseTtlMs, redisStateMaxLeaseTtlMs, cfg.LeaseTtlMs)
 	case cfg.ChunkSize <= 0 || cfg.ChunkSize > redisstate.MaxChunkSize:
 		return invalid("chunkSize must be 1..%d, got %d", redisstate.MaxChunkSize, cfg.ChunkSize)
 	case cfg.PurgeBatch <= 0 || cfg.PurgeBatch > redisstate.MaxPurgeBatch:
@@ -114,15 +120,27 @@ func validateRedisStateSettings(cfg *pconf.RedisState) error {
 	return nil
 }
 
+// validateOfflineRedisSettings checks what offline mode needs from the Redis state settings when Redis is enabled.
+// A snapshot is optional here because Redis can supply the state.
+func validateOfflineRedisSettings(cfg *pconf.Main) error {
+	if !cfg.Offline || !cfg.Storage.Redis.Enabled {
+		return nil
+	}
+	if err := validateRedisStateSettings(&cfg.Storage.Redis); err != nil {
+		return err
+	}
+	if cfg.Storage.Redis.Namespace == "" || cfg.Storage.Redis.OfflineFingerprint == "" {
+		return common.NewInitError(fmt.Errorf("invalid redis state configuration: offline mode needs <redis-state-namespace | redis-state-offline-fingerprint> when redis state is enabled"), common.ExitInvalidConfiguration)
+	}
+	return nil
+}
+
 var newRedisStateClient = commonredis.NewRedisClient
 
-// redisStateRetryDelay shapes the wait before each reconnect attempt. Tests replace it to avoid real waits.
-var redisStateRetryDelay = func(d time.Duration) time.Duration { return d }
-
-// setupRedisState builds the Redis writer that mirrors the proxy state. It returns (nil, nil) when the feature is
-// disabled. Configuration errors and non-connection client errors are returned synchronously. When Redis is not
-// reachable the proxy keeps running: the returned supervisor retries in the background and attaches the writer once
-// Redis answers. A nil gate gives the writer the local state as it is; a closed gate hides it until the first sync completes.
+// setupRedisState builds the Redis writer supervisor that mirrors the proxy state. It returns (nil, nil) when the
+// feature is disabled. Configuration errors and non-connection client errors are returned synchronously. The supervisor
+// competes for the writer lease only after the gate opens (the first cloud sync completed); a proxy that does not hold
+// the lease never writes and never resets Redis. A nil gate counts as open.
 func setupRedisState(cfg *pconf.Main, logger logging.LoggerInterface, splits *storage.ProxySplitStorageImpl, rbs *storage.ProxyRuleBasedSegmentsStorageImpl, segments *storage.ProxySegmentStorageImpl, gate *sourceGate) (*redisStateSupervisor, error) {
 	if !cfg.Storage.Redis.Enabled {
 		return nil, nil
@@ -133,7 +151,7 @@ func setupRedisState(cfg *pconf.Main, logger logging.LoggerInterface, splits *st
 		return nil, err
 	}
 	// The namespace is checked here, before any connection, so a bad value never reaches Redis. The prefix is
-	// only known once the client exists and is validated by the NewKeys call below.
+	// only known once the client exists and is validated by the NewKeys call in the role loop.
 	if _, err := redisstate.NewKeys("", cfg.Apikey, redisCfg.Namespace); err != nil {
 		return nil, common.NewInitError(fmt.Errorf("error building redis state keys: %w", err), common.ExitInvalidConfiguration)
 	}
@@ -142,43 +160,63 @@ func setupRedisState(cfg *pconf.Main, logger logging.LoggerInterface, splits *st
 	if err != nil {
 		return nil, common.NewInitError(fmt.Errorf("error parsing redis state config: %w", err), common.ExitInvalidConfiguration)
 	}
-
-	s := &redisStateSupervisor{
-		cfg:      cfg,
-		logger:   logger,
-		splits:   splits,
-		rbs:      rbs,
-		segments: segments,
-		gate:     gate,
-		opts:     opts,
-		delay:    redisStateRetryDelay,
-		stop:     make(chan struct{}),
-		done:     make(chan struct{}),
+	lease, err := redisstate.NewLeaseClient(opts)
+	if err != nil {
+		return nil, common.NewInitError(fmt.Errorf("error building redis state lease client: %w", err), common.ExitInvalidConfiguration)
 	}
+
+	s := newRedisStateSupervisor(cfg, logger, splits, rbs, segments, gate, roleDeps{
+		clock:     realClock{},
+		lease:     lease,
+		newClient: func() (*redis.PrefixedRedisClient, error) { return newRedisStateClient(opts, logger) },
+		newWriter: productionWriterFactory(logger),
+	})
 
 	// The go-toolkit PrefixedRedisClient has no Close, so on a later setup failure this client is not closed; process exit releases it.
-	client, err := newRedisStateClient(opts, logger)
-	if err != nil {
-		if !isRedisUnavailable(err) {
-			return nil, common.NewInitError(fmt.Errorf("error instantiating redis state client: %w", err), common.ExitRedisInitializationFailed)
-		}
+	// An unreachable Redis is not fatal: the role loop builds the client again when it first needs it.
+	client, err := s.deps.newClient()
+	switch {
+	case err == nil:
+		s.redisClient = client
+	case !isRedisUnavailable(err):
+		_ = lease.Close()
+		return nil, common.NewInitError(fmt.Errorf("error instantiating redis state client: %w", err), common.ExitRedisInitializationFailed)
+	default:
 		logger.Error(fmt.Sprintf("redis state: Redis is not reachable, the proxy keeps running and retries in the background: %v", err))
-		s.setLastErr("redis state writer waiting for Redis")
-		go s.retryLoop()
-		return s, nil
 	}
-	close(s.done) // no retry goroutine: Stop has nothing to wait for
-
-	writer, _, err := s.attach(client)
-	if err != nil {
-		return nil, err
-	}
-	s.writer.Store(writer)
+	go s.run()
 	return s, nil
 }
 
-// errRedisStateStopped is returned by attach when shutdown began before the writer was wired.
-var errRedisStateStopped = errors.New("redis state supervisor stopped")
+// newRedisStateSupervisor builds a supervisor without starting its role loop.
+func newRedisStateSupervisor(cfg *pconf.Main, logger logging.LoggerInterface, splits *storage.ProxySplitStorageImpl, rbs *storage.ProxyRuleBasedSegmentsStorageImpl, segments *storage.ProxySegmentStorageImpl, gate *sourceGate, deps roleDeps) *redisStateSupervisor {
+	s := &redisStateSupervisor{
+		cfg:          cfg,
+		logger:       logger,
+		splits:       splits,
+		rbs:          rbs,
+		segments:     segments,
+		gate:         gate,
+		deps:         deps,
+		owner:        newLeaseOwner(),
+		leaseTTL:     time.Duration(cfg.Storage.Redis.LeaseTtlMs) * time.Millisecond,
+		resetPending: cfg.Initialization.ForceFreshStartup,
+		stop:         make(chan struct{}),
+		done:         make(chan struct{}),
+	}
+	s.logger.Info(fmt.Sprintf("redis state writer shutdown wait bound %s (drain %d ms, per-call timeouts %d+%d+%d s, retries %d)",
+		stopWaitBound(cfg.Storage.Redis, cfg.Storage.Redis.Connection), cfg.Storage.Redis.StopTimeoutMs, cfg.Storage.Redis.Connection.DialTimeout,
+		cfg.Storage.Redis.Connection.ReadTimeout, cfg.Storage.Redis.Connection.WriteTimeout, cfg.Storage.Redis.Connection.MaxRetries))
+	return s
+}
+
+// newLeaseOwner returns an id that is stable for this process and unique across proxies.
+func newLeaseOwner() string {
+	host, _ := os.Hostname()
+	b := make([]byte, 6)
+	_, _ = rand.Read(b)
+	return fmt.Sprintf("%s-%d-%s", host, os.Getpid(), hex.EncodeToString(b))
+}
 
 // isRedisUnavailable reports whether err means Redis could not be reached, as opposed to a configuration or protocol error.
 func isRedisUnavailable(err error) bool {
@@ -186,8 +224,8 @@ func isRedisUnavailable(err error) bool {
 	return errors.As(err, &netErr) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, context.DeadlineExceeded)
 }
 
-// redisStateSupervisor owns the Redis writer for the lifetime of the proxy. When Redis is unreachable at startup it
-// keeps the proxy running and attaches the writer from a background goroutine once Redis answers.
+// redisStateSupervisor owns the writer role for the lifetime of the proxy (D10). The role loop in writerrole.go
+// acquires the lease after the gate opens, runs one Writer per term and steps down when the lease is lost.
 type redisStateSupervisor struct {
 	cfg      *pconf.Main
 	logger   logging.LoggerInterface
@@ -195,200 +233,102 @@ type redisStateSupervisor struct {
 	rbs      *storage.ProxyRuleBasedSegmentsStorageImpl
 	segments *storage.ProxySegmentStorageImpl
 	gate     *sourceGate
-	opts     *commonconf.RedisConfig
-	delay    func(time.Duration) time.Duration
+	deps     roleDeps
+	owner    string
+	leaseTTL time.Duration
 
-	writer        atomic.Pointer[redisstate.Writer]
-	pendingResync atomic.Bool
+	// Owned by the role loop goroutine (the term's start goroutine writes resetPending, and the loop reads it only
+	// after receiving that goroutine's result).
+	redisClient  *redis.PrefixedRedisClient
+	resetPending bool
+	newTerm      bool
+	lastRenew    time.Time
+
+	writer atomic.Pointer[writerHolder]
 
 	stop     chan struct{}
 	stopOnce sync.Once
-	done     chan struct{} // closed when the retry goroutine has returned, or at once when none was started
+	done     chan struct{} // closed when the role loop has returned
 
-	mtx     sync.Mutex
-	lastErr string
+	mtx      sync.Mutex
+	lastErr  string
+	mismatch bool
 }
 
-// attach builds the writer on client, resets Redis when force-fresh-startup is set, and starts it. The facades point at
-// the writer before Start, so a failed Start leaves them attached and the caller must detach them.
-func (s *redisStateSupervisor) attach(client *redis.PrefixedRedisClient) (*redisstate.Writer, bool, error) {
-	redisCfg := s.cfg.Storage.Redis
-	keys, err := redisstate.NewKeys(client.Prefix(), s.cfg.Apikey, redisCfg.Namespace)
-	if err != nil {
-		return nil, false, common.NewInitError(fmt.Errorf("error building redis state keys: %w", err), common.ExitInvalidConfiguration)
-	}
-
-	options := redisstate.DefaultOptions()
-	options.Retention = time.Duration(redisCfg.RetentionHours) * time.Hour
-	options.MaxAttempts = int(redisCfg.WriteMaxAttempts)
-	options.BackoffMaxWait = time.Duration(redisCfg.WriteBackoffMaxMs) * time.Millisecond
-	options.MaxPendingChanges = int(redisCfg.MaxPendingChanges)
-	options.ChunkSize = int(redisCfg.ChunkSize)
-	options.PurgeBatch = int(redisCfg.PurgeBatch)
-	options.StopTimeoutMs = redisCfg.StopTimeoutMs
-
-	fingerprint := util.ConfigFingerprint(s.cfg.Apikey, s.cfg.FlagSpecVersion, s.cfg.FlagSetsFilter)
-	writer, err := redisstate.NewWriter(client, keys, fingerprint, options, s.logger)
-	if err != nil {
-		return nil, false, common.NewInitError(fmt.Errorf("error creating redis state writer: %w", err), common.ExitInvalidConfiguration)
-	}
-	s.logger.Info(fmt.Sprintf("redis state writer shutdown wait bound %s (drain %d ms, per-call timeouts %d+%d+%d s, retries %d)",
-		stopWaitBound(redisCfg, redisCfg.Connection), redisCfg.StopTimeoutMs, redisCfg.Connection.DialTimeout,
-		redisCfg.Connection.ReadTimeout, redisCfg.Connection.WriteTimeout, redisCfg.Connection.MaxRetries))
-
-	// force-fresh-startup resets the Redis state before the first cloud sync, so if the cloud is unreachable the
-	// previous Redis state is already gone and the proxy exits; this is intended (fresh start means start from nothing).
-	// It runs only once Redis is reachable, because the reset needs a connection.
-	if s.cfg.Initialization.ForceFreshStartup {
-		if err := writer.Reset(); err != nil {
-			return nil, isRedisUnavailable(err), common.NewInitError(fmt.Errorf("error resetting redis state: %w", err), common.ExitRedisInitializationFailed)
-		}
-	}
-
-	// Stop already returned or is waiting: do not wire or start a writer that nobody would stop.
-	select {
-	case <-s.stop:
-		return nil, false, errRedisStateStopped
-	default:
-	}
-
-	s.splits.WithRedisWriter(writer)
-	s.rbs.WithRedisWriter(writer)
-	s.segments.WithRedisWriter(writer)
-
-	if err := writer.Start(s.gate.wrap(storage.NewRedisStateSource(s.splits, s.rbs, s.segments))); err != nil {
-		return nil, isRedisUnavailable(err), err
-	}
-	return writer, false, nil
-}
-
-// detach removes the writer from the storages so they stop queuing changes for a writer that never started.
+// detach removes the writer from the storages so they stop queuing changes for a writer that is gone.
 func (s *redisStateSupervisor) detach() {
 	s.splits.WithRedisWriter(nil)
 	s.rbs.WithRedisWriter(nil)
 	s.segments.WithRedisWriter(nil)
 }
 
-// retryLoop reconnects with backoff until Redis answers, Stop is called, or a non-connection error ends it.
-func (s *redisStateSupervisor) retryLoop() {
-	defer close(s.done)
-	defer func() {
-		if r := recover(); r != nil {
-			s.logger.Error(fmt.Sprintf("redis state: retry loop stopped by a panic: %v", r))
-			s.setLastErr(fmt.Sprintf("redis state writer stopped: %v", r))
-		}
-	}()
-
-	bo := backoff.New(2, time.Duration(s.cfg.Storage.Redis.WriteBackoffMaxMs)*time.Millisecond)
-	for attempt := 1; ; attempt++ {
-		timer := time.NewTimer(s.delay(bo.Next()))
-		select {
-		case <-s.stop:
-			timer.Stop()
-			return
-		case <-timer.C:
-		}
-
-		client, err := newRedisStateClient(s.opts, s.logger)
-		if err != nil {
-			if !isRedisUnavailable(err) {
-				s.logger.Error(fmt.Sprintf("redis state writer not started, the Redis client failed: %v", err))
-				s.setLastErr(fmt.Sprintf("redis state writer stopped: %v", err))
-				return
-			}
-			s.logger.Debug(fmt.Sprintf("redis state: attempt %d, Redis still unreachable: %v", attempt, err))
-			if attempt%10 == 0 {
-				s.logger.Warning(fmt.Sprintf("redis state: Redis still unreachable after %d attempts, retrying: %v", attempt, err))
-			}
-			continue
-		}
-
-		select {
-		case <-s.stop:
-			return
-		default:
-		}
-
-		writer, retry, err := s.attach(client)
-		if err != nil {
-			s.detach()
-			if errors.Is(err, errRedisStateStopped) {
-				return
-			}
-			if retry {
-				// Redis dropped between the connect and the reset or start: connect again.
-				s.logger.Debug(fmt.Sprintf("redis state: attempt %d, Redis went away while starting the writer: %v", attempt, err))
-				continue
-			}
-			s.logger.Error(fmt.Sprintf("redis state writer not started after Redis became reachable: %v", err))
-			s.setLastErr(fmt.Sprintf("redis state writer stopped: %v", err))
-			return
-		}
-		s.writer.Store(writer)
-		// A resync requested before the writer existed is replayed here; one requested after sees the stored writer.
-		if s.pendingResync.Load() {
-			writer.RequestResync()
-		}
-		s.setLastErr("")
-		s.logger.Info("redis state writer attached after Redis became reachable")
-		return
-	}
-}
-
-func (s *redisStateSupervisor) setLastErr(msg string) {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-	s.lastErr = msg
-}
-
-// Status reports the writer status once attached. While Redis is unreachable it reports unhealthy with the reason.
+// Status reports the writer status while this proxy is the writer. Otherwise it reports unhealthy with the last lease
+// error, and EnvironmentMismatch when the lease was refused for a foreign fingerprint (D10).
 func (s *redisStateSupervisor) Status() redisstate.Status {
-	if w := s.writer.Load(); w != nil {
-		return w.Status()
+	if h := s.writer.Load(); h != nil {
+		return h.w.Status()
 	}
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
-	return redisstate.Status{LastError: s.lastErr}
+	return redisstate.Status{LastError: s.lastErr, EnvironmentMismatch: s.mismatch}
 }
 
-// Writer returns the attached writer, or nil while Redis is unreachable.
+// Writer returns the active Writer, or nil while this proxy is not the writer.
 func (s *redisStateSupervisor) Writer() *redisstate.Writer {
-	return s.writer.Load()
+	if h := s.writer.Load(); h != nil {
+		w, _ := h.w.(*redisstate.Writer)
+		return w
+	}
+	return nil
 }
 
-// RequestResync asks for a full resync now, or as soon as the writer attaches.
+// RequestResync asks the active Writer for a full resync. A proxy that is not the writer has nothing to resync; the
+// Writer of its next term resyncs on Start.
 func (s *redisStateSupervisor) RequestResync() {
-	s.pendingResync.Store(true)
-	if w := s.writer.Load(); w != nil {
-		w.RequestResync()
+	if h := s.writer.Load(); h != nil {
+		h.w.RequestResync()
 	}
 }
 
-// Stop ends the retry loop, waits for it to return, then stops the writer if one was attached.
+// Stop ends the role loop: the Writer drains, then the lease is released.
 func (s *redisStateSupervisor) Stop() {
 	s.stopOnce.Do(func() { close(s.stop) })
 	<-s.done
-	if w := s.writer.Load(); w != nil {
-		w.Stop()
-	}
 }
 
 // sourceGate keeps the Redis writer from reading a partial local state. On a cold boot the storages fill while the
 // first sync runs, and a resync scheduled in that window (the startup one, or one after a queue overflow) would see
 // only part of the segments and delete the rest from Redis. While the gate is closed the source reads as empty, and the
 // writer treats an empty source as no evidence of removal. It is opened when the sync reports ready.
-type sourceGate struct{ ready atomic.Bool }
+type sourceGate struct {
+	ready  atomic.Bool
+	opened chan struct{}
+	once   sync.Once
+}
 
 func newSourceGate(ready bool) *sourceGate {
-	g := &sourceGate{}
-	g.ready.Store(ready)
+	g := &sourceGate{opened: make(chan struct{})}
+	if ready {
+		g.open()
+	}
 	return g
 }
 
 func (g *sourceGate) open() {
 	if g != nil {
 		g.ready.Store(true)
+		g.once.Do(func() { close(g.opened) })
 	}
+}
+
+// wait returns a channel that is closed once the gate is open. A nil gate is open.
+func (g *sourceGate) wait() <-chan struct{} {
+	if g == nil {
+		c := make(chan struct{})
+		close(c)
+		return c
+	}
+	return g.opened
 }
 
 func (g *sourceGate) isOpen() bool { return g == nil || g.ready.Load() }

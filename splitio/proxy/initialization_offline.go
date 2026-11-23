@@ -27,14 +27,11 @@ import (
 
 // loadOfflineSnapshot validates offline configuration and returns the decoded snapshot with its uncompressed payload.
 func loadOfflineSnapshot(cfg *pconf.Main) (*snapshot.Snapshot, []byte, error) {
-	if strings.TrimSpace(cfg.Apikey) != "" {
-		return nil, nil, common.NewInitError(errors.New("SPLIT_PROXY_APIKEY must be empty when offline mode is enabled"), common.ExitInvalidConfiguration)
+	if err := checkOfflineIdentity(cfg); err != nil {
+		return nil, nil, err
 	}
 	if cfg.Initialization.Snapshot == "" {
 		return nil, nil, common.NewInitError(errors.New("offline mode requires a snapshot"), common.ExitInvalidConfiguration)
-	}
-	if specs.Match(cfg.FlagSpecVersion) == nil {
-		return nil, nil, common.NewInitError(fmt.Errorf("flag spec version %q is not supported", cfg.FlagSpecVersion), common.ExitInvalidConfiguration)
 	}
 
 	snap, err := snapshot.DecodeFromFile(cfg.Initialization.Snapshot)
@@ -49,6 +46,131 @@ func loadOfflineSnapshot(cfg *pconf.Main) (*snapshot.Snapshot, []byte, error) {
 		return nil, nil, common.NewInitError(err, common.ExitInvalidConfiguration)
 	}
 	return snap, payload, nil
+}
+
+// checkOfflineIdentity rejects an API key and an unsupported flag spec version. Offline mode has no API key.
+func checkOfflineIdentity(cfg *pconf.Main) error {
+	if strings.TrimSpace(cfg.Apikey) != "" {
+		return common.NewInitError(errors.New("SPLIT_PROXY_APIKEY must be empty when offline mode is enabled"), common.ExitInvalidConfiguration)
+	}
+	if specs.Match(cfg.FlagSpecVersion) == nil {
+		return common.NewInitError(fmt.Errorf("flag spec version %q is not supported", cfg.FlagSpecVersion), common.ExitInvalidConfiguration)
+	}
+	return nil
+}
+
+// offlineBoot is the state an offline proxy serves and the source it was read from.
+type offlineBoot struct {
+	source           BootSource
+	snapSpec         string // flag spec version recorded in the snapshot, or the configured one for a redis boot
+	dbInstance       *persistent.BoltDBWrapper
+	splitStorage     *storage.ProxySplitStorageImpl
+	ruleBasedStorage *storage.ProxyRuleBasedSegmentsStorageImpl
+	segmentStorage   *storage.ProxySegmentStorageImpl
+}
+
+// bootOffline picks the state an offline proxy serves. A usable snapshot file wins. With redis enabled an absent or
+// unusable snapshot falls back to the redis boot read, which only reads and never writes or takes the lease. It fails
+// with ExitInvalidConfiguration when neither source is usable.
+func bootOffline(logger logging.LoggerInterface, cfg *pconf.Main) (*offlineBoot, error) {
+	if err := checkOfflineIdentity(cfg); err != nil {
+		return nil, err
+	}
+	if !cfg.Storage.Redis.Enabled {
+		return bootOfflineSnapshot(logger, cfg)
+	}
+	if err := validateOfflineRedisSettings(cfg); err != nil {
+		return nil, err
+	}
+	var snapErr error
+	if cfg.Initialization.Snapshot != "" {
+		boot, err := bootOfflineSnapshot(logger, cfg)
+		if err == nil {
+			return boot, nil
+		}
+		snapErr = err
+		logger.Warning(fmt.Sprintf("snapshot file is not usable, trying the redis state: %v", err))
+	}
+	boot, err := bootOfflineRedis(logger, cfg)
+	if err != nil {
+		if snapErr != nil {
+			return nil, common.NewInitError(fmt.Errorf("no usable offline state: snapshot file: %v; redis state: %v", snapErr, err), common.ExitInvalidConfiguration)
+		}
+		return nil, err
+	}
+	return boot, nil
+}
+
+// bootOfflineSnapshot serves the snapshot file through a Bolt database built from its payload.
+func bootOfflineSnapshot(logger logging.LoggerInterface, cfg *pconf.Main) (*offlineBoot, error) {
+	snap, payload, err := loadOfflineSnapshot(cfg)
+	if err != nil {
+		return nil, err
+	}
+	logger.Info("Split Proxy offline mode: serving snapshot ", cfg.Initialization.Snapshot)
+
+	dbpath, err := snapshot.WritePayloadToTmpFile(payload)
+	if err != nil {
+		return nil, fmt.Errorf("error writing temporary snapshot file: %w", err)
+	}
+	logger.Debug("Database created from snapshot at", dbpath)
+
+	dbInstance, err := persistent.NewBoltWrapper(dbpath, nil)
+	if err != nil {
+		return nil, common.NewInitError(fmt.Errorf("error instantiating boltdb: %w", err), common.ExitErrorDB)
+	}
+
+	// Flag-set filtering of a loaded snapshot is a follow-up. Serve the file as stored.
+	emptyFilter := commonsflagsets.NewFlagSetFilter(nil)
+	return &offlineBoot{
+		source:           BootSourceSnapshotFile,
+		snapSpec:         snap.Meta().FlagSpecVersion,
+		dbInstance:       dbInstance,
+		splitStorage:     storage.NewProxySplitStorage(dbInstance, logger, emptyFilter, true),
+		ruleBasedStorage: storage.NewProxyRuleBasedSegmentsStorage(dbInstance, logger, true),
+		segmentStorage:   storage.NewProxySegmentStorage(dbInstance, logger, true),
+	}, nil
+}
+
+// bootOfflineRedis restores the redis state into an in-memory database with the online boot read. The read client
+// is opened and closed by resolveRedisBootInto and issues read commands only: offline starts no writer, takes no lease
+// and writes no key (INV-8). The state must be valid and match the configured offline fingerprint, otherwise it fails.
+func bootOfflineRedis(logger logging.LoggerInterface, cfg *pconf.Main) (*offlineBoot, error) {
+	if cfg.Initialization.ForceFreshStartup {
+		return nil, common.NewInitError(errors.New("force-fresh-startup does not apply in offline mode: offline never writes or wipes the redis state"), common.ExitInvalidConfiguration)
+	}
+	dbInstance, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
+	if err != nil {
+		return nil, common.NewInitError(fmt.Errorf("error instantiating boltdb: %w", err), common.ExitErrorDB)
+	}
+	emptyFilter := commonsflagsets.NewFlagSetFilter(nil)
+	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, emptyFilter, false)
+	ruleBasedStorage := storage.NewProxyRuleBasedSegmentsStorage(dbInstance, logger, false)
+	segmentStorage := storage.NewProxySegmentStorage(dbInstance, logger, false)
+	sink := storage.NewRedisRestoreSink(splitStorage, ruleBasedStorage, segmentStorage)
+
+	boot, err := resolveRedisBootInto(cfg, logger, newBootReadClient, sink)
+	if err == nil && boot.Source != BootSourceRedis {
+		err = common.NewInitError(fmt.Errorf("redis state is not usable offline: %s", boot.Reason), common.ExitInvalidConfiguration)
+	}
+	if err == nil {
+		err = applyRedisCursors(boot, splitStorage, ruleBasedStorage, segmentStorage)
+	}
+	if err != nil {
+		if derr := dbInstance.Discard(); derr != nil {
+			logger.Warning(fmt.Sprintf("error discarding the temporary boot database: %v", derr))
+		}
+		return nil, err
+	}
+	logger.Info("Split Proxy offline mode: serving the redis state")
+	return &offlineBoot{
+		source:           BootSourceRedis,
+		snapSpec:         cfg.FlagSpecVersion,
+		dbInstance:       dbInstance,
+		splitStorage:     splitStorage,
+		ruleBasedStorage: ruleBasedStorage,
+		segmentStorage:   segmentStorage,
+	}, nil
 }
 
 // warnOfflineFlagSetsFilter tells the operator that a configured flag sets filter has no effect offline.
@@ -73,32 +195,18 @@ func warnOfflineLargeSegments(logger logging.LoggerInterface, names *set.ThreadU
 }
 
 func startOffline(logger logging.LoggerInterface, cfg *pconf.Main) error {
-	snap, payload, err := loadOfflineSnapshot(cfg)
+	boot, err := bootOffline(logger, cfg)
 	if err != nil {
 		return err
 	}
+	dbInstance := boot.dbInstance
+	splitStorage := boot.splitStorage
+	ruleBasedStorage := boot.ruleBasedStorage
+	segmentStorage := boot.segmentStorage
 
 	cfg.Sync.Advanced.StreamingEnabled = false
-	logger.Info("Split Proxy offline mode: serving snapshot ", cfg.Initialization.Snapshot)
 	warnOfflineFlagSetsFilter(logger, cfg.FlagSetsFilter)
-
-	dbpath, err := snapshot.WritePayloadToTmpFile(payload)
-	if err != nil {
-		return fmt.Errorf("error writing temporary snapshot file: %w", err)
-	}
-	logger.Debug("Database created from snapshot at", dbpath)
-
-	dbInstance, err := persistent.NewBoltWrapper(dbpath, nil)
-	if err != nil {
-		return common.NewInitError(fmt.Errorf("error instantiating boltdb: %w", err), common.ExitErrorDB)
-	}
-
-	// Flag-set filtering of a loaded snapshot is a follow-up. Serve the file as stored.
-	emptyFilter := commonsflagsets.NewFlagSetFilter(nil)
-	splitStorage := storage.NewProxySplitStorage(dbInstance, logger, emptyFilter, true)
 	warnOfflineLargeSegments(logger, splitStorage.LargeSegmentNames())
-	ruleBasedStorage := storage.NewProxyRuleBasedSegmentsStorage(dbInstance, logger, true)
-	segmentStorage := storage.NewProxySegmentStorage(dbInstance, logger, true)
 	largeSegmentStorage := inmemory.NewLargeSegmentsStorage()
 	localTelemetryStorage := storage.NewTimeslicedProxyEndpointTelemetry(
 		storage.NewProxyTelemetryFacade(),
@@ -154,7 +262,7 @@ func startOffline(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		FullConfig:        cfgForAdmin,
 		TLS:               adminTLSConfig,
 		FlagSpecVersion:   cfg.FlagSpecVersion,
-		SnapshotFlagSpec:  snap.Meta().FlagSpecVersion,
+		SnapshotFlagSpec:  boot.snapSpec,
 		FlagSetsFilter:    cfg.FlagSetsFilter,
 		Hash:              strconv.Itoa(int(hash)),
 	})

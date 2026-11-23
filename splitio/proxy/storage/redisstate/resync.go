@@ -319,7 +319,7 @@ func (w *Writer) dropUnlistedSegments(fields map[string]string, listed map[strin
 			continue
 		}
 		err := w.retry("segment drop", func() error {
-			return w.client.Eval(SegmentDropScript, w.keys.SegmentKeys(name), w.fingerprint, name)
+			return w.client.Eval(SegmentDropScript, append(w.keys.SegmentKeys(name), w.keys.Lease()), w.fingerprint, name, w.opts.Owner, w.opts.Token)
 		})
 		if err != nil {
 			return fmt.Errorf("deleting segment %q (%d segments dropped before): %w", name, dropped, err)
@@ -461,7 +461,7 @@ func (w *Writer) purge(fields map[string]string) error {
 				break
 			}
 			err := w.retry("expiry purge", func() error {
-				return w.client.Eval(PurgeScript, slices.Concat(t.keys, []string{w.keys.PurgeLast()}), w.fingerprint, retention, batch, t.hasData)
+				return w.client.Eval(PurgeScript, slices.Concat(t.keys, []string{w.keys.PurgeLast(), w.keys.Lease()}), w.fingerprint, retention, batch, t.hasData, w.opts.Owner, w.opts.Token)
 			})
 			if err != nil {
 				return err
@@ -495,7 +495,7 @@ func (w *Writer) startupPurge() error {
 	case errors.Is(err, errStopped):
 		w.logger.Info("redis state: startup expiry purge cut short by Stop, it reruns at the next start")
 		return err
-	case err != nil:
+	case err != nil && !errors.Is(err, ErrFenced):
 		w.logger.Error(fmt.Sprintf("redis state: the startup expiry purge stopped early, it reruns at the next start: %v", err))
 	}
 	return nil

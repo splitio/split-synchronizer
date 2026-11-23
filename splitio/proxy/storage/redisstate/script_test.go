@@ -32,6 +32,7 @@ for _, k in ipairs(redis.call('KEYS', ARGV[1])) do
   local t = redis.call('TYPE', k).ok
   local v
   if t == 'hash' then v = redis.call('HGETALL', k)
+  elseif t == 'string' then v = redis.call('GET', k)
   elseif t == 'zset' then v = redis.call('ZRANGE', k, 0, -1, 'WITHSCORES')
   elseif t == 'set' then v = redis.call('SMEMBERS', k) table.sort(v)
   else v = {t} end
@@ -41,9 +42,9 @@ return redis.error_reply(cjson.encode(out))
 `
 )
 
-// ResetScript deletes every key matching ARGV[1] (for an environment, its Meta() key minus "meta", plus "*") and returns the number of deleted keys. Test helper
+// wipeScript deletes every key matching ARGV[1] (for an environment, its Meta() key minus "meta", plus "*") and returns the number of deleted keys. Test helper
 // only: it uses KEYS, which production code must not run.
-const ResetScript = `local keys = redis.call('KEYS', ARGV[1]) for _, k in ipairs(keys) do redis.call('DEL', k) end return #keys`
+const wipeScript = `local keys = redis.call('KEYS', ARGV[1]) for _, k in ipairs(keys) do redis.call('DEL', k) end return #keys`
 
 type scriptEnv struct {
 	t      *testing.T
@@ -54,6 +55,7 @@ type scriptEnv struct {
 
 type dumped struct {
 	Type   string
+	Str    string
 	Fields map[string]string
 	Scores map[string]float64
 	Set    []string
@@ -82,13 +84,14 @@ func newScriptEnv(t *testing.T) *scriptEnv {
 	require.Nil(t, err)
 	e := &scriptEnv{t: t, client: client, prefix: prefix, keys: keys}
 	e.wipe()
+	e.seedLease(testOwner, testToken)
 	t.Cleanup(e.wipe)
 	return e
 }
 
 func (e *scriptEnv) wipe() {
 	e.t.Helper()
-	require.Nil(e.t, e.client.Eval(ResetScript, nil, e.prefix+".*"))
+	require.Nil(e.t, e.client.Eval(wipeScript, nil, e.prefix+".*"))
 }
 
 func (e *scriptEnv) with(namespace string) *scriptEnv {
@@ -96,6 +99,29 @@ func (e *scriptEnv) with(namespace string) *scriptEnv {
 	keys, err := NewKeys(e.client.Prefix(), "test-api-key", namespace)
 	require.Nil(e.t, err)
 	return &scriptEnv{t: e.t, client: e.client, prefix: e.prefix, keys: keys}
+}
+
+const (
+	testOwner = "test-owner"
+	testToken = int64(1)
+)
+
+const seedLeaseScript = `redis.call('SET', KEYS[1], ARGV[1]) redis.call('HSET', KEYS[2], 'fence', ARGV[2]) return 'OK'`
+
+// seedLease makes the env's lease owned by owner at fence token, the way a writer holding the lease would. It does not touch the fingerprint.
+func (e *scriptEnv) seedLease(owner string, token int64) {
+	e.t.Helper()
+	require.Nil(e.t, e.client.Eval(seedLeaseScript, []string{e.keys.Lease(), e.keys.Meta()}, owner, token))
+}
+
+// fenceKeys appends the lease key as the last KEY, as the fenced write scripts expect.
+func (e *scriptEnv) fenceKeys(keys []string) []string {
+	return append(slices.Clone(keys), e.keys.Lease())
+}
+
+// fenceArgs appends the owner and token as the last two ARGV.
+func fenceArgs(args []interface{}) []interface{} {
+	return append(slices.Clone(args), testOwner, testToken)
 }
 
 func payload(err error) string {
@@ -106,7 +132,9 @@ func payload(err error) string {
 	return msg
 }
 
-func (e *scriptEnv) dump() map[string]dumped {
+// dumpAll captures every key of the env prefix: the lease key (its value in Str, its presence in the map) and the fence
+// field of the meta hash included. Refused calls are checked against it, so lease or fence tampering is visible.
+func (e *scriptEnv) dumpAll() map[string]dumped {
 	e.t.Helper()
 	err := e.client.Eval(dumpScript, nil, e.prefix+".*")
 	require.NotNil(e.t, err)
@@ -117,6 +145,12 @@ func (e *scriptEnv) dump() map[string]dumped {
 	require.Nil(e.t, json.Unmarshal([]byte(payload(err)), &raw), payload(err))
 	out := map[string]dumped{}
 	for k, item := range raw {
+		if item.T == "string" {
+			var s string
+			require.Nil(e.t, json.Unmarshal(item.V, &s))
+			out[k] = dumped{Type: item.T, Str: s}
+			continue
+		}
 		var flat []string
 		if string(item.V) != "{}" {
 			require.Nil(e.t, json.Unmarshal(item.V, &flat))
@@ -139,6 +173,23 @@ func (e *scriptEnv) dump() map[string]dumped {
 			d.Set = flat
 		}
 		out[k] = d
+	}
+	return out
+}
+
+// dump is dumpAll without the lease key and the fence field: the view the existing tests compare. A meta hash left with
+// only the fence field is not a real key and is dropped.
+func (e *scriptEnv) dump() map[string]dumped {
+	e.t.Helper()
+	out := e.dumpAll()
+	delete(out, e.keys.Lease())
+	if m, ok := out[e.keys.Meta()]; ok {
+		delete(m.Fields, FenceField)
+		if len(m.Fields) == 0 {
+			delete(out, e.keys.Meta())
+		} else {
+			out[e.keys.Meta()] = m
+		}
 	}
 	return out
 }
@@ -169,7 +220,7 @@ func segmentArgs(fp string, retention int64, name, cursorField string, cursor in
 func TestBuiltArgsRunAgainstScripts(t *testing.T) {
 	e := newScriptEnv(t)
 	ents := []ent{{"a", 5, false, `{"v":1}`}, {"b", 6, true, `{"v":2}`}}
-	require.Nil(t, e.client.Eval(FlagScript, e.keys.FlagKeys(), buildEntityArgs(testFp, testRetention, e.keys.FlagCursorField(), 7, ents)...))
+	require.Nil(t, e.client.Eval(FlagScript, e.fenceKeys(e.keys.FlagKeys()), fenceArgs(buildEntityArgs(testFp, testRetention, e.keys.FlagCursorField(), 7, ents))))
 
 	d := e.dump()
 	assert.Equal(t, map[string]string{"a": `{"v":1}`, "b": `{"v":2}`}, d[e.keys.FlagData()].Fields)
@@ -179,7 +230,7 @@ func TestBuiltArgsRunAgainstScripts(t *testing.T) {
 
 	adds := []segKey{{"k1", 3}}
 	rems := []segKey{{"k2", 4}}
-	require.Nil(t, e.client.Eval(SegmentScript, e.keys.SegmentKeys("s"), buildSegmentArgs(testFp, testRetention, "s", e.keys.SegmentCursorField("s"), 9, adds, rems)...))
+	require.Nil(t, e.client.Eval(SegmentScript, e.fenceKeys(e.keys.SegmentKeys("s")), fenceArgs(buildSegmentArgs(testFp, testRetention, "s", e.keys.SegmentCursorField("s"), 9, adds, rems))))
 
 	d = e.dump()
 	assert.Equal(t, map[string]float64{"k1": 3}, d[e.keys.SegmentActive("s")].Scores)
@@ -188,11 +239,11 @@ func TestBuiltArgsRunAgainstScripts(t *testing.T) {
 }
 
 func (e *scriptEnv) flags(fp string, cursor int64, ents ...ent) error {
-	return e.client.Eval(FlagScript, e.keys.FlagKeys(), entityArgs(fp, testRetention, e.keys.FlagCursorField(), cursor, ents...)...)
+	return e.client.Eval(FlagScript, e.fenceKeys(e.keys.FlagKeys()), fenceArgs(entityArgs(fp, testRetention, e.keys.FlagCursorField(), cursor, ents...)))
 }
 
 func (e *scriptEnv) rbs(fp string, cursor int64, ents ...ent) error {
-	return e.client.Eval(RuleBasedSegmentScript, e.keys.RuleBasedSegmentKeys(), entityArgs(fp, testRetention, e.keys.RuleBasedSegmentCursorField(), cursor, ents...)...)
+	return e.client.Eval(RuleBasedSegmentScript, e.fenceKeys(e.keys.RuleBasedSegmentKeys()), fenceArgs(entityArgs(fp, testRetention, e.keys.RuleBasedSegmentCursorField(), cursor, ents...)))
 }
 
 func (e *scriptEnv) segment(fp string, name string, cursor int64, adds, rems []segKey) error {
@@ -200,15 +251,15 @@ func (e *scriptEnv) segment(fp string, name string, cursor int64, adds, rems []s
 }
 
 func (e *scriptEnv) flagsWithRetention(fp string, retention int64, cursor int64, ents ...ent) error {
-	return e.client.Eval(FlagScript, e.keys.FlagKeys(), entityArgs(fp, retention, e.keys.FlagCursorField(), cursor, ents...)...)
+	return e.client.Eval(FlagScript, e.fenceKeys(e.keys.FlagKeys()), fenceArgs(entityArgs(fp, retention, e.keys.FlagCursorField(), cursor, ents...)))
 }
 
 func (e *scriptEnv) rbsWithRetention(fp string, retention int64, cursor int64, ents ...ent) error {
-	return e.client.Eval(RuleBasedSegmentScript, e.keys.RuleBasedSegmentKeys(), entityArgs(fp, retention, e.keys.RuleBasedSegmentCursorField(), cursor, ents...)...)
+	return e.client.Eval(RuleBasedSegmentScript, e.fenceKeys(e.keys.RuleBasedSegmentKeys()), fenceArgs(entityArgs(fp, retention, e.keys.RuleBasedSegmentCursorField(), cursor, ents...)))
 }
 
 func (e *scriptEnv) segmentWithRetention(fp string, retention int64, name string, cursor int64, adds, rems []segKey) error {
-	return e.client.Eval(SegmentScript, e.keys.SegmentKeys(name), segmentArgs(fp, retention, name, e.keys.SegmentCursorField(name), cursor, adds, rems)...)
+	return e.client.Eval(SegmentScript, e.fenceKeys(e.keys.SegmentKeys(name)), fenceArgs(segmentArgs(fp, retention, name, e.keys.SegmentCursorField(name), cursor, adds, rems)))
 }
 
 // updatedAt returns meta updatedAtMs, written from Redis TIME by the last applied call. Tests never compare it to a Go clock.
@@ -479,38 +530,38 @@ func TestScriptBadArgsWritesNothing(t *testing.T) {
 
 	// ARGV layout: 1 fp, 2 retention, 3 cursorField, 4 cursor, 5 n, then per entity name, cn, removed, json
 	args := entityArgs(testFp, testRetention, e.keys.FlagCursorField(), 5, ent{"a", 5, false, `{}`})
-	err := e.client.Eval(FlagScript, e.keys.FlagKeys(), args[:len(args)-1]...)
+	err := e.client.Eval(FlagScript, e.fenceKeys(e.keys.FlagKeys()), fenceArgs(args[:len(args)-1]))
 	require.NotNil(t, err)
 	assert.True(t, ErrorHasMarker(err, BadArgsMarker), err.Error())
 
 	args = entityArgs(testFp, testRetention, e.keys.FlagCursorField(), 5, ent{"a", 5, false, `{}`})
 	args[4] = "x"
-	err = e.client.Eval(FlagScript, e.keys.FlagKeys(), args...)
+	err = e.client.Eval(FlagScript, e.fenceKeys(e.keys.FlagKeys()), fenceArgs(args))
 	require.NotNil(t, err)
 	assert.True(t, ErrorHasMarker(err, BadArgsMarker), err.Error())
 
 	// Non-numeric change number and invalid removed flag, both must be refused before any write
 	args = entityArgs(testFp, testRetention, e.keys.FlagCursorField(), 5, ent{"a", 5, false, `{}`})
 	args[6] = "nope"
-	err = e.client.Eval(FlagScript, e.keys.FlagKeys(), args...)
+	err = e.client.Eval(FlagScript, e.fenceKeys(e.keys.FlagKeys()), fenceArgs(args))
 	require.NotNil(t, err)
 	assert.True(t, ErrorHasMarker(err, BadArgsMarker), err.Error())
 
 	args = entityArgs(testFp, testRetention, e.keys.FlagCursorField(), 5, ent{"a", 5, false, `{}`})
 	args[7] = "2"
-	err = e.client.Eval(FlagScript, e.keys.FlagKeys(), args...)
+	err = e.client.Eval(FlagScript, e.fenceKeys(e.keys.FlagKeys()), fenceArgs(args))
 	require.NotNil(t, err)
 	assert.True(t, ErrorHasMarker(err, BadArgsMarker), err.Error())
 
 	// Segment ARGV: 1 fp, 2 retention, 3 name, 4 cursorField, 5 cursor, 6 nAdd, 7 nRem, then (key, cn) pairs
 	sargs := segmentArgs(testFp, testRetention, "s", e.keys.SegmentCursorField("s"), 1, []segKey{{"k", 1}}, nil)
-	err = e.client.Eval(SegmentScript, e.keys.SegmentKeys("s"), append(sargs, "extra")...)
+	err = e.client.Eval(SegmentScript, e.fenceKeys(e.keys.SegmentKeys("s")), fenceArgs(append(sargs, "extra")))
 	require.NotNil(t, err)
 	assert.True(t, ErrorHasMarker(err, BadArgsMarker), err.Error())
 
 	sargs = segmentArgs(testFp, testRetention, "s", e.keys.SegmentCursorField("s"), 1, []segKey{{"k", 1}}, nil)
 	sargs[8] = "nope"
-	err = e.client.Eval(SegmentScript, e.keys.SegmentKeys("s"), sargs...)
+	err = e.client.Eval(SegmentScript, e.fenceKeys(e.keys.SegmentKeys("s")), fenceArgs(sargs))
 	require.NotNil(t, err)
 	assert.True(t, ErrorHasMarker(err, BadArgsMarker), err.Error())
 
@@ -579,20 +630,22 @@ func TestScriptTombstoneClockNotRefreshedByResend(t *testing.T) {
 func TestResetOnlyDeletesOwnNamespace(t *testing.T) {
 	a := newScriptEnv(t)
 	b := a.with("other-env")
+	b.seedLease(testOwner, testToken)
 
 	require.Nil(t, a.flags(testFp, 1, ent{"f", 1, false, `{}`}))
 	require.Nil(t, a.segment(testFp, "s", 1, []segKey{{"k", 1}}, nil))
 	require.Nil(t, b.flags(testFp, 1, ent{"f", 1, false, `{}`}))
 	require.Nil(t, a.client.Set("SPLITIO.split.x", "value", 0))
 
-	require.Nil(t, a.client.Eval(ResetScript, nil, strings.TrimSuffix(a.keys.Meta(), "meta")+"*"))
+	require.Nil(t, a.client.Eval(wipeScript, nil, strings.TrimSuffix(a.keys.Meta(), "meta")+"*"))
 
 	for _, name := range a.names() {
 		assert.NotContains(t, name, "{SPLITIO_PROXY."+a.keys.Env()+"}", name)
 	}
 	assert.Contains(t, a.names(), b.keys.FlagKeys()[1])
+	assert.Contains(t, a.names(), b.keys.Lease(), "the other namespace keeps its lease")
 	assert.Contains(t, a.names(), a.prefix+".SPLITIO.split.x")
-	assert.Len(t, a.names(), 4)
+	assert.Len(t, a.names(), 5)
 }
 
 func TestWriterCrashBetweenSegmentChunks(t *testing.T) {
@@ -654,12 +707,14 @@ func TestResetAfterPartialSegmentWriteLeavesNoKeys(t *testing.T) {
 	e := newScriptEnv(t)
 	sk := e.keys.SegmentKeys("seg.one")
 	field := e.keys.SegmentCursorField("seg.one")
+	e.seedLease(testOwner, testToken)
 
 	// two chunks of one key each; chunk 2 never lands, so the write stops after chunk 1
 	rc := &segmentCallRecorder{Client: e.client, failFrom: 2}
 	opts := DefaultOptions()
 	opts.ChunkSize = 1
 	opts.MaxAttempts = 1
+	opts.Owner, opts.Token = testOwner, testToken
 	w, err := NewWriter(rc, e.keys, testFp, opts, logging.NewLogger(nil))
 	require.Nil(t, err)
 	_, err = w.writeSegment("seg.one", []segKey{{"k1", 1}, {"k2", 1}}, nil, 1, false)
@@ -671,14 +726,18 @@ func TestResetAfterPartialSegmentWriteLeavesNoKeys(t *testing.T) {
 	assert.Equal(t, "-1", d[sk[0]].Fields[field], "chunk 1 registered the name with cursor -1")
 	assert.Equal(t, map[string]float64{"k1": 1}, d[sk[1]].Scores, "chunk 1 data is written and chunk 2 data is not")
 
-	w2, err := NewWriter(e.client, e.keys, testFp, DefaultOptions(), logging.NewLogger(nil))
+	w2Opts := DefaultOptions()
+	w2Opts.Owner, w2Opts.Token = testOwner, testToken
+	w2, err := NewWriter(e.client, e.keys, testFp, w2Opts, logging.NewLogger(nil))
 	require.Nil(t, err)
 	require.Nil(t, w2.Reset())
 
+	// the meta hash stays (it holds fence and fingerprint), but the segment's data keys are gone and its cursor field is cleared
 	names := e.names()
-	for _, k := range sk {
+	for _, k := range sk[1:] {
 		assert.NotContains(t, names, k, "Reset removes every key of the partially written segment")
 	}
+	assert.NotContains(t, e.dump()[sk[0]].Fields, field, "Reset clears the segment cursor from meta")
 }
 
 func TestScriptSegmentCheckDetectsMissingKeys(t *testing.T) {
@@ -749,11 +808,12 @@ func TestScriptMetaWrongTypeIsTypedDataWrongTypeIsTyped(t *testing.T) {
 	cf := e.keys.FlagCursorField()
 	args := entityArgs(testFp, testRetention, cf, 6, ent{"a", 5, false, `{}`})
 	require.Nil(t, e.client.Eval(`return redis.call('SET', KEYS[1], 'x')`, fk[0:1]))
-	err := e.client.Eval(FlagScript, fk, args...)
+	err := e.client.Eval(FlagScript, e.fenceKeys(fk), fenceArgs(args))
 	assert.True(t, ErrorHasMarker(err, MetaWrongTypeMarker), "meta WRONGTYPE must return the typed marker, got %v", err)
 	require.Nil(t, e.client.Eval(`return redis.call('DEL', KEYS[1])`, fk[0:1]))
+	e.seedLease(testOwner, testToken)
 	require.Nil(t, e.client.Eval(`return redis.call('SET', KEYS[1], 'x')`, fk[1:2]))
-	err = e.client.Eval(FlagScript, fk, args...)
+	err = e.client.Eval(FlagScript, e.fenceKeys(fk), fenceArgs(args))
 	assert.True(t, ErrorHasMarker(err, DataWrongTypeMarker), "entity WRONGTYPE must return its own typed marker, got %v", err)
 	assert.False(t, ErrorHasMarker(err, MetaWrongTypeMarker), "entity WRONGTYPE must not carry the meta marker")
 }
@@ -786,7 +846,7 @@ func TestScriptEntityKeyWrongTypeWritesNothing(t *testing.T) {
 			keys := c.keys(e)
 			require.Nil(t, e.client.Eval(`return redis.call('SET', KEYS[1], 'x')`, keys[c.bad+0:c.bad+1]))
 			before := e.dump()
-			err := e.client.Eval(c.script, keys, c.args(e)...)
+			err := e.client.Eval(c.script, e.fenceKeys(keys), fenceArgs(c.args(e)))
 			assert.True(t, ErrorHasMarker(err, DataWrongTypeMarker), "got %v", err)
 			assert.Equal(t, before, e.dump(), "a refused call writes nothing, not even the fingerprint or the cursor")
 		})
@@ -828,7 +888,7 @@ func TestScriptRefusesTooLongIntegers(t *testing.T) {
 	cursor := func(v string) error {
 		args := entityArgs(testFp, testRetention, cf, 6, ent{"a", 5, false, `{}`})
 		args[3] = v
-		return e.client.Eval(FlagScript, e.keys.FlagKeys(), args...)
+		return e.client.Eval(FlagScript, e.fenceKeys(e.keys.FlagKeys()), fenceArgs(args))
 	}
 	assert.True(t, ErrorHasMarker(cursor("9007199254740993"), BadArgsMarker), "16 digits")
 	assert.True(t, ErrorHasMarker(cursor("-1000000000000000"), BadArgsMarker), "16 digits with a sign")
@@ -846,27 +906,27 @@ func TestScriptRejectsInvalidNumbers(t *testing.T) {
 		assert.Empty(t, e.names(), "a rejected call writes nothing")
 	}
 
-	rejected(e.client.Eval(FlagScript, fk, entityArgs(testFp, -1, cf, 6, ent{"a", 5, false, `{}`})...))
+	rejected(e.client.Eval(FlagScript, e.fenceKeys(fk), fenceArgs(entityArgs(testFp, -1, cf, 6, ent{"a", 5, false, `{}`}))))
 
 	cursorText := entityArgs(testFp, testRetention, cf, 6, ent{"a", 5, false, `{}`})
 	cursorText[3] = "1.5"
-	rejected(e.client.Eval(FlagScript, fk, cursorText...))
+	rejected(e.client.Eval(FlagScript, e.fenceKeys(fk), fenceArgs(cursorText)))
 
 	countText := entityArgs(testFp, testRetention, cf, 6, ent{"a", 5, false, `{}`})
 	countText[4] = "1e3"
-	rejected(e.client.Eval(FlagScript, fk, countText...))
+	rejected(e.client.Eval(FlagScript, e.fenceKeys(fk), fenceArgs(countText)))
 
 	entityCn := entityArgs(testFp, testRetention, cf, 6, ent{"a", 5, false, `{}`})
 	entityCn[6] = "1.5"
-	rejected(e.client.Eval(FlagScript, fk, entityCn...))
+	rejected(e.client.Eval(FlagScript, e.fenceKeys(fk), fenceArgs(entityCn)))
 
 	sk := e.keys.SegmentKeys("seg.one")
 	segRetention := segmentArgs(testFp, -1, "seg.one", e.keys.SegmentCursorField("seg.one"), 1, []segKey{{"k1", 1}}, nil)
-	rejected(e.client.Eval(SegmentScript, sk, segRetention...))
+	rejected(e.client.Eval(SegmentScript, e.fenceKeys(sk), fenceArgs(segRetention)))
 
 	segCount := segmentArgs(testFp, testRetention, "seg.one", e.keys.SegmentCursorField("seg.one"), 1, []segKey{{"k1", 1}}, nil)
 	segCount[5] = "1.5"
-	rejected(e.client.Eval(SegmentScript, sk, segCount...))
+	rejected(e.client.Eval(SegmentScript, e.fenceKeys(sk), fenceArgs(segCount)))
 }
 
 func TestSegmentRegisteredOnFirstChunk(t *testing.T) {
@@ -886,6 +946,7 @@ func TestSegmentRegisteredOnFirstChunk(t *testing.T) {
 
 func TestSegmentTieAcrossChunks(t *testing.T) {
 	e := newScriptEnv(t)
+	e.seedLease(testOwner, testToken)
 
 	addThenRemove := e.keys.SegmentKeys("seg.add")
 	require.Nil(t, e.segment(testFp, "seg.add", noCursor, []segKey{{"k1", 5}}, nil))
@@ -912,6 +973,7 @@ func TestSegmentTieAcrossChunks(t *testing.T) {
 	rc := &segmentCallRecorder{Client: e.client}
 	opts := DefaultOptions()
 	opts.ChunkSize = 1
+	opts.Owner, opts.Token = testOwner, testToken
 	w, err := NewWriter(rc, e.keys, testFp, opts, logging.NewLogger(nil))
 	require.Nil(t, err)
 	_, err = w.writeSegment("seg.chunk", []segKey{{"k4", 5}, {"k5", 5}}, []segKey{{"k4", 5}}, 5, false)
@@ -976,7 +1038,7 @@ func TestPurgeRefusesForeignFingerprint(t *testing.T) {
 	require.Nil(t, e.flags(testFp, 5, ent{"a", 5, false, `{"v":1}`}, ent{"gone", 6, true, `{}`}))
 	before := e.dump()
 
-	err := e.client.Eval(PurgeScript, e.keys.FlagKeys(), "fp-B", int64(0), int64(500), int64(1))
+	err := e.client.Eval(PurgeScript, e.fenceKeys(e.keys.FlagKeys()), fenceArgs([]interface{}{"fp-B", int64(0), int64(500), int64(1)}))
 	require.NotNil(t, err)
 	assert.True(t, ErrorHasMarker(err, EnvMismatchMarker), err.Error())
 	assert.Equal(t, before, e.dump(), "a foreign fingerprint deletes nothing, even an expired removal")
@@ -1038,12 +1100,13 @@ func TestScriptPurgeRetentionBoundary(t *testing.T) {
 	for attempt := 0; ; attempt++ {
 		require.Less(t, attempt, 50, "the Redis clock ticked between the samples on every attempt")
 		e.wipe()
+		e.seedLease(testOwner, testToken)
 		t0 := boundaryClock(t, e, meta)
 		cutoff := t0 - retention
 		require.Nil(t, e.client.Eval(boundarySeedScript, []string{sk[2], sk[3]}, "at", cutoff))
 		require.Nil(t, e.client.Eval(boundarySeedScript, []string{sk[2], sk[3]}, "below", cutoff-1))
 		require.Nil(t, e.client.Eval(boundarySeedScript, []string{sk[2], sk[3]}, "above", cutoff+1))
-		require.Nil(t, e.client.Eval(PurgeScript, append(slices.Clone(sk), e.keys.PurgeLast()), testFp, retention, int64(100), int64(0)))
+		require.Nil(t, e.client.Eval(PurgeScript, e.fenceKeys(append(slices.Clone(sk), e.keys.PurgeLast())), fenceArgs([]interface{}{testFp, retention, int64(100), int64(0)})))
 		if boundaryClock(t, e, meta) != t0 {
 			continue
 		}
@@ -1095,7 +1158,7 @@ func TestRepairScriptForeignFingerprint(t *testing.T) {
 	require.NoError(t, e.segment("other-fp", "s1", 5, []segKey{{"a", 5}}, []segKey{{"r", 5}}))
 	before := e.dump()
 
-	err := e.client.Eval(SegmentRepairScript, e.keys.SegmentKeys("s1"), wtFingerprint, e.keys.SegmentCursorField("s1"))
+	err := e.client.Eval(SegmentRepairScript, e.fenceKeys(e.keys.SegmentKeys("s1")), fenceArgs([]interface{}{wtFingerprint, e.keys.SegmentCursorField("s1")}))
 	assert.True(t, ErrorHasMarker(err, EnvMismatchMarker), "foreign fingerprint must return the env mismatch marker, got %v", err)
 	assert.Equal(t, before, e.dump(), "a refused repair deletes nothing and keeps the cursor")
 }
@@ -1106,7 +1169,7 @@ func TestRepairScriptAbsentFingerprint(t *testing.T) {
 	require.NoError(t, e.segment(wtFingerprint, "s1", 5, []segKey{{"a", 5}}, []segKey{{"r", 5}}))
 	require.NoError(t, e.client.Eval("return redis.call('HDEL', KEYS[1], 'fingerprint')", []string{e.keys.Meta()}))
 
-	require.NoError(t, e.client.Eval(SegmentRepairScript, e.keys.SegmentKeys("s1"), wtFingerprint, e.keys.SegmentCursorField("s1")))
+	require.NoError(t, e.client.Eval(SegmentRepairScript, e.fenceKeys(e.keys.SegmentKeys("s1")), fenceArgs([]interface{}{wtFingerprint, e.keys.SegmentCursorField("s1")})))
 	d := e.dump()
 	s1 := e.keys.SegmentKeys("s1")
 	for _, k := range s1[1:] {
@@ -1122,7 +1185,381 @@ func TestDropScriptForeignFingerprint(t *testing.T) {
 	require.NoError(t, e.segment("other-fp", "s1", 5, []segKey{{"a", 5}}, []segKey{{"r", 5}}))
 	before := e.dump()
 
-	err := e.client.Eval(SegmentDropScript, e.keys.SegmentKeys("s1"), wtFingerprint, "s1")
+	err := e.client.Eval(SegmentDropScript, e.fenceKeys(e.keys.SegmentKeys("s1")), fenceArgs([]interface{}{wtFingerprint, "s1"}))
 	assert.True(t, ErrorHasMarker(err, EnvMismatchMarker), "foreign fingerprint must return the env mismatch marker, got %v", err)
 	assert.Equal(t, before, e.dump(), "a refused drop deletes nothing and keeps the cursor")
+}
+
+const delLeaseScript = `return redis.call('DEL', KEYS[1])`
+
+// fencedWriteCall is one fenced write script with a valid call shape, without its lease key and fence ARGV.
+type fencedWriteCall struct {
+	name   string
+	script string
+	keys   []string
+	args   []interface{}
+}
+
+func fencedWriteCalls(e *scriptEnv) []fencedWriteCall {
+	return []fencedWriteCall{
+		{"flag", FlagScript, e.keys.FlagKeys(), entityArgs(testFp, testRetention, e.keys.FlagCursorField(), 5, ent{"a", 5, false, `{"v":1}`})},
+		{"rule-based segment", RuleBasedSegmentScript, e.keys.RuleBasedSegmentKeys(), entityArgs(testFp, testRetention, e.keys.RuleBasedSegmentCursorField(), 5, ent{"r", 5, false, `{"r":1}`})},
+		{"segment", SegmentScript, e.keys.SegmentKeys("s"), segmentArgs(testFp, testRetention, "s", e.keys.SegmentCursorField("s"), 5, []segKey{{"k", 5}}, nil)},
+		{"segment drop", SegmentDropScript, e.keys.SegmentKeys("s"), []interface{}{testFp, "s"}},
+		{"segment repair", SegmentRepairScript, e.keys.SegmentKeys("s"), []interface{}{testFp, e.keys.SegmentCursorField("s")}},
+		{"purge", PurgeScript, e.keys.FlagKeys(), []interface{}{testFp, testRetention, int64(100), int64(0)}},
+		// ResetScript entries: keys are the data keys only, resetCall adds lease and meta; owner and token come first.
+		{"reset meta", ResetScript, nil, []interface{}{"meta", e.keys.FlagCursorField()}},
+		{"reset del", ResetScript, []string{e.keys.FlagData(), e.keys.FlagIndex(), e.keys.FlagRemoved()}, []interface{}{"del", e.keys.FlagCursorField()}},
+		{"reset fingerprint", ResetScript, nil, []interface{}{"fingerprint", testFp}},
+	}
+}
+
+// callFenced runs a fenced write script with the lease key as the last KEY and the given owner and token as the last two ARGV.
+// ResetScript has its own layout (lease and meta first, owner and token before the mode), so it goes through resetCall.
+func callFenced(e *scriptEnv, c fencedWriteCall, owner, token interface{}) error {
+	if c.script == ResetScript {
+		return resetCall(e, c.keys, owner, token, c.args...)
+	}
+	keys := append(slices.Clone(c.keys), e.keys.Lease())
+	args := append(slices.Clone(c.args), owner, token)
+	return e.client.Eval(c.script, keys, args)
+}
+
+// seedWriterState writes flags, a rule-based segment and a segment under the valid lease so every script has data to refuse to touch.
+func seedWriterState(e *scriptEnv) {
+	e.t.Helper()
+	require.Nil(e.t, e.flags(testFp, 5, ent{"a", 5, false, `{"v":1}`}))
+	require.Nil(e.t, e.rbs(testFp, 3, ent{"r", 3, false, `{"r":1}`}))
+	require.Nil(e.t, e.segment(testFp, "s", 1, []segKey{{"k", 1}}, nil))
+}
+
+// resetCall runs ResetScript: KEYS lease, meta, then the data keys; ARGV owner, token, mode, then the arguments.
+func resetCall(e *scriptEnv, data []string, owner, token interface{}, argv ...interface{}) error {
+	keys := append([]string{e.keys.Lease(), e.keys.Meta()}, data...)
+	args := append([]interface{}{owner, token}, argv...)
+	return e.client.Eval(ResetScript, keys, args)
+}
+
+func TestFencedScriptsRefuseStaleFence(t *testing.T) {
+	cases := []struct {
+		name  string
+		owner interface{}
+		token interface{}
+		setup func(e *scriptEnv)
+	}{
+		{"stale token", testOwner, testToken + 1, nil},
+		{"wrong owner", "other-owner", testToken, nil},
+		{"lease key missing", testOwner, testToken, func(e *scriptEnv) {
+			require.Nil(e.t, e.client.Eval(delLeaseScript, []string{e.keys.Lease()}))
+		}},
+		{"lease and meta absent", testOwner, testToken, func(e *scriptEnv) { e.wipe() }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newScriptEnv(t)
+			seedWriterState(e)
+			if tc.setup != nil {
+				tc.setup(e)
+			}
+			before := e.dump()
+			for _, call := range fencedWriteCalls(e) {
+				err := callFenced(e, call, tc.owner, tc.token)
+				require.NotNil(t, err, call.name)
+				assert.True(t, ErrorHasMarker(err, FencedMarker), "%s: %s", call.name, err.Error())
+				assert.Equal(t, before, e.dump(), "%s wrote while fenced", call.name)
+			}
+		})
+	}
+}
+
+func TestFencedScriptsBadArgs(t *testing.T) {
+	cases := []struct {
+		name  string
+		owner interface{}
+		token interface{}
+	}{
+		{"empty owner", "", testToken},
+		{"non-integer token", testOwner, "abc"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newScriptEnv(t)
+			seedWriterState(e)
+			before := e.dump()
+			for _, call := range fencedWriteCalls(e) {
+				err := callFenced(e, call, tc.owner, tc.token)
+				require.NotNil(t, err, call.name)
+				assert.True(t, ErrorHasMarker(err, BadArgsMarker), "%s: %s", call.name, err.Error())
+				assert.Equal(t, before, e.dump(), "%s wrote on bad args", call.name)
+			}
+		})
+	}
+}
+
+// fencedArgvCall runs a write script with the given owner/token prefix in place of the usual two fence ARGV.
+// Non-reset scripts take the prefix after their own ARGV; ResetScript takes it before the mode arguments.
+func fencedArgvCall(e *scriptEnv, c fencedWriteCall, prefix []interface{}) error {
+	if c.script == ResetScript {
+		keys := append([]string{e.keys.Lease(), e.keys.Meta()}, c.keys...)
+		args := append(slices.Clone(prefix), c.args...)
+		return e.client.Eval(c.script, keys, args)
+	}
+	keys := append(slices.Clone(c.keys), e.keys.Lease())
+	args := append(slices.Clone(c.args), prefix...)
+	return e.client.Eval(c.script, keys, args)
+}
+
+func TestWriteScriptsRejectMissingToken(t *testing.T) {
+	cases := []struct {
+		name   string
+		prefix []interface{}
+	}{
+		{"token dropped", []interface{}{testOwner}},
+		{"owner and token dropped", []interface{}{}},
+		{"empty token", []interface{}{testOwner, ""}},
+		{"extra argv after owner and token", []interface{}{testOwner, testToken, "extra"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newScriptEnv(t)
+			seedWriterState(e)
+			before := e.dump()
+			for _, call := range fencedWriteCalls(e) {
+				err := fencedArgvCall(e, call, tc.prefix)
+				require.NotNil(t, err, call.name)
+				assert.True(t, ErrorHasMarker(err, BadArgsMarker), "%s: %s", call.name, err.Error())
+				assert.Equal(t, before, e.dump(), "%s wrote on bad args", call.name)
+			}
+		})
+	}
+}
+
+func TestFingerprintMismatchBeforeFence(t *testing.T) {
+	e := newScriptEnv(t)
+	seedWriterState(e)
+	before := e.dump()
+	for _, call := range fencedWriteCalls(e) {
+		if call.script == ResetScript {
+			// reset scripts run checkFence only, with no fingerprint compare, so there is no env mismatch to report
+			continue
+		}
+		// every write script takes the fingerprint as its first ARGV
+		call.args = slices.Clone(call.args)
+		call.args[0] = "fp-B"
+		err := callFenced(e, call, testOwner, testToken+1)
+		require.NotNil(t, err, call.name)
+		assert.True(t, ErrorHasMarker(err, EnvMismatchMarker), "%s: %s", call.name, err.Error())
+		assert.Equal(t, before, e.dump(), "%s wrote on env mismatch", call.name)
+	}
+}
+
+func TestResetScriptStaleTokenDeletesNothing(t *testing.T) {
+	e := newScriptEnv(t)
+	seedWriterState(e)
+	before := e.dump()
+	identities := []struct {
+		owner interface{}
+		token interface{}
+	}{
+		{testOwner, testToken + 1},
+		{"other-owner", testToken},
+	}
+	for _, id := range identities {
+		err := resetCall(e, []string{e.keys.FlagData(), e.keys.FlagIndex(), e.keys.FlagRemoved()}, id.owner, id.token, "del")
+		require.NotNil(t, err)
+		assert.True(t, ErrorHasMarker(err, FencedMarker), err.Error())
+
+		err = resetCall(e, nil, id.owner, id.token, "meta", e.keys.FlagCursorField())
+		require.NotNil(t, err)
+		assert.True(t, ErrorHasMarker(err, FencedMarker), err.Error())
+	}
+	assert.Equal(t, before, e.dump(), "a fenced reset must delete nothing in either mode")
+}
+
+func TestResetScriptMetaModeRejectsFenceAndFingerprint(t *testing.T) {
+	e := newScriptEnv(t)
+	seedWriterState(e)
+	before := e.dump()
+	for _, fields := range [][]interface{}{
+		{FenceField},
+		{FingerprintField},
+		{e.keys.FlagCursorField(), FenceField},
+		{e.keys.FlagCursorField(), FingerprintField},
+	} {
+		err := resetCall(e, nil, testOwner, testToken, append([]interface{}{"meta"}, fields...)...)
+		require.NotNil(t, err, fields)
+		assert.True(t, ErrorHasMarker(err, BadArgsMarker), "%v: %s", fields, err.Error())
+		assert.Equal(t, before, e.dump(), "a refused meta reset must leave the fields untouched")
+	}
+
+	err := resetCall(e, nil, testOwner, testToken, "wipe")
+	require.NotNil(t, err)
+	assert.True(t, ErrorHasMarker(err, BadArgsMarker), err.Error())
+	assert.Equal(t, before, e.dump(), "an unknown mode must change nothing")
+}
+
+func TestResetScriptModes(t *testing.T) {
+	e := newScriptEnv(t)
+	seedWriterState(e)
+	before := e.dump()
+	meta := e.keys.Meta()
+
+	require.Nil(t, resetCall(e, nil, testOwner, testToken, "meta", e.keys.FlagCursorField()))
+	after := e.dump()
+	assert.NotContains(t, after[meta].Fields, e.keys.FlagCursorField(), "mode meta removes the listed field")
+	assert.Equal(t, testFp, after[meta].Fields[FingerprintField], "mode meta keeps the fingerprint")
+	// dump strips the fence field, so the fence is checked behaviourally: a stale token is still refused
+	assert.True(t, ErrorHasMarker(resetCall(e, nil, testOwner, testToken+1, "meta"), FencedMarker), "mode meta keeps the fence")
+	assert.Equal(t, before[e.keys.FlagData()], after[e.keys.FlagData()], "mode meta keeps data keys")
+	assert.Equal(t, before[e.keys.SegmentKeys("s")[1]], after[e.keys.SegmentKeys("s")[1]], "mode meta keeps segment data")
+
+	require.Nil(t, resetCall(e, []string{e.keys.FlagData(), e.keys.FlagIndex()}, testOwner, testToken, "del"))
+	after = e.dump()
+	assert.NotContains(t, after, e.keys.FlagData(), "mode del deletes the data key")
+	assert.NotContains(t, after, e.keys.FlagIndex(), "mode del deletes the index key")
+	assert.Equal(t, before[e.keys.FlagRemoved()], after[e.keys.FlagRemoved()], "mode del leaves unlisted keys")
+	assert.Equal(t, testFp, after[meta].Fields[FingerprintField], "mode del leaves meta")
+	assert.True(t, ErrorHasMarker(resetCall(e, nil, testOwner, testToken+1, "meta"), FencedMarker), "mode del leaves the fence")
+}
+
+const delFenceFieldScript = `return redis.call('HDEL', KEYS[1], 'fence')`
+
+func TestResetDelModeRemovesCursorFieldsWithKeys(t *testing.T) {
+	e := newScriptEnv(t)
+	seedWriterState(e)
+	meta := e.keys.Meta()
+	sk := e.keys.SegmentKeys("s")
+	cursor := e.keys.SegmentCursorField("s")
+	require.Contains(t, e.dump()[meta].Fields, cursor, "the segment cursor is seeded")
+
+	require.Nil(t, resetCall(e, sk[1:], testOwner, testToken, "del", cursor))
+	d := e.dump()
+	for _, k := range sk[1:] {
+		assert.NotContains(t, d, k, "mode del removes the segment key %s", k)
+	}
+	assert.NotContains(t, d[meta].Fields, cursor, "the cursor leaves in the same call as its keys")
+	assert.Equal(t, testFp, d[meta].Fields[FingerprintField], "mode del keeps the fingerprint")
+	assert.Contains(t, d, e.keys.FlagData(), "unlisted data keys stay")
+	assert.Contains(t, d[meta].Fields, e.keys.FlagCursorField(), "unlisted cursor fields stay")
+}
+
+func TestResetDelModeRefusesFenceFingerprintAndControlKeys(t *testing.T) {
+	e := newScriptEnv(t)
+	seedWriterState(e)
+	before := e.dumpAll()
+	data := []string{e.keys.FlagData(), e.keys.FlagIndex()}
+
+	for _, fields := range [][]interface{}{
+		{FenceField},
+		{FingerprintField},
+		{e.keys.SegmentCursorField("s"), FenceField},
+		{e.keys.SegmentCursorField("s"), FingerprintField},
+	} {
+		err := resetCall(e, data, testOwner, testToken, append([]interface{}{"del"}, fields...)...)
+		require.NotNil(t, err, fields)
+		assert.True(t, ErrorHasMarker(err, BadArgsMarker), "%v: %s", fields, err.Error())
+		assert.Equal(t, before, e.dumpAll(), "a refused del must delete nothing (%v)", fields)
+	}
+
+	for _, keys := range [][]string{
+		{e.keys.Meta()},
+		{e.keys.Lease()},
+		{e.keys.FlagData(), e.keys.Meta()},
+		{e.keys.FlagData(), e.keys.Lease()},
+	} {
+		err := resetCall(e, keys, testOwner, testToken, "del")
+		require.NotNil(t, err, keys)
+		assert.True(t, ErrorHasMarker(err, BadArgsMarker), "%v: %s", keys, err.Error())
+		assert.Equal(t, before, e.dumpAll(), "a del over the control keys %v must delete nothing", keys)
+	}
+}
+
+func TestResetFingerprintModeTakesOverForeignFingerprint(t *testing.T) {
+	e := newScriptEnv(t)
+	seedWriterState(e)
+	meta := e.keys.Meta()
+	before := e.dumpAll()[meta].Fields
+
+	require.Nil(t, resetCall(e, nil, testOwner, testToken, "fingerprint", "fp-B"))
+	after := e.dumpAll()
+	assert.Equal(t, "fp-B", after[meta].Fields[FingerprintField], "mode fingerprint rewrites the foreign fingerprint")
+	assert.Equal(t, before[FenceField], after[meta].Fields[FenceField], "mode fingerprint keeps the fence")
+	for field, value := range before {
+		if field == FingerprintField {
+			continue
+		}
+		assert.Equal(t, value, after[meta].Fields[field], "mode fingerprint keeps field %s", field)
+	}
+	require.Nil(t, e.flags("fp-B", 6, ent{"a", 6, false, `{"v":3}`}), "a write under the taken-over fingerprint succeeds")
+}
+
+func TestResetFingerprintModeRefusesBadArgs(t *testing.T) {
+	e := newScriptEnv(t)
+	seedWriterState(e)
+	before := e.dumpAll()
+	cases := []struct {
+		name string
+		data []string
+		argv []interface{}
+	}{
+		{"empty value", nil, []interface{}{"fingerprint", ""}},
+		{"missing value", nil, []interface{}{"fingerprint"}},
+		{"extra argument", nil, []interface{}{"fingerprint", "fp-B", "extra"}},
+		{"data key passed", []string{e.keys.FlagData()}, []interface{}{"fingerprint", "fp-B"}},
+	}
+	for _, tc := range cases {
+		err := resetCall(e, tc.data, testOwner, testToken, tc.argv...)
+		require.NotNil(t, err, tc.name)
+		assert.True(t, ErrorHasMarker(err, BadArgsMarker), "%s: %s", tc.name, err.Error())
+		assert.Equal(t, before, e.dumpAll(), "%s must write nothing", tc.name)
+	}
+}
+
+func TestResetFingerprintModeStaleTokenWritesNothing(t *testing.T) {
+	e := newScriptEnv(t)
+	seedWriterState(e)
+	before := e.dumpAll()
+	err := resetCall(e, nil, testOwner, testToken+1, "fingerprint", "fp-B")
+	require.NotNil(t, err)
+	assert.True(t, ErrorHasMarker(err, FencedMarker), err.Error())
+	err = resetCall(e, nil, "other-owner", testToken, "fingerprint", "fp-B")
+	require.NotNil(t, err)
+	assert.True(t, ErrorHasMarker(err, FencedMarker), err.Error())
+	assert.Equal(t, before, e.dumpAll(), "a fenced fingerprint reset must write nothing")
+}
+
+func TestFencedWritesRefuseMissingFenceField(t *testing.T) {
+	e := newScriptEnv(t)
+	seedWriterState(e)
+	require.Nil(t, e.client.Eval(delFenceFieldScript, []string{e.keys.Meta()}))
+	before := e.dumpAll()
+	require.NotContains(t, before[e.keys.Meta()].Fields, FenceField)
+	require.NotEmpty(t, before[e.keys.Lease()].Str, "the lease is still held")
+
+	for _, call := range fencedWriteCalls(e) {
+		err := callFenced(e, call, testOwner, testToken)
+		require.NotNil(t, err, call.name)
+		assert.True(t, ErrorHasMarker(err, FencedMarker), "%s: %s", call.name, err.Error())
+		assert.Equal(t, before, e.dumpAll(), "%s wrote with the fence field missing", call.name)
+	}
+}
+
+func TestFencedPurgeCountKeyUnwrittenWhenRefused(t *testing.T) {
+	e := newScriptEnv(t)
+	seedWriterState(e)
+	before := e.dumpAll()
+	keys := e.fenceKeys(append(slices.Clone(e.keys.FlagKeys()), e.keys.PurgeLast()))
+	require.Len(t, keys, 6)
+
+	for _, id := range []struct {
+		owner interface{}
+		token interface{}
+	}{{testOwner, testToken + 1}, {"other-owner", testToken}} {
+		err := e.client.Eval(PurgeScript, keys, []interface{}{testFp, testRetention, int64(100), int64(0), id.owner, id.token})
+		require.NotNil(t, err)
+		assert.True(t, ErrorHasMarker(err, FencedMarker), err.Error())
+		assert.NotContains(t, e.dumpAll(), e.keys.PurgeLast(), "a refused purge must not write the count key")
+		assert.Equal(t, before, e.dumpAll(), "a refused purge must write nothing")
+	}
 }

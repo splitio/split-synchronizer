@@ -46,7 +46,7 @@ func (m *Main) BuildAdvancedConfig() *cconf.AdvancedConfig {
 type Initialization struct {
 	TimeoutMs         int64  `json:"timeoutMS" s-cli:"timeout-ms" s-def:"10000" s-desc:"How long to wait until the synchronizer is ready"`
 	Snapshot          string `json:"snapshot" s-cli:"snapshot" s-def:"" s-desc:"Snapshot file to use as a starting point"`
-	ForceFreshStartup bool   `json:"forceFreshStartup" s-cli:"force-fresh-startup" s-def:"false" s-desc:"Wipe storage before starting the synchronizer"`
+	ForceFreshStartup bool   `json:"forceFreshStartup" s-cli:"force-fresh-startup" s-def:"false" s-desc:"Wipe storage before starting the synchronizer. Not valid in offline mode when redis state is enabled"`
 	OverridesFile     string `json:"overridesFile" s-cli:"overrides-file" s-def:"" s-desc:"YAML file of treatment overrides (offline mode only)"`
 }
 
@@ -70,16 +70,18 @@ type Storage struct {
 // The proxy state keys have no TTL and the reader cannot detect keys evicted by Redis, so the database must use
 // maxmemory-policy noeviction (or have no maxmemory limit).
 type RedisState struct {
-	Enabled           bool       `json:"enabled" s-cli:"redis-state-enabled" s-def:"false" s-desc:"Write the proxy state to Redis and read it back at boot. The Redis database must not evict keys (maxmemory-policy noeviction)"`
-	Namespace         string     `json:"namespace" s-cli:"redis-state-namespace" s-def:"" s-desc:"Optional readable name for this environment in Redis (letters, digits, - and _); default is a hash of the API key, so proxies with the same API key share it. Only one proxy may write to a namespace: give each writer its own"`
-	RetentionHours    int64      `json:"retentionHours" s-cli:"redis-state-retention-hours" s-def:"168" s-desc:"How long removed flags and segment keys stay in Redis (1 to 2562047 hours)"`
-	WriteMaxAttempts  int64      `json:"writeMaxAttempts" s-cli:"redis-state-write-max-attempts" s-def:"3" s-desc:"Attempts per Redis write (1 to 100) before the change is dropped; the next resync repairs a dropped change"`
-	WriteBackoffMaxMs int64      `json:"writeBackoffMaxMs" s-cli:"redis-state-write-backoff-max-ms" s-def:"60000" s-desc:"Maximum wait between Redis write attempts in milliseconds (1 to 3600000)"`
-	MaxPendingChanges int64      `json:"maxPendingChanges" s-cli:"redis-state-max-pending-changes" s-def:"3000000" s-desc:"Queued changes (1 to 10000000) above which the queue is dropped, the affected entities stop advancing in Redis and a resync is scheduled"`
-	ChunkSize         int64      `json:"chunkSize" s-cli:"redis-state-chunk-size" s-def:"1000" s-desc:"Entities written per Redis script call (1 to 10000)"`
-	PurgeBatch        int64      `json:"purgeBatch" s-cli:"redis-state-purge-batch" s-def:"500" s-desc:"Expired entries removed per Redis purge script call (1 to 5000)"`
-	StopTimeoutMs     int64      `json:"stopTimeoutMs" s-cli:"redis-state-stop-timeout-ms" s-def:"10000" s-desc:"Maximum time to drain queued Redis writes on shutdown (1 to 60000); the process manager grace period must exceed it plus the other shutdown stops"`
-	Connection        conf.Redis `json:"connection" s-nested:"true"`
+	Enabled            bool       `json:"enabled" s-cli:"redis-state-enabled" s-def:"false" s-desc:"Write the proxy state to Redis and read it back at boot. With Redis enabled and online, proxies sharing a namespace elect one writer through a lease in Redis (needs permission to run EVAL/EVALSHA and SET/DEL); the other proxies only read Redis at boot. The Redis wipe of force-fresh-startup happens when this proxy first becomes the writer. The Redis database must not evict keys (maxmemory-policy noeviction)"`
+	Namespace          string     `json:"namespace" s-cli:"redis-state-namespace" s-def:"" s-desc:"Optional readable name for this environment in Redis (letters, digits, - and _); default is a hash of the API key, so proxies with the same API key share it. Proxies with the same namespace and API key share one writer chosen by lease; the fingerprint changes with the flag sets and the flag spec version, so proxies must use the same ones"`
+	RetentionHours     int64      `json:"retentionHours" s-cli:"redis-state-retention-hours" s-def:"168" s-desc:"How long removed flags and segment keys stay in Redis (1 to 2562047 hours)"`
+	WriteMaxAttempts   int64      `json:"writeMaxAttempts" s-cli:"redis-state-write-max-attempts" s-def:"3" s-desc:"Attempts per Redis write (1 to 100) before the change is dropped; the next resync repairs a dropped change"`
+	WriteBackoffMaxMs  int64      `json:"writeBackoffMaxMs" s-cli:"redis-state-write-backoff-max-ms" s-def:"60000" s-desc:"Maximum wait between Redis write attempts in milliseconds (1 to 3600000)"`
+	MaxPendingChanges  int64      `json:"maxPendingChanges" s-cli:"redis-state-max-pending-changes" s-def:"3000000" s-desc:"Queued changes (1 to 10000000) above which the queue is dropped, the affected entities stop advancing in Redis and a resync is scheduled"`
+	ChunkSize          int64      `json:"chunkSize" s-cli:"redis-state-chunk-size" s-def:"1000" s-desc:"Entities written per Redis script call (1 to 10000)"`
+	PurgeBatch         int64      `json:"purgeBatch" s-cli:"redis-state-purge-batch" s-def:"500" s-desc:"Expired entries removed per Redis purge script call (1 to 5000)"`
+	StopTimeoutMs      int64      `json:"stopTimeoutMs" s-cli:"redis-state-stop-timeout-ms" s-def:"10000" s-desc:"Maximum time to drain queued Redis writes on shutdown (1 to 60000); the process manager grace period must exceed it plus the other shutdown stops"`
+	LeaseTtlMs         int64      `json:"leaseTtlMs" s-cli:"redis-state-lease-ttl-ms" s-def:"15000" s-desc:"Lease time to live in milliseconds (6000 to 3600000). The renew interval is a third of it. A proxy that cannot renew stops writing before the lease expires; lower values fail over faster"`
+	OfflineFingerprint string     `json:"offlineFingerprint" s-cli:"redis-state-offline-fingerprint" s-def:"" s-desc:"Offline mode only: the fingerprint of the environment that wrote the Redis state (copy it from the redis state writer log line of the online proxy). It is derived from the API key, flag spec version and flag sets, so treat it as sensitive"`
+	Connection         conf.Redis `json:"connection" s-nested:"true"`
 }
 
 // Volatile storage configuration options

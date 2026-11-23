@@ -145,7 +145,13 @@ func newBenchEnv(b testing.TB) benchEnv {
 	if err != nil {
 		b.Fatalf("keys: %v", err)
 	}
-	w, err := NewWriter(client, keys, "bench-fingerprint", DefaultOptions(), benchLogger{tb: b})
+	if err := client.Eval(seedLeaseScript, []string{keys.Lease(), keys.Meta()}, testOwner, testToken); err != nil {
+		b.Fatalf("seed lease: %v", err)
+	}
+	opts := DefaultOptions()
+	opts.Owner = testOwner
+	opts.Token = testToken
+	w, err := NewWriter(client, keys, "bench-fingerprint", opts, benchLogger{tb: b})
 	if err != nil {
 		b.Fatalf("writer: %v", err)
 	}

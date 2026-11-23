@@ -57,10 +57,6 @@ func redisClusterRequested(cfg *pconf.Main) bool {
 }
 
 func start(logger logging.LoggerInterface, cfg *pconf.Main) error {
-	if cfg.Offline && cfg.Storage.Redis.Enabled {
-		return common.NewInitError(errors.New("redis state is not supported in offline mode"), common.ExitInvalidConfiguration)
-	}
-
 	if cfg.Storage.Redis.Enabled && redisClusterRequested(cfg) {
 		return common.NewInitError(errors.New("redis state does not support Redis Cluster in this version; use a standalone or Sentinel Redis (clear the redis cluster nodes setting)"), common.ExitInvalidConfiguration)
 	}
@@ -81,7 +77,7 @@ func start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	// Initialization of DB
 	var dbpath = persistent.BoltInMemoryMode
 	// haveLocalState is true when the storages start with a complete snapshot (a Bolt snapshot file, or a Redis restore
-	// with no skipped segment). The Redis writer gate, the preload and the second resync depend on it. The retry of a
+	// with no skipped segment). The preload depends on it. The retry of a
 	// failed first cloud sync uses firstSyncMayRetry, which also accepts a Redis restore with skipped segments.
 	var haveLocalState = false
 	var bootAdminServer *bootAdmin
@@ -129,9 +125,33 @@ func start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		}
 	}()
 
-	boot, err := resolveRedisBootInto(cfg, logger, newBootReadClient, sink)
-	if err != nil {
-		return err
+	// Boot order: a usable snapshot file wins and redis is not read; otherwise the redis boot read runs. With redis
+	// enabled an unusable snapshot file is logged and falls through to the redis read, and is fatal only when redis
+	// has no usable state either. An absent file is no snapshot when redis is enabled.
+	snapFile := cfg.Initialization.Snapshot
+	redisRead := bootAdminServer != nil
+	var snapPayload []byte
+	var snapErr error
+	snapUsable := false
+	if snapFile != "" {
+		snapPayload, snapErr = loadBootSnapshot(cfg)
+		snapUsable = snapErr == nil
+		if redisRead && errors.Is(snapErr, snapshot.ErrNonexistantFile) {
+			snapErr = nil
+		}
+	}
+	if redisRead && snapErr != nil {
+		logger.Warning(fmt.Sprintf("snapshot file is not usable, trying the redis state: %v", snapErr))
+	}
+
+	var boot BootDecision
+	if snapUsable && redisRead {
+		boot = BootDecision{Source: BootSourceSnapshotFile, Reason: "valid snapshot file"}
+	} else {
+		boot, err = resolveRedisBootInto(cfg, logger, newBootReadClient, sink)
+		if err != nil {
+			return err
+		}
 	}
 	summary := boot.Summary()
 	bootAdminServer.setSummary(summary)
@@ -141,28 +161,17 @@ func start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	}
 	bootAdminServer.setPhase(bootPhaseInitialSync)
 	if boot.Source == BootSourceRedis {
-		// Valid Redis state wins; the snapshot file is not parsed, so a bad file cannot abort the boot.
+		// Valid Redis state wins only over an unusable snapshot file; a usable file was taken before the redis read.
 		haveLocalState = redisBootIsLocalState(boot)
-	}
-	if snapFile := cfg.Initialization.Snapshot; snapFile != "" && boot.Source != BootSourceRedis {
-		snap, err := snapshot.DecodeFromFile(snapFile)
-		if err != nil {
-			return common.NewInitError(fmt.Errorf("error parsing snapshot file: %w", err), common.ExitInvalidConfiguration)
-		}
-
-		currentHash := util.HashAPIKey(cfg.Apikey + cfg.FlagSpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
-		if snap.Meta().Hash != strconv.Itoa(int(currentHash)) {
+	} else if snapFile != "" {
+		if snapErr != nil {
+			if !errors.Is(snapErr, errSnapshotConfigMismatch) || redisRead {
+				return common.NewInitError(snapErr, common.ExitInvalidConfiguration)
+			}
 			logger.Warning("snapshot cfg (apikey, version, flagsets) does not match the provided one. Ignoring snapshot and starting with empty storage.")
-		} else {
-			payload, err := snap.Data()
-			if err != nil {
-				return common.NewInitError(fmt.Errorf("error reading snapshot payload: %w", err), common.ExitInvalidConfiguration)
-			}
-			if err := checkSnapshot(snap.Meta(), payload, cfg.FlagSpecVersion, false); err != nil {
-				return common.NewInitError(err, common.ExitInvalidConfiguration)
-			}
-			// Hash matches - use the snapshot
-			dbpath, err = snapshot.WritePayloadToTmpFile(payload)
+		}
+		if snapUsable {
+			dbpath, err = snapshot.WritePayloadToTmpFile(snapPayload)
 			if err != nil {
 				return fmt.Errorf("error writing temporary snapshot file: %w", err)
 			}
@@ -208,8 +217,10 @@ func start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	if afterRestoreHook != nil {
 		afterRestoreHook(splitStorage)
 	}
-	// on a cold boot the writer sees an empty source until the first sync completes (see sourceGate)
-	redisGate := newSourceGate(haveLocalState)
+	// In lease mode the writer source stays closed until this process completes its first cloud sync, whatever the
+	// boot source (D11). The writer acquires the lease only after the gate opens, so a stale snapshot or Bolt boot never
+	// writes to Redis and never blocks a fresher proxy. With Redis disabled the gate is unused.
+	redisGate := newSourceGate(false)
 	redisWriter, err := setupRedisState(cfg, logger, splitStorage, ruleBasedStorage, segmentStorage, redisGate)
 	if err != nil {
 		return err
@@ -217,9 +228,6 @@ func start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	if redisWriter != nil {
 		defer stopRedisState(redisWriter, logger, stopWaitBound(cfg.Storage.Redis, cfg.Storage.Redis.Connection))
 	}
-	// Declared after the writer defer so it runs first at shutdown and ends the second resync wait.
-	secondResyncStop := make(chan struct{})
-	defer close(secondResyncStop)
 	largeSegmentStorage := inmemory.NewLargeSegmentsStorage()
 
 	// Local telemetry
@@ -319,11 +327,9 @@ func start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 	before := time.Now()
 	err = startBGSync(syncManager, mstatus, firstSyncMayRetry(haveLocalState, boot), func() {
 		logger.Info("Synchronizer tasks started")
-		// The writer's startup resync ran against an empty source on a cold boot, so repair it once sync has populated the storages.
+		// Opens the writer gate. In lease mode the writer's own Start resync runs against the populated source, because the
+		// gate opens before any acquire, so no second resync is scheduled (D11).
 		redisGate.open()
-		if redisWriter != nil {
-			go requestSecondResync(redisWriter, haveLocalState, secondResyncWait, secondResyncStop, logger)
-		}
 		appMonitor.Start()
 		servicesMonitor.Start()
 		flagSetsAfterSanitize, _ := flagsets.SanitizeMany(cfg.FlagSetsFilter)
@@ -470,7 +476,7 @@ const maskedSecret = "********"
 // array with the live config.
 func maskAdminConfigSecrets(cfg *pconf.Main) {
 	conn := &cfg.Storage.Redis.Connection
-	for _, secret := range []*string{&conn.Username, &conn.Pass, &conn.TLSClientKey, &cfg.Admin.Password} {
+	for _, secret := range []*string{&conn.Username, &conn.Pass, &conn.TLSClientKey, &cfg.Storage.Redis.OfflineFingerprint, &cfg.Admin.Password} {
 		if *secret != "" {
 			*secret = maskedSecret
 		}
@@ -487,75 +493,63 @@ func maskAdminConfigSecrets(cfg *pconf.Main) {
 	}
 }
 
-// resyncTarget is the part of the Redis state writer, or of its supervisor, that the cold boot repair uses.
-type resyncTarget interface {
-	RequestResync()
-	Status() redisstate.Status
-}
-
-// requestRedisResync asks a non-nil Redis writer for a full resync. A nil writer (feature disabled) is a no-op.
-func requestRedisResync(w resyncTarget) {
-	if w != nil {
-		w.RequestResync()
-	}
-}
-
-// secondResyncWait bounds how long the cold boot repair waits for the writer queue to drain before it asks for the resync
-const secondResyncWait = 2 * time.Minute
-
 // redisBootIsLocalState reports whether a boot decision gives the proxy a complete local state: a valid Redis restore
-// with no skipped segment. It gates the writer source gate, the preload and the second resync (R8). A skipped segment is
+// with no skipped segment. It gates the preload (R8). A skipped segment is
 // missing data, not a removal, so the writer must not treat it as complete. It does not decide the retry of a failed
 // first cloud sync; firstSyncMayRetry does.
 func redisBootIsLocalState(boot BootDecision) bool {
 	return boot.Source == BootSourceRedis && boot.State != nil && len(boot.State.SkippedSegments) == 0
 }
 
+// errSnapshotConfigMismatch reports a snapshot made for another apikey, flag spec version or flag sets filter.
+var errSnapshotConfigMismatch = errors.New("snapshot cfg (apikey, version, flagsets) does not match the provided one")
+
+// loadBootSnapshot decodes and checks the configured snapshot file and returns its payload. It logs nothing. A missing
+// file is returned wrapping snapshot.ErrNonexistantFile.
+func loadBootSnapshot(cfg *pconf.Main) ([]byte, error) {
+	snap, err := snapshot.DecodeFromFile(cfg.Initialization.Snapshot)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing snapshot file: %w", err)
+	}
+	currentHash := util.HashAPIKey(cfg.Apikey + cfg.FlagSpecVersion + strings.Join(cfg.FlagSetsFilter, "::"))
+	if snap.Meta().Hash != strconv.Itoa(int(currentHash)) {
+		return nil, errSnapshotConfigMismatch
+	}
+	payload, err := snap.Data()
+	if err != nil {
+		return nil, fmt.Errorf("error reading snapshot payload: %w", err)
+	}
+	if err := checkSnapshot(snap.Meta(), payload, cfg.FlagSpecVersion, false); err != nil {
+		return nil, err
+	}
+	return payload, nil
+}
+
 // firstSyncMayRetry reports whether a failed first cloud sync is retried in the background instead of exiting. It is
 // true for any local state, and also for a valid Redis restore with skipped segments: the first sync fetches the
 // skipped segments, so the proxy can serve the restored state while it retries. It is deliberately not
-// redisBootIsLocalState, because the writer gate and the second resync need a complete state.
+// redisBootIsLocalState, because the preload needs a complete state.
 func firstSyncMayRetry(haveLocalState bool, boot BootDecision) bool {
 	return haveLocalState || (boot.Source == BootSourceRedis && boot.State != nil)
 }
 
-// secondResyncPoll is how often the wait looks at the writer queue
-const secondResyncPoll = 100 * time.Millisecond
+// Cold start (no local state and no Redis restore) retries the first sync a bounded number of times (D7).
+const (
+	coldStartMaxAttempts = 5
+	coldStartBackoffBase = time.Second
+	coldStartBackoffCap  = 30 * time.Second
+)
 
-// requestSecondResync requests the post-sync repair resync only on a cold boot: with local state the writer's startup resync already ran with full data.
-// It first waits, up to bound, for the changes queued during the sync to be written, so the resync finds most of the
-// state in place instead of rewriting it twice. When the bound expires it logs and requests the resync anyway: the
-// source is complete by now, so the resync is safe at any point. It blocks, so call it in its own goroutine.
-// It returns without requesting when stop is closed, so a shutdown does not leave the wait running.
-func requestSecondResync(w resyncTarget, haveLocalState bool, bound time.Duration, stop <-chan struct{}, logger logging.LoggerInterface) {
-	if w == nil {
-		return
-	}
-	requestSecondResyncWith(w, haveLocalState, bound, stop, logger, func() bool { return w.Status().PendingChanges == 0 })
-}
+// coldStartSleep waits between cold start attempts. Tests replace it to avoid real sleeps.
+var coldStartSleep = time.Sleep
 
-func requestSecondResyncWith(w resyncTarget, haveLocalState bool, bound time.Duration, stop <-chan struct{}, logger logging.LoggerInterface, drained func() bool) {
-	if haveLocalState || w == nil {
-		return
+// coldStartBackoff returns the wait before retry number attempt (1-based): base doubled per attempt, capped.
+func coldStartBackoff(attempt int) time.Duration {
+	d := coldStartBackoffBase << (attempt - 1)
+	if d > coldStartBackoffCap {
+		return coldStartBackoffCap
 	}
-	deadline := time.Now().Add(bound)
-	for !drained() {
-		if time.Now().After(deadline) {
-			logger.Warning(fmt.Sprintf("redis state: the writer queue did not drain within %s after the first sync, requesting the repair resync anyway", bound))
-			break
-		}
-		select {
-		case <-stop:
-			return
-		case <-time.After(secondResyncPoll):
-		}
-	}
-	select {
-	case <-stop:
-		return
-	default:
-	}
-	requestRedisResync(w)
+	return d
 }
 
 func startBGSync(m synchronizer.Manager, mstatus chan int, haveLocalState bool, onReady func()) error {
@@ -577,6 +571,13 @@ func startBGSync(m synchronizer.Manager, mstatus chan int, haveLocalState bool, 
 	}
 
 	if !haveLocalState {
+		// A failed sync manager resets its lifecycle, so the same manager can start again.
+		for attempt := 1; attempt < coldStartMaxAttempts; attempt++ {
+			coldStartSleep(coldStartBackoff(attempt))
+			if attemptInit() {
+				return nil
+			}
+		}
 		return errUnrecoverable
 	}
 

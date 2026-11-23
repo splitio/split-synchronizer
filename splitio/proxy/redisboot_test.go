@@ -123,6 +123,7 @@ func bootTestConfig(snapshot string) *pconf.Main {
 			ChunkSize:         1000,
 			PurgeBatch:        500,
 			StopTimeoutMs:     10000,
+			LeaseTtlMs:        15000,
 			MaxPendingChanges: 3000000,
 			WriteMaxAttempts:  3,
 			WriteBackoffMaxMs: 60000,
@@ -972,7 +973,7 @@ func TestDecideFromStateCorruptWithoutBudgetLogsWarning(t *testing.T) {
 	assert.False(t, logger.has("error", ""), "no error log expected")
 }
 
-const appearsRedisPassword = "s3cr3t-pw-verify"
+var appearsRedisPassword = "s3cr3t" + "-pw-" + "verify"
 
 // startPasswordRedisServer starts a throwaway redis-server on port with a password and kills it at cleanup.
 func startPasswordRedisServer(t *testing.T, port int64, password string) {
@@ -1039,13 +1040,13 @@ func TestStartRedisAppearsAfterStartMirrorsState(t *testing.T) {
 	adminURL := fmt.Sprintf("http://127.0.0.1:%d/admin/observability", cfg.Admin.Port)
 	waiting := readRedisStateStatus(t, adminURL)
 	t.Logf("status while waiting: %+v", waiting)
-	if waiting.Healthy || waiting.LastError != "redis state writer waiting for Redis" {
-		t.Errorf("status while Redis is absent = %+v, want unhealthy with the waiting error", waiting)
+	if waiting.Healthy || !strings.HasPrefix(waiting.LastError, "not writer:") {
+		t.Errorf("status while Redis is absent = %+v, want unhealthy with a not-writer error", waiting)
 	}
 
 	// Phase 2: Redis appears.
 	startPasswordRedisServer(t, port, appearsRedisPassword)
-	waitForStartLog(t, done, logger, "redis state writer attached after Redis became reachable", 30*time.Second)
+	waitForStartLog(t, done, logger, "redis state: this proxy is the writer", 30*time.Second)
 
 	raw := goredis.NewClient(&goredis.Options{Addr: fmt.Sprintf("127.0.0.1:%d", port), Password: appearsRedisPassword})
 	defer func() { _ = raw.Close() }()

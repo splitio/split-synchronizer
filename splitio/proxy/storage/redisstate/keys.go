@@ -24,6 +24,8 @@ const (
 	FingerprintField = "fingerprint"
 	// UpdatedAtField is the meta hash field holding the time in ms of the last applied write. The Lua scripts keep the same literal.
 	UpdatedAtField = "updatedAtMs"
+	// FenceField is the meta hash field holding the fencing token of the current lease owner. The Lua scripts keep the same literal.
+	FenceField = "fence"
 )
 
 var namespaceRegex = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
@@ -90,6 +92,16 @@ func (k Keys) Meta() string {
 // MetaUnprefixed returns the meta hash name without the Redis prefix, for clients that add the prefix themselves
 func (k Keys) MetaUnprefixed() string {
 	return "{" + keyRoot + "." + k.env + "}.meta"
+}
+
+// Lease returns the prefixed name of the lease key holding the owner of the writer role
+func (k Keys) Lease() string {
+	return k.base + ".lease"
+}
+
+// LeaseUnprefixed returns the lease key name without the Redis prefix, for clients that add the prefix themselves
+func (k Keys) LeaseUnprefixed() string {
+	return "{" + keyRoot + "." + k.env + "}.lease"
 }
 
 // Unprefixed returns the key set without the Redis prefix, for clients that add the prefix themselves
