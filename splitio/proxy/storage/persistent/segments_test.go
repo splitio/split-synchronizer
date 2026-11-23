@@ -2,6 +2,7 @@ package persistent
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -255,22 +256,41 @@ func TestSegmentChangesCollectionFetchDecodeErrorIsReturned(t *testing.T) {
 	}
 }
 
-func TestSegmentChangesCollectionUpdateReturnsDecodeErrorAndKeepsRecord(t *testing.T) {
-	logger := logging.NewLogger(nil)
-	c := &SegmentChangesCollectionImpl{
-		collection:   &fetchByCollection{data: []byte("not gob"), logger: logger},
-		segmentsTill: make(map[string]int64),
-		logger:       logger,
+func TestSegmentChangesCollectionUpdateDropsCorruptRecordAndRecovers(t *testing.T) {
+	dbw, err := NewBoltWrapper(BoltInMemoryMode, nil)
+	if err != nil {
+		t.Fatal(err)
 	}
-	err := c.Update("seg", set.NewSet("a"), set.NewSet(), 1)
-	if err == nil {
-		t.Fatal("expected Update to return the decode error instead of replacing the corrupt record")
+	c := NewSegmentChangesCollection(dbw, logging.NewLogger(nil))
+	if err := c.Update("seg", set.NewSet("a"), set.NewSet(), 3); err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(err.Error(), "decoding segment seg") {
-		t.Errorf("unexpected error: %v", err)
+	// a gob value of another type cannot be decoded into a SegmentChangesItem
+	if err := c.collection.SaveAs([]byte("seg"), "corrupt"); err != nil {
+		t.Fatal(err)
 	}
-	if _, ok := c.segmentsTill["seg"]; ok {
-		t.Error("change number must not advance when Update fails")
+
+	err = c.Update("seg", set.NewSet("b"), set.NewSet(), 4)
+	if err == nil || !strings.Contains(err.Error(), "decoding segment seg") {
+		t.Fatalf("expected the decode error, got %v", err)
+	}
+	if cn := c.ChangeNumber("seg"); cn != -1 {
+		t.Errorf("change number must reset to -1 so the next fetch asks for a full snapshot, got %d", cn)
+	}
+	if _, err := c.Fetch("seg"); !errors.Is(err, ErrorKeyNotFound) {
+		t.Errorf("the unreadable record must be deleted, got %v", err)
+	}
+
+	// the next sync starts from -1 and delivers a full snapshot
+	if err := c.Update("seg", set.NewSet("a", "b"), set.NewSet(), 4); err != nil {
+		t.Fatalf("Update after recovery failed: %v", err)
+	}
+	item, err := c.Fetch("seg")
+	if err != nil || len(item.Keys) != 2 {
+		t.Fatalf("unexpected item %+v err %v", item, err)
+	}
+	if cn := c.ChangeNumber("seg"); cn != 4 {
+		t.Errorf("expected change number 4, got %d", cn)
 	}
 }
 
