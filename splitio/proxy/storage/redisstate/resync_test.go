@@ -1638,3 +1638,28 @@ func TestDeleteSegmentKeysRefusedWhileWorkerRuns(t *testing.T) {
 	w.Stop()
 	assert.NoError(t, w.DeleteSegmentKeys("s1"), "allowed again once the worker has stopped")
 }
+
+// a resync must not refresh the removal time of a flag or rule-based segment that is already tombstoned, otherwise
+// restarts more frequent than the retention keep the tombstone from ever expiring
+func TestResyncKeepsRemovalTimeOfAlreadyTombstonedEntities(t *testing.T) {
+	e := newScriptEnv(t)
+	require.NoError(t, e.flags(wtFingerprint, 100, ent{"gone", 100, true, `{"name":"gone","changeNumber":100,"status":"ARCHIVED"}`}))
+	require.NoError(t, e.rbs(wtFingerprint, 100, ent{"rgone", 100, true, `{"name":"rgone","changeNumber":100,"status":"ARCHIVED"}`}))
+	fk, rk := e.keys.FlagKeys(), e.keys.RuleBasedSegmentKeys()
+	before := e.dump()
+	flagTime, rbsTime := before[fk[3]].Scores["gone"], before[rk[3]].Scores["rgone"]
+	require.NotZero(t, flagTime)
+	require.NotZero(t, rbsTime)
+	time.Sleep(20 * time.Millisecond)
+
+	w, _ := newRealWriter(t, e, wtOptions())
+	src := &wtSource{
+		flags: []dtos.SplitDTO{wtFlag("keep", 150, "ACTIVE")}, flagsCn: 150,
+		rbs: []dtos.RuleBasedSegmentDTO{{Name: "rkeep", ChangeNumber: 150, Status: "ACTIVE"}}, rbsCn: 150,
+	}
+	require.NoError(t, w.resync(src))
+
+	after := e.dump()
+	assert.Equal(t, flagTime, after[fk[3]].Scores["gone"], "the flag tombstone keeps its removal time")
+	assert.Equal(t, rbsTime, after[rk[3]].Scores["rgone"], "the rule-based segment tombstone keeps its removal time")
+}
