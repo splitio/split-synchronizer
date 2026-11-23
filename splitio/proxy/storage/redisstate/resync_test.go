@@ -1663,3 +1663,29 @@ func TestResyncKeepsRemovalTimeOfAlreadyTombstonedEntities(t *testing.T) {
 	assert.Equal(t, flagTime, after[fk[3]].Scores["gone"], "the flag tombstone keeps its removal time")
 	assert.Equal(t, rbsTime, after[rk[3]].Scores["rgone"], "the rule-based segment tombstone keeps its removal time")
 }
+
+func TestReAddedThenRemovedEntitiesGetAFreshRemovalTime(t *testing.T) {
+	e := newScriptEnv(t)
+	fk, rk := e.keys.FlagKeys(), e.keys.RuleBasedSegmentKeys()
+
+	require.NoError(t, e.flags(wtFingerprint, 100, ent{"f", 100, true, `{"name":"f","changeNumber":100,"status":"ARCHIVED"}`}))
+	require.NoError(t, e.rbs(wtFingerprint, 100, ent{"r", 100, true, `{"name":"r","changeNumber":100,"status":"ARCHIVED"}`}))
+	first := e.dump()
+	flagT1, rbsT1 := first[fk[3]].Scores["f"], first[rk[3]].Scores["r"]
+	require.NotZero(t, flagT1)
+	require.NotZero(t, rbsT1)
+	time.Sleep(20 * time.Millisecond)
+
+	require.NoError(t, e.flags(wtFingerprint, 200, ent{"f", 200, false, `{"name":"f","changeNumber":200,"status":"ACTIVE"}`}))
+	require.NoError(t, e.rbs(wtFingerprint, 200, ent{"r", 200, false, `{"name":"r","changeNumber":200,"status":"ACTIVE"}`}))
+	readded := e.dump()
+	assert.NotContains(t, readded[fk[3]].Scores, "f", "a re-added flag is no longer tombstoned")
+	assert.NotContains(t, readded[rk[3]].Scores, "r", "a re-added rule-based segment is no longer tombstoned")
+	time.Sleep(20 * time.Millisecond)
+
+	require.NoError(t, e.flags(wtFingerprint, 300, ent{"f", 300, true, `{"name":"f","changeNumber":300,"status":"ARCHIVED"}`}))
+	require.NoError(t, e.rbs(wtFingerprint, 300, ent{"r", 300, true, `{"name":"r","changeNumber":300,"status":"ARCHIVED"}`}))
+	last := e.dump()
+	assert.Greater(t, last[fk[3]].Scores["f"], flagT1, "the second removal of a flag gets a new removal time")
+	assert.Greater(t, last[rk[3]].Scores["r"], rbsT1, "the second removal of a rule-based segment gets a new removal time")
+}
