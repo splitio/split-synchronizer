@@ -1076,3 +1076,28 @@ func TestIsRedisUnavailableSentinelsUnreachable(t *testing.T) {
 	assert.True(t, isRedisUnavailable(fmt.Errorf("wrapped: %w", err)))
 	assert.False(t, isRedisUnavailable(errors.New("redis: invalid password")))
 }
+
+func TestSetupRedisStateUsesStateOptionsValidation(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(cfg *pconf.Main)
+	}{
+		{name: "port above range", setup: func(cfg *pconf.Main) { cfg.Storage.Redis.Connection.Port = 70000 }},
+		{name: "sentinel with blank master", setup: func(cfg *pconf.Main) {
+			cfg.Storage.Redis.Connection.SentinelReplication = true
+			cfg.Storage.Redis.Connection.SentinelAddresses = "s1:26379"
+			cfg.Storage.Redis.Connection.SentinelMaster = "  "
+		}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := redisStateTestConfig(t)
+			tc.setup(cfg)
+
+			writer, err := setupRedisState(cfg, logging.NewLogger(nil), nil, nil, nil, nil)
+			assert.True(t, writer == nil)
+			assertInitError(t, err, common.ExitInvalidConfiguration)
+		})
+	}
+}

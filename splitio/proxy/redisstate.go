@@ -139,7 +139,7 @@ func setupRedisState(cfg *pconf.Main, logger logging.LoggerInterface, splits *st
 		return nil, common.NewInitError(fmt.Errorf("error building redis state keys: %w", err), common.ExitInvalidConfiguration)
 	}
 
-	opts, err := common.ParseRedisOptions(&redisCfg.Connection)
+	opts, err := common.ParseRedisStateOptions(&redisCfg.Connection)
 	if err != nil {
 		return nil, common.NewInitError(fmt.Errorf("error parsing redis state config: %w", err), common.ExitInvalidConfiguration)
 	}
