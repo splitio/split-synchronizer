@@ -49,6 +49,10 @@ func Start(logger logging.LoggerInterface, cfg *pconf.Main) error {
 		return common.NewInitError(errors.New("treatment overrides require offline mode in this version"), common.ExitInvalidConfiguration)
 	}
 
+	if err := cfg.Storage.Redis.Validate(); err != nil {
+		return common.NewInitError(err, common.ExitInvalidConfiguration)
+	}
+
 	if cfg.Offline {
 		return startOffline(logger, cfg)
 	}
