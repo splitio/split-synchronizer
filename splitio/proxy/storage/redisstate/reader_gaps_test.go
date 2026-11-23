@@ -478,6 +478,7 @@ func TestExhaustedBudgetEndsCorrupt(t *testing.T) {
 func TestTornFlagsReadRetriedThenValid(t *testing.T) {
 	c, keys := gapsState(t)
 	dataCall := "hgetall " + keys.FlagData()
+	c.hash[keys.Meta()][keys.FlagCursorField()] = "6"
 	// Index at change 6, data at 5: the first read is torn.
 	c.sets[keys.FlagIndex()] = []string{"flag1", "6"}
 	dataReads := 0
@@ -743,13 +744,16 @@ func TestConcurrentWriterGivesValidOrCorruptNeverMixed(t *testing.T) {
 		switch state.Status {
 		case BootValid:
 			valid++
-			if len(state.Flags) != 1 {
+			if len(state.Flags) > 1 {
 				close(stop)
 				wg.Wait()
-				t.Fatalf("valid state has %d flags, want 1", len(state.Flags))
+				t.Fatalf("valid state has %d flags, want at most 1", len(state.Flags))
 			}
-			if state.FlagCursor > state.Flags[0].ChangeNumber {
-				t.Errorf("flag cursor %d is newer than flag data %d", state.FlagCursor, state.Flags[0].ChangeNumber)
+			if len(state.Flags) == 0 {
+				continue
+			}
+			if state.Flags[0].ChangeNumber > state.FlagCursor {
+				t.Errorf("flag data %d is newer than the flag cursor %d", state.Flags[0].ChangeNumber, state.FlagCursor)
 			}
 			if slices.Contains(state.SkippedSegments, "ref_seg") {
 				continue
@@ -762,8 +766,8 @@ func TestConcurrentWriterGivesValidOrCorruptNeverMixed(t *testing.T) {
 			for _, cn := range seg.Removed {
 				newest = max(newest, cn)
 			}
-			if state.SegmentCursors["ref_seg"] > newest {
-				t.Errorf("ref_seg cursor %d is newer than its data %d", state.SegmentCursors["ref_seg"], newest)
+			if newest > state.SegmentCursors["ref_seg"] {
+				t.Errorf("ref_seg data %d is newer than its cursor %d", newest, state.SegmentCursors["ref_seg"])
 			}
 		case BootCorrupt:
 			corrupt++

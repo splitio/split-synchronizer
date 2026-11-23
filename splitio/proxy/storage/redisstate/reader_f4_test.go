@@ -80,7 +80,7 @@ func TestScanScoresZCardUsesReadCallTimeout(t *testing.T) {
 func seedSegmentS1(t *testing.T, s *rdFixture) {
 	t.Helper()
 	k := s.keys
-	s.hash(k.Meta(), map[string]string{FingerprintField: rdFp, k.FlagCursorField(): "5", k.SegmentCursorField("s1"): "3"})
+	s.hash(k.Meta(), map[string]string{FingerprintField: rdFp, k.FlagCursorField(): "9", k.SegmentCursorField("s1"): "3"})
 	s.hash(k.FlagData(), map[string]string{"f1": rdFlagJSON(t, "f1", statusActive, 9, "s1")})
 	s.scores(k.FlagIndex(), map[string]int64{"f1": 9})
 	s.scores(k.SegmentActive("s1"), map[string]int64{"k1": 2, "k2": 1})
