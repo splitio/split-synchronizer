@@ -59,7 +59,7 @@ var newBootReadClient bootClientOpener = openRedisBootReadClient
 
 // openRedisBootReadClient builds the read client from the redis state config. It opens no connection.
 func openRedisBootReadClient(cfg *pconf.Main) (bootReadClient, error) {
-	opts, err := common.ParseRedisOptions(&cfg.Storage.Redis.Connection)
+	opts, err := common.ParseRedisStateOptions(&cfg.Storage.Redis.Connection)
 	if err != nil {
 		return nil, common.NewInitError(fmt.Errorf("error parsing redis state config: %w", err), common.ExitInvalidConfiguration)
 	}

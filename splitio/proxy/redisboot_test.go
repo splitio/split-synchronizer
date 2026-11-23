@@ -318,6 +318,16 @@ func TestOpenRedisBootReadClient(t *testing.T) {
 		assert.Nil(t, client)
 	})
 
+	t.Run("port out of range is invalid configuration through the state options", func(t *testing.T) {
+		cfg := bootTestConfig("")
+		cfg.Storage.Redis.Connection.Port = 70000
+
+		client, err := openRedisBootReadClient(cfg)
+
+		requireBootExitCode(t, err, common.ExitInvalidConfiguration)
+		assert.Nil(t, client)
+	})
+
 	t.Run("unreachable address builds a client without connecting", func(t *testing.T) {
 		cfg := bootTestConfig("")
 		cfg.Storage.Redis.Connection.Host = "127.0.0.1"
