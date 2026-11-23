@@ -293,6 +293,8 @@ func TestMaskAdminConfigSecrets(t *testing.T) {
 	live.Admin.Username = "admin-user"
 	live.Admin.Password = "admin-placeholder-pw"
 	live.Server.ClientApikeys = []string{"client-key-1", "client-key-2"}
+	live.Integrations.Slack.Webhook = "https://hooks.slack.com/services/T000/B000/placeholder-token"
+	live.Integrations.Slack.Channel = "#alerts"
 
 	cfgForAdmin := *live
 	maskAdminConfigSecrets(&cfgForAdmin)
@@ -314,6 +316,16 @@ func TestMaskAdminConfigSecrets(t *testing.T) {
 		if key != maskedSecret {
 			t.Errorf("expected client apikey %d masked in admin copy, got %q", i, key)
 		}
+	}
+
+	if cfgForAdmin.Integrations.Slack.Webhook != maskedSecret {
+		t.Errorf("expected slack webhook masked in admin copy, got %q", cfgForAdmin.Integrations.Slack.Webhook)
+	}
+	if cfgForAdmin.Integrations.Slack.Channel != "#alerts" {
+		t.Errorf("slack channel should not be masked, got %q", cfgForAdmin.Integrations.Slack.Channel)
+	}
+	if live.Integrations.Slack.Webhook != "https://hooks.slack.com/services/T000/B000/placeholder-token" {
+		t.Errorf("live slack webhook was mutated: %q", live.Integrations.Slack.Webhook)
 	}
 
 	orig := live.Storage.Redis.Connection

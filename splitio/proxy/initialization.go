@@ -359,13 +359,13 @@ var (
 const maskedSecret = "********"
 
 // maskAdminConfigSecrets masks the credentials in the config served by the admin API: the Redis
-// state connection credentials (username, password, TLS client key), the admin password and the
-// client apikeys. It mutates only the struct it is given, so callers pass a value copy of the
+// state connection credentials (username, password, TLS client key), the admin password, the Slack webhook
+// (its URL carries a secret token) and the client apikeys. It mutates only the struct it is given, so callers pass a value copy of the
 // config. The apikeys slice is replaced rather than edited, because the copy shares its backing
 // array with the live config.
 func maskAdminConfigSecrets(cfg *pconf.Main) {
 	conn := &cfg.Storage.Redis.Connection
-	for _, secret := range []*string{&conn.Username, &conn.Pass, &conn.TLSClientKey, &cfg.Admin.Password} {
+	for _, secret := range []*string{&conn.Username, &conn.Pass, &conn.TLSClientKey, &cfg.Admin.Password, &cfg.Integrations.Slack.Webhook} {
 		if *secret != "" {
 			*secret = maskedSecret
 		}
