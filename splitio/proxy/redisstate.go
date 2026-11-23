@@ -132,6 +132,9 @@ func validateOfflineRedisSettings(cfg *pconf.Main) error {
 	if cfg.Storage.Redis.Namespace == "" || cfg.Storage.Redis.OfflineFingerprint == "" {
 		return common.NewInitError(fmt.Errorf("invalid redis state configuration: offline mode needs <redis-state-namespace | redis-state-offline-fingerprint> when redis state is enabled"), common.ExitInvalidConfiguration)
 	}
+	if cfg.Initialization.ForceFreshStartup {
+		return common.NewInitError(errors.New("force-fresh-startup does not apply in offline mode: offline never writes or wipes the redis state"), common.ExitInvalidConfiguration)
+	}
 	return nil
 }
 
@@ -150,15 +153,14 @@ func setupRedisState(cfg *pconf.Main, logger logging.LoggerInterface, splits *st
 	if err := validateRedisStateSettings(&redisCfg); err != nil {
 		return nil, err
 	}
-	// The namespace is checked here, before any connection, so a bad value never reaches Redis. The prefix is
-	// only known once the client exists and is validated by the NewKeys call in the role loop.
-	if _, err := redisstate.NewKeys("", cfg.Apikey, redisCfg.Namespace); err != nil {
-		return nil, common.NewInitError(fmt.Errorf("error building redis state keys: %w", err), common.ExitInvalidConfiguration)
-	}
-
 	opts, err := common.ParseRedisOptions(&redisCfg.Connection)
 	if err != nil {
 		return nil, common.NewInitError(fmt.Errorf("error parsing redis state config: %w", err), common.ExitInvalidConfiguration)
+	}
+	// The prefix and the namespace are checked here, before any connection, so a bad value fails startup instead of
+	// being retried by the role loop as "not writer".
+	if _, err := redisstate.NewKeys(opts.Prefix, cfg.Apikey, redisCfg.Namespace); err != nil {
+		return nil, common.NewInitError(fmt.Errorf("error building redis state keys: %w", err), common.ExitInvalidConfiguration)
 	}
 	lease, err := redisstate.NewLeaseClient(opts)
 	if err != nil {

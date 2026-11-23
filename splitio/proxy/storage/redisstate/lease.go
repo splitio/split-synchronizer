@@ -25,23 +25,22 @@ var (
 
 // AcquireScript takes the writer lease and returns {token, 1} when acquired or {0, 0} when another owner holds it.
 // KEYS: 1 lease, 2 meta. ARGV: 1 owner, 2 fingerprint, 3 ttlMs, 4 newTerm (0|1), 5 forceFresh (0|1).
-// Order: checkMeta, fingerprint (set when absent, refused when foreign unless forceFresh), lease check, fence bump or
-// same-term reuse, SET lease PX. A refused call writes nothing.
+// Order: checkMeta, foreign fingerprint refusal (unless forceFresh), lease check (held returns {0, 0} and writes
+// nothing), then write an absent fingerprint, fence bump or same-term reuse, SET lease PX. A refused call writes nothing.
 const AcquireScript = luaPrelude + `if ARGV[1] == nil or ARGV[1] == '' or ARGV[2] == nil or ARGV[2] == '' or not isint(ARGV[3]) or tonumber(ARGV[3]) <= 0 or (ARGV[4] ~= '0' and ARGV[4] ~= '1') or (ARGV[5] ~= '0' and ARGV[5] ~= '1') then
   error('PROXY_BAD_ARGS')
 end
 checkMeta(KEYS[2])
 local stored = redis.call('HGET', KEYS[2], 'fingerprint')
-if stored == false then
-  redis.call('HSET', KEYS[2], 'fingerprint', ARGV[2])
-elseif stored ~= ARGV[2] then
-  if ARGV[5] ~= '1' then
-    error('PROXY_ENV_MISMATCH')
-  end
+if stored ~= false and stored ~= ARGV[2] and ARGV[5] ~= '1' then
+  error('PROXY_ENV_MISMATCH')
 end
 local cur = redis.call('GET', KEYS[1])
 if cur ~= false and cur ~= ARGV[1] then
   return {0, 0}
+end
+if stored == false then
+  redis.call('HSET', KEYS[2], 'fingerprint', ARGV[2])
 end
 local token = false
 if cur ~= false and ARGV[4] == '0' then

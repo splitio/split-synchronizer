@@ -419,7 +419,8 @@ func NewWriter(client Client, keys Keys, fingerprint string, opts Options, logge
 // Start(nil) is for tests: with no Source no resync can run, so a drop freeze is never lifted. Production always passes a Source.
 // Start runs the startup probe, then launches the single background worker. The worker first calls source.Resync (if source != nil), then drains the queue.
 // A probe that fails with a script error returns a minimum-version InitError and starts no worker.
-// One writer per namespace: there is no lease, and the default namespace comes from the API key, so replicas with one key share it.
+// A namespace has one writer at a time: the supervisor holds the writer lease and fences the Writer with its token, and
+// replicas that share an API key share the namespace by design.
 func (w *Writer) Start(source Source) error {
 	if !hasSource(source) {
 		source = nil
@@ -458,13 +459,12 @@ func (w *Writer) Start(source Source) error {
 	return nil
 }
 
-// sharedNamespaceWindow is how recent meta.updatedAtMs must be for Start to suspect a second writer
+// sharedNamespaceWindow is how recent meta.updatedAtMs must be for Start to log that the namespace was just written
 const sharedNamespaceWindow = time.Minute
 
-// warnIfNamespaceInUse logs a warning when the namespace was written to within sharedNamespaceWindow. The writer
-// has no lease: one writer per namespace is a deployment rule, and the default namespace is derived from the API
-// key, so replicas that share a key share the namespace. A proxy restarted within the window warns too, which is
-// harmless. It reads the meta hash once on the worker goroutine and never fails Start.
+// warnIfNamespaceInUse logs at Debug when the namespace was written to within sharedNamespaceWindow. A shared
+// namespace is the supported topology: the lease keeps one writer at a time, so this is expected after every takeover,
+// new term or restart and is not a warning. It reads the meta hash once on the worker goroutine and never fails Start.
 func (w *Writer) warnIfNamespaceInUse() {
 	fields, err := w.client.HGetAll(w.keys.MetaUnprefixed())
 	if err != nil {
@@ -484,7 +484,7 @@ func (w *Writer) warnIfNamespaceInUse() {
 		return
 	}
 	if age := w.now().Sub(time.UnixMilli(ms)); age >= 0 && age < sharedNamespaceWindow {
-		w.logger.Warning(fmt.Sprintf("redis state: the namespace was written %s ago; if another writer shares it (for example a replica with the same apikey and no namespace set) the two will overwrite each other, use one writer per namespace", age.Round(time.Second)))
+		w.logger.Debug(fmt.Sprintf("redis state: the namespace was written %s ago, by the previous writer term or another proxy of this namespace", age.Round(time.Second)))
 	}
 }
 

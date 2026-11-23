@@ -164,6 +164,7 @@ type fakeLease struct {
 	renewErrs   []error
 	releaseErrs []error
 	renewGate   *gate
+	panicRenew  bool
 	gates       []*gate
 	acquires    []acquireCall
 	renews      int
@@ -192,7 +193,11 @@ func (f *fakeLease) Renew(_ context.Context, _ redisstate.Keys, _ string, _ time
 	f.renews++
 	g := f.renewGate
 	f.renewGate = nil
+	boom := f.panicRenew
 	f.mu.Unlock()
+	if boom {
+		panic("injected renew panic")
+	}
 	if g != nil {
 		<-g.ch
 	}
@@ -787,6 +792,33 @@ func TestWriterRoleStepDownClearsWriterStartedDuringStepDown(t *testing.T) {
 	assert.Nil(t, h.sup.Writer(), "the writer started during step down must not stay published")
 	assert.True(t, strings.HasPrefix(h.sup.Status().LastError, "not writer"))
 	assert.Nil(t, h.active())
+}
+
+// TestWriterRolePanicStepsDownFully covers PR review comment 4: a panic in the role loop detaches the facades, clears
+// the published writer, aborts the Writer and releases the lease, so Status does not report a live writer.
+func TestWriterRolePanicStepsDownFully(t *testing.T) {
+	h := newRoleHarness(t, false, true)
+	h.awaitStarted(1)
+	w := h.writerAt(0)
+	require.NotNil(t, h.active(), "precondition: the writer is published")
+
+	h.lease.mu.Lock()
+	h.lease.panicRenew = true
+	h.lease.mu.Unlock()
+	h.clock.Advance(2 * time.Second) // next renew tick panics
+	eventually(t, func() bool { return len(h.lease.releaseCalls()) == 1 }, "lease released after the panic")
+	eventually(t, func() bool { return w.aborts.Load() == 1 }, "writer aborted after the panic")
+
+	assert.Nil(t, h.active(), "no live writer is published after the panic")
+	assert.True(t, strings.HasPrefix(h.sup.Status().LastError, "not writer: role loop stopped"))
+	assert.Equal(t, h.sup.owner, h.lease.releaseCalls()[0].owner)
+	assert.Equal(t, int64(1), h.lease.releaseCalls()[0].token)
+	assert.Equal(t, 1, h.lease.closeCount())
+	select {
+	case <-h.sup.done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("role loop did not exit after the panic")
+	}
 }
 
 func TestWriterRoleStepsDownWhenWriterDies(t *testing.T) {

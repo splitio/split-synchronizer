@@ -826,6 +826,30 @@ func TestSetupRedisStateRejectsInvalidNamespaceBeforeConnecting(t *testing.T) {
 	assert.False(t, connected, "invalid namespace must be rejected before the Redis client is created")
 }
 
+// TestSetupRedisStateRejectsInvalidPrefixBeforeConnecting covers PR review comment 3: a prefix with glob characters or
+// the reserved SPLITIO. prefix fails startup with ExitInvalidConfiguration and never reaches the role loop.
+func TestSetupRedisStateRejectsInvalidPrefixBeforeConnecting(t *testing.T) {
+	for _, prefix := range []string{"pre*fix", "pre?fix", "pre[fix", "SPLITIO", "SPLITIO.x"} {
+		t.Run(prefix, func(t *testing.T) {
+			original := newRedisStateClient
+			t.Cleanup(func() { newRedisStateClient = original })
+			connected := false
+			newRedisStateClient = func(*commonconf.RedisConfig, logging.LoggerInterface) (*redis.PrefixedRedisClient, error) {
+				connected = true
+				return nil, errors.New("client must not be created for an invalid prefix")
+			}
+
+			logger, splits, rbs, segments := newRedisStateTestStorages(t)
+			cfg := redisStateTestConfig(t)
+			cfg.Storage.Redis.Connection.Prefix = prefix
+			writer, err := setupRedisState(cfg, logger, splits, rbs, segments, nil)
+			assert.True(t, writer == nil)
+			assertInitError(t, err, common.ExitInvalidConfiguration)
+			assert.False(t, connected, "invalid prefix must be rejected before the Redis client is created")
+		})
+	}
+}
+
 // replaceRedisStateClient swaps the client factory for the duration of the test.
 func replaceRedisStateClient(t *testing.T, factory func(*commonconf.RedisConfig, logging.LoggerInterface) (*redis.PrefixedRedisClient, error)) {
 	t.Helper()

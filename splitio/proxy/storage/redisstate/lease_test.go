@@ -165,6 +165,20 @@ func TestLeaseAcquireWritesFingerprint(t *testing.T) {
 	assert.Equal(t, "fp-mine", lc.client.HGet(ctx, keys.Meta(), FingerprintField).Val())
 }
 
+// TestLeaseAcquireHeldLeaseWritesNothingWhenFingerprintAbsent covers PR review comment 1: a non-holder that loses the
+// lease race against a meta hash without a fingerprint leaves the meta unchanged and does not stamp its fingerprint.
+func TestLeaseAcquireHeldLeaseWritesNothingWhenFingerprintAbsent(t *testing.T) {
+	lc, keys := newLeaseTestEnv(t)
+	ctx := context.Background()
+	require.NoError(t, lc.client.HSet(ctx, keys.Meta(), FenceField, 5).Err())
+	require.NoError(t, lc.client.Set(ctx, keys.Lease(), "owner-a", time.Minute).Err())
+
+	_, err := lc.Acquire(ctx, keys, "owner-b", "fp-other", time.Minute, true, false)
+	assert.ErrorIs(t, err, ErrLeaseHeld)
+	assert.Equal(t, map[string]string{FenceField: "5"}, lc.client.HGetAll(ctx, keys.Meta()).Val())
+	assert.Equal(t, "owner-a", lc.client.Get(ctx, keys.Lease()).Val())
+}
+
 // TestLeaseAcquireRefusesForeignFingerprint covers T16: a foreign fingerprint is refused with ErrEnvironmentMismatch when
 // forceFresh is 0, and the lease key is not created.
 func TestLeaseAcquireRefusesForeignFingerprint(t *testing.T) {

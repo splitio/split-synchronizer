@@ -117,14 +117,22 @@ func (s *redisStateSupervisor) sleep(d time.Duration) bool {
 func (s *redisStateSupervisor) run() {
 	defer close(s.done)
 	defer func() {
-		if r := recover(); r != nil {
-			s.logger.Error(fmt.Sprintf("redis state: role loop stopped by a panic: %v", r))
-			s.setNonWriter(fmt.Sprintf("not writer: role loop stopped: %v", r), false)
-		}
-	}()
-	defer func() {
 		if err := s.deps.lease.Close(); err != nil {
 			s.logger.Debug(fmt.Sprintf("redis state: closing lease client: %v", err))
+		}
+	}()
+	// cur is the term in progress. It is only touched by this goroutine. The recover below is registered after the lease
+	// close so it runs first and can still release the lease.
+	var cur *term
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.Error(fmt.Sprintf("redis state: role loop stopped by a panic: %v", r))
+			reason := fmt.Sprintf("role loop stopped: %v", r)
+			if cur != nil {
+				s.abandon(cur, reason)
+				return
+			}
+			s.setNonWriter(fmt.Sprintf("not writer: %s", reason), false)
 		}
 	}()
 
@@ -145,7 +153,9 @@ func (s *redisStateSupervisor) run() {
 			}
 			continue
 		}
+		cur = t
 		s.hold(t)
+		cur = nil
 		if s.stopping() {
 			return
 		}
@@ -176,6 +186,8 @@ type term struct {
 	moved    chan struct{}
 	fenced   chan struct{} // closed when the self-fence timer aborted the writer
 	done     chan struct{} // closed when the term ends, stops the watcher
+	// startDone is closed when the start goroutine of hold has returned. It stays nil until hold starts it.
+	startDone chan struct{}
 }
 
 // acquire builds the Redis client and the Writer for a new term, then takes the lease. A nil error means this proxy
@@ -305,7 +317,11 @@ func (s *redisStateSupervisor) hold(t *term) {
 	s.lastRenew = s.deps.clock.Now()
 
 	startRes := make(chan error, 1)
-	go func() { startRes <- s.startWriter(t) }()
+	t.startDone = make(chan struct{})
+	go func() {
+		defer close(t.startDone)
+		startRes <- s.startWriter(t)
+	}()
 
 	interval := s.leaseTTL / 3
 	timer := s.deps.clock.NewTimer(interval)
@@ -405,6 +421,22 @@ func (s *redisStateSupervisor) stepDown(t *term, startRes <-chan error, reason s
 	// The start goroutine has returned, so setActive can no longer run. A start that was still in
 	// Reset/Start when the first Store(nil) above ran has now published a writer; clear it again.
 	s.writer.Store(nil)
+	s.releaseBestEffort(t.keys, t.token)
+	s.newTerm = true
+	s.setNonWriter(fmt.Sprintf("not writer: %s", reason), false)
+}
+
+// abandon ends the term after a panic in the role loop with the same ordering as stepDown: facades detached, Writer
+// aborted, best-effort release. The loop does not run again, so the proxy stays a non-writer.
+func (s *redisStateSupervisor) abandon(t *term, reason string) {
+	s.detach()
+	s.writer.Store(nil)
+	t.w.Abort()
+	if t.startDone != nil {
+		<-t.startDone
+		s.detach()
+		s.writer.Store(nil)
+	}
 	s.releaseBestEffort(t.keys, t.token)
 	s.newTerm = true
 	s.setNonWriter(fmt.Sprintf("not writer: %s", reason), false)

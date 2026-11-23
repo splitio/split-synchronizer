@@ -136,9 +136,6 @@ func bootOfflineSnapshot(logger logging.LoggerInterface, cfg *pconf.Main) (*offl
 // is opened and closed by resolveRedisBootInto and issues read commands only: offline starts no writer, takes no lease
 // and writes no key (INV-8). The state must be valid and match the configured offline fingerprint, otherwise it fails.
 func bootOfflineRedis(logger logging.LoggerInterface, cfg *pconf.Main) (*offlineBoot, error) {
-	if cfg.Initialization.ForceFreshStartup {
-		return nil, common.NewInitError(errors.New("force-fresh-startup does not apply in offline mode: offline never writes or wipes the redis state"), common.ExitInvalidConfiguration)
-	}
 	dbInstance, err := persistent.NewBoltWrapper(persistent.BoltInMemoryMode, nil)
 	if err != nil {
 		return nil, common.NewInitError(fmt.Errorf("error instantiating boltdb: %w", err), common.ExitErrorDB)

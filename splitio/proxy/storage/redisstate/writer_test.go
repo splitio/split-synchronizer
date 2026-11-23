@@ -823,6 +823,15 @@ func TestWarnIfNamespaceInUseLogsReadErrors(t *testing.T) {
 		e.stop()
 	})
 
+	t.Run("a recent write is debug logged and never warns", func(t *testing.T) {
+		e := newWtEnv(t, wtOptions())
+		e.client.meta = map[string]string{UpdatedAtField: strconv.FormatInt(e.w.now().Add(-5*time.Second).UnixMilli(), 10)}
+		e.w.warnIfNamespaceInUse()
+		assert.Contains(t, e.log.debugText(), "the namespace was written")
+		assert.Empty(t, e.log.warnText())
+		e.stop()
+	})
+
 	t.Run("missing field logs nothing", func(t *testing.T) {
 		e := newWtEnv(t, wtOptions())
 		e.w.warnIfNamespaceInUse()
@@ -4885,8 +4894,10 @@ func TestWriterWrongTypeKeyIsPermanentAndBounded(t *testing.T) {
 	_ = cfg
 }
 
-func TestStartWarnsWhenAnotherWriterMayShareTheNamespace(t *testing.T) {
-	warnsOf := func(updatedAt func(now time.Time) string) []string {
+// TestStartLogsRecentNamespaceWriteAtDebug covers PR review comment 5: a shared namespace is the supported topology,
+// so a recent write by the previous term never warns. It is a Debug line only.
+func TestStartLogsRecentNamespaceWriteAtDebug(t *testing.T) {
+	logsOf := func(updatedAt func(now time.Time) string) (warns []string, debug string) {
 		e := newWtEnv(t, wtOptions())
 		if v := updatedAt(e.clock.Now()); v != "" {
 			e.client.meta = map[string]string{UpdatedAtField: v}
@@ -4894,18 +4905,20 @@ func TestStartWarnsWhenAnotherWriterMayShareTheNamespace(t *testing.T) {
 		require.NoError(t, e.w.Start(nil))
 		e.stop()
 		e.log.mu.Lock()
-		defer e.log.mu.Unlock()
-		return append([]string(nil), e.log.warns...)
+		warns = append([]string(nil), e.log.warns...)
+		e.log.mu.Unlock()
+		return warns, e.log.debugText()
 	}
 	ms := func(tm time.Time) string { return strconv.FormatInt(tm.UnixMilli(), 10) }
 
-	recent := warnsOf(func(now time.Time) string { return ms(now.Add(-5 * time.Second)) })
-	require.Len(t, recent, 1)
-	assert.Contains(t, recent[0], "another writer")
+	warns, debug := logsOf(func(now time.Time) string { return ms(now.Add(-5 * time.Second)) })
+	assert.Empty(t, warns, "a recent write is the previous term of a shared namespace, not a warning")
+	assert.Contains(t, debug, "the namespace was written")
 
-	assert.Empty(t, warnsOf(func(now time.Time) string { return ms(now.Add(-time.Hour)) }), "an old updatedAtMs is a restart, not a second writer")
-	assert.Empty(t, warnsOf(func(time.Time) string { return "" }), "an absent updatedAtMs is a fresh namespace")
-	assert.Empty(t, warnsOf(func(time.Time) string { return "not-a-number" }), "an unparsable updatedAtMs is ignored")
+	_, debug = logsOf(func(now time.Time) string { return ms(now.Add(-time.Hour)) })
+	assert.NotContains(t, debug, "the namespace was written", "an old updatedAtMs is not recent")
+	_, debug = logsOf(func(time.Time) string { return "" })
+	assert.NotContains(t, debug, "the namespace was written", "an absent updatedAtMs is a fresh namespace")
 }
 
 func TestNewWriterRequiresOwnerAndToken(t *testing.T) {

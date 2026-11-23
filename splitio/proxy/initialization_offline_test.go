@@ -420,6 +420,20 @@ func TestOfflineRedisRejectsForceFresh(t *testing.T) {
 	assert.Contains(t, err.Error(), "does not apply in offline mode")
 }
 
+// TestOfflineRedisRejectsForceFreshWithUsableSnapshot covers PR review comment 2: the flag is rejected before the
+// snapshot is tried, so a readable snapshot file does not let the invalid configuration start.
+func TestOfflineRedisRejectsForceFreshWithUsableSnapshot(t *testing.T) {
+	fp := seedOfflineRedis(t, "offlineforcefreshsnap")
+	cfg := offlineRedisCfg(t, "offlineforcefreshsnap", fp)
+	cfg.Initialization.Snapshot = writeOfflineBoltSnapshot(t, cfg.FlagSpecVersion)
+	cfg.Initialization.ForceFreshStartup = true
+	opens := countBootReads(t)
+	_, err := bootOffline(logging.NewLogger(nil), cfg)
+	assertInvalidConfiguration(t, err)
+	assert.Contains(t, err.Error(), "does not apply in offline mode")
+	assert.Equal(t, int32(0), opens.Load())
+}
+
 func TestOfflineRedisRejectsCluster(t *testing.T) {
 	cfg := redisStateTestConfig(t)
 	cfg.Apikey = ""
