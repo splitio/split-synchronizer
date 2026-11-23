@@ -1011,6 +1011,68 @@ func TestStartValidRedisCloudUpSyncsFromCommittedCursor(t *testing.T) {
 	}
 }
 
+// A flag stored above the committed cursor is served with the till capped at the cursor until the first sync succeeds,
+// and with its real till after: start must lift the caps from the sync-ready callback.
+func TestStartLiftsRestoreTillCapAfterFirstSync(t *testing.T) {
+	startRequireRedis(t)
+	if !isolatedStartTest(t) {
+		return
+	}
+	cloud := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if !strings.HasSuffix(r.URL.Path, "/splitChanges") {
+			_, _ = w.Write([]byte(`{}`))
+			return
+		}
+		since := r.URL.Query().Get("since")
+		_, _ = fmt.Fprintf(w, `{"splits":[],"since":%s,"till":%s}`, since, since)
+	}))
+	defer cloud.Close()
+
+	cfg := startTestConfig(t, cloud.URL, startTestPrefix(t))
+	keys := startSeedRedisFlags(t, cfg)
+	above, err := json.Marshal(startTestFlag("aboveCursor", 5))
+	if err != nil {
+		t.Fatalf("marshal flag: %v", err)
+	}
+	raw := goredis.NewClient(&goredis.Options{Addr: "localhost:6379"})
+	defer func() { _ = raw.Close() }()
+	if err := raw.HSet(context.Background(), keys.FlagData(), "aboveCursor", string(above)).Err(); err != nil {
+		t.Fatalf("seed flag data: %v", err)
+	}
+	if err := raw.ZAdd(context.Background(), keys.FlagIndex(), goredis.Z{Score: 5, Member: "aboveCursor"}).Err(); err != nil {
+		t.Fatalf("seed flag index: %v", err)
+	}
+
+	var splits *storage.ProxySplitStorageImpl
+	tillAtRestore := int64(-1)
+	afterRestoreHook = func(s *storage.ProxySplitStorageImpl) {
+		splits = s
+		if changes, err := s.ChangesSince(3, nil); err == nil {
+			tillAtRestore = changes.Till
+		}
+	}
+	t.Cleanup(func() { afterRestoreHook = nil })
+
+	logger := &startTestLogger{}
+	done := startInBackground(logger, cfg)
+	waitForStartLog(t, done, logger, "Synchronizer tasks started", 60*time.Second)
+
+	if tillAtRestore != 3 {
+		t.Errorf("till served right after the restore: want the cursor 3, got %d\nlogs:\n%s", tillAtRestore, logger.dump())
+	}
+	if splits == nil {
+		t.Fatalf("afterRestoreHook did not run\nlogs:\n%s", logger.dump())
+	}
+	changes, err := splits.ChangesSince(3, nil)
+	if err != nil {
+		t.Fatalf("ChangesSince after the first sync: %v", err)
+	}
+	if changes.Till != 5 {
+		t.Errorf("till after the first sync: want the real till 5, got %d\nlogs:\n%s", changes.Till, logger.dump())
+	}
+}
+
 // A proxy TLS failure after a valid redis boot must return ExitTLSError without leaving the admin server serving.
 func TestStartServerTLSErrorDoesNotStartAdmin(t *testing.T) {
 	startRequireRedis(t)
