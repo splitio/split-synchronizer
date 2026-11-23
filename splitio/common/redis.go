@@ -103,6 +103,9 @@ func firstAddress(addrs []string) string {
 func hostOf(addr string) string {
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
+		if strings.HasPrefix(addr, "[") && strings.HasSuffix(addr, "]") {
+			return addr[1 : len(addr)-1]
+		}
 		return addr
 	}
 	return host
@@ -145,7 +148,7 @@ func parseTLSConfig(opt *conf.Redis, strict bool) (*tls.Config, error) {
 			}
 			ok := certPool.AppendCertsFromPEM(pemData)
 			if !ok {
-				return nil, fmt.Errorf("failed to add certificate %s to the TLS configuration", cacert)
+				return nil, fmt.Errorf("failed to add certificate %s to the TLS configuration: ", cacert)
 			}
 		}
 		cfg.RootCAs = certPool
@@ -166,7 +169,7 @@ func parseTLSConfig(opt *conf.Redis, strict bool) (*tls.Config, error) {
 		cfg.Certificates = []tls.Certificate{certPair}
 	} else if opt.TLSClientKey != opt.TLSClientCertificate {
 		// If they aren't both set, and they aren't equal, it means that only one is set, which is invalid.
-		return nil, errors.New("you must provide either both client certificate and client private key, or none")
+		return nil, errors.New("You must provide either both client certificate and client private key, or none")
 	}
 
 	return &cfg, nil

@@ -253,3 +253,17 @@ func TestParseRedisStateOptionsTLSMinVersion12(t *testing.T) {
 		assert.Equal(t, uint16(tls.VersionTLS12), opts.TLSConfig.MinVersion)
 	}
 }
+
+func TestHostOf(t *testing.T) {
+	cases := map[string]string{
+		"[::1]":         "::1",
+		"[::1]:26379":   "::1",
+		"host:26379":    "host",
+		"host":          "host",
+		"10.0.0.1:6379": "10.0.0.1",
+		"":              "",
+	}
+	for in, want := range cases {
+		assert.Equal(t, want, hostOf(in), in)
+	}
+}
