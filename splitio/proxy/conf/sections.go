@@ -1,6 +1,9 @@
 package conf
 
 import (
+	"errors"
+	"strings"
+
 	"github.com/splitio/split-synchronizer/v5/splitio/common/conf"
 
 	cconf "github.com/splitio/go-split-commons/v10/conf"
@@ -128,4 +131,15 @@ type HealthcheckDependecines struct {
 type Observability struct {
 	TimeSliceWidthSecs int64 `json:"timeSliceWidthSecs" s-cli:"observability-time-slice-width-secs" s-def:"300" s-desc:"time slice size in seconds"`
 	MaxTimeSliceCount  int64 `json:"maxTimeSliceCount" s-cli:"observability-time-slice-max-count" s-def:"100" s-desc:"max time slices to keep in memory before rotating"`
+}
+
+// Validate rejects Redis state options the writer does not support. It accepts anything while the feature is disabled.
+func (r *RedisState) Validate() error {
+	if !r.Enabled {
+		return nil
+	}
+	if r.Connection.ClusterMode || strings.TrimSpace(r.Connection.ClusterNodes) != "" {
+		return errors.New("storage.redis: cluster mode is not supported by the Redis state writer; unset clusterMode and clusterNodes or use a single Redis or Sentinel")
+	}
+	return nil
 }
