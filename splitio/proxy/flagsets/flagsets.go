@@ -20,26 +20,27 @@ func NewMatcher(strict bool, fetched []string) FlagSetMatcher {
 	return out
 }
 
-// Sort, Dedupe & Filter input flagsets. returns sanitized list and a boolean indicating whether a sort was necessary
+// Sort, Dedupe & Filter input flagsets. Returns a new sanitized slice; the input slice is never modified.
 func (f *FlagSetMatcher) Sanitize(input []string) []string {
 	if len(input) == 0 {
 		return input
 	}
 
-	seen := map[string]struct{}{}
-	for idx := 0; idx < len(input); idx++ { // cant use range because we're srhinking the slice inside the loop
-		item := input[idx]
-		if (f.strict && !setContains(f.sets, item)) || setContains(seen, item) {
-			if idx+1 < len(input) {
-				input[idx] = input[len(input)-1]
-			}
-			input = input[:len(input)-1]
+	out := make([]string, 0, len(input))
+	seen := make(map[string]struct{}, len(input))
+	for _, item := range input {
+		if f.strict && !setContains(f.sets, item) {
+			continue
+		}
+		if setContains(seen, item) {
+			continue
 		}
 		seen[item] = struct{}{}
+		out = append(out, item)
 	}
 
-	slices.Sort(input)
-	return input
+	slices.Sort(out)
+	return out
 }
 
 func setContains(set map[string]struct{}, item string) bool {

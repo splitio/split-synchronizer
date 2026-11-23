@@ -42,12 +42,15 @@ func BuildFromConfig(cfg *conf.Logging, prefix string, slackCfg *conf.Slack) *Hi
 	}
 
 	nonDebugWriter := mainWriter
-	_, err = url.ParseRequestURI(slackCfg.Webhook)
-	if err == nil && slackCfg.Channel != "" {
+	if slackCfg != nil {
+		_, err = url.ParseRequestURI(slackCfg.Webhook)
+	}
+	if slackCfg != nil && err == nil && slackCfg.Channel != "" {
 		nonDebugWriter = io.MultiWriter(mainWriter, NewSlackWriter(slackCfg.Webhook, slackCfg.Channel))
 	}
 
 	var level int
+	unknownLevel := false
 	switch strings.ToUpper(cfg.Level) {
 	case "VERBOSE":
 		level = logging.LevelVerbose
@@ -56,16 +59,19 @@ func BuildFromConfig(cfg *conf.Logging, prefix string, slackCfg *conf.Slack) *Hi
 	case "INFO":
 		level = logging.LevelInfo
 	case "WARNING", "WARN":
-		level = logging.LevelError
-	case "ERROR":
 		level = logging.LevelWarning
+	case "ERROR":
+		level = logging.LevelError
 	case "NONE":
 		level = logging.LevelNone
+	default:
+		level = logging.LevelInfo
+		unknownLevel = true
 	}
 
 	// buffer error, warning & info. don't buffer debug and verbose
 	buffered := [5]bool{true, true, true, false, false}
-	return NewHistoricLoggerWrapper(logging.NewLogger(&logging.LoggerOptions{
+	wrapped := NewHistoricLoggerWrapper(logging.NewLogger(&logging.LoggerOptions{
 		StandardLoggerFlags: log.Ldate | log.Ltime | log.Lshortfile,
 		Prefix:              prefix,
 		VerboseWriter:       mainWriter,
@@ -76,4 +82,10 @@ func BuildFromConfig(cfg *conf.Logging, prefix string, slackCfg *conf.Slack) *Hi
 		LogLevel:            level,
 		ExtraFramesToSkip:   1,
 	}), buffered, 5)
+
+	if unknownLevel {
+		wrapped.Warning(fmt.Sprintf("Unrecognized log level %q. Defaulting to INFO.", cfg.Level))
+	}
+
+	return wrapped
 }

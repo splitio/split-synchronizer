@@ -571,3 +571,100 @@ func TestSynchronizeLargeSegmentUpdateError(t *testing.T) {
 	largeSegmentStorage.AssertExpectations(t)
 	lsUpdater.AssertExpectations(t)
 }
+
+func TestSynchronizeLargeSegmentNilChangeNumber(t *testing.T) {
+	lsName := "largeSegment1"
+
+	var splitStorage mocks.SplitStorageMock
+	var cacheFlusher mocks.CacheFlusherMock // no expectations: any call to EvictBySurrogate would panic
+
+	var largeSegmentStorage mocks.LargeSegmentStorageMock
+	largeSegmentStorage.On("ChangeNumber", lsName).Return(int64(-1)).Once()
+
+	var lsUpdater mocks.LargeSegmentUpdaterMock
+	lsUpdater.On("SynchronizeLargeSegment", lsName, (*int64)(nil)).Return((*int64)(nil), error(nil)).Once()
+
+	clsSync := CacheAwareLargeSegmentSynchronizer{
+		wrapped:             &lsUpdater,
+		cacheFlusher:        &cacheFlusher,
+		largeSegmentStorage: &largeSegmentStorage,
+		splitStorage:        &splitStorage,
+	}
+
+	var cn *int64
+	var err error
+	assert.NotPanics(t, func() { cn, err = clsSync.SynchronizeLargeSegment(lsName, nil) })
+	assert.Nil(t, err)
+	assert.Nil(t, cn)
+
+	cacheFlusher.AssertNotCalled(t, "EvictBySurrogate", MembershipsSurrogate)
+	largeSegmentStorage.AssertExpectations(t)
+	lsUpdater.AssertExpectations(t)
+}
+
+func TestSynchronizeLargeSegmentsNilChangeNumber(t *testing.T) {
+	var splitStorage mocks.SplitStorageMock
+	splitStorage.On("LargeSegmentNames").Return(set.NewSet("ls1", "ls2"))
+
+	var cacheFlusher mocks.CacheFlusherMock
+	cacheFlusher.On("EvictBySurrogate", MembershipsSurrogate).Once() // only for the non-nil, updated large segment
+
+	var cn1 int64 = 100
+	var largeSegmentStorage mocks.LargeSegmentStorageMock
+	largeSegmentStorage.On("ChangeNumber", "ls1").Return(cn1 - 50).Once()
+	largeSegmentStorage.On("ChangeNumber", "ls2").Return(int64(10)).Once()
+
+	var lsUpdater mocks.LargeSegmentUpdaterMock
+	result := map[string]*int64{"ls1": &cn1, "ls2": nil}
+	lsUpdater.On("SynchronizeLargeSegments").Return(result, nil).Once()
+
+	clsSync := CacheAwareLargeSegmentSynchronizer{
+		wrapped:             &lsUpdater,
+		cacheFlusher:        &cacheFlusher,
+		largeSegmentStorage: &largeSegmentStorage,
+		splitStorage:        &splitStorage,
+	}
+
+	var cn map[string]*int64
+	var err error
+	assert.NotPanics(t, func() { cn, err = clsSync.SynchronizeLargeSegments() })
+	assert.Nil(t, err)
+	assert.Equal(t, result, cn)
+
+	splitStorage.AssertExpectations(t)
+	cacheFlusher.AssertExpectations(t)
+	cacheFlusher.AssertNumberOfCalls(t, "EvictBySurrogate", 1)
+	largeSegmentStorage.AssertExpectations(t)
+	lsUpdater.AssertExpectations(t)
+}
+
+func TestSynchronizeLargeSegmentUpdateNilChangeNumber(t *testing.T) {
+	lsName := "largeSegment1"
+	lsRFDResponseDTO := &dtos.LargeSegmentRFDResponseDTO{Name: lsName}
+
+	var splitStorage mocks.SplitStorageMock
+	var cacheFlusher mocks.CacheFlusherMock // no expectations: any call to EvictBySurrogate would panic
+
+	var largeSegmentStorage mocks.LargeSegmentStorageMock
+	largeSegmentStorage.On("ChangeNumber", lsName).Return(int64(-1)).Once()
+
+	var lsUpdater mocks.LargeSegmentUpdaterMock
+	lsUpdater.On("SynchronizeLargeSegmentUpdate", lsRFDResponseDTO).Return((*int64)(nil), error(nil)).Once()
+
+	clsSync := CacheAwareLargeSegmentSynchronizer{
+		wrapped:             &lsUpdater,
+		cacheFlusher:        &cacheFlusher,
+		largeSegmentStorage: &largeSegmentStorage,
+		splitStorage:        &splitStorage,
+	}
+
+	var cn *int64
+	var err error
+	assert.NotPanics(t, func() { cn, err = clsSync.SynchronizeLargeSegmentUpdate(lsRFDResponseDTO) })
+	assert.Nil(t, err)
+	assert.Nil(t, cn)
+
+	cacheFlusher.AssertNotCalled(t, "EvictBySurrogate", MembershipsSurrogate)
+	largeSegmentStorage.AssertExpectations(t)
+	lsUpdater.AssertExpectations(t)
+}

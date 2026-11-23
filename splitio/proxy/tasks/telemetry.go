@@ -6,7 +6,6 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/internal"
 
 	"github.com/splitio/go-split-commons/v10/service/api"
-	"github.com/splitio/go-toolkit/v5/common"
 	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/go-toolkit/v5/workerpool"
 )
@@ -45,10 +44,11 @@ func (w *TelemetryConfigWorker) DoWork(message interface{}) error {
 }
 
 func newTelemetryConfigWorkerFactory(name string, recorder *api.HTTPTelemetryRecorder, logger logging.LoggerInterface) WorkerFactory {
-	var i *int = common.IntRef(0)
+	i := 0
 	return func() workerpool.Worker {
-		defer func() { *i++ }()
-		return &TelemetryConfigWorker{name: fmt.Sprintf("%s_%d", name, i), logger: logger, recorder: recorder}
+		idx := i
+		i++
+		return &TelemetryConfigWorker{name: fmt.Sprintf("%s_%d", name, idx), logger: logger, recorder: recorder}
 	}
 }
 
@@ -91,16 +91,17 @@ func (w *TelemetryUsageWorker) DoWork(message interface{}) error {
 }
 
 func newTelemetryUsageWorkerFactory(name string, recorder *api.HTTPTelemetryRecorder, logger logging.LoggerInterface) WorkerFactory {
-	var i *int = common.IntRef(0)
+	i := 0
 	return func() workerpool.Worker {
-		defer func() { *i++ }()
-		return &TelemetryUsageWorker{name: fmt.Sprintf("%s_%d", name, i), logger: logger, recorder: recorder}
+		idx := i
+		i++
+		return &TelemetryUsageWorker{name: fmt.Sprintf("%s_%d", name, idx), logger: logger, recorder: recorder}
 	}
 }
 
 // NewTelemetryUsageFlushTask creates a new impressions flushing task
 func NewTelemetryUsageFlushTask(recorder *api.HTTPTelemetryRecorder, logger logging.LoggerInterface, period int, queueSize int, threads int) *DeferredRecordingTaskImpl {
-	return newDeferredFlushTask(logger, newTelemetryUsageWorkerFactory("telemetry-config-worker", recorder, logger), period, queueSize, threads)
+	return newDeferredFlushTask(logger, newTelemetryUsageWorkerFactory("telemetry-usage-worker", recorder, logger), period, queueSize, threads)
 }
 
 // Keys Client Side
@@ -137,10 +138,11 @@ func (w *TelemetryKeysClientSideWorker) DoWork(message interface{}) error {
 }
 
 func newTelemetryKeysClientSideWorkerFactory(name string, recorder *api.HTTPTelemetryRecorder, logger logging.LoggerInterface) WorkerFactory {
-	var i *int = common.IntRef(0)
+	i := 0
 	return func() workerpool.Worker {
-		defer func() { *i++ }()
-		return &TelemetryKeysClientSideWorker{name: fmt.Sprintf("%s_%d", name, i), logger: logger, recorder: recorder}
+		idx := i
+		i++
+		return &TelemetryKeysClientSideWorker{name: fmt.Sprintf("%s_%d", name, idx), logger: logger, recorder: recorder}
 	}
 }
 
@@ -182,15 +184,16 @@ func (w *TelemetryKeysServerSideWorker) DoWork(message interface{}) error {
 	return nil
 }
 
-func newTelemetryKeysServerSideWorkerWorkerFactory(name string, recorder *api.HTTPTelemetryRecorder, logger logging.LoggerInterface) WorkerFactory {
-	var i *int = common.IntRef(0)
+func newTelemetryKeysServerSideWorkerFactory(name string, recorder *api.HTTPTelemetryRecorder, logger logging.LoggerInterface) WorkerFactory {
+	i := 0
 	return func() workerpool.Worker {
-		defer func() { *i++ }()
-		return &TelemetryKeysServerSideWorker{name: fmt.Sprintf("%s_%d", name, i), logger: logger, recorder: recorder}
+		idx := i
+		i++
+		return &TelemetryKeysServerSideWorker{name: fmt.Sprintf("%s_%d", name, idx), logger: logger, recorder: recorder}
 	}
 }
 
 // NewTelemetryKeysServerSideFlushTask creates a new flushing task
 func NewTelemetryKeysServerSideFlushTask(recorder *api.HTTPTelemetryRecorder, logger logging.LoggerInterface, period int, queueSize int, threads int) *DeferredRecordingTaskImpl {
-	return newDeferredFlushTask(logger, newTelemetryKeysServerSideWorkerWorkerFactory("telemetry-keys-server-side-worker", recorder, logger), period, queueSize, threads)
+	return newDeferredFlushTask(logger, newTelemetryKeysServerSideWorkerFactory("telemetry-keys-server-side-worker", recorder, logger), period, queueSize, threads)
 }

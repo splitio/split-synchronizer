@@ -201,9 +201,9 @@ func formatTimeSeriesData(data []*timeSliceTelemetry) TimeSliceData {
 				"telemetryConfig":               newForResource(ts.latencies.telemetryConfig.ReadAll(), ts.statusCodes.telemetryConfig.peek()),
 				"telemetryRuntime":              newForResource(ts.latencies.telemetryRuntime.ReadAll(), ts.statusCodes.telemetryRuntime.peek()),
 				"telemetryBeaconRuntime":        newForResource(ts.latencies.telemetryBeaconRuntime.ReadAll(), ts.statusCodes.telemetryBeaconRuntime.peek()),
-				"telemetryKeysClientSide":       newForResource(ts.latencies.telemetryKeysClientSide.ReadAll(), ts.statusCodes.telemetryRuntime.peek()),
-				"telemetryKeysClientSideBeacon": newForResource(ts.latencies.telemetryKeysClientSideBeacon.ReadAll(), ts.statusCodes.telemetryRuntime.peek()),
-				"telemetryKeysServerSide":       newForResource(ts.latencies.telemetryKeysServerSide.ReadAll(), ts.statusCodes.telemetryRuntime.peek()),
+				"telemetryKeysClientSide":       newForResource(ts.latencies.telemetryKeysClientSide.ReadAll(), ts.statusCodes.telemetryKeysClientSide.peek()),
+				"telemetryKeysClientSideBeacon": newForResource(ts.latencies.telemetryKeysClientSideBeacon.ReadAll(), ts.statusCodes.telemetryKeysClientSideBeacon.peek()),
+				"telemetryKeysServerSide":       newForResource(ts.latencies.telemetryKeysServerSide.ReadAll(), ts.statusCodes.telemetryKeysServerSide.peek()),
 			},
 		})
 	}

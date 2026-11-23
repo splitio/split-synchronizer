@@ -264,9 +264,9 @@ func (p *ProxyEndpointLatenciesImpl) RecordEndpointLatency(endpoint int, latency
 	case EventsBulkBeaconEndpoint:
 		p.eventsBulkBeacon.Incr(bucket)
 	case TelemetryConfigEndpoint:
-		p.telemetryRuntime.Incr(bucket)
-	case TelemetryRuntimeEndpoint:
 		p.telemetryConfig.Incr(bucket)
+	case TelemetryRuntimeEndpoint:
+		p.telemetryRuntime.Incr(bucket)
 	case TelemetryRuntimeBeaconEndpoint:
 		p.telemetryBeaconRuntime.Incr(bucket)
 	case LegacyTimeEndpoint:

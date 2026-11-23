@@ -6,7 +6,6 @@ import (
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/internal"
 
 	"github.com/splitio/go-split-commons/v10/service/api"
-	"github.com/splitio/go-toolkit/v5/common"
 	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/go-toolkit/v5/workerpool"
 )
@@ -43,10 +42,11 @@ func (w *EventWorker) DoWork(message interface{}) error {
 }
 
 func newEventWorkerFactory(name string, recorder *api.HTTPEventsRecorder, logger logging.LoggerInterface) WorkerFactory {
-	var i *int = common.IntRef(0)
+	i := 0
 	return func() workerpool.Worker {
-		defer func() { *i++ }()
-		return &EventWorker{name: fmt.Sprintf("%s_%d", name, i), logger: logger, recorder: recorder}
+		idx := i
+		i++
+		return &EventWorker{name: fmt.Sprintf("%s_%d", name, idx), logger: logger, recorder: recorder}
 	}
 }
 

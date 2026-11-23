@@ -213,7 +213,7 @@ func (c *CacheAwareLargeSegmentSynchronizer) SynchronizeLargeSegment(name string
 		return nil, err
 	}
 
-	c.evictByLargeSegmentSurrogate(previous, *newCN)
+	c.evictByLargeSegmentSurrogate(previous, newCN)
 
 	return newCN, err
 }
@@ -233,7 +233,7 @@ func (c *CacheAwareLargeSegmentSynchronizer) SynchronizeLargeSegments() (map[str
 		return nil, err
 	}
 	for name, currentCN := range results {
-		c.evictByLargeSegmentSurrogate(previousCNs[name], *currentCN)
+		c.evictByLargeSegmentSurrogate(previousCNs[name], currentCN)
 	}
 
 	return results, err
@@ -250,13 +250,17 @@ func (c *CacheAwareLargeSegmentSynchronizer) SynchronizeLargeSegmentUpdate(lsRFD
 		return nil, err
 	}
 
-	c.evictByLargeSegmentSurrogate(previous, *newCN)
+	c.evictByLargeSegmentSurrogate(previous, newCN)
 
 	return newCN, err
 }
 
-func (c *CacheAwareLargeSegmentSynchronizer) evictByLargeSegmentSurrogate(previousCN int64, currentCN int64) {
-	if currentCN > previousCN || currentCN == -1 {
+func (c *CacheAwareLargeSegmentSynchronizer) evictByLargeSegmentSurrogate(previousCN int64, currentCN *int64) {
+	if currentCN == nil {
+		return
+	}
+
+	if *currentCN > previousCN || *currentCN == -1 {
 		c.cacheFlusher.EvictBySurrogate(MembershipsSurrogate)
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/splitio/go-toolkit/v5/logging"
 	"github.com/splitio/split-synchronizer/v5/splitio"
 	"github.com/splitio/split-synchronizer/v5/splitio/common"
 	cconf "github.com/splitio/split-synchronizer/v5/splitio/common/conf"
@@ -76,11 +77,17 @@ func main() {
 		return
 	}
 
+	os.Exit(handleStartError(logger, err))
+}
+
+// handleStartError logs a startup failure and returns the process exit code that should be used
+func handleStartError(logger logging.LoggerInterface, err error) int {
 	var initError *common.InitializationError
 	if errors.As(err, &initError) {
-		logger.Error("Failed to initialize the split sync: ", initError)
-		os.Exit(initError.ExitCode())
+		logger.Error("Failed to initialize the split proxy: ", initError)
+		return initError.ExitCode()
 	}
 
-	os.Exit(common.ExitUndefined)
+	logger.Error("Unexpected error starting split proxy: ", err)
+	return common.ExitUndefined
 }

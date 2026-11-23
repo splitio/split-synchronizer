@@ -3,11 +3,14 @@ package controllers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/splitio/split-synchronizer/v5/splitio/proxy/caching"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/flagsets"
 	"github.com/splitio/split-synchronizer/v5/splitio/proxy/storage"
 	psmocks "github.com/splitio/split-synchronizer/v5/splitio/proxy/storage/mocks"
@@ -23,6 +26,7 @@ import (
 	inmemory "github.com/splitio/go-split-commons/v10/storage/inmemory/mutexmap"
 	"github.com/splitio/go-toolkit/v5/common"
 	"github.com/splitio/go-toolkit/v5/logging"
+	loggingMocks "github.com/splitio/go-toolkit/v5/logging/mocks"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -360,6 +364,56 @@ func TestSplitChangesWithFlagSets(t *testing.T) {
 
 	splitStorage.AssertExpectations(t)
 	splitFetcher.AssertExpectations(t)
+}
+
+func TestSplitChangesFlagSetsUnorderedWarning(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	for _, tc := range []struct {
+		name        string
+		query       string
+		expectWarns int
+	}{
+		{"unordered", "sets=c,b,a", 1},
+		{"duplicates", "sets=a,b,b", 1},
+		{"ordered and unique", "sets=a,b,c", 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var splitStorage psmocks.ProxySplitStorageMock
+			splitStorage.On("ChangesSince", int64(-1), []string{"a", "b", "c"}).
+				Return(&dtos.SplitChangesDTO{Since: -1, Till: 1, Splits: []dtos.SplitDTO{}}, nil).Maybe()
+			splitStorage.On("ChangesSince", int64(-1), []string{"a", "b"}).
+				Return(&dtos.SplitChangesDTO{Since: -1, Till: 1, Splits: []dtos.SplitDTO{}}, nil).Maybe()
+			var rbsStorage psmocks.MockProxyRuleBasedSegmentStorage
+			rbsStorage.On("ChangesSince", int64(-1)).Return(&dtos.RuleBasedSegmentsDTO{}).Once()
+			var largeSegmentStorageMock largeSegmentStorageMock
+
+			var warnings []string
+			logger := &loggingMocks.MockLogger{
+				ErrorCall:   func(msg ...interface{}) {},
+				WarningCall: func(msg ...interface{}) { warnings = append(warnings, fmt.Sprint(msg...)) },
+				InfoCall:    func(msg ...interface{}) {},
+				DebugCall:   func(msg ...interface{}) {},
+				VerboseCall: func(msg ...interface{}) {},
+			}
+
+			resp := httptest.NewRecorder()
+			_, router := gin.CreateTestContext(resp)
+			controller := NewSdkServerController(logger, &mocks.MockSplitFetcher{}, &splitStorage, nil, &rbsStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock, specs.FLAG_V1_2)
+			controller.Register(router.Group("/api"))
+
+			req, _ := http.NewRequest(http.MethodGet, "/api/splitChanges?since=-1&"+tc.query, nil)
+			req.Header.Set("SplitSDKVersion", "go-1.1.1")
+			router.ServeHTTP(resp, req)
+
+			assert.Equal(t, 200, resp.Code)
+			assert.Len(t, warnings, tc.expectWarns)
+			for _, w := range warnings {
+				assert.Contains(t, w, "SDK [go-1.1.1] is sending flagsets unordered or with duplicates.")
+			}
+			splitStorage.AssertNumberOfCalls(t, "ChangesSince", 1) // sanitized (sorted & deduped) sets are passed to storage
+		})
+	}
 }
 
 func TestSplitChangesWithFlagSetsStrict(t *testing.T) {
@@ -731,10 +785,62 @@ func TestMySegmentsError(t *testing.T) {
 	ctx.Request.Header.Set("SplitSDKMachineName", "ip-1-2-3-4")
 	router.ServeHTTP(resp, ctx.Request)
 	assert.Equal(t, 500, resp.Code)
+	assert.JSONEq(t, `{}`, resp.Body.String())
+	assert.Equal(t, "{}", strings.TrimSpace(resp.Body.String())) // no second payload appended after the error
+	assert.NotContains(t, resp.Body.String(), "mySegments")
 
 	splitStorage.AssertExpectations(t)
 	splitFetcher.AssertExpectations(t)
 	segmentStorage.AssertExpectations(t)
+}
+
+func TestMySegmentsErrorIsNotCached(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	var segmentStorage psmocks.ProxySegmentStorageMock
+	segmentStorage.On("SegmentsFor", "someKey").Return([]string(nil), errors.New("something")).Once()
+	segmentStorage.On("SegmentsFor", "someKey").Return([]string{"segment1"}, nil).Once()
+
+	var splitStorage psmocks.ProxySplitStorageMock
+	var rbsStorage psmocks.MockProxyRuleBasedSegmentStorage
+	var largeSegmentStorageMock largeSegmentStorageMock
+
+	resp := httptest.NewRecorder()
+	_, router := gin.CreateTestContext(resp)
+	router.Use(caching.MakeProxyCache().Handle)
+
+	group := router.Group("/api")
+	controller := NewSdkServerController(logging.NewLogger(nil), &mocks.MockSplitFetcher{}, &splitStorage, &segmentStorage, &rbsStorage, flagsets.NewMatcher(false, nil), &largeSegmentStorageMock, specs.FLAG_V1_2)
+	controller.Register(group)
+
+	call := func() *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodGet, "/api/mySegments/someKey", nil)
+		req.Header.Set("Authorization", "Bearer [redacted]")
+		router.ServeHTTP(rec, req)
+		return rec
+	}
+
+	// first call fails: the status must stay 500 (before the fix the handler also wrote a 200 payload,
+	// which made the cache middleware store a corrupted `{}{"mySegments":[]}` entry)
+	first := call()
+	assert.Equal(t, 500, first.Code)
+	assert.NotContains(t, first.Body.String(), "mySegments")
+
+	// second call must hit the storage again (the error wasn't cached) and succeed
+	second := call()
+	assert.Equal(t, 200, second.Code)
+	var ms MSC
+	assert.Nil(t, json.Unmarshal(second.Body.Bytes(), &ms))
+	assert.Equal(t, MSC{MySegments: []dtos.MySegmentDTO{{Name: "segment1"}}}, ms)
+
+	// third call is served from the cache (storage mock only allows 2 calls)
+	third := call()
+	assert.Equal(t, 200, third.Code)
+	assert.JSONEq(t, second.Body.String(), third.Body.String())
+
+	segmentStorage.AssertExpectations(t)
+	segmentStorage.AssertNumberOfCalls(t, "SegmentsFor", 2)
 }
 
 func TestMemberships(t *testing.T) {

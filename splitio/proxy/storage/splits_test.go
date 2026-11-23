@@ -323,6 +323,19 @@ func TestChangesSince(t *testing.T) {
 		assert.ElementsMatch(t, expectedSet1, changes.Splits)
 	}
 
+	// Test case 4b: FlagSets filtering with multiple sets (a flag only in the last requested set must be returned)
+	{
+		changes, err := pss.ChangesSince(15, []string{"set1", "set2"})
+		assert.Nil(t, err)
+		assert.Equal(t, int64(15), changes.Since)
+		assert.Equal(t, int64(20), changes.Till)
+		expected := []dtos.SplitDTO{
+			{Name: "split4", ChangeNumber: 20, Status: "ACTIVE", Sets: []string{"set1"}, TrafficTypeName: "user"},
+			{Name: "split5", ChangeNumber: 20, Status: "ACTIVE", Sets: []string{"set2"}, TrafficTypeName: "user"},
+		}
+		assert.ElementsMatch(t, expected, changes.Splits)
+	}
+
 	// Test case 5: Proper till calculation with multiple changes
 	{
 		// Add changes with different change numbers

@@ -191,7 +191,7 @@ func featureShouldBeReturned(view *FeatureView, since int64, sets []string) bool
 	// compare the sets for intersection of user supplied sets with currently active ones.
 	// takes linear o(len(feature.sets) + len(sets)) time since both the incoming sets are sorted
 	viewFlagSetIndex, requestedSetIndex := 0, 0
-	for viewFlagSetIndex < len(view.FlagSets) {
+	for viewFlagSetIndex < len(view.FlagSets) && requestedSetIndex < len(sets) {
 		switch strings.Compare(view.FlagSets[viewFlagSetIndex].Name, sets[requestedSetIndex]) {
 		case 0: // we got a match
 			fsinfo := view.FlagSets[viewFlagSetIndex]
@@ -203,13 +203,11 @@ func featureShouldBeReturned(view *FeatureView, since int64, sets []string) bool
 				return true
 			}
 			viewFlagSetIndex++
-			incrUpTo(&requestedSetIndex, len(sets))
+			requestedSetIndex++
 		case -1:
 			viewFlagSetIndex++
 		case 1:
-			if incrUpTo(&requestedSetIndex, len(sets)); requestedSetIndex+1 == len(sets) {
-				viewFlagSetIndex++
-			}
+			requestedSetIndex++
 		}
 	}
 	return false
@@ -219,13 +217,6 @@ type FlagSetView struct {
 	Name        string
 	Active      bool
 	LastUpdated int64
-}
-
-func incrUpTo(toIncr *int, limit int) {
-	if *toIncr+1 >= limit {
-		return
-	}
-	*toIncr++
 }
 
 var _ HistoricChanges = (*HistoricChangesImpl)(nil)

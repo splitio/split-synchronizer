@@ -150,3 +150,62 @@ func TestHistoricProxyTelemetry(t *testing.T) {
 		t.Errorf("expected: %+v", string(jsonExp))
 	}
 }
+
+func TestTelemetryEndpointsAreIsolated(t *testing.T) {
+	clk := mockClock{base: time.Now()}
+	timesliced := NewTimeslicedProxyEndpointTelemetry(NewProxyTelemetryFacade(), 60, 5)
+	timesliced.clock = &clk
+
+	// distinct latency buckets for config & runtime
+	timesliced.RecordEndpointLatency(TelemetryConfigEndpoint, 1*time.Nanosecond)
+	timesliced.RecordEndpointLatency(TelemetryRuntimeEndpoint, 5*time.Hour)
+
+	// distinct status codes (and request counts) for runtime & each keys endpoint
+	timesliced.IncrEndpointStatus(TelemetryRuntimeEndpoint, 200)
+	for i := 0; i < 2; i++ {
+		timesliced.IncrEndpointStatus(TelemetryKeysClientSideEndpoint, 201)
+	}
+	for i := 0; i < 3; i++ {
+		timesliced.IncrEndpointStatus(TelemetryKeysClientSideBeaconEndpoint, 202)
+	}
+	for i := 0; i < 4; i++ {
+		timesliced.IncrEndpointStatus(TelemetryKeysServerSideEndpoint, 500)
+	}
+
+	firstBucket := make([]int64, 23)
+	firstBucket[0] = 1
+	lastBucket := make([]int64, 23)
+	lastBucket[22] = 1
+	noLatencies := make([]int64, 23)
+
+	// latencies are bucketed independently
+	if got := timesliced.PeekEndpointLatency(TelemetryConfigEndpoint); !reflect.DeepEqual(firstBucket, got) {
+		t.Errorf("config latencies: expected %v, got %v", firstBucket, got)
+	}
+	if got := timesliced.PeekEndpointLatency(TelemetryRuntimeEndpoint); !reflect.DeepEqual(lastBucket, got) {
+		t.Errorf("runtime latencies: expected %v, got %v", lastBucket, got)
+	}
+
+	report := timesliced.TotalMetricsReport()
+	assertResource := func(name string, expected ForResource) {
+		t.Helper()
+		if got := report[name]; !reflect.DeepEqual(expected, got) {
+			t.Errorf("total report for %s: expected %+v, got %+v", name, expected, got)
+		}
+	}
+	assertResource("telemetryConfig", ForResource{firstBucket, map[int]int64{}, 0})
+	assertResource("telemetryRuntime", ForResource{lastBucket, map[int]int64{200: 1}, 1})
+	assertResource("telemetryKeysClientSide", ForResource{noLatencies, map[int]int64{201: 2}, 2})
+	assertResource("telemetryKeysClientSideBeacon", ForResource{noLatencies, map[int]int64{202: 3}, 3})
+	assertResource("telemetryKeysServerSide", ForResource{noLatencies, map[int]int64{500: 4}, 4})
+
+	sliced := timesliced.TimeslicedReport()
+	if len(sliced) != 1 {
+		t.Fatalf("expected exactly 1 timeslice, got %d", len(sliced))
+	}
+	for name, expected := range report {
+		if got := sliced[0].Resources[name]; !reflect.DeepEqual(expected, got) {
+			t.Errorf("timesliced report for %s: expected %+v, got %+v", name, expected, got)
+		}
+	}
+}

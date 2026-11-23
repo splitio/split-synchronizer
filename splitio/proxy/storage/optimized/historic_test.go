@@ -313,6 +313,65 @@ func copyAndFilterUsingMaps(views []FeatureView, sets map[string]struct{}, since
 	return toRet
 }
 
+func names(views []FeatureView) []string {
+	out := make([]string, 0, len(views))
+	for idx := range views {
+		out = append(out, views[idx].Name)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func TestHistoricMultipleFlagSetsFilter(t *testing.T) {
+	var historic HistoricChangesImpl
+	historic.Update([]dtos.SplitDTO{
+		{Name: "fA", Sets: []string{"a"}, Status: "ACTIVE", ChangeNumber: 1},
+		{Name: "fB", Sets: []string{"b"}, Status: "ACTIVE", ChangeNumber: 1},
+		{Name: "fC", Sets: []string{"c"}, Status: "ACTIVE", ChangeNumber: 1},
+		{Name: "fD", Sets: []string{"d"}, Status: "ACTIVE", ChangeNumber: 1},
+		{Name: "fAC", Sets: []string{"a", "c"}, Status: "ACTIVE", ChangeNumber: 1},
+		{Name: "fNone", Status: "ACTIVE", ChangeNumber: 1},
+	}, nil, 1)
+
+	// two sets: the flag that only belongs to the last requested set must be returned
+	assert.Equal(t, []string{"fA", "fAC", "fB"}, names(historic.GetUpdatedSince(-1, []string{"a", "b"})))
+
+	// three sets: flags in a, b & c are returned, the one only in d is not
+	assert.Equal(t, []string{"fA", "fAC", "fB", "fC"}, names(historic.GetUpdatedSince(-1, []string{"a", "b", "c"})))
+
+	// requested sets that don't exist in any flag, interleaved with ones that do
+	assert.Equal(t, []string{"fB", "fD"}, names(historic.GetUpdatedSince(-1, []string{"aa", "b", "bb", "d", "z"})))
+	assert.Empty(t, historic.GetUpdatedSince(-1, []string{"x", "y", "z"}))
+
+	// single set & no filter keep working
+	assert.Equal(t, []string{"fB"}, names(historic.GetUpdatedSince(-1, []string{"b"})))
+	assert.Equal(t, []string{"fA", "fAC", "fB", "fC", "fD", "fNone"}, names(historic.GetUpdatedSince(-1, nil)))
+}
+
+func TestHistoricMultipleFlagSetsInactiveAssociation(t *testing.T) {
+	var historic HistoricChangesImpl
+	historic.Update([]dtos.SplitDTO{
+		{Name: "fA", Sets: []string{"a"}, Status: "ACTIVE", ChangeNumber: 1},
+		{Name: "fB", Sets: []string{"b"}, Status: "ACTIVE", ChangeNumber: 1},
+	}, nil, 1)
+
+	// fB is removed from set `b` at CN=4 (it's still an active flag, but no longer associated)
+	historic.Update([]dtos.SplitDTO{
+		{Name: "fB", Sets: []string{}, Status: "ACTIVE", ChangeNumber: 4},
+	}, nil, 4)
+
+	sets := []string{"a", "b"}
+
+	// fetching from scratch: the inactive association is not considered
+	assert.Equal(t, []string{"fA"}, names(historic.GetUpdatedSince(-1, sets)))
+
+	// association was active at since=2 and isn't now: the flag must be returned so SDKs can drop it from the set
+	assert.Equal(t, []string{"fB"}, names(historic.GetUpdatedSince(2, sets)))
+
+	// association was already inactive at since=4: nothing to report
+	assert.Empty(t, historic.GetUpdatedSince(4, sets))
+}
+
 func BenchmarkFlagSetProcessing(b *testing.B) {
 
 	b.Run("sorted-slice", func(b *testing.B) {
