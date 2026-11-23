@@ -108,6 +108,17 @@ func hostOf(addr string) string {
 	return host
 }
 
+// addressServerName returns the host of the first sentinel address, or of the first cluster node, or an empty string
+func addressServerName(opt *conf.Redis) string {
+	if opt.SentinelReplication {
+		return hostOf(firstAddress(splitAddresses(opt.SentinelAddresses)))
+	}
+	if opt.ClusterMode {
+		return hostOf(firstAddress(splitAddresses(opt.ClusterNodes)))
+	}
+	return ""
+}
+
 // parseTLSConfig builds the TLS config; strict adds the TLS 1.2 floor and the sentinel/cluster server name default
 func parseTLSConfig(opt *conf.Redis, strict bool) (*tls.Config, error) {
 	if !opt.TLS {
@@ -118,17 +129,11 @@ func parseTLSConfig(opt *conf.Redis, strict bool) (*tls.Config, error) {
 	if strict {
 		cfg.MinVersion = tls.VersionTLS12
 	}
+	if cfg.ServerName == "" && strict {
+		cfg.ServerName = addressServerName(opt)
+	}
 	if cfg.ServerName == "" {
 		cfg.ServerName = opt.Host
-	}
-	if strict && cfg.ServerName == "" {
-		var first string
-		if opt.SentinelReplication {
-			first = firstAddress(splitAddresses(opt.SentinelAddresses))
-		} else if opt.ClusterMode {
-			first = firstAddress(splitAddresses(opt.ClusterNodes))
-		}
-		cfg.ServerName = hostOf(first)
 	}
 
 	if len(opt.TLSCACertificates) > 0 {

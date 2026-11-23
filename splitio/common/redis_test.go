@@ -156,8 +156,28 @@ func TestParseRedisStateOptionsTLSServerNameDefault(t *testing.T) {
 			expected: "custom.example",
 		},
 		{
-			name:     "host wins over addresses",
-			cfg:      conf.Redis{TLS: true, Host: "h.example", ClusterMode: true, ClusterNodes: "c1.example:6379"},
+			name:     "sentinel host wins over default localhost host",
+			cfg:      conf.Redis{TLS: true, Host: "localhost", SentinelReplication: true, SentinelAddresses: "s1.example:26379", SentinelMaster: "m"},
+			expected: "s1.example",
+		},
+		{
+			name:     "cluster node wins over default localhost host",
+			cfg:      conf.Redis{TLS: true, Host: "localhost", ClusterMode: true, ClusterNodes: "c1.example:6379"},
+			expected: "c1.example",
+		},
+		{
+			name:     "explicit server name wins over sentinel addresses",
+			cfg:      conf.Redis{TLS: true, TLSServerName: "custom.example", Host: "localhost", SentinelReplication: true, SentinelAddresses: "s1.example:26379", SentinelMaster: "m"},
+			expected: "custom.example",
+		},
+		{
+			name:     "host is used when neither sentinel nor cluster is set",
+			cfg:      conf.Redis{TLS: true, Host: "h.example", SentinelAddresses: "s1.example:26379", ClusterNodes: "c1.example:6379"},
+			expected: "h.example",
+		},
+		{
+			name:     "host is used when sentinel list is empty",
+			cfg:      conf.Redis{TLS: true, Host: "h.example", SentinelReplication: true, SentinelAddresses: " , "},
 			expected: "h.example",
 		},
 	}
@@ -171,6 +191,24 @@ func TestParseRedisStateOptionsTLSServerNameDefault(t *testing.T) {
 				assert.Equal(t, tc.expected, tlsCfg.ServerName)
 			}
 		})
+	}
+}
+
+func TestParseTLSConfigNonStrictServerName(t *testing.T) {
+	cfg := conf.Redis{TLS: true, Host: "localhost", SentinelReplication: true, SentinelAddresses: "s1.example:26379", SentinelMaster: "m"}
+	tlsCfg, err := parseTLSConfig(&cfg, false)
+	assert.NoError(t, err)
+	if assert.NotNil(t, tlsCfg) {
+		assert.Equal(t, "localhost", tlsCfg.ServerName)
+	}
+}
+
+func TestParseTLSConfigDisabledReturnsNil(t *testing.T) {
+	for _, strict := range []bool{true, false} {
+		cfg := conf.Redis{Host: "localhost", SentinelReplication: true, SentinelAddresses: "s1.example:26379"}
+		tlsCfg, err := parseTLSConfig(&cfg, strict)
+		assert.NoError(t, err)
+		assert.Nil(t, tlsCfg)
 	}
 }
 
